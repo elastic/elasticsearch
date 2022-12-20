@@ -19,6 +19,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -49,6 +52,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -344,6 +348,107 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         for (Transport.Connection connection : connections) {
             assertTrue(connection.isClosed());
         }
+    }
+
+    public void testConcurrentConnectsDuringClose() throws Exception {
+        final var pendingConnectionPermits = new Semaphore(0);
+        final var pendingConnections = ConcurrentCollections.<Runnable>newQueue();
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            final var targetNode = (DiscoveryNode) invocationOnMock.getArguments()[0];
+            pendingConnections.add(() -> listener.onResponse(new TestConnect(targetNode)));
+            pendingConnectionPermits.release();
+            return null;
+        }).when(transport).openConnection(any(), eq(connectionProfile), anyActionListener());
+
+        final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
+
+        // we create a situation where there's always at least one pending connection by having the main thread acquire one of the
+        // permits; on closing, the connection manager should not wait for all connection-initiation refs to be released (because this will
+        // never happen), it should start rejecting connections straight away. Once we start to see connections being rejected, we
+        // release the main thread's permit to allow the last connection attempt to complete
+
+        final var connectionLoops = between(2, 4);
+        final var connectionLoopCountDown = new CountDownLatch(connectionLoops);
+        final var onConnectException = new RunOnce(pendingConnectionPermits::release);
+
+        class ConnectionLoop extends AbstractRunnable {
+            private final boolean useConnectToNode = randomBoolean();
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                final var discoveryNode = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+                final var listener = new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        releasable.close();
+                        threadPool.generic().execute(ConnectionLoop.this);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e, instanceOf(ConnectTransportException.class));
+                        assertThat(e.getMessage(), containsString("connection manager is closed"));
+                        onConnectException.run();
+                        connectionLoopCountDown.countDown();
+                    }
+                };
+
+                if (useConnectToNode) {
+                    connectionManager.connectToNode(discoveryNode, connectionProfile, validator, listener);
+                } else {
+                    connectionManager.openConnection(discoveryNode, connectionProfile, listener.map(c -> c::close));
+                }
+            }
+        }
+
+        for (int i = 0; i < connectionLoops; i++) {
+            threadPool.generic().execute(new ConnectionLoop());
+        }
+
+        final var completionThread = new Thread(() -> {
+            while (true) {
+                try {
+                    assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    while (pendingConnectionPermits.tryAcquire()) {
+                        pendingConnections.poll().run();
+                    }
+                    return;
+                }
+                // noinspection ConstantConditions
+                pendingConnections.poll().run();
+            }
+        });
+        completionThread.start();
+
+        assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
+        Releasables.closeExpectNoException(
+            PlainActionFuture.<Releasable, RuntimeException>get(
+                fut -> connectionManager.connectToNode(
+                    new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT),
+                    connectionProfile,
+                    validator,
+                    fut
+                ),
+                30,
+                TimeUnit.SECONDS
+            )
+        );
+
+        connectionManager.close();
+        assertTrue(connectionLoopCountDown.await(10, TimeUnit.SECONDS));
+        completionThread.interrupt();
+        completionThread.join();
+        assertTrue(pendingConnections.isEmpty());
     }
 
     public void testConcurrentConnectsAndDisconnects() throws Exception {

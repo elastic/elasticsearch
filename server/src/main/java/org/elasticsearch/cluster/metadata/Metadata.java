@@ -2415,6 +2415,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         }
                     }
                 }
+                if (currentDataStream.getAliases().size() != updatedDataStream.getAliases().size()) {
+                    // This happens if an alias has been removed
+                    madeUpdate = true;
+                }
             }
             if (madeUpdate) {
                 return new DataStreamMetadata(

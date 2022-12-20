@@ -10,6 +10,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.integrity.VerifyRepositoryIntegrityAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * An interface for interacting with a repository in snapshot and restore.
@@ -313,9 +316,12 @@ public interface Repository extends LifecycleComponent {
     }
 
     default void verifyMetadataIntegrity(
+        Client client,
+        Supplier<RecyclerBytesStreamOutput> bytesStreamOutputSupplier,
         VerifyRepositoryIntegrityAction.Request request,
-        ActionListener<List<RepositoryVerificationException>> listener,
-        BooleanSupplier isCancelledSupplier
+        ActionListener<Void> listener,
+        BooleanSupplier isCancelledSupplier,
+        Consumer<Supplier<VerifyRepositoryIntegrityAction.Status>> statusSupplierConsumer
     ) {
         listener.onFailure(new UnsupportedOperationException("this repository type does not support metadata integrity verification"));
     }

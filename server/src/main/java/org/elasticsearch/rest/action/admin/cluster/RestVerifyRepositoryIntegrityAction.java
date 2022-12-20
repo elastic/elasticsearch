@@ -8,13 +8,15 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.integrity.VerifyRepositoryIntegrityAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,16 +39,20 @@ public class RestVerifyRepositoryIntegrityAction extends BaseRestHandler {
         final var verifyRequest = new VerifyRepositoryIntegrityAction.Request(
             request.param("repository"),
             request.paramAsStringArray("indices", Strings.EMPTY_ARRAY),
-            request.paramAsInt("threadpool_concurrency", 0),
-            request.paramAsInt("snapshot_verification_concurrency", 5),
-            request.paramAsInt("index_verification_concurrency", 5),
-            request.paramAsInt("index_snapshot_verification_concurrency", 5),
-            request.paramAsInt("max_failures", 10000),
-            request.paramAsBoolean("permit_missing_snapshot_details", false)
+            request.paramAsInt("thread_pool_concurrency", 0),
+            request.paramAsInt("snapshot_verification_concurrency", 0),
+            request.paramAsInt("index_verification_concurrency", 0),
+            request.paramAsInt("index_snapshot_verification_concurrency", 0)
         );
         verifyRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRequest.masterNodeTimeout()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-            .cluster()
-            .execute(VerifyRepositoryIntegrityAction.INSTANCE, verifyRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> {
+            final var task = client.executeLocally(VerifyRepositoryIntegrityAction.INSTANCE, verifyRequest, ActionListener.noop());
+            try (var builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", new TaskId(client.getLocalNodeId(), task.getId()).toString());
+                builder.endObject();
+                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 }

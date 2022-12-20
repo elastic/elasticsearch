@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.integrity;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -16,81 +15,69 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoryVerificationException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Supplier;
 
-public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepositoryIntegrityAction.Response> {
+public class VerifyRepositoryIntegrityAction extends ActionType<ActionResponse.Empty> {
 
     public static final VerifyRepositoryIntegrityAction INSTANCE = new VerifyRepositoryIntegrityAction();
     public static final String NAME = "cluster:admin/repository/verify_integrity";
 
     private VerifyRepositoryIntegrityAction() {
-        super(NAME, VerifyRepositoryIntegrityAction.Response::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private final String repository;
         private final String[] indices;
-        private final int threadpoolConcurrency;
+        private final int threadPoolConcurrency;
         private final int snapshotVerificationConcurrency;
         private final int indexVerificationConcurrency;
         private final int indexSnapshotVerificationConcurrency;
-        private final int maxFailures;
-        private final boolean permitMissingSnapshotDetails;
 
         public Request(
             String repository,
             String[] indices,
-            int threadpoolConcurrency,
+            int threadPoolConcurrency,
             int snapshotVerificationConcurrency,
             int indexVerificationConcurrency,
-            int indexSnapshotVerificationConcurrency,
-            int maxFailures,
-            boolean permitMissingSnapshotDetails
+            int indexSnapshotVerificationConcurrency
         ) {
             this.repository = repository;
             this.indices = Objects.requireNonNull(indices, "indices");
-            this.threadpoolConcurrency = requireMin("threadpoolConcurrency", 0, threadpoolConcurrency);
-            this.snapshotVerificationConcurrency = requireMin("snapshotVerificationConcurrency", 1, snapshotVerificationConcurrency);
-            this.indexVerificationConcurrency = requireMin("indexVerificationConcurrency", 1, indexVerificationConcurrency);
-            this.indexSnapshotVerificationConcurrency = requireMin(
+            this.threadPoolConcurrency = requireNonNegative("threadPoolConcurrency", threadPoolConcurrency);
+            this.snapshotVerificationConcurrency = requireNonNegative("snapshotVerificationConcurrency", snapshotVerificationConcurrency);
+            this.indexVerificationConcurrency = requireNonNegative("indexVerificationConcurrency", indexVerificationConcurrency);
+            this.indexSnapshotVerificationConcurrency = requireNonNegative(
                 "indexSnapshotVerificationConcurrency",
-                1,
                 indexSnapshotVerificationConcurrency
             );
-            this.maxFailures = requireMin("maxFailure", 1, maxFailures);
-            this.permitMissingSnapshotDetails = permitMissingSnapshotDetails;
         }
 
-        private static int requireMin(String name, int min, int value) {
-            if (value < min) {
-                throw new IllegalArgumentException("argument [" + name + "] must be at least [" + min + "]");
+        private static int requireNonNegative(String name, int value) {
+            if (value < 0) {
+                throw new IllegalArgumentException("argument [" + name + "] must be at least [0]");
             }
             return value;
         }
@@ -99,12 +86,10 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             super(in);
             this.repository = in.readString();
             this.indices = in.readStringArray();
-            this.threadpoolConcurrency = in.readVInt();
+            this.threadPoolConcurrency = in.readVInt();
             this.snapshotVerificationConcurrency = in.readVInt();
             this.indexVerificationConcurrency = in.readVInt();
             this.indexSnapshotVerificationConcurrency = in.readVInt();
-            this.maxFailures = in.readVInt();
-            this.permitMissingSnapshotDetails = in.readBoolean();
         }
 
         @Override
@@ -112,12 +97,10 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             super.writeTo(out);
             out.writeString(repository);
             out.writeStringArray(indices);
-            out.writeVInt(threadpoolConcurrency);
+            out.writeVInt(threadPoolConcurrency);
             out.writeVInt(snapshotVerificationConcurrency);
             out.writeVInt(indexVerificationConcurrency);
             out.writeVInt(indexSnapshotVerificationConcurrency);
-            out.writeVInt(maxFailures);
-            out.writeBoolean(permitMissingSnapshotDetails);
         }
 
         @Override
@@ -127,7 +110,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+            return new VerifyRepositoryIntegrityAction.Task(id, type, action, getDescription(), parentTaskId, headers);
         }
 
         public String getRepository() {
@@ -138,8 +121,8 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             return indices;
         }
 
-        public int getThreadpoolConcurrency() {
-            return threadpoolConcurrency;
+        public int getThreadPoolConcurrency() {
+            return threadPoolConcurrency;
         }
 
         public int getSnapshotVerificationConcurrency() {
@@ -154,82 +137,126 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             return indexSnapshotVerificationConcurrency;
         }
 
-        public int getMaxFailures() {
-            return maxFailures;
-        }
-
-        public boolean permitMissingSnapshotDetails() {
-            return permitMissingSnapshotDetails;
-        }
-
-        public Request withDefaultThreadpoolConcurrency(Settings settings) {
-            if (threadpoolConcurrency == 0) {
-                final var request = new Request(
-                    repository,
-                    indices,
-                    Math.max(1, EsExecutors.allocatedProcessors(settings) / 2),
-                    snapshotVerificationConcurrency,
-                    indexVerificationConcurrency,
-                    indexSnapshotVerificationConcurrency,
-                    maxFailures,
-                    permitMissingSnapshotDetails
-                );
-                request.masterNodeTimeout(masterNodeTimeout());
-                return request;
-            } else {
+        public Request withDefaultThreadpoolConcurrency(ThreadPool.Info threadPoolInfo) {
+            if (threadPoolConcurrency > 0
+                && snapshotVerificationConcurrency > 0
+                && indexVerificationConcurrency > 0
+                && indexSnapshotVerificationConcurrency > 0) {
                 return this;
             }
+
+            final var maxThreads = Math.max(1, threadPoolInfo.getMax());
+            final var halfMaxThreads = Math.max(1, maxThreads / 2);
+            final var request = new Request(
+                repository,
+                indices,
+                threadPoolConcurrency > 0 ? threadPoolConcurrency : halfMaxThreads,
+                snapshotVerificationConcurrency > 0 ? snapshotVerificationConcurrency : halfMaxThreads,
+                indexVerificationConcurrency > 0 ? indexVerificationConcurrency : maxThreads,
+                indexSnapshotVerificationConcurrency > 0 ? indexSnapshotVerificationConcurrency : 1
+            );
+            request.masterNodeTimeout(masterNodeTimeout());
+            return request;
         }
     }
 
-    public static class Response extends ActionResponse implements ChunkedToXContent {
+    public record Status(
+        String repositoryName,
+        long repositoryGeneration,
+        String repositoryUUID,
+        long snapshotCount,
+        long snapshotsVerified,
+        long indexCount,
+        long indicesVerified,
+        long indexSnapshotCount,
+        long indexSnapshotsVerified,
+        long anomalyCount
+    ) implements org.elasticsearch.tasks.Task.Status {
 
-        private final List<RepositoryVerificationException> exceptions;
+        public static String NAME = "verify_repository_status";
 
-        public Response(List<RepositoryVerificationException> exceptions) {
-            this.exceptions = exceptions;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.exceptions = in.readList(RepositoryVerificationException::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(exceptions);
-        }
-
-        @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-            return Iterators.concat(
-                Iterators.single((builder, params) -> builder.startObject().startArray("errors")),
-                exceptions.stream().<ToXContent>map(e -> (builder, params) -> {
-                    builder.startObject();
-                    ElasticsearchException.generateFailureXContent(builder, params, e, true);
-                    return builder.endObject();
-                }).iterator(),
-                Iterators.single((builder, params) -> builder.endArray().endObject())
+        public Status(StreamInput in) throws IOException {
+            this(
+                in.readString(),
+                in.readVLong(),
+                in.readString(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong()
             );
         }
 
         @Override
-        public RestStatus getRestStatus() {
-            if (exceptions.isEmpty()) {
-                return RestStatus.OK;
-            } else {
-                return RestStatus.INTERNAL_SERVER_ERROR;
-            }
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(repositoryName);
+            out.writeVLong(repositoryGeneration);
+            out.writeString(repositoryUUID);
+            out.writeVLong(snapshotCount);
+            out.writeVLong(snapshotsVerified);
+            out.writeVLong(indexCount);
+            out.writeVLong(indicesVerified);
+            out.writeVLong(indexSnapshotCount);
+            out.writeVLong(indexSnapshotsVerified);
+            out.writeVLong(anomalyCount);
         }
 
-        public List<RepositoryVerificationException> getExceptions() {
-            return exceptions;
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("repository");
+            builder.field("name", repositoryName);
+            builder.field("uuid", repositoryUUID);
+            builder.field("generation", repositoryGeneration);
+            builder.endObject();
+            builder.startObject("snapshots");
+            builder.field("verified", snapshotsVerified);
+            builder.field("total", snapshotCount);
+            builder.endObject();
+            builder.startObject("indices");
+            builder.field("verified", indicesVerified);
+            builder.field("total", indexCount);
+            builder.endObject();
+            builder.startObject("index_snapshots");
+            builder.field("verified", indexSnapshotsVerified);
+            builder.field("total", indexSnapshotCount);
+            builder.endObject();
+            builder.field("anomalies", anomalyCount);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
+    public static class Task extends CancellableTask {
+
+        private volatile Supplier<VerifyRepositoryIntegrityAction.Status> statusSupplier;
+
+        public Task(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+            super(id, type, action, description, parentTaskId, headers);
+        }
+
+        public void setStatusSupplier(Supplier<VerifyRepositoryIntegrityAction.Status> statusSupplier) {
+            this.statusSupplier = statusSupplier;
+        }
+
+        @Override
+        public Status getStatus() {
+            return Optional.ofNullable(statusSupplier).map(Supplier::get).orElse(null);
+        }
+    }
+
+    public static class TransportAction extends TransportMasterNodeReadAction<Request, ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
+        private final NodeClient client;
 
         @Inject
         public TransportAction(
@@ -238,7 +265,8 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            NodeClient client
         ) {
             super(
                 NAME,
@@ -249,10 +277,11 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
                 actionFilters,
                 Request::new,
                 indexNameExpressionResolver,
-                Response::new,
+                in -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.SNAPSHOT_META
             );
             this.repositoriesService = repositoriesService;
+            this.client = client;
         }
 
         @Override
@@ -261,14 +290,33 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
         }
 
         @Override
-        protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(
+            org.elasticsearch.tasks.Task task,
+            Request request,
+            ClusterState state,
+            ActionListener<ActionResponse.Empty> listener
+        ) throws Exception {
             // TODO add mechanism to block blob deletions while this is running
-            final var cancellableTask = (CancellableTask) task;
+            final var verifyTask = (Task) task;
+
+            final ClusterStateListener noLongerMasterListener = event -> {
+                if (event.localNodeMaster() == false) {
+                    transportService.getTaskManager().cancel(verifyTask, "no longer master", () -> {});
+                }
+            };
+            clusterService.addListener(noLongerMasterListener);
+
             repositoriesService.repository(request.getRepository())
                 .verifyMetadataIntegrity(
-                    request.withDefaultThreadpoolConcurrency(clusterService.getSettings()),
-                    listener.map(Response::new),
-                    cancellableTask::isCancelled
+                    client,
+                    transportService::newNetworkBytesStream,
+                    request.withDefaultThreadpoolConcurrency(clusterService.threadPool().info(ThreadPool.Names.SNAPSHOT_META)),
+                    ActionListener.runAfter(
+                        listener.map(ignored -> ActionResponse.Empty.INSTANCE),
+                        () -> clusterService.removeListener(noLongerMasterListener)
+                    ),
+                    verifyTask::isCancelled,
+                    verifyTask::setStatusSupplier
                 );
         }
     }

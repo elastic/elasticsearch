@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -27,8 +28,6 @@ public final class RestChunkedToXContentListener<Response extends ChunkedToXCont
 
     @Override
     protected void processResponse(Response response) throws IOException {
-        channel.sendResponse(
-            new RestResponse(response.getRestStatus(), ChunkedRestResponseBody.fromXContent(response, channel.request(), channel))
-        );
+        channel.sendResponse(new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(response, channel.request(), channel)));
     }
 }

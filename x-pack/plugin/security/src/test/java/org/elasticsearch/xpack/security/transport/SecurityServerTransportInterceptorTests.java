@@ -83,6 +83,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -843,12 +844,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {
-        return randomFrom(
-            new Tuple<>(SearchAction.NAME, mock(SearchRequest.class)),
-            new Tuple<>(SearchTransportService.QUERY_ACTION_NAME, mock(ShardSearchRequest.class)),
-            new Tuple<>(SearchTransportService.FETCH_ID_ACTION_NAME, mock(ShardFetchRequest.class)),
-            new Tuple<>(ClusterSearchShardsAction.NAME, mock(ClusterSearchShardsRequest.class))
-        );
+        final String action = randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST.toArray(new String[0]));
+        return new Tuple<>(action, mock(TransportRequest.class));
     }
 
     private String[] randomRoles() {

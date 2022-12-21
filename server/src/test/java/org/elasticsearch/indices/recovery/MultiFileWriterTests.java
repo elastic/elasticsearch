@@ -108,6 +108,7 @@ public class MultiFileWriterTests extends IndexShardTestCase {
     }
 
     private static StoreFileMetadata withWrongChecksum(StoreFileMetadata metadata) {
-        return new StoreFileMetadata(metadata.name(), metadata.length(), randomAlphaOfLength(6), metadata.writtenBy());
+        var newChecksum = randomValueOtherThan(metadata.checksum(), () -> randomAlphaOfLength(6));
+        return new StoreFileMetadata(metadata.name(), metadata.length(), newChecksum, metadata.writtenBy());
     }
 }

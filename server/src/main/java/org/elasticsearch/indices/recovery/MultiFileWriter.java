@@ -95,7 +95,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         tempFileNames.put(tempFileName, fileName);
 
         incRef();
-        try (IndexOutput indexOutput = createIndexOutput(tempFileName, fileMetadata)) {
+        try (IndexOutput indexOutput = createIndexOutput(tempFileName, fileMetadata, IOContext.DEFAULT)) {
             int bufferSize = Math.toIntExact(Math.min(readSnapshotFileBufferSize, fileMetadata.length()));
             byte[] buffer = new byte[bufferSize];
             int length;
@@ -121,7 +121,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             assert Arrays.asList(store.directory().listAll()).contains(tempFileName)
                 : "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
             store.directory().sync(Collections.singleton(tempFileName));
-        } catch (Exception e) {
+        } catch (IOException e) {
             tempFileNames.remove(tempFileName);
             store.deleteQuiet(tempFileName);
             indexState.resetRecoveredBytesOfFile(fileName);
@@ -131,10 +131,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata) throws IOException {
+    private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata, IOContext context) throws IOException {
         return verifyOutput
-            ? store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)
-            : store.directory().createOutput(tempFileName, IOContext.DEFAULT);
+            ? store.createVerifyingOutput(tempFileName, fileMetadata, context)
+            : store.directory().createOutput(tempFileName, context);
     }
 
     /** Get a temporary name for the provided file name. */

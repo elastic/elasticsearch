@@ -30,17 +30,11 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
 
     private final LongArrayStateSerializer serializer;
 
-    LongArrayState(long initialDefaultValue) {
-        this(new long[1], initialDefaultValue, BigArrays.NON_RECYCLING_INSTANCE);
-    }
-
-    LongArrayState(long[] values, long initialDefaultValue, BigArrays bigArrays) {
-        this.values = bigArrays.newLongArray(values.length, false);
-        for (int i = 0; i < values.length; i++) {
-            this.values.set(i, values[i]);
-        }
-        this.initialDefaultValue = initialDefaultValue;
+    LongArrayState(BigArrays bigArrays, long initialDefaultValue) {
         this.bigArrays = bigArrays;
+        this.values = bigArrays.newLongArray(1, false);
+        this.values.set(0, initialDefaultValue);
+        this.initialDefaultValue = initialDefaultValue;
         this.serializer = new LongArrayStateSerializer();
     }
 

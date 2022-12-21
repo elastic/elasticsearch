@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -21,6 +22,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Makes sure that the circuit breaker is "plugged in" to ESQL by configuring an
@@ -63,11 +65,19 @@ public class EsqlActionBreakerIT extends ESIntegTestCase {
         }
         client().admin().indices().prepareRefresh("test").get();
         ensureYellow("test");
-        Exception e = expectThrows(
-            CircuitBreakingException.class,
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
             () -> EsqlActionIT.run("from test | stats avg(foo) by bar", Settings.EMPTY)
         );
         logger.info("expected error", e);
-        assertThat(e.getMessage(), containsString("Data too large"));
+        if (e instanceof CircuitBreakingException) {
+            // The failure occurred before starting the drivers
+            assertThat(e.getMessage(), containsString("Data too large"));
+        } else {
+            // The failure occurred after starting the drivers
+            assertThat(e.getMessage(), containsString("compute engine failure"));
+            assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+            assertThat(e.getCause().getMessage(), containsString("Data too large"));
+        }
     }
 }

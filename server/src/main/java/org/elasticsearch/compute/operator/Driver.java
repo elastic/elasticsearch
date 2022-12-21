@@ -8,10 +8,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
@@ -19,8 +21,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +45,9 @@ public class Driver implements Runnable, Releasable {
 
     private final List<Operator> activeOperators;
     private final Releasable releasable;
+
+    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
 
     /**
      * Creates a new driver with a chain of operators.
@@ -71,6 +81,9 @@ public class Driver implements Runnable, Releasable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     public ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
+        if (cancelled.get()) {
+            throw new CancellationException();
+        }
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
         int iter = 0;
@@ -133,10 +146,18 @@ public class Driver implements Runnable, Releasable {
 
         for (int index = activeOperators.size() - 1; index >= 0; index--) {
             if (activeOperators.get(index).isFinished()) {
-                // close and remove this operator and all source operators
+                /*
+                 * Close and remove this operator and all source operators in the
+                 * most paranoid possible way. Closing operators shouldn't throw,
+                 * but if it does, this will make sure we don't try to close any
+                 * that succeed twice.
+                 */
                 List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
-                finishedOperators.stream().forEach(Operator::close);
-                finishedOperators.clear();
+                Iterator<Operator> itr = finishedOperators.iterator();
+                while (itr.hasNext()) {
+                    itr.next().close();
+                    itr.remove();
+                }
 
                 // Finish the next operator, which is now the first operator.
                 if (activeOperators.isEmpty() == false) {
@@ -155,44 +176,117 @@ public class Driver implements Runnable, Releasable {
         return Operator.NOT_BLOCKED;
     }
 
-    public static void runToCompletion(Executor executor, List<Driver> drivers) {
-        // TODO maybe this and run should be move to test code. That would make it a bit easier to reason about what they are "for"
-        start(executor, drivers).actionGet();
-    }
-
-    public static ListenableActionFuture<Void> start(Executor executor, List<Driver> drivers) {
+    public static void start(Executor executor, List<Driver> drivers, Consumer<List<Result>> listener) {
+        if (drivers.isEmpty()) {
+            listener.accept(List.of());
+            return;
+        }
         TimeValue maxTime = TimeValue.timeValueMillis(200);
         int maxIterations = 10000;
-        List<ListenableActionFuture<Void>> futures = new ArrayList<>();
-        for (Driver driver : drivers) {
-            futures.add(schedule(maxTime, maxIterations, executor, driver));
+        CountDown counter = new CountDown(drivers.size());
+        AtomicArray<Result> results = new AtomicArray<>(drivers.size());
+
+        for (int d = 0; d < drivers.size(); d++) {
+            int index = d;
+            schedule(maxTime, maxIterations, executor, drivers.get(d), new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    results.setOnce(index, Result.success());
+                    if (counter.countDown()) {
+                        done();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    drivers.stream().forEach(d -> {
+                        synchronized (d) {
+                            d.cancelled.set(true);
+                            ListenableActionFuture<Void> fut = d.blocked.get();
+                            if (fut != null) {
+                                fut.onFailure(new CancellationException());
+                            }
+                        }
+                    });
+                    results.set(index, Result.failure(e));
+                    if (counter.countDown()) {
+                        done();
+                    }
+                }
+
+                private void done() {
+                    listener.accept(results.asList());
+                }
+            });
         }
-        return Driver.allOf(futures);
     }
 
-    private static ListenableActionFuture<Void> schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver) {
-        ListenableActionFuture<Void> future = new ListenableActionFuture<>();
-        executor.execute(new ActionRunnable<>(future) {
+    public static class Result {
+        public static RuntimeException collectFailures(List<Driver.Result> results) {
+            List<Exception> failures = results.stream().filter(r -> r.isSuccess() == false).map(r -> r.getFailure()).toList();
+            if (failures.isEmpty()) {
+                return null;
+            }
+            List<Exception> failuresToReport = failures.stream().filter(e -> e instanceof CancellationException == false).toList();
+            failuresToReport = failuresToReport.isEmpty() ? failures : failuresToReport;
+            Iterator<Exception> e = failuresToReport.iterator();
+            ElasticsearchException result = new ElasticsearchException("compute engine failure", e.next());
+            while (e.hasNext()) {
+                result.addSuppressed(e.next());
+            }
+            return result;
+        }
+
+        static Result success() {
+            return new Result(null);
+        }
+
+        static Result failure(Exception e) {
+            return new Result(e);
+        }
+
+        private final Exception failure;
+
+        private Result(Exception failure) {
+            this.failure = failure;
+        }
+
+        public boolean isSuccess() {
+            return failure == null;
+        }
+
+        public Exception getFailure() {
+            if (failure == null) {
+                throw new IllegalStateException("not a failure");
+            }
+            return failure;
+        }
+    }
+
+    private static void schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver, ActionListener<Void> listener) {
+        executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
-                    future.onResponse(null);
+                    listener.onResponse(null);
                     return;
                 }
                 ListenableActionFuture<Void> fut = driver.run(maxTime, maxIterations);
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, executor, driver).addListener(future);
+                    schedule(maxTime, maxIterations, executor, driver, listener);
                 } else {
+                    synchronized (driver) {
+                        if (driver.cancelled.get()) {
+                            throw new CancellationException();
+                        }
+                        driver.blocked.set(fut);
+                    }
                     fut.addListener(
-                        ActionListener.wrap(
-                            ignored -> schedule(maxTime, maxIterations, executor, driver).addListener(future),
-                            e -> future.onFailure(e)
-                        )
+                        ActionListener.wrap(ignored -> schedule(maxTime, maxIterations, executor, driver, listener), listener::onFailure)
                     );
                 }
             }
         });
-        return future;
     }
 
     private static ListenableActionFuture<Void> oneOf(List<ListenableActionFuture<Void>> futures) {
@@ -207,24 +301,6 @@ public class Driver implements Runnable, Releasable {
             fut.addListener(oneOf);
         }
         return oneOf;
-    }
-
-    private static ListenableActionFuture<Void> allOf(List<ListenableActionFuture<Void>> futures) {
-        if (futures.isEmpty()) {
-            return Operator.NOT_BLOCKED;
-        }
-        if (futures.size() == 1) {
-            return futures.get(0);
-        }
-        ListenableActionFuture<Void> allOf = new ListenableActionFuture<>();
-        for (ListenableActionFuture<Void> fut : futures) {
-            fut.addListener(ActionListener.wrap(ignored -> {
-                if (futures.stream().allMatch(BaseFuture::isDone)) {
-                    allOf.onResponse(null);
-                }
-            }, e -> allOf.onFailure(e)));
-        }
-        return allOf;
     }
 
     @Override

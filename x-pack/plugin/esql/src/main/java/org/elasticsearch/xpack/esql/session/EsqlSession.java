@@ -14,8 +14,10 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -68,7 +70,7 @@ public class EsqlSession {
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
-        this.physicalPlanOptimizer = new PhysicalPlanOptimizer(configuration);
+        this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     }
 
     public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
@@ -100,7 +102,7 @@ public class EsqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(r, functionRegistry, verifier, configuration);
+            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, r), verifier);
             var plan = analyzer.analyze(parsed);
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;

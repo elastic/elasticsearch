@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -105,10 +106,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(config);
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         mapper = new Mapper();
 
-        analyzer = new Analyzer(getIndexResult, new EsqlFunctionRegistry(), new Verifier(), config);
+        analyzer = new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult), new Verifier());
     }
 
     public void testSingleFieldExtractor() {
@@ -158,7 +159,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
 
-        var source = source(extract.child());
+        var ource = source(extract.child());
     }
 
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
@@ -227,19 +228,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
         var aggregateFinal = as(limit.child(), AggregateExec.class);
-        var aggregatePartial = as(aggregateFinal.child(), AggregateExec.class);
+        var exchange = as(aggregateFinal.child(), ExchangeExec.class);
+        var aggregatePartial = as(exchange.child(), AggregateExec.class);
+        var extract = as(aggregatePartial.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("salary"));
 
-        var eval = as(aggregatePartial.child(), EvalExec.class);
-        var filter = as(eval.child(), FilterExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
-        var topNFinal = as(filter.child(), TopNExec.class);
-        var exchange = as(topNFinal.child(), ExchangeExec.class);
-        var topNPartial = as(exchange.child(), TopNExec.class);
+        var filter = as(extract.child(), FilterExec.class);
+        extract = as(filter.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
 
-        var project = as(topNPartial.child(), ProjectExec.class);
-        assertThat(Expressions.names(project.projections()), contains("languages", "salary", "first_name", "emp_no"));
-        var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages", "salary", "first_name", "emp_no"));
+        var topN = as(extract.child(), TopNExec.class);
+        extract = as(topN.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
     }
 
     public void testExtractorMultiEvalWithDifferentNames() {
@@ -583,20 +587,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         source(limit.child());
     }
 
-    public void testEvalNull() throws Exception {
+    public void testExtractorForEvalWithoutProject() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | eval nullsum = emp_no + null
-            | project *
             | sort nullsum
             | limit 1
             """));
         var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
-        var topNLocal = as(exchange.child(), TopNExec.class);
-        var project = as(topNLocal.child(), ProjectExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var eval = as(extract.child(), EvalExec.class);
+        var topNLocal = as(extract.child(), TopNExec.class);
+        var eval = as(topNLocal.child(), EvalExec.class);
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

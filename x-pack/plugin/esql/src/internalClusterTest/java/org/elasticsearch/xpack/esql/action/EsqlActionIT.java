@@ -341,6 +341,21 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(40, (long) results.values().get(0).get(position));
     }
 
+    public void testFromSortWithTieBreakerLimit() {
+        EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | project data, count, time");
+        logger.info(results);
+        assertThat(
+            results.values(),
+            contains(
+                List.of(1L, 44L, epoch + 2),
+                List.of(1L, 44L, epoch + 6),
+                List.of(1L, 44L, epoch + 10),
+                List.of(1L, 44L, epoch + 14),
+                List.of(1L, 44L, epoch + 18)
+            )
+        );
+    }
+
     public void testFromEvalSortLimit() {
         EsqlQueryResponse results = run("from test | eval x = count + 7 | sort x | limit 1");
         logger.info(results);
@@ -607,9 +622,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
     }
 
-    // @AwaitsFix(bugUrl = "#322")
     public void testEvalWithNull() {
-        EsqlQueryResponse results = run("from test | project * | eval nullsum = count_d + null | sort nullsum | limit 1");
+        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | sort nullsum | limit 1");
         logger.info(results);
         Assert.assertEquals(7, results.columns().size());
         Assert.assertEquals(1, results.values().size());

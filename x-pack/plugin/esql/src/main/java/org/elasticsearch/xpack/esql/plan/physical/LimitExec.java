@@ -25,7 +25,7 @@ public class LimitExec extends UnaryExec {
     }
 
     @Override
-    protected NodeInfo<LimitExec> info() {
+    protected NodeInfo<? extends LimitExec> info() {
         return NodeInfo.create(this, LimitExec::new, child(), limit);
     }
 

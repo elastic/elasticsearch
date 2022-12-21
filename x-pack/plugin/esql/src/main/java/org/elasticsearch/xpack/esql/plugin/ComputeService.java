@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
@@ -130,34 +129,31 @@ public class ComputeService {
         acquireSearchContexts(physicalPlan, ActionListener.wrap(searchContexts -> {
             boolean success = false;
             List<Driver> drivers = new ArrayList<>();
-            CheckedRunnable<RuntimeException> release = () -> Releasables.close(
-                () -> Releasables.close(searchContexts),
-                () -> Releasables.close(drivers)
-            );
+            Runnable release = () -> Releasables.close(() -> Releasables.close(searchContexts), () -> Releasables.close(drivers));
             try {
                 LocalExecutionPlanner planner = new LocalExecutionPlanner(bigArrays, configuration, searchContexts);
-                final List<Page> results = Collections.synchronizedList(new ArrayList<>());
+                List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
                 LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
-                    new OutputExec(physicalPlan, (l, p) -> { results.add(p); })
-                );
+                    new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); })
+                );  // TODO it's more normal to collect a result per thread and merge in the callback
                 LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
-                localExecutionPlan.createDrivers(drivers);
+                drivers.addAll(localExecutionPlan.createDrivers());
                 if (drivers.isEmpty()) {
                     throw new IllegalStateException("no drivers created");
                 }
                 LOGGER.info("using {} drivers", drivers.size());
-                Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), drivers)
-                    .addListener(ActionListener.runBefore(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            listener.onResponse(new ArrayList<>(results));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
+                Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), drivers, results -> {
+                    try {
+                        Exception e = Driver.Result.collectFailures(results);
+                        if (e == null) {
+                            listener.onResponse(new ArrayList<>(collectedPages));
+                        } else {
                             listener.onFailure(e);
                         }
-                    }, release));
+                    } finally {
+                        release.run();
+                    }
+                });
                 success = true;
             } finally {
                 if (success == false) {

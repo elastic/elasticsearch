@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Iterator;
+import java.util.List;
 
 @Experimental
 public class TopNOperator implements Operator {
@@ -22,37 +23,62 @@ public class TopNOperator implements Operator {
     protected final PriorityQueue<Page> inputQueue;
     private Iterator<Page> output;
 
-    public record TopNOperatorFactory(int sortByChannel, boolean asc, int topCount, boolean nullsFirst) implements OperatorFactory {
+    public record SortOrder(int channel, boolean asc, boolean nullsFirst) {}
+
+    public record TopNOperatorFactory(int topCount, List<SortOrder> sortOrders) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            return new TopNOperator(sortByChannel, asc, topCount, nullsFirst);
+            return new TopNOperator(topCount, sortOrders);
         }
 
         @Override
         public String describe() {
-            return "TopNOperator(count = " + topCount + ", order = " + (asc ? "ascending" : "descending") + ")";
+            return "TopNOperator(count = " + topCount + ", sortOrders = " + sortOrders + ")";
         }
     }
 
-    public TopNOperator(int sortByChannel, boolean asc, int topCount, boolean nullsFirst) {
-        this.inputQueue = new PriorityQueue<>(topCount) {
-            @Override
-            protected boolean lessThan(Page a, Page b) {
-                Block blockA = a.getBlock(sortByChannel);
-                Block blockB = b.getBlock(sortByChannel);
-                if (blockA.isNull(0)) {
-                    return nullsFirst;
-                } else if (blockB.isNull(0)) {
-                    return nullsFirst == false;
+    public TopNOperator(int topCount, List<SortOrder> sortOrders) {
+        if (sortOrders.size() == 1) {
+            // avoid looping over sortOrders if there is only one order
+            SortOrder order = sortOrders.get(0);
+            this.inputQueue = new PriorityQueue<>(topCount) {
+                @Override
+                protected boolean lessThan(Page a, Page b) {
+                    return TopNOperator.compareTo(order, a, b) < 0;
                 }
-                if (asc) {
-                    return blockA.getLong(0) > blockB.getLong(0);
-                } else {
-                    return blockA.getLong(0) < blockB.getLong(0);
+            };
+        } else {
+            this.inputQueue = new PriorityQueue<>(topCount) {
+                @Override
+                protected boolean lessThan(Page a, Page b) {
+                    return TopNOperator.compareTo(sortOrders, a, b) < 0;
                 }
+            };
+        }
+    }
+
+    private static int compareTo(List<SortOrder> orders, Page a, Page b) {
+        for (SortOrder order : orders) {
+            int compared = compareTo(order, a, b);
+            if (compared != 0) {
+                return compared;
             }
-        };
+        }
+        return 0;
+    }
+
+    private static int compareTo(SortOrder order, Page a, Page b) {
+        Block blockA = a.getBlock(order.channel);
+        Block blockB = b.getBlock(order.channel);
+
+        boolean aIsNull = blockA.isNull(0);
+        boolean bIsNull = blockB.isNull(0);
+        if (aIsNull || bIsNull) {
+            return Boolean.compare(aIsNull, bIsNull) * (order.nullsFirst ? 1 : -1);
+        }
+
+        return Long.compare(blockA.getLong(0), blockB.getLong(0)) * (order.asc ? -1 : 1);
     }
 
     @Override

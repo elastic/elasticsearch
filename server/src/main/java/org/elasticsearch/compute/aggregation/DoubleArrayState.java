@@ -30,18 +30,11 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
     private final DoubleArrayStateSerializer serializer;
 
-    DoubleArrayState(double initialDefaultValue) {  // For now, to shortcut refactoring. Remove
-        this(new double[1], initialDefaultValue, BigArrays.NON_RECYCLING_INSTANCE);
-        values.set(0, initialDefaultValue);
-    }
-
-    DoubleArrayState(double[] values, double initialDefaultValue, BigArrays bigArrays) {
-        this.values = bigArrays.newDoubleArray(values.length, false);
-        for (int i = 0; i < values.length; i++) {
-            this.values.set(i, values[i]);
-        }
-        this.initialDefaultValue = initialDefaultValue;
+    DoubleArrayState(BigArrays bigArrays, double initialDefaultValue) {
         this.bigArrays = bigArrays;
+        this.values = bigArrays.newDoubleArray(1, false);
+        this.values.set(0, initialDefaultValue);
+        this.initialDefaultValue = initialDefaultValue;
         this.serializer = new DoubleArrayStateSerializer();
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
@@ -20,15 +21,15 @@ final class GroupingSumAggregator implements GroupingAggregatorFunction {
     private final DoubleArrayState state;
     private final int channel;
 
-    static GroupingSumAggregator create(int inputChannel) {
+    static GroupingSumAggregator create(BigArrays bigArrays, int inputChannel) {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new GroupingSumAggregator(inputChannel, new DoubleArrayState(0));
+        return new GroupingSumAggregator(inputChannel, new DoubleArrayState(bigArrays, 0));
     }
 
-    static GroupingSumAggregator createIntermediate() {
-        return new GroupingSumAggregator(-1, new DoubleArrayState(0));
+    static GroupingSumAggregator createIntermediate(BigArrays bigArrays) {
+        return new GroupingSumAggregator(-1, new DoubleArrayState(bigArrays, 0));
     }
 
     private GroupingSumAggregator(int channel, DoubleArrayState state) {
@@ -56,7 +57,8 @@ final class GroupingSumAggregator implements GroupingAggregatorFunction {
         if (block instanceof AggregatorStateBlock) {
             @SuppressWarnings("unchecked")
             AggregatorStateBlock<DoubleArrayState> blobBlock = (AggregatorStateBlock<DoubleArrayState>) block;
-            DoubleArrayState tmpState = new DoubleArrayState(0);
+            // TODO exchange big arrays directly without funny serialization - no more copying
+            DoubleArrayState tmpState = new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, 0);
             blobBlock.get(0, tmpState);
             final int positions = groupIdBlock.getPositionCount();
             final DoubleArrayState s = state;

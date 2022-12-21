@@ -64,7 +64,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         if (block instanceof AggregatorStateBlock) {
             @SuppressWarnings("unchecked")
             AggregatorStateBlock<GroupingAvgState> blobBlock = (AggregatorStateBlock<GroupingAvgState>) block;
-            // TODO real, accounting BigArrays instance
+            // TODO exchange big arrays directly without funny serialization - no more copying
             GroupingAvgState tmpState = new GroupingAvgState(BigArrays.NON_RECYCLING_INSTANCE);
             blobBlock.get(0, tmpState);
             this.state.addIntermediate(groupIdBlock, tmpState);
@@ -237,6 +237,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         public void deserialize(GroupingAvgState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
             int positions = (int) (long) longHandle.get(ba, offset);
+            // TODO replace deserialization with direct passing - no more non_recycling_instance then
             state.values = BigArrays.NON_RECYCLING_INSTANCE.grow(state.values, positions);
             state.deltas = BigArrays.NON_RECYCLING_INSTANCE.grow(state.deltas, positions);
             state.counts = BigArrays.NON_RECYCLING_INSTANCE.grow(state.counts, positions);

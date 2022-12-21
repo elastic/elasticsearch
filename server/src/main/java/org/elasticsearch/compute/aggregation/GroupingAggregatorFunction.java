@@ -62,9 +62,9 @@ public interface GroupingAggregatorFunction extends Releasable {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
-                return GroupingCountAggregator.createIntermediate();
+                return GroupingCountAggregator.createIntermediate(bigArrays);
             } else {
-                return GroupingCountAggregator.create(inputChannel);
+                return GroupingCountAggregator.create(bigArrays, inputChannel);
             }
         }
     };
@@ -73,9 +73,9 @@ public interface GroupingAggregatorFunction extends Releasable {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
-                return GroupingMinAggregator.createIntermediate();
+                return GroupingMinAggregator.createIntermediate(bigArrays);
             } else {
-                return GroupingMinAggregator.create(inputChannel);
+                return GroupingMinAggregator.create(bigArrays, inputChannel);
             }
         }
     };
@@ -84,9 +84,9 @@ public interface GroupingAggregatorFunction extends Releasable {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
-                return GroupingMaxAggregator.createIntermediate();
+                return GroupingMaxAggregator.createIntermediate(bigArrays);
             } else {
-                return GroupingMaxAggregator.create(inputChannel);
+                return GroupingMaxAggregator.create(bigArrays, inputChannel);
             }
         }
     };
@@ -95,9 +95,9 @@ public interface GroupingAggregatorFunction extends Releasable {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
-                return GroupingSumAggregator.createIntermediate();
+                return GroupingSumAggregator.createIntermediate(bigArrays);
             } else {
-                return GroupingSumAggregator.create(inputChannel);
+                return GroupingSumAggregator.create(bigArrays, inputChannel);
             }
         }
     };

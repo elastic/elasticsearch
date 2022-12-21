@@ -31,6 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -58,8 +59,11 @@ import org.elasticsearch.compute.operator.LongTransformerOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
+import org.elasticsearch.compute.operator.TopNOperator.SortOrder;
+import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -90,6 +94,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -104,12 +109,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgDouble;
 import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgLong;
 import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.count;
@@ -119,6 +121,7 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -304,7 +307,7 @@ public class OperatorTests extends ESTestCase {
                             )
                         );
                     }
-                    Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                    runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
                 } finally {
                     Releasables.close(drivers);
                 }
@@ -460,7 +463,7 @@ public class OperatorTests extends ESTestCase {
                     });
                     drivers.add(new Driver(queryOperator, List.of(), docCollector, () -> {}));
                 }
-                Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
             } finally {
@@ -508,7 +511,7 @@ public class OperatorTests extends ESTestCase {
                 () -> {}
             );
         ) {
-            Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2));
+            runToCompletion(randomExecutor(), List.of(driver1, driver2));
             // TODO where is the assertion here?
         }
     }
@@ -562,7 +565,7 @@ public class OperatorTests extends ESTestCase {
                 () -> {}
             );
         ) {
-            Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4));
+            runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4));
         }
     }
 
@@ -870,293 +873,6 @@ public class OperatorTests extends ESTestCase {
         return rawPages;
     }
 
-    /** Tuple of groupId and respective value. Both of which are of type long. */
-    record LongGroupPair(long groupId, long value) {}
-
-    // Basic test with small(ish) input
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    public void testBasicGroupingOperators() {
-        BigArrays bigArrays = bigArrays();
-        AtomicInteger pageCount = new AtomicInteger();
-        AtomicInteger rowCount = new AtomicInteger();
-        AtomicReference<Page> lastPage = new AtomicReference<>();
-
-        final int cardinality = 20;
-        final long initialGroupId = 1_000L;
-        final long initialValue = 0L;
-
-        // create a list of group/value pairs. Each group has 100 monotonically increasing values.
-        // Higher groupIds have higher sets of values, e.g. logical group1, values 0...99;
-        // group2, values 100..199, etc. This way we can assert average values given the groupId.
-        List<LongGroupPair> values = new ArrayList<>();
-        long group = initialGroupId;
-        long value = initialValue;
-        for (int i = 0; i < cardinality; i++) {
-            for (int j = 0; j < 100; j++) {
-                values.add(new LongGroupPair(group, value++));
-            }
-            group++;
-        }
-        // shuffling provides a basic level of randomness to otherwise quite boring data
-        Collections.shuffle(values, random());
-        var source = new GroupPairBlockSourceOperator(values, 99);
-
-        try (
-            Driver driver = new Driver(
-                source,
-                List.of(
-                    new HashAggregationOperator(
-                        0, // group by channel
-                        List.of(
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.avg, INITIAL, 1),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.max, INITIAL, 1),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.min, INITIAL, 1),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.sum, INITIAL, 1),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, INITIAL, 1)
-                        ),
-                        () -> BlockHash.newLongHash(bigArrays)
-                    ),
-                    new HashAggregationOperator(
-                        0, // group by channel
-                        List.of(
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.avg, INTERMEDIATE, 1),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.max, INTERMEDIATE, 2),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.min, INTERMEDIATE, 3),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.sum, INTERMEDIATE, 4),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, INTERMEDIATE, 5)
-                        ),
-                        () -> BlockHash.newLongHash(bigArrays)
-                    ),
-                    new HashAggregationOperator(
-                        0, // group by channel
-                        List.of(
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.avg, FINAL, 1),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.max, FINAL, 2),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.min, FINAL, 3),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.sum, FINAL, 4),
-                            new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, FINAL, 5)
-                        ),
-                        () -> BlockHash.newLongHash(bigArrays)
-                    )
-                ),
-                new PageConsumerOperator(page -> {
-                    logger.info("New page: {}", page);
-                    pageCount.incrementAndGet();
-                    rowCount.addAndGet(page.getPositionCount());
-                    lastPage.set(page);
-                }),
-                () -> {}
-            )
-        ) {
-            driver.run();
-            assertEquals(1, pageCount.get());
-            assertEquals(cardinality, rowCount.get());
-            assertEquals(6, lastPage.get().getBlockCount());
-
-            final Block groupIdBlock = lastPage.get().getBlock(0);
-            assertEquals(cardinality, groupIdBlock.getPositionCount());
-            var expectedGroupIds = LongStream.range(initialGroupId, initialGroupId + cardinality).boxed().collect(toSet());
-            var actualGroupIds = IntStream.range(0, groupIdBlock.getPositionCount())
-                .mapToLong(groupIdBlock::getLong)
-                .boxed()
-                .collect(toSet());
-            assertEquals(expectedGroupIds, actualGroupIds);
-
-            // assert average
-            final Block avgValuesBlock = lastPage.get().getBlock(1);
-            assertEquals(cardinality, avgValuesBlock.getPositionCount());
-            var expectedAvgValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 49.5 + (i * 100)));
-            var actualAvgValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, avgValuesBlock::getDouble));
-            assertEquals(expectedAvgValues, actualAvgValues);
-
-            // assert max
-            final Block maxValuesBlock = lastPage.get().getBlock(2);
-            assertEquals(cardinality, maxValuesBlock.getPositionCount());
-            var expectedMaxValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 99.0 + (i * 100)));
-            var actualMaxValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, maxValuesBlock::getDouble));
-            assertEquals(expectedMaxValues, actualMaxValues);
-
-            // assert min
-            final Block minValuesBlock = lastPage.get().getBlock(3);
-            assertEquals(cardinality, minValuesBlock.getPositionCount());
-            var expectedMinValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> i * 100d));
-            var actualMinValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, minValuesBlock::getDouble));
-            assertEquals(expectedMinValues, actualMinValues);
-
-            // assert sum
-            final Block sumValuesBlock = lastPage.get().getBlock(4);
-            assertEquals(cardinality, sumValuesBlock.getPositionCount());
-            var expectedSumValues = IntStream.range(0, cardinality)
-                .boxed()
-                .collect(toMap(i -> initialGroupId + i, i -> (double) IntStream.range(i * 100, (i * 100) + 100).sum()));
-            var actualSumValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, sumValuesBlock::getDouble));
-            assertEquals(expectedSumValues, actualSumValues);
-
-            // assert count
-            final Block countValuesBlock = lastPage.get().getBlock(5);
-            assertEquals(cardinality, countValuesBlock.getPositionCount());
-            var expectedCountValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 100L));
-            var actualCountValues = IntStream.range(0, cardinality)
-                .boxed()
-                .collect(toMap(groupIdBlock::getLong, countValuesBlock::getLong));
-            assertEquals(expectedCountValues, actualCountValues);
-        }
-    }
-
-    // Tests grouping avg aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    public void testGroupingIntermediateAvgOperators() {
-        // expected values based on the group/value pairs described in testGroupingIntermediateOperators
-        Function<Integer, Double> expectedValueGenerator = i -> 49.5 + (i * 100);
-        testGroupingIntermediateOperators(GroupingAggregatorFunction.avg, expectedValueGenerator);
-    }
-
-    // Tests grouping max aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    public void testGroupingIntermediateMaxOperators() {
-        // expected values based on the group/value pairs described in testGroupingIntermediateOperators
-        Function<Integer, Double> expectedValueGenerator = i -> (99.0 + (i * 100));
-        testGroupingIntermediateOperators(GroupingAggregatorFunction.max, expectedValueGenerator);
-    }
-
-    // Tests grouping min aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    public void testGroupingIntermediateMinOperators() {
-        // expected values based on the group/value pairs described in testGroupingIntermediateOperators
-        Function<Integer, Double> expectedValueGenerator = i -> i * 100d;
-        testGroupingIntermediateOperators(GroupingAggregatorFunction.min, expectedValueGenerator);
-    }
-
-    // Tests grouping sum aggregations with multiple intermediate partial blocks.
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    public void testGroupingIntermediateSumOperators() {
-        // expected values based on the group/value pairs described in testGroupingIntermediateOperators
-        Function<Integer, Double> expectedValueGenerator = i -> (double) IntStream.range(i * 100, (i * 100) + 100).sum();
-        testGroupingIntermediateOperators(GroupingAggregatorFunction.sum, expectedValueGenerator);
-    }
-
-    public void testMaxOperatorsNegative() {
-        AtomicInteger pageCount = new AtomicInteger();
-        AtomicInteger rowCount = new AtomicInteger();
-        AtomicReference<Page> lastPage = new AtomicReference<>();
-
-        var rawValues = LongStream.rangeClosed(randomIntBetween(-100, -51), -50).boxed().collect(toList());
-        // shuffling provides a basic level of randomness to otherwise quite boring data
-        Collections.shuffle(rawValues, random());
-        var source = new SequenceLongBlockSourceOperator(rawValues);
-
-        try (
-            Driver driver = new Driver(
-                source,
-                List.of(
-                    new AggregationOperator(List.of(new Aggregator(max(), INITIAL, 0))),
-                    new AggregationOperator(List.of(new Aggregator(max(), INTERMEDIATE, 0))),
-                    new AggregationOperator(List.of(new Aggregator(max(), FINAL, 0)))
-                ),
-                new PageConsumerOperator(page -> {
-                    logger.info("New page: {}", page);
-                    pageCount.incrementAndGet();
-                    rowCount.addAndGet(page.getPositionCount());
-                    lastPage.set(page);
-                }),
-                () -> {}
-            )
-        ) {
-            driver.run();
-        }
-        assertEquals(1, pageCount.get());
-        assertEquals(1, lastPage.get().getBlockCount());
-        assertEquals(1, rowCount.get());
-        // assert max
-        assertEquals(-50, lastPage.get().getBlock(0).getDouble(0), 0.0);
-    }
-
-    // Tests grouping aggregations with multiple intermediate partial blocks.
-    private void testGroupingIntermediateOperators(
-        GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggFunction,
-        Function<Integer, Double> expectedValueGenerator
-    ) {
-        BigArrays bigArrays = bigArrays();
-        final int cardinality = 13;
-        final long initialGroupId = 100_000L;
-        final long initialValue = 0L;
-
-        // create a list of group/value pairs. Each group has 100 monotonically increasing values.
-        // Higher groupIds have higher sets of values, e.g. logical group1, values 0...99;
-        // group2, values 100..199, etc. This way we can assert average values given the groupId.
-        List<LongGroupPair> values = new ArrayList<>();
-        long group = initialGroupId;
-        long value = initialValue;
-        for (int i = 0; i < cardinality; i++) {
-            for (int j = 0; j < 100; j++) {
-                values.add(new LongGroupPair(group, value++));
-            }
-            group++;
-        }
-        // shuffling provides a basic level of randomness to otherwise quite boring data
-        Collections.shuffle(values, random());
-        var source = new GroupPairBlockSourceOperator(values, 99);
-        List<Page> rawPages = drainSourceToPages(source);
-
-        HashAggregationOperator partialAggregatorOperator = null;
-        List<Operator> partialAggregatorOperators = new ArrayList<>();
-        for (Page inputPage : rawPages) {
-            if (partialAggregatorOperator == null || random().nextBoolean()) {
-                partialAggregatorOperator = new HashAggregationOperator(
-                    0, // group by channel
-                    List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggFunction, INITIAL, 1)),
-                    () -> BlockHash.newLongHash(bigArrays)
-                );
-                partialAggregatorOperators.add(partialAggregatorOperator);
-            }
-            partialAggregatorOperator.addInput(inputPage);
-        }
-        List<Page> partialPages = partialAggregatorOperators.stream().peek(Operator::finish).map(Operator::getOutput).toList();
-        partialAggregatorOperators.stream().forEach(Operator::close);
-
-        HashAggregationOperator interAggregatorOperator = null;
-        List<Operator> interAggregatorOperators = new ArrayList<>();
-        for (Page page : partialPages) {
-            if (interAggregatorOperator == null || random().nextBoolean()) {
-                interAggregatorOperator = new HashAggregationOperator(
-                    0, // group by channel
-                    List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggFunction, INTERMEDIATE, 1)),
-                    () -> BlockHash.newLongHash(bigArrays)
-                );
-                interAggregatorOperators.add(interAggregatorOperator);
-            }
-            interAggregatorOperator.addInput(page);
-        }
-        List<Page> intermediatePages = interAggregatorOperators.stream().peek(Operator::finish).map(Operator::getOutput).toList();
-        interAggregatorOperators.stream().forEach(Operator::close);
-
-        HashAggregationOperator finalAggregationOperator = new HashAggregationOperator(
-            0, // group by channel
-            List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggFunction, FINAL, 1)),
-            () -> BlockHash.newLongHash(bigArrays)
-        );
-        intermediatePages.stream().forEach(finalAggregationOperator::addInput);
-        finalAggregationOperator.finish();
-        Page finalPage = finalAggregationOperator.getOutput();
-        finalAggregationOperator.close();
-        logger.info("Final page: {}", finalPage);
-
-        assertEquals(cardinality, finalPage.getPositionCount());
-        assertEquals(2, finalPage.getBlockCount());
-
-        final Block groupIdBlock = finalPage.getBlock(0);
-        assertEquals(cardinality, finalPage.getPositionCount());
-        var expectedGroupIds = LongStream.range(initialGroupId, initialGroupId + cardinality).boxed().collect(toSet());
-        var actualGroupIds = IntStream.range(0, groupIdBlock.getPositionCount()).mapToLong(groupIdBlock::getLong).boxed().collect(toSet());
-        assertEquals(expectedGroupIds, actualGroupIds);
-
-        final Block valuesBlock = finalPage.getBlock(1);
-        assertEquals(cardinality, valuesBlock.getPositionCount());
-        var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, expectedValueGenerator));
-        var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));
-        assertEquals(expectedValues, actualValues);
-    }
-
     public void testFilterOperator() {
         var positions = 1000;
         var values = randomList(positions, positions, ESTestCase::randomLong);
@@ -1204,7 +920,7 @@ public class OperatorTests extends ESTestCase {
                     Block block1 = page.getBlock(0);
                     Block block2 = page.getBlock(1);
                     for (int i = 0; i < page.getPositionCount(); i++) {
-                        results.add(Tuple.tuple(block1.getLong(i), block2.getLong(i)));
+                        results.add(tuple(block1.getLong(i), block2.getLong(i)));
                     }
                 }),
                 () -> {}
@@ -1218,7 +934,7 @@ public class OperatorTests extends ESTestCase {
             contains(
                 values.stream()
                     .filter(condition1)
-                    .map(l -> Tuple.tuple(l, transformation.apply(l)))
+                    .map(l -> tuple(l, transformation.apply(l)))
                     .filter(t -> condition2.test(t.v2()))
                     .toArray()
             )
@@ -1257,35 +973,70 @@ public class OperatorTests extends ESTestCase {
             List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
             Comparator<Long> comparator = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
             List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-            List<Long> outputValues = topN(inputValues, limit, asc);
+            List<Long> outputValues = topN(inputValues, limit, asc, false);
             assertThat(outputValues, equalTo(expectedValues));
         }
     }
 
     public void testBasicTopN() {
-        List<Long> values = List.of(2L, 1L, 4L, 5L, 10L, 20L, 4L, 100L);
-        assertThat(topN(values, 1, true), equalTo(List.of(1L)));
-        assertThat(topN(values, 1, false), equalTo(List.of(100L)));
-        assertThat(topN(values, 2, true), equalTo(List.of(1L, 2L)));
-        assertThat(topN(values, 2, false), equalTo(List.of(100L, 20L)));
-        assertThat(topN(values, 3, true), equalTo(List.of(1L, 2L, 4L)));
-        assertThat(topN(values, 3, false), equalTo(List.of(100L, 20L, 10L)));
-        assertThat(topN(values, 4, true), equalTo(List.of(1L, 2L, 4L, 4L)));
-        assertThat(topN(values, 4, false), equalTo(List.of(100L, 20L, 10L, 5L)));
-        assertThat(topN(values, 5, true), equalTo(List.of(1L, 2L, 4L, 4L, 5L)));
-        assertThat(topN(values, 5, false), equalTo(List.of(100L, 20L, 10L, 5L, 4L)));
+        List<Long> values = Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L);
+        assertThat(topN(values, 1, true, false), equalTo(Arrays.asList(1L)));
+        assertThat(topN(values, 1, false, false), equalTo(Arrays.asList(100L)));
+        assertThat(topN(values, 2, true, false), equalTo(Arrays.asList(1L, 2L)));
+        assertThat(topN(values, 2, false, false), equalTo(Arrays.asList(100L, 20L)));
+        assertThat(topN(values, 3, true, false), equalTo(Arrays.asList(1L, 2L, 4L)));
+        assertThat(topN(values, 3, false, false), equalTo(Arrays.asList(100L, 20L, 10L)));
+        assertThat(topN(values, 4, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L)));
+        assertThat(topN(values, 4, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L)));
+        assertThat(topN(values, 100, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L, null, null)));
+        assertThat(topN(values, 100, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null)));
+        assertThat(topN(values, 1, true, true), equalTo(Arrays.asList(new Long[] { null })));
+        assertThat(topN(values, 1, false, true), equalTo(Arrays.asList(new Long[] { null })));
+        assertThat(topN(values, 2, true, true), equalTo(Arrays.asList(null, null)));
+        assertThat(topN(values, 2, false, true), equalTo(Arrays.asList(null, null)));
+        assertThat(topN(values, 3, true, true), equalTo(Arrays.asList(null, null, 1L)));
+        assertThat(topN(values, 3, false, true), equalTo(Arrays.asList(null, null, 100L)));
+        assertThat(topN(values, 4, true, true), equalTo(Arrays.asList(null, null, 1L, 2L)));
+        assertThat(topN(values, 4, false, true), equalTo(Arrays.asList(null, null, 100L, 20L)));
+        assertThat(topN(values, 100, true, true), equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L)));
+        assertThat(topN(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
     }
 
-    private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder) {
-        List<Long> outputValues = new ArrayList<>();
+    private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+        return topNTwoColumns(
+            inputValues.stream().map(v -> tuple(v, 0L)).toList(),
+            limit,
+            List.of(new SortOrder(0, ascendingOrder, nullsFirst))
+        ).stream().map(Tuple::v1).toList();
+    }
+
+    public void testTopNTwoColumns() {
+        List<Tuple<Long, Long>> values = Arrays.asList(tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L), tuple(1L, null));
+        assertThat(
+            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, false), new SortOrder(1, true, false))),
+            equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
+        );
+        assertThat(
+            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, true), new SortOrder(1, true, false))),
+            equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
+        );
+        assertThat(
+            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, false), new SortOrder(1, true, true))),
+            equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
+        );
+    }
+
+    private List<Tuple<Long, Long>> topNTwoColumns(List<Tuple<Long, Long>> inputValues, int limit, List<SortOrder> sortOrders) {
+        List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
-                new SequenceLongBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
-                List.of(new TopNOperator(0, ascendingOrder, limit, true)),
+                new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
+                List.of(new TopNOperator(limit, sortOrders)),
                 new PageConsumerOperator(page -> {
-                    Block block = page.getBlock(0);
-                    for (int i = 0; i < block.getPositionCount(); i++) {
-                        outputValues.add(block.getLong(i));
+                    Block block1 = page.getBlock(0);
+                    Block block2 = page.getBlock(1);
+                    for (int i = 0; i < block1.getPositionCount(); i++) {
+                        outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
                     }
                 }),
                 () -> {}
@@ -1295,129 +1046,6 @@ public class OperatorTests extends ESTestCase {
         }
         assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
         return outputValues;
-    }
-
-    /**
-     * A source operator whose output is the given group tuple values. This operator produces pages
-     * with two Blocks. The first Block contains the groupId long values. The second Block contains
-     * the respective groupId {@link LongGroupPair#value()}. The returned pages preserve the order
-     * of values as given in the in initial list.
-     */
-    class GroupPairBlockSourceOperator extends AbstractBlockSourceOperator {
-
-        private static final int MAX_PAGE_POSITIONS = 8 * 1024;
-
-        private final List<LongGroupPair> values;
-
-        GroupPairBlockSourceOperator(List<LongGroupPair> values) {
-            this(values, MAX_PAGE_POSITIONS);
-        }
-
-        GroupPairBlockSourceOperator(List<LongGroupPair> values, int maxPagePositions) {
-            super(maxPagePositions);
-            this.values = values;
-        }
-
-        @Override
-        Page createPage(int positionOffset, int length) {
-            final long[] groupsBlock = new long[length];
-            final long[] valuesBlock = new long[length];
-            for (int i = 0; i < length; i++) {
-                LongGroupPair item = values.get(positionOffset + i);
-                groupsBlock[i] = item.groupId();
-                valuesBlock[i] = item.value();
-            }
-            currentPosition += length;
-            return new Page(new LongArrayBlock(groupsBlock, length), new LongArrayBlock(valuesBlock, length));
-        }
-
-        @Override
-        int remaining() {
-            return values.size() - currentPosition;
-        }
-    }
-
-    /**
-     * A source operator whose output is the given long values. This operator produces pages
-     * containing a single Block. The Block contains the long values from the given list, in order.
-     */
-    class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator {
-
-        static final int MAX_PAGE_POSITIONS = 8 * 1024;
-
-        private final long[] values;
-
-        SequenceLongBlockSourceOperator(List<Long> values) {
-            this(values, MAX_PAGE_POSITIONS);
-        }
-
-        SequenceLongBlockSourceOperator(List<Long> values, int maxPagePositions) {
-            super(maxPagePositions);
-            this.values = values.stream().mapToLong(Long::longValue).toArray();
-        }
-
-        protected Page createPage(int positionOffset, int length) {
-            final long[] array = new long[length];
-            for (int i = 0; i < length; i++) {
-                array[i] = values[positionOffset + i];
-            }
-            currentPosition += length;
-            return new Page(new LongArrayBlock(array, array.length));
-        }
-
-        int remaining() {
-            return values.length - currentPosition;
-        }
-    }
-
-    /**
-     * An abstract source operator. Implementations of this operator produce pages with a random
-     * number of positions up to a maximum of the given maxPagePositions positions.
-     */
-    abstract class AbstractBlockSourceOperator extends SourceOperator {
-
-        boolean finished;
-
-        /** The position of the next element to output. */
-        int currentPosition;
-
-        final int maxPagePositions;
-
-        AbstractBlockSourceOperator(int maxPagePositions) {
-            this.maxPagePositions = maxPagePositions;
-        }
-
-        /** The number of remaining elements that this source operator will produce. */
-        abstract int remaining();
-
-        /** Creates a page containing a block with {@code length} positions, from the given position offset. */
-        abstract Page createPage(int positionOffset, int length);
-
-        @Override
-        public Page getOutput() {
-            if (finished) {
-                return null;
-            }
-            if (remaining() <= 0) {
-                finish();
-                return null;
-            }
-            int length = Math.min(randomInt(maxPagePositions), remaining());
-            return createPage(currentPosition, length);
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        public boolean isFinished() {
-            return finished;
-        }
-
-        @Override
-        public void finish() {
-            finished = true;
-        }
     }
 
     private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {
@@ -1549,5 +1177,14 @@ public class OperatorTests extends ESTestCase {
      */
     private BigArrays bigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    public static void runToCompletion(Executor executor, List<Driver> drivers) {
+        ListenableActionFuture<List<Driver.Result>> future = new ListenableActionFuture<>();
+        Driver.start(executor, drivers, future::onResponse);
+        RuntimeException e = Driver.Result.collectFailures(future.actionGet());
+        if (e != null) {
+            throw e;
+        }
     }
 }

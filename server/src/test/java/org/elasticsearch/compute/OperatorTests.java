@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -47,7 +46,6 @@ import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
@@ -109,18 +107,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
-import java.util.stream.LongStream;
 
-import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgDouble;
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgLong;
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.count;
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.max;
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.sum;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
-import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -586,108 +576,6 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    // Basic aggregator test with small(ish) input
-    public void testBasicAggOperators() {
-        AtomicInteger pageCount = new AtomicInteger();
-        AtomicInteger rowCount = new AtomicInteger();
-        AtomicReference<Page> lastPage = new AtomicReference<>();
-
-        var rawValues = LongStream.range(0, 100_000).boxed().collect(toList());
-        // shuffling provides a basic level of randomness to otherwise quite boring data
-        Collections.shuffle(rawValues, random());
-        var source = new SequenceLongBlockSourceOperator(rawValues);
-
-        try (
-            Driver driver = new Driver(
-                source,
-                List.of(
-                    new AggregationOperator(
-                        List.of(
-                            new Aggregator(avgDouble(), INITIAL, 0),
-                            new Aggregator(avgLong(), INITIAL, 0),
-                            new Aggregator(count(), INITIAL, 0),
-                            new Aggregator(max(), INITIAL, 0),
-                            new Aggregator(sum(), INITIAL, 0)
-                        )
-                    ),
-                    new AggregationOperator(
-                        List.of(
-                            new Aggregator(avgDouble(), INTERMEDIATE, 0),
-                            new Aggregator(avgLong(), INTERMEDIATE, 1),
-                            new Aggregator(count(), INTERMEDIATE, 2),
-                            new Aggregator(max(), INTERMEDIATE, 3),
-                            new Aggregator(sum(), INTERMEDIATE, 4)
-                        )
-                    ),
-                    new AggregationOperator(
-                        List.of(
-                            new Aggregator(avgDouble(), FINAL, 0),
-                            new Aggregator(avgLong(), FINAL, 1),
-                            new Aggregator(count(), FINAL, 2),
-                            new Aggregator(max(), FINAL, 3),
-                            new Aggregator(sum(), FINAL, 4)
-                        )
-                    )
-                ),
-                new PageConsumerOperator(page -> {
-                    logger.info("New page: {}", page);
-                    pageCount.incrementAndGet();
-                    rowCount.addAndGet(page.getPositionCount());
-                    lastPage.set(page);
-                }),
-                () -> {}
-            )
-        ) {
-            driver.run();
-        }
-        assertEquals(1, pageCount.get());
-        assertEquals(1, rowCount.get());
-        // assert average
-        assertEquals(49_999.5, lastPage.get().getBlock(0).getDouble(0), 0.0);
-        // assert average
-        assertEquals(49_999.5, lastPage.get().getBlock(1).getDouble(0), 0.0);
-        // assert count
-        assertEquals(100_000, lastPage.get().getBlock(2).getLong(0));
-        // assert max
-        assertEquals(99_999.0, lastPage.get().getBlock(3).getDouble(0), 0.0);
-        // assert sum
-        assertEquals(4.99995E9, lastPage.get().getBlock(4).getDouble(0), 0.0);
-    }
-
-    // Tests avg aggregators with multiple intermediate partial blocks.
-    public void testIntermediateAvgOperators() {
-        Operator source = new SequenceLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList());
-        List<Page> rawPages = drainSourceToPages(source);
-
-        Aggregator partialAggregator = null;
-        List<Aggregator> partialAggregators = new ArrayList<>();
-        for (Page inputPage : rawPages) {
-            if (partialAggregator == null || random().nextBoolean()) {
-                partialAggregator = new Aggregator(avgDouble(), INITIAL, 0);
-                partialAggregators.add(partialAggregator);
-            }
-            partialAggregator.processPage(inputPage);
-        }
-        List<Block> partialBlocks = partialAggregators.stream().map(Aggregator::evaluate).toList();
-
-        Aggregator interAggregator = null;
-        List<Aggregator> intermediateAggregators = new ArrayList<>();
-        for (Block block : partialBlocks) {
-            if (interAggregator == null || random().nextBoolean()) {
-                interAggregator = new Aggregator(avgDouble(), INTERMEDIATE, 0);
-                intermediateAggregators.add(interAggregator);
-            }
-            interAggregator.processPage(new Page(block));
-        }
-        List<Block> intermediateBlocks = intermediateAggregators.stream().map(Aggregator::evaluate).toList();
-
-        var finalAggregator = new Aggregator(avgDouble(), FINAL, 0);
-        intermediateBlocks.stream().forEach(b -> finalAggregator.processPage(new Page(b)));
-        Block resultBlock = finalAggregator.evaluate();
-        logger.info("resultBlock: " + resultBlock);
-        assertEquals(49_999.5, resultBlock.getDouble(0), 0);
-    }
-
     public void testOperatorsWithLuceneGroupingCount() throws IOException {
         BigArrays bigArrays = bigArrays();
         final String fieldName = "value";
@@ -842,23 +730,6 @@ public class OperatorTests extends ESTestCase {
                 assertThat(actualCounts, equalTo(expectedCounts));
             }
         }
-    }
-
-    // Tests that overflows throw during summation.
-    public void testSumLongOverflow() {
-        Operator source = new SequenceLongBlockSourceOperator(List.of(Long.MAX_VALUE, 1L), 2);
-        List<Page> rawPages = drainSourceToPages(source);
-
-        Aggregator aggregator = new Aggregator(sum(), SINGLE, 0);
-        logger.info(rawPages);
-        ArithmeticException ex = expectThrows(ArithmeticException.class, () -> {
-            for (Page page : rawPages) {
-                // rawPages.forEach(aggregator::processPage);
-                logger.info("processing page: {}", page);
-                aggregator.processPage(page);
-            }
-        });
-        assertTrue(ex.getMessage().contains("overflow"));
     }
 
     private static List<Page> drainSourceToPages(Operator source) {

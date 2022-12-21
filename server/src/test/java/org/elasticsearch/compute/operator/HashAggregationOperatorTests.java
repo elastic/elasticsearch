@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -68,6 +69,11 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
         assertThat(groups.getLong(4), equalTo(4L));
         avg.assertSimpleBucket(avgs, end, 4);
         max.assertSimpleBucket(maxs, end, 4);
+    }
+
+    @Override
+    protected ByteSizeValue smallEnoughToCircuitBreak() {
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 
     public void testInitialFinal() {

@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -64,6 +65,11 @@ public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
         assertSimpleBucket(result, end, 3);
         assertThat(groups.getLong(4), equalTo(4L));
         assertSimpleBucket(result, end, 4);
+    }
+
+    @Override
+    protected ByteSizeValue smallEnoughToCircuitBreak() {
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 
     public void testInitialFinal() {

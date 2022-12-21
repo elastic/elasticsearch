@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -19,7 +20,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,19 +37,25 @@ public abstract class OperatorTestCase extends ESTestCase {
 
     protected abstract void assertSimpleOutput(int end, List<Page> results);
 
-    public void testSimple() {
+    /**
+     * A {@link ByteSizeValue} that is so small any input to the operator
+     * will cause it to circuit break.
+     */
+    protected abstract ByteSizeValue smallEnoughToCircuitBreak();
+
+    public final void testSimple() {
         assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()));
     }
 
-    public void testCircuitBreaking() {
+    public final void testCircuitBreaking() {
         Exception e = expectThrows(
             CircuitBreakingException.class,
-            () -> assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(between(1, 32))))
+            () -> assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak()))
         );
         assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
     }
 
-    public void testWithCranky() {
+    public final void testWithCranky() {
         CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
         try {
@@ -55,6 +64,49 @@ public abstract class OperatorTestCase extends ESTestCase {
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
+    }
+
+    protected final List<Page> oneDriverPerPage(SourceOperator source, Supplier<List<Operator>> operators) {
+        List<Page> result = new ArrayList<>();
+        try {
+            while (source.isFinished() == false) {
+                Page in = source.getOutput();
+                if (in == null) {
+                    continue;
+                }
+                try (
+                    Driver d = new Driver(
+                        new CannedSourceOperator(Iterators.single(in)),
+                        operators.get(),
+                        new PageConsumerOperator(result::add),
+                        () -> {}
+                    )
+                ) {
+                    d.run();
+                }
+            }
+        } finally {
+            source.close();
+        }
+        return result;
+    }
+
+    protected final List<Page> oneDriverPerPageList(Iterator<List<Page>> source, Supplier<List<Operator>> operators) {
+        List<Page> result = new ArrayList<>();
+        while (source.hasNext()) {
+            List<Page> in = source.next();
+            try (
+                Driver d = new Driver(
+                    new CannedSourceOperator(in.iterator()),
+                    operators.get(),
+                    new PageConsumerOperator(result::add),
+                    () -> {}
+                )
+            ) {
+                d.run();
+            }
+        }
+        return result;
     }
 
     private void assertSimple(BigArrays bigArrays) {

@@ -14,8 +14,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinAggregatorTests extends AggregatorTestCase {
     @Override
-    protected AggregatorFunction.Provider aggregatorFunction() {
-        return AggregatorFunctionProviders.min();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        return AggregatorFunction.MIN;
     }
 
     @Override

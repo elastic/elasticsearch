@@ -7,27 +7,36 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
-public class AggregateMetricFieldSerializer extends AbstractRollupFieldProducer {
-    private final List<AbstractRollupFieldProducer> producers;
+public class AggregateMetricFieldSerializer implements RollupFieldSerializer {
+    private final Collection<AbstractRollupFieldProducer> producers;
+    private final String name;
 
-    public AggregateMetricFieldSerializer(String name, List<AbstractRollupFieldProducer> producers) {
-        super(name);
+    /**
+     * @param name the name of the aggregate_metric_double field as it will be serialized
+     *             in the downsampled index
+     * @param producers a collection of {@link AbstractRollupFieldProducer} instances with the subfields
+     *                  of the aggregate_metric_double field.
+     */
+    public AggregateMetricFieldSerializer(String name, Collection<AbstractRollupFieldProducer> producers) {
+        this.name = name;
         this.producers = producers;
     }
 
     @Override
     public void write(XContentBuilder builder) throws IOException {
-        if (isEmpty() == false) {
-            builder.startObject(name());
-            for (AbstractRollupFieldProducer rollupFieldProducer : producers) {
-                assert name().equals(rollupFieldProducer.name()) : "producer has a different name";
+        if (isEmpty()) {
+            return;
+        }
 
+        builder.startObject(name);
+        for (AbstractRollupFieldProducer rollupFieldProducer : producers) {
+            assert name.equals(rollupFieldProducer.name()) : "producer has a different name";
+            if (rollupFieldProducer.isEmpty() == false) {
                 if (rollupFieldProducer instanceof MetricFieldProducer metricFieldProducer) {
                     for (MetricFieldProducer.Metric metric : metricFieldProducer.metrics()) {
                         if (metric.get() != null) {
@@ -35,34 +44,22 @@ public class AggregateMetricFieldSerializer extends AbstractRollupFieldProducer 
                         }
                     }
                 } else if (rollupFieldProducer instanceof LabelFieldProducer labelFieldProducer) {
-                    for (LabelFieldProducer.Label label : labelFieldProducer.labels()) {
-                        if (label.get() != null) {
-                            builder.field(label.name(), label.get());
-                        }
+                    LabelFieldProducer.Label label = labelFieldProducer.label();
+                    if (label.get() != null) {
+                        builder.field(label.name(), label.get());
                     }
                 }
             }
-            builder.endObject();
         }
+        builder.endObject();
     }
 
-    @Override
-    public boolean isEmpty() {
+    private boolean isEmpty() {
         for (AbstractRollupFieldProducer p : producers) {
             if (p.isEmpty() == false) {
                 return false;
             }
         }
         return true;
-    }
-
-    @Override
-    public void collect(FormattedDocValues docValues, int docId) throws IOException {
-        throw new UnsupportedOperationException("Operation is not supported");
-    }
-
-    @Override
-    public void reset() {
-        throw new UnsupportedOperationException("Operation is not supported");
     }
 }

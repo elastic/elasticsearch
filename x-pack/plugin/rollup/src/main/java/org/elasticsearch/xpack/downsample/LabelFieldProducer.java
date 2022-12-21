@@ -12,7 +12,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Class that produces values for a label field.
@@ -23,10 +22,10 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
         super(name);
     }
 
-    abstract List<Label> labels();
+    abstract Label label();
 
     abstract static class Label {
-        final String name;
+        private final String name;
 
         /**
          * Abstract class that defines how a label is downsampled.
@@ -39,6 +38,8 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
         public String name() {
             return name;
         }
+
+        abstract void collect(Object value);
 
         abstract Object get();
 
@@ -92,12 +93,12 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
         }
 
         LabelLastValueFieldProducer(String name) {
-            this(name, new LastValueLabel(name));
+            this(name, new LastValueLabel());
         }
 
         @Override
-        List<Label> labels() {
-            return List.of(label);
+        Label label() {
+            return label;
         }
 
         @Override

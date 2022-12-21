@@ -43,12 +43,9 @@ class FieldValueFetcher {
         return fieldType;
     }
 
-    public DocValueFormat format() {
-        return fieldType.docValueFormat(null, null);
-    }
-
     public FormattedDocValues getLeaf(LeafReaderContext context) {
-        return fieldData.load(context).getFormattedValues(format());
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        return fieldData.load(context).getFormattedValues(format);
     }
 
     public AbstractRollupFieldProducer rollupFieldProducer() {

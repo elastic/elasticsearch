@@ -261,8 +261,10 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> fieldProcessors = fieldValueFetchers.stream()
-                .map(f -> Tuple.tuple(f.rollupFieldProducer(), f.getLeaf(ctx)))
+
+            // For each field, return a tuple with the rollup field producer and the field value leaf
+            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> fieldValueTuples = fieldValueFetchers.stream()
+                .map(fetcher -> Tuple.tuple(fetcher.rollupFieldProducer(), fetcher.getLeaf(ctx)))
                 .toList();
 
             return new LeafBucketCollector() {
@@ -330,9 +332,10 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (var f : fieldProcessors) {
-                        AbstractRollupFieldProducer rollupFieldProducer = f.v1();
-                        FormattedDocValues docValues = f.v2();
+                    // Iterate over all field values and collect the doc_values for this docId
+                    for (Tuple<AbstractRollupFieldProducer, FormattedDocValues> tuple : fieldValueTuples) {
+                        AbstractRollupFieldProducer rollupFieldProducer = tuple.v1();
+                        FormattedDocValues docValues = tuple.v2();
                         rollupFieldProducer.collect(docValues, docId);
                     }
                     docsProcessed++;
@@ -435,7 +438,13 @@ class RollupShardIndexer {
                 builder.field(e.getKey(), e.getValue());
             }
 
-            var groupedProducers = rollupFieldProducers.stream()
+            /*
+             * The rollup field producers for aggregate_metric_double all share the same name (this is
+             * the name they will be serialized in the target index). We group all field producers by
+             * name. If grouping yields multiple rollup field producers, we delegate serialization to
+             * the AggregateMetricFieldSerializer class.
+             */
+            List<RollupFieldSerializer> groupedProducers = rollupFieldProducers.stream()
                 .collect(groupingBy(AbstractRollupFieldProducer::name))
                 .entrySet()
                 .stream()
@@ -449,7 +458,7 @@ class RollupShardIndexer {
                 .toList();
 
             // Serialize fields
-            for (var fieldProducer : groupedProducers) {
+            for (RollupFieldSerializer fieldProducer : groupedProducers) {
                 fieldProducer.write(builder);
             }
 

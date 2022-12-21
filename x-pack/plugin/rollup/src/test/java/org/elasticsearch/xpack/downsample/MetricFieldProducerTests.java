@@ -8,19 +8,11 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
 
 public class MetricFieldProducerTests extends AggregatorTestCase {
 
@@ -116,7 +108,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         metric.collect(40);
         metric.collect(30);
         metric.collect(20);
-        assertEquals(40.0, metric.get());
+        assertEquals(40, metric.get());
         metric.reset();
         assertNull(metric.get());
     }
@@ -156,76 +148,5 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals("{\"field\":{\"min\":5.5,\"max\":55.0,\"sum\":72.7,\"value_count\":3}}", Strings.toString(builder));
 
         assertEquals(field, producer.name());
-    }
-
-    public void testBuildMetricProducers() {
-        final Map<String, MappedFieldType> provideMappedFieldType = Map.of(
-            "gauge_field",
-            new NumberFieldMapper.NumberFieldType(
-                "gauge_field",
-                NumberFieldMapper.NumberType.DOUBLE,
-                true,
-                true,
-                true,
-                true,
-                null,
-                emptyMap(),
-                null,
-                false,
-                TimeSeriesParams.MetricType.gauge
-            ),
-            "counter_field",
-            new NumberFieldMapper.NumberFieldType(
-                "counter_field",
-                NumberFieldMapper.NumberType.DOUBLE,
-                true,
-                true,
-                true,
-                true,
-                null,
-                emptyMap(),
-                null,
-                false,
-                TimeSeriesParams.MetricType.counter
-            )
-        );
-
-        IndexSettings settings = createIndexSettings();
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
-            settings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        ) {
-            @Override
-            public MappedFieldType getFieldType(String name) {
-                return provideMappedFieldType.get(name);
-            }
-        };
-
-        /* TODO
-        Map<String, MetricFieldProducer> producers = MetricFieldProducer.createMetricFieldProducers(
-            searchExecutionContext,
-            new String[] { "gauge_field", "counter_field" }
-        );
-        assertTrue(producers.get("gauge_field") instanceof MetricFieldProducer.GaugeMetricFieldProducer);
-        assertTrue(producers.get("counter_field") instanceof MetricFieldProducer.CounterMetricFieldProducer);
-
-         */
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
@@ -366,7 +367,8 @@ public final class IndicesPermission {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker
     ) {
         // Short circuit if the indicesPermission allows all access to every index
         if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
@@ -388,7 +390,8 @@ public final class IndicesPermission {
             action,
             resources,
             totalResourceCountHolder[0],
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            dlsFlsFeatureUsageTracker
         );
 
         return new IndicesAccessControl(overallGranted, new CachedSupplier<>(indexPermissions));
@@ -398,7 +401,8 @@ public final class IndicesPermission {
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
-        final FieldPermissionsCache fieldPermissionsCache
+        final FieldPermissionsCache fieldPermissionsCache,
+        final DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker
     ) {
 
         // now... every index that is associated with the request, must be granted
@@ -482,11 +486,14 @@ public final class IndicesPermission {
         }
 
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
+        boolean hasDocumentLevelSecurityPermissions = false;
+        boolean hasFieldLevelSecurityPermissions = false;
         for (String index : grantedResources) {
             final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
             final DocumentPermissions documentPermissions;
             if (permissions != null && permissions.isAllowAll() == false) {
                 documentPermissions = DocumentPermissions.filteredBy(permissions.queries);
+                hasDocumentLevelSecurityPermissions = true;
             } else {
                 documentPermissions = DocumentPermissions.allowAll();
             }
@@ -496,10 +503,17 @@ public final class IndicesPermission {
                 fieldPermissions = indexFieldPermissions.size() == 1
                     ? indexFieldPermissions.iterator().next()
                     : fieldPermissionsCache.union(indexFieldPermissions);
+                hasFieldLevelSecurityPermissions = true;
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
             indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions));
+        }
+        if (hasDocumentLevelSecurityPermissions) {
+            dlsFlsFeatureUsageTracker.trackDocumentLevelSecurityUsage();
+        }
+        if (hasFieldLevelSecurityPermissions) {
+            dlsFlsFeatureUsageTracker.trackFieldLevelSecurityUsage();
         }
         return unmodifiableMap(indexPermissions);
     }

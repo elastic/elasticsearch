@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -127,16 +129,19 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
+        XPackLicenseState licenseState
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        this.dlsFlsFeatureUsageTracker = new DlsFlsFeatureUsageTracker(licenseState);
     }
 
     @Override
@@ -903,7 +908,8 @@ public class RBACEngine implements AuthorizationEngine {
             action,
             Sets.newHashSet(resolvedIndices.getLocal()),
             aliasAndIndexLookup,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            dlsFlsFeatureUsageTracker
         );
         return new IndexAuthorizationResult(accessControl);
     }

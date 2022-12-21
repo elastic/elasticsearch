@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
@@ -25,7 +26,8 @@ import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache,
+ * DlsFlsFeatureUsageTracker)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole implements Role {
@@ -101,19 +103,22 @@ public final class LimitedRole implements Role {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker
     ) {
         IndicesAccessControl indicesAccessControl = baseRole.authorize(
             action,
             requestedIndicesOrAliases,
             aliasAndIndexLookup,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            dlsFlsFeatureUsageTracker
         );
         IndicesAccessControl limitedByIndicesAccessControl = limitedByRole.authorize(
             action,
             requestedIndicesOrAliases,
             aliasAndIndexLookup,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            dlsFlsFeatureUsageTracker
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }

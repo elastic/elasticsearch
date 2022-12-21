@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
@@ -91,6 +93,7 @@ public class LimitedRoleTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("_alias1"));
         Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
             .cluster(Collections.singleton("manage_security"), Collections.emptyList())
             .add(IndexPrivilege.ALL, "_index")
@@ -101,7 +104,8 @@ public class LimitedRoleTests extends ESTestCase {
             SearchAction.NAME,
             Sets.newHashSet("_index", "_alias1"),
             md.getIndicesLookup(),
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            dlsFlsFeatureUsageTracker
         );
         assertThat(iac.isGranted(), is(false));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
@@ -112,7 +116,8 @@ public class LimitedRoleTests extends ESTestCase {
             CreateIndexAction.NAME,
             Sets.newHashSet("_index", "_index1"),
             md.getIndicesLookup(),
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            dlsFlsFeatureUsageTracker
         );
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
@@ -130,7 +135,8 @@ public class LimitedRoleTests extends ESTestCase {
                 SearchAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
@@ -141,7 +147,8 @@ public class LimitedRoleTests extends ESTestCase {
                 DeleteIndexAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
@@ -152,7 +159,8 @@ public class LimitedRoleTests extends ESTestCase {
                 CreateIndexAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
@@ -166,7 +174,13 @@ public class LimitedRoleTests extends ESTestCase {
             } else {
                 role = fromRole.limitedBy(limitedByRole);
             }
-            iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(), fieldPermissionsCache);
+            iac = role.authorize(
+                SearchAction.NAME,
+                Sets.newHashSet("_index", "_alias1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
+            );
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.hasIndexPermissions("_index"), is(true));
@@ -176,7 +190,8 @@ public class LimitedRoleTests extends ESTestCase {
                 DeleteIndexAction.NAME,
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
@@ -187,7 +202,8 @@ public class LimitedRoleTests extends ESTestCase {
                 CreateIndexAction.NAME,
                 Sets.newHashSet("_index", "_index1"),
                 md.getIndicesLookup(),
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(nullValue()));

@@ -63,6 +63,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -183,6 +184,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -1829,6 +1831,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             true
         ).build();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        final DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         final List<String> indexMonitoringActionNamesList = Arrays.asList(
             IndicesStatsAction.NAME,
             IndicesSegmentsAction.NAME,
@@ -1843,7 +1846,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
                     metadata.getIndicesLookup(),
-                    fieldPermissionsCache
+                    fieldPermissionsCache,
+                    dlsFlsFeatureUsageTracker
                 );
             assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
             assertThat(iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(true));
@@ -1963,18 +1967,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesAccessControl iac = superuserRole.indices()
-            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache, dlsFlsFeatureUsageTracker);
         assertThat(iac.hasIndexPermissions("a1"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
-        iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices()
+            .authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache, dlsFlsFeatureUsageTracker);
         assertThat(iac.hasIndexPermissions("a1"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
-        iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices()
+            .authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache, dlsFlsFeatureUsageTracker);
         assertThat(iac.hasIndexPermissions("a2"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
-        iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices()
+            .authorize(
+                UpdateSettingsAction.NAME,
+                Sets.newHashSet("aaaaaa", "ba"),
+                lookup,
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
+            );
         assertThat(iac.hasIndexPermissions("aaaaaa"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
 
@@ -1984,7 +1998,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 randomFrom(SearchAction.NAME, GetIndexAction.NAME),
                 Sets.newHashSet(TestRestrictedIndices.SECURITY_MAIN_ALIAS),
                 lookup,
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
         assertThat("For " + iac, iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(true));
         assertThat("For " + iac, iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -1995,7 +2010,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 randomFrom(IndexAction.NAME, DeleteIndexAction.NAME),
                 Sets.newHashSet(TestRestrictedIndices.SECURITY_MAIN_ALIAS),
                 lookup,
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                dlsFlsFeatureUsageTracker
             );
         assertThat("For " + iac, iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(false));
         assertThat("For " + iac, iac.hasIndexPermissions(internalSecurityIndex), is(false));

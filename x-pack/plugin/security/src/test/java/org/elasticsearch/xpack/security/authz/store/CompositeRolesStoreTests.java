@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -890,6 +891,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null
         );
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         CompositeRolesStore.buildRoleFromDescriptors(
             Sets.newHashSet(flsRole, addsL1Fields),
@@ -910,7 +912,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getIndicesLookup(), cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getIndicesLookup(), cache, dlsFlsTracker);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));

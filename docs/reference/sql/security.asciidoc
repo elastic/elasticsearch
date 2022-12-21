@@ -24,13 +24,43 @@ PKI/X.509:: Use X.509 certificates to authenticate {es-sql} to {es}. For this, o
 [discrete]
 [[sql-security-permissions]]
 ==== Permissions (server-side)
-Lastly, one the server one need to add a few permissions to
-users so they can run SQL. To run SQL a user needs `read` and
+On the server, one needs to add a few permissions to
+users so they can run SQL. To run SQL, a user needs `read` and
 `indices:admin/get` permissions at minimum while some parts of 
-the API require `cluster:monitor/main`. 
+the API require `cluster:monitor/main`.
 
-The following example configures a role that can run SQL in JDBC querying the `test` and `bort`
-indices:
+You can add permissions with either an <<apiexample,API call>>
+or the configuration file <<fileexample,roles.yml>>. File-based role management
+is useful if you want to define a role that doesn't need to change. Also, you
+cannot use the role management APIs to view or edit a role defined in `roles.yml`.
+Using a role management API is the preferred method for defining roles.
+
+[[apiexample]]
+*Add permissions with the role management APIs*
+
+This example configures a role that can run SQL in JDBC querying the `test`
+index:
+
+[source,console]
+--------------------------------------------------
+POST /_security/role/cli_or_drivers_minimal
+{
+  "cluster": ["cluster:monitor/main"],
+  "indices": [
+    {
+      "names": ["test"],
+      "privileges": ["read", "indices:admin/get"]
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[skip:forcomparisontofilemethod]
+
+[[fileexample]]
+*Add permissions to roles.yml*
+
+This example configures a role that can run SQL in JDBC querying the `test` and `bort`
+indices. Add the following to `roles.yml`:
 
 [source, yaml]
 --------------------------------------------------

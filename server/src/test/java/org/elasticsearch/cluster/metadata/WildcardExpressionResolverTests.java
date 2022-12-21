@@ -258,9 +258,29 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             SystemIndexAccessLevel.NONE
         );
         assertThat(
-            newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Collections.singletonList("_all"))),
+            newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
         );
+        assertThat(
+            newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all")),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
+        IndicesOptions noExpandOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            true,
+            false,
+            false,
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        IndexNameExpressionResolver.Context noExpandContext = new IndexNameExpressionResolver.Context(
+            state,
+            noExpandOptions,
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(IndexNameExpressionResolver.resolveExpressions(noExpandContext, "_all").size(), equalTo(0));
     }
 
     public void testResolveEmpty() {

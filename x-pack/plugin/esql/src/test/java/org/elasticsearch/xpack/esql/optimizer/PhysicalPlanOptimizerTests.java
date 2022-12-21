@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -105,10 +106,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(config);
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         mapper = new Mapper();
 
-        analyzer = new Analyzer(getIndexResult, new EsqlFunctionRegistry(), new Verifier(), config);
+        analyzer = new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult), new Verifier());
     }
 
     public void testSingleFieldExtractor() {
@@ -158,7 +159,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
 
-        var source = source(extract.child());
+        var ource = source(extract.child());
     }
 
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {

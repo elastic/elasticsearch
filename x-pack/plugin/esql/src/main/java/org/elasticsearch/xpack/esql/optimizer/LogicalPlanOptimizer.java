@@ -55,8 +55,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch operators = new Batch(
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
             new FoldNull(),
@@ -75,8 +75,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters()
         );
 
-        Batch local = new Batch("Skip Compute", new SkipQueryOnLimitZero());
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
+        var local = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(operators, local, label);
     }

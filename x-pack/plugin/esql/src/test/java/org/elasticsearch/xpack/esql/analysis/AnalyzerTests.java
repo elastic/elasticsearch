@@ -352,7 +352,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private Analyzer newAnalyzer(IndexResolution indexResolution) {
-        return new Analyzer(indexResolution, new EsqlFunctionRegistry(), new Verifier(), EsqlTestUtils.TEST_CFG);
+        return new Analyzer(new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution), new Verifier());
     }
 
     private IndexResolution loadMapping(String resource, String indexName) {

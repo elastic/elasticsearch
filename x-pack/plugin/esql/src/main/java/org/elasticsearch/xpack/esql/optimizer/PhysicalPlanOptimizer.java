@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -33,6 +32,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -43,20 +44,45 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 
 @Experimental
-public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
+public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
 
     static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
     private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
 
-    private final EsqlConfiguration configuration;
+    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules;
 
-    public PhysicalPlanOptimizer(EsqlConfiguration configuration) {
-        this.configuration = configuration;
+    static {
+        // keep filters pushing before field extraction insertion
+        var pushdown = new Batch<>("Global plan", Limiter.ONCE, new PushFiltersToSource());
+        var exchange = new Batch<>("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit());
+
+        var parallelism = new Batch<>("Add task parallelization above query", Limiter.ONCE, new AddTaskParallelismAboveQuery());
+        // }
+
+        var reducer = new Batch<>("Gather data flow", Limiter.ONCE, new EnsureSingleGatheringNode());
+
+        // local optimizations
+        var localPlanning = new Batch<>(
+            "Local Plan",
+            Limiter.ONCE,
+            new MarkLocalPlan(),
+            new LocalToGlobalLimitAndTopNExec(),
+            new InsertFieldExtraction(),
+            new LocalOptimizations(),
+            new RemoveLocalPlanMarker()
+        );
+
+        rules = asList(pushdown, exchange, parallelism, reducer, localPlanning);
+    }
+
+    public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
+        super(context);
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
@@ -64,32 +90,8 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        List<Batch> batches = new ArrayList<>();
-        // keep filters pushing before field extraction insertion
-        batches.add(new Batch("Global plan", Limiter.ONCE, new PushFiltersToSource()));
-        batches.add(new Batch("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit()));
-
-        if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(configuration.pragmas())) {
-            batches.add(new Batch("Add task parallelization above query", Limiter.ONCE, new AddTaskParallelismAboveQuery()));
-        }
-
-        batches.add(new Batch("Gather data flow", Limiter.ONCE, new EnsureSingleGatheringNode()));
-
-        // local optimizations
-        batches.add(
-            new Batch(
-                "Local Plan",
-                Limiter.ONCE,
-                new MarkLocalPlan(),
-                new LocalToGlobalLimitAndTopNExec(),
-                new InsertFieldExtraction(),
-                new LocalOptimizations(),
-                new RemoveLocalPlanMarker()
-            )
-        );
-
-        return batches;
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        return rules;
     }
 
     private static class MarkLocalPlan extends Rule<PhysicalPlan, PhysicalPlan> {
@@ -107,11 +109,6 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
             if (found.get() == Boolean.FALSE) {
                 plan = new LocalPlanExec(plan.source(), plan);
             }
-            return plan;
-        }
-
-        @Override
-        protected PhysicalPlan rule(PhysicalPlan plan) {
             return plan;
         }
     }
@@ -143,11 +140,6 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
             });
         }
 
-        @Override
-        protected PhysicalPlan rule(PhysicalPlan plan) {
-            return plan;
-        }
-
         private UnaryExec findLocalLimitOrTopN(UnaryExec localPlan) {
             for (var plan = localPlan.child();;) {
                 if (plan instanceof LimitExec || plan instanceof TopNExec) {
@@ -170,13 +162,12 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         private final class LocalRules extends RuleExecutor<PhysicalPlan> {
 
             @Override
-            protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
+            protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
                 return emptyList();
             }
 
-            @Override
-            public PhysicalPlan execute(PhysicalPlan plan) {
-                return super.execute(plan);
+            PhysicalPlan plan(PhysicalPlan plan) {
+                return execute(plan);
             }
         }
 
@@ -185,7 +176,7 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         @Override
         // use the rule method to apply the local optimizations
         protected PhysicalPlan rule(LocalPlanExec plan) {
-            return localRules.execute(plan);
+            return localRules.plan(plan);
         }
     }
 
@@ -295,11 +286,6 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
             });
             return missing;
         }
-
-        @Override
-        protected PhysicalPlan rule(PhysicalPlan physicalPlan) {
-            return physicalPlan;
-        }
     }
 
     private static class AddExchangeOnSingleNodeSplit extends OptimizerRule<UnaryExec> {
@@ -326,14 +312,17 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class AddTaskParallelismAboveQuery extends OptimizerRule<EsQueryExec> {
+    private static class AddTaskParallelismAboveQuery extends ParameterizedOptimizerRule<EsQueryExec, PhysicalOptimizerContext> {
 
         protected AddTaskParallelismAboveQuery() {
             super(OptimizerRules.TransformDirection.UP);
         }
 
-        @Override
-        protected PhysicalPlan rule(EsQueryExec plan) {
+        protected PhysicalPlan rule(EsQueryExec plan, PhysicalOptimizerContext context) {
+            // enable plan only if the setting is in place
+            if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(context.configuration().pragmas()) == false) {
+                return plan;
+            }
             return new ExchangeExec(
                 plan.source(),
                 plan,
@@ -353,11 +342,31 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
             }
             return plan;
         }
+    }
+
+    public abstract static class ParameterizedOptimizerRule<SubPlan extends PhysicalPlan, P> extends ParameterizedRule<
+        SubPlan,
+        PhysicalPlan,
+        P> {
+
+        private final OptimizerRules.TransformDirection direction;
+
+        public ParameterizedOptimizerRule() {
+            this(OptimizerRules.TransformDirection.DOWN);
+        }
+
+        protected ParameterizedOptimizerRule(OptimizerRules.TransformDirection direction) {
+            this.direction = direction;
+        }
 
         @Override
-        protected PhysicalPlan rule(PhysicalPlan plan) {
-            return plan;
+        public final PhysicalPlan apply(PhysicalPlan plan, P context) {
+            return direction == OptimizerRules.TransformDirection.DOWN
+                ? plan.transformDown(typeToken(), t -> rule(t, context))
+                : plan.transformUp(typeToken(), t -> rule(t, context));
         }
+
+        protected abstract PhysicalPlan rule(SubPlan plan, P context);
     }
 
     public abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
@@ -379,7 +388,6 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
                 : plan.transformUp(typeToken(), this::rule);
         }
 
-        @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
     }
 
@@ -402,7 +410,6 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
                 : plan.transformExpressionsUp(expressionTypeToken, this::rule);
         }
 
-        @Override
         protected PhysicalPlan rule(PhysicalPlan plan) {
             return plan;
         }

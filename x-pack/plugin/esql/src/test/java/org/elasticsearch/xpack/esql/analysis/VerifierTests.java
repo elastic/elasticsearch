@@ -21,7 +21,10 @@ public class VerifierTests extends ESTestCase {
     private static final String INDEX_NAME = "test";
     private static final EsqlParser parser = new EsqlParser();
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
-    private final Analyzer defaultAnalyzer = new Analyzer(defaultIndex, new EsqlFunctionRegistry(), new Verifier(), TEST_CFG);
+    private final Analyzer defaultAnalyzer = new Analyzer(
+        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex),
+        new Verifier()
+    );
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(

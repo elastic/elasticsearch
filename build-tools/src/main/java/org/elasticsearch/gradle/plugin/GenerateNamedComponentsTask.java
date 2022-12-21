@@ -26,6 +26,7 @@ import org.gradle.process.ExecResult;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
+
 import javax.inject.Inject;
 
 public abstract class GenerateNamedComponentsTask extends DefaultTask {

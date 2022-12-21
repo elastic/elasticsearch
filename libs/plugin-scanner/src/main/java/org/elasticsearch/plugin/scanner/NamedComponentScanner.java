@@ -10,12 +10,15 @@ package org.elasticsearch.plugin.scanner;
 
 import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -35,12 +38,25 @@ public class NamedComponentScanner {
         scanner.writeToFile(namedComponentsMap, outputFile);
     }
 
-    private void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) {
+    // scope for testing
+    void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) {
         try {
             // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
             Files.createDirectories(outputFile.getParent());
-            Files.createFile(outputFile);
-            Files.writeString(outputFile, namedComponentsMap.toString());
+
+            try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
+                try (XContentBuilder namedComponents = XContentFactory.jsonBuilder(outputStream)) {
+                    namedComponents.startObject();
+                    for (Map.Entry<String, Map<String, String>> extensibleToComponents : namedComponentsMap.entrySet()) {
+                        namedComponents.startObject(extensibleToComponents.getKey());// extensible class name
+                        for (Map.Entry<String, String> components : extensibleToComponents.getValue().entrySet()) {
+                            namedComponents.field(components.getKey(), components.getValue());// component name : component class
+                        }
+                        namedComponents.endObject();
+                    }
+                    namedComponents.endObject();
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }

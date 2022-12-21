@@ -25,11 +25,12 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-;
+import static org.hamcrest.Matchers.equalTo;
 
 public class NamedComponentScannerTests extends ESTestCase {
 
@@ -46,7 +47,7 @@ public class NamedComponentScannerTests extends ESTestCase {
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
-            org.hamcrest.Matchers.equalTo(
+            equalTo(
                 Map.of(
                     ExtensibleInterface.class.getCanonicalName(),
                     Map.of("test_named_component", TestNamedComponent.class.getCanonicalName())
@@ -85,7 +86,7 @@ public class NamedComponentScannerTests extends ESTestCase {
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
-            org.hamcrest.Matchers.equalTo(
+            equalTo(
                 Map.of(
                     ExtensibleClass.class.getCanonicalName(),
                     Map.of("a_component", "p.A"),
@@ -160,7 +161,7 @@ public class NamedComponentScannerTests extends ESTestCase {
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
-            org.hamcrest.Matchers.equalTo(
+            equalTo(
                 Map.of(
                     ExtensibleInterface.class.getCanonicalName(),
                     Map.of(
@@ -174,6 +175,27 @@ public class NamedComponentScannerTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testWriteToFile() throws IOException {
+        Map<String, String> extensibleInterfaceComponents = new LinkedHashMap<>();
+        extensibleInterfaceComponents.put("a_component", "p.A");
+        extensibleInterfaceComponents.put("b_component", "p.B");
+        Map<String, Map<String, String>> mapToWrite = new LinkedHashMap<>();
+        mapToWrite.put(ExtensibleInterface.class.getCanonicalName(), extensibleInterfaceComponents);
+
+        Path path = tmpDir().resolve("file.json");
+        namedComponentScanner.writeToFile(mapToWrite, path);
+
+        String jsonMap = Files.readString(path);
+        assertThat(jsonMap, equalTo("""
+            {
+              "org.elasticsearch.plugin.scanner.test_model.ExtensibleInterface": {
+                "a_component": "p.A",
+                "b_component": "p.B"
+              }
+            }
+            """.replaceAll("[\n\r\s]", "")));// todo line sep
     }
 
     private Collection<ClassReader> classReaderStream(Class<?>... classes) {

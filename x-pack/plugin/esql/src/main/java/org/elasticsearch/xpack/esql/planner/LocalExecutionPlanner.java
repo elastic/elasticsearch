@@ -58,6 +58,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -192,29 +195,27 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(aggregate.child(), context);
         Layout.Builder layout = new Layout.Builder();
         OperatorFactory operatorFactory = null;
+        AggregateExec.Mode mode = aggregate.getMode();
 
         if (aggregate.groupings().isEmpty()) {
             // not grouping
+            List<AggregatorFactory> aggregatorFactories = new ArrayList<>();
             for (NamedExpression e : aggregate.aggregates()) {
                 if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
                     var provider = AggregateMapper.map(aggregateFunction);
 
-                    if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                        operatorFactory = new AggregationOperatorFactory(
-                            List.of(
-                                new AggregatorFactory(
-                                    provider,
-                                    AggregatorMode.INITIAL,
-                                    source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
-                                )
-                            ),
-                            AggregatorMode.INITIAL
+                    if (mode == AggregateExec.Mode.PARTIAL) {
+                        aggregatorFactories.add(
+                            new AggregatorFactory(
+                                provider,
+                                AggregatorMode.INITIAL,
+                                source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
+                            )
                         );
                         layout.appendChannel(alias.id());
-                    } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                        operatorFactory = new AggregationOperatorFactory(
-                            List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.getChannel(alias.id()))),
-                            AggregatorMode.FINAL
+                    } else if (mode == AggregateExec.Mode.FINAL) {
+                        aggregatorFactories.add(
+                            new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.getChannel(alias.id()))
                         );
                         layout.appendChannel(alias.id());
                     } else {
@@ -224,14 +225,27 @@ public class LocalExecutionPlanner {
                     throw new UnsupportedOperationException();
                 }
             }
+            if (aggregatorFactories.isEmpty() == false) {
+                operatorFactory = new AggregationOperatorFactory(
+                    aggregatorFactories,
+                    mode == AggregateExec.Mode.FINAL ? AggregatorMode.FINAL : AggregatorMode.INITIAL
+                );
+            }
         } else {
             // grouping
+            List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
             AttributeSet groups = Expressions.references(aggregate.groupings());
             if (groups.size() != 1) {
                 throw new UnsupportedOperationException("just one group, for now");
             }
             Attribute grpAttrib = groups.iterator().next();
             layout.appendChannel(grpAttrib.id());
+            final Supplier<BlockHash> blockHash;
+            if (grpAttrib.dataType() == DataTypes.KEYWORD) {
+                blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays);
+            } else {
+                blockHash = () -> BlockHash.newLongHash(context.bigArrays);
+            }
 
             for (NamedExpression e : aggregate.aggregates()) {
                 if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
@@ -240,17 +254,17 @@ public class LocalExecutionPlanner {
                         aggregatorFunc = GroupingAggregatorFunction.avg;
                     } else if (aggregateFunction instanceof Count) {
                         aggregatorFunc = GroupingAggregatorFunction.count;
+                    } else if (aggregateFunction instanceof Max) {
+                        aggregatorFunc = GroupingAggregatorFunction.max;
+                    } else if (aggregateFunction instanceof Min) {
+                        aggregatorFunc = GroupingAggregatorFunction.min;
+                    } else if (aggregateFunction instanceof Sum) {
+                        aggregatorFunc = GroupingAggregatorFunction.sum;
                     } else {
                         throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
                     }
-                    final Supplier<BlockHash> blockHash;
-                    if (grpAttrib.dataType() == DataTypes.KEYWORD) {
-                        blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays);
-                    } else {
-                        blockHash = () -> BlockHash.newLongHash(context.bigArrays);
-                    }
-                    if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                        List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = List.of(
+                    if (mode == AggregateExec.Mode.PARTIAL) {
+                        aggregatorFactories.add(
                             new GroupingAggregator.GroupingAggregatorFactory(
                                 context.bigArrays,
                                 aggregatorFunc,
@@ -258,41 +272,15 @@ public class LocalExecutionPlanner {
                                 source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
                             )
                         );
-                        final Integer inputChannel = source.layout.getChannel(grpAttrib.id());
-                        // The grouping-by values are ready, let's group on them directly.
-                        if (inputChannel != null) {
-                            operatorFactory = new HashAggregationOperatorFactory(
-                                inputChannel,
-                                aggregatorFactories,
-                                blockHash,
-                                AggregatorMode.FINAL
-                            );
-                        } else {
-                            var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
-                            operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-                                grpAttrib.name(),
-                                source.layout.getChannel(sourceAttributes.get(2).id()),
-                                source.layout.getChannel(sourceAttributes.get(1).id()),
-                                source.layout.getChannel(sourceAttributes.get(0).id()),
-                                context.searchContexts,
-                                aggregatorFactories,
-                                BigArrays.NON_RECYCLING_INSTANCE
-                            );
-                        }
                         layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
                     } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                        operatorFactory = new HashAggregationOperatorFactory(
-                            source.layout.getChannel(grpAttrib.id()),
-                            List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(
-                                    context.bigArrays,
-                                    aggregatorFunc,
-                                    AggregatorMode.FINAL,
-                                    source.layout.getChannel(alias.id())
-                                )
-                            ),
-                            blockHash,
-                            AggregatorMode.FINAL
+                        aggregatorFactories.add(
+                            new GroupingAggregator.GroupingAggregatorFactory(
+                                context.bigArrays,
+                                aggregatorFunc,
+                                AggregatorMode.FINAL,
+                                source.layout.getChannel(alias.id())
+                            )
                         );
                         layout.appendChannel(alias.id());
                     } else {
@@ -305,7 +293,38 @@ public class LocalExecutionPlanner {
                     );
                 }
             }
-
+            if (aggregatorFactories.isEmpty() == false) {
+                if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
+                    final Integer inputChannel = source.layout.getChannel(grpAttrib.id());
+                    // The grouping-by values are ready, let's group on them directly.
+                    if (inputChannel != null) {
+                        operatorFactory = new HashAggregationOperatorFactory(
+                            inputChannel,
+                            aggregatorFactories,
+                            blockHash,
+                            AggregatorMode.FINAL
+                        );
+                    } else {
+                        var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
+                        operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
+                            grpAttrib.name(),
+                            source.layout.getChannel(sourceAttributes.get(2).id()),
+                            source.layout.getChannel(sourceAttributes.get(1).id()),
+                            source.layout.getChannel(sourceAttributes.get(0).id()),
+                            context.searchContexts,
+                            aggregatorFactories,
+                            BigArrays.NON_RECYCLING_INSTANCE
+                        );
+                    }
+                } else if (mode == AggregateExec.Mode.FINAL) {
+                    operatorFactory = new HashAggregationOperatorFactory(
+                        source.layout.getChannel(grpAttrib.id()),
+                        aggregatorFactories,
+                        blockHash,
+                        AggregatorMode.FINAL
+                    );
+                }
+            }
         }
         if (operatorFactory != null) {
             return source.with(operatorFactory, layout.build());

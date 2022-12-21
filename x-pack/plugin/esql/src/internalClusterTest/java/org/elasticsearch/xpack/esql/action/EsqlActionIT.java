@@ -151,9 +151,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(40L, results.values().get(0).get(0));
     }
 
-    @AwaitsFix(bugUrl = "line 1:45: Unknown column [data]")
-    public void testFromStatsGroupingAvgWithSort() {  // FIX ME
-        testFromStatsGroupingAvgImpl("from test | stats avg(count) by data | sort data | limit 2", "avg(count)", "data");
+    public void testFromStatsGroupingAvgWithSort() {
+        testFromStatsGroupingAvgImpl("from test | stats avg(count) by data | sort data | limit 2", "data", "avg(count)");
     }
 
     public void testFromStatsGroupingAvg() {
@@ -269,6 +268,53 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<Group> actualGroups = results.values()
             .stream()
             .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
+            .sorted(Comparator.comparing(c -> c.color))
+            .toList();
+        assertThat(actualGroups, equalTo(expectedGroups));
+    }
+
+    public void testFromStatsMultipleAggs() {
+        EsqlQueryResponse results = run(
+            "from test | stats a=avg(count), mi=min(count), ma=max(count), s=sum(count), c=count(count) by color"
+        );
+        logger.info(results);
+        Assert.assertEquals(6, results.columns().size());
+        Assert.assertEquals(3, results.values().size());
+
+        // assert column metadata
+        assertEquals("a", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals("mi", results.columns().get(1).name());
+        assertEquals("long", results.columns().get(1).type());
+        assertEquals("ma", results.columns().get(2).name());
+        assertEquals("long", results.columns().get(2).type());
+        assertEquals("s", results.columns().get(3).name());
+        assertEquals("long", results.columns().get(3).type());
+        assertEquals("c", results.columns().get(4).name());
+        assertEquals("long", results.columns().get(4).type());
+        assertEquals("color", results.columns().get(5).name());
+        assertEquals("keyword", results.columns().get(5).type());
+        record Group(double avg, double mi, double ma, double s, long c, String color) {
+
+        }
+        List<Group> expectedGroups = List.of(
+            new Group(42, 42, 42, 420, 10, "blue"),
+            new Group(44, 44, 44, 440, 10, "green"),
+            new Group(43, 40, 46, 860, 20, "red")
+        );
+        // TODO: each aggregator returns Double now, it should in fact mirror the data type of the fields it's aggregating
+        List<Group> actualGroups = results.values()
+            .stream()
+            .map(
+                l -> new Group(
+                    (Double) l.get(0),
+                    (Double) l.get(1),
+                    (Double) l.get(2),
+                    (Double) l.get(3),
+                    (Long) l.get(4),
+                    (String) l.get(5)
+                )
+            )
             .sorted(Comparator.comparing(c -> c.color))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));

@@ -85,7 +85,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats x = avg(emp_no / 2) by emp_no")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [avg(gender)] of type [Avg]",
+            "1:19: Unknown function [count]\nline 1:25: argument of [avg(gender)] must be [numeric], "
+                + "found value [gender] type [keyword]",
             error("from test | stats count(avg(gender)) by gender")
         );
         assertEquals(

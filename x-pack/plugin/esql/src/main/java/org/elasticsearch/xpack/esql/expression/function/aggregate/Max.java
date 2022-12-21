@@ -11,23 +11,29 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
 @Experimental
-public class Avg extends NumericAggregate {
+public class Max extends NumericAggregate {
 
-    public Avg(Source source, Expression field) {
+    public Max(Source source, Expression field) {
         super(source, field);
     }
 
     @Override
-    protected NodeInfo<Avg> info() {
-        return NodeInfo.create(this, Avg::new, field());
+    protected NodeInfo<Max> info() {
+        return NodeInfo.create(this, Max::new, field());
     }
 
     @Override
-    public Avg replaceChildren(List<Expression> newChildren) {
-        return new Avg(source(), newChildren.get(0));
+    public Max replaceChildren(List<Expression> newChildren) {
+        return new Max(source(), newChildren.get(0));
+    }
+
+    @Override
+    public DataType dataType() {
+        return field().dataType();
     }
 }

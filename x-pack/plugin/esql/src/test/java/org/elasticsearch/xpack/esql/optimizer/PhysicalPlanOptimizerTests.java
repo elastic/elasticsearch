@@ -166,7 +166,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | where round(emp_no) > 10
-            | eval c = first_name
+            | eval c = languages
             | stats x = avg(c)
             """);
 
@@ -178,7 +178,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(aggregate.child(), EvalExec.class);
 
         var extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
 
         var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);

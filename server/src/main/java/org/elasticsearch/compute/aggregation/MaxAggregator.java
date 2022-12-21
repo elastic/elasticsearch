@@ -58,11 +58,10 @@ final class MaxAggregator implements AggregatorFunction {
 
     static double maxFromLongBlock(LongArrayBlock block) {
         double max = Double.NEGATIVE_INFINITY;
-        long[] values = block.getRawLongArray();
         if (block.areAllValuesNull() == false) {
             for (int i = 0; i < block.getPositionCount(); i++) {
                 if (block.isNull(i) == false) {
-                    max = Math.max(max, values[i]);
+                    max = Math.max(max, block.getLong(i));
                 }
             }
         }

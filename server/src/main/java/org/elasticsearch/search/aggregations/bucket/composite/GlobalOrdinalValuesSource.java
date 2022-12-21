@@ -456,6 +456,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 return;
             }
 
+            // TODO If this is the only source, we know we are done with the buckets of the after_key.
+            // We could optimize even further by skipping to the next global ordinal after the after_key.
+
             long lowOrd;
             if (afterValueGlobalOrd != null && afterValueGlobalOrd != MISSING_VALUE_FLAG) {
                 lowOrd = afterValueGlobalOrd;

@@ -624,7 +624,7 @@ public class OperatorTests extends ESTestCase {
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(
                                         bigArrays,
-                                        GroupingAggregatorFunction.count,
+                                        GroupingAggregatorFunction.COUNT,
                                         INITIAL,
                                         3
                                     )
@@ -636,7 +636,7 @@ public class OperatorTests extends ESTestCase {
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(
                                         bigArrays,
-                                        GroupingAggregatorFunction.count,
+                                        GroupingAggregatorFunction.COUNT,
                                         INTERMEDIATE,
                                         1
                                     )
@@ -646,7 +646,7 @@ public class OperatorTests extends ESTestCase {
                             new HashAggregationOperator(
                                 0, // group by channel
                                 List.of(
-                                    new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, FINAL, 1)
+                                    new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                                 ),
                                 () -> BlockHash.newLongHash(bigArrays)
                             )
@@ -704,14 +704,14 @@ public class OperatorTests extends ESTestCase {
                             List.of(CoreValuesSourceType.KEYWORD),
                             List.of(reader),
                             List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, INITIAL, 3)
+                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 3)
                             ),
                             bigArrays
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
                             List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, FINAL, 1)
+                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                             ),
                             () -> BlockHash.newBytesRefHash(bigArrays)
                         )

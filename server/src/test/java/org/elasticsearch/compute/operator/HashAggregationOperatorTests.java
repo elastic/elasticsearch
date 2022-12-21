@@ -120,8 +120,8 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
         return new HashAggregationOperator(
             0,
             List.of(
-                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.avg, mode, channel1),
-                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.max, mode, channel2)
+                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG, mode, channel1),
+                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.MAX, mode, channel2)
             ),
             () -> BlockHash.newLongHash(bigArrays)
         );

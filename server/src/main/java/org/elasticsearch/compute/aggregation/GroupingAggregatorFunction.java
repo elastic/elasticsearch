@@ -31,11 +31,11 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     Block evaluateFinal();
 
-    abstract class GroupingAggregatorFunctionFactory implements Describable {
+    abstract class Factory implements Describable {
 
         private final String name;
 
-        GroupingAggregatorFunctionFactory(String name) {
+        Factory(String name) {
             this.name = name;
         }
 
@@ -47,7 +47,7 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
     }
 
-    GroupingAggregatorFunctionFactory avg = new GroupingAggregatorFunctionFactory("avg") {
+    Factory AVG = new Factory("avg") {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
@@ -58,7 +58,7 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
     };
 
-    GroupingAggregatorFunctionFactory count = new GroupingAggregatorFunctionFactory("count") {
+    Factory COUNT = new Factory("count") {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
@@ -69,7 +69,7 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
     };
 
-    GroupingAggregatorFunctionFactory min = new GroupingAggregatorFunctionFactory("min") {
+    Factory MIN = new Factory("min") {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
@@ -80,7 +80,7 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
     };
 
-    GroupingAggregatorFunctionFactory max = new GroupingAggregatorFunctionFactory("max") {
+    Factory MAX = new Factory("max") {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
@@ -91,7 +91,7 @@ public interface GroupingAggregatorFunction extends Releasable {
         }
     };
 
-    GroupingAggregatorFunctionFactory sum = new GroupingAggregatorFunctionFactory("sum") {
+    Factory SUM = new Factory("sum") {
         @Override
         public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {

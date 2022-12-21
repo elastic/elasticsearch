@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorTestCase extends OperatorTestCase {
-    protected abstract AggregatorFunction.Provider aggregatorFunction();
+    protected abstract AggregatorFunction.Factory aggregatorFunction();
 
     protected abstract void assertSimpleResult(int end, Block result);
 

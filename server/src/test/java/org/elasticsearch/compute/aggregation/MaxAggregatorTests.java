@@ -14,8 +14,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MaxAggregatorTests extends AggregatorTestCase {
     @Override
-    protected AggregatorFunction.Provider aggregatorFunction() {
-        return AggregatorFunctionProviders.max();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        return AggregatorFunction.MAX;
     }
 
     @Override

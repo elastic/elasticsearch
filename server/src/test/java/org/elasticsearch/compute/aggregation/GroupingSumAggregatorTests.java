@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GroupingSumAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunction() {
-        return GroupingAggregatorFunction.sum;
+    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
+        return GroupingAggregatorFunction.SUM;
     }
 
     @Override

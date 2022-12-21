@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
-    protected abstract GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunction();
+    protected abstract GroupingAggregatorFunction.Factory aggregatorFunction();
 
     protected abstract void assertSimpleBucket(Block result, int end, int bucket);
 

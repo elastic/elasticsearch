@@ -17,8 +17,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GroupingAvgAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunction() {
-        return GroupingAggregatorFunction.avg;
+    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
+        return GroupingAggregatorFunction.AVG;
     }
 
     @Override

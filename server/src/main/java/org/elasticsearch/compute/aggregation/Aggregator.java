@@ -23,7 +23,7 @@ public class Aggregator {
 
     private final int intermediateChannel;
 
-    public record AggregatorFactory(AggregatorFunction.Provider provider, AggregatorMode mode, int inputChannel)
+    public record AggregatorFactory(AggregatorFunction.Factory provider, AggregatorMode mode, int inputChannel)
         implements
             Supplier<Aggregator>,
             Describable {
@@ -38,7 +38,7 @@ public class Aggregator {
         }
     }
 
-    public Aggregator(AggregatorFunction.Provider provider, AggregatorMode mode, int inputChannel) {
+    public Aggregator(AggregatorFunction.Factory provider, AggregatorMode mode, int inputChannel) {
         assert mode.isInputPartial() || inputChannel >= 0;
         // input channel is used both to signal the creation of the page (when the input is not partial)
         this.aggregatorFunction = provider.create(mode.isInputPartial() ? -1 : inputChannel);

@@ -20,8 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AvgLongAggregatorTests extends AggregatorTestCase {
     @Override
-    protected AggregatorFunction.Provider aggregatorFunction() {
-        return AggregatorFunctionProviders.avgLong();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        return AggregatorFunction.AVG_LONG;
     }
 
     @Override

@@ -25,7 +25,7 @@ public interface AggregatorFunction {
     Block evaluateFinal();
 
     @FunctionalInterface
-    interface Provider extends Describable {
+    interface Factory extends Describable {
         AggregatorFunction create(int inputChannel);
 
         @Override
@@ -40,4 +40,16 @@ public interface AggregatorFunction {
             return description;
         }
     }
+
+    Factory AVG_DOUBLE = DoubleAvgAggregator::create;
+
+    Factory AVG_LONG = LongAvgAggregator::create;
+
+    Factory COUNT = CountRowsAggregator::create;
+
+    Factory MAX = MaxAggregator::create;
+
+    Factory MIN = MinAggregator::create;
+
+    Factory SUM = SumAggregator::create;
 }

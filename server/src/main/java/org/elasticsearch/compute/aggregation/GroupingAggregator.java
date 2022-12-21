@@ -27,7 +27,7 @@ public class GroupingAggregator implements Releasable {
 
     public record GroupingAggregatorFactory(
         BigArrays bigArrays,
-        GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggCreationFunc,
+        GroupingAggregatorFunction.Factory aggCreationFunc,
         AggregatorMode mode,
         int inputChannel
     ) implements Supplier<GroupingAggregator>, Describable {
@@ -45,7 +45,7 @@ public class GroupingAggregator implements Releasable {
 
     public GroupingAggregator(
         BigArrays bigArrays,
-        GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggCreationFunc,
+        GroupingAggregatorFunction.Factory aggCreationFunc,
         AggregatorMode mode,
         int inputChannel
     ) {

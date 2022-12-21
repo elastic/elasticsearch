@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AvgDoubleAggregatorTests extends AggregatorTestCase {
     @Override
-    protected AggregatorFunction.Provider aggregatorFunction() {
-        return AggregatorFunctionProviders.avgDouble();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        return AggregatorFunction.AVG_DOUBLE;
     }
 
     @Override

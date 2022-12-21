@@ -20,8 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SumAggregatorTests extends AggregatorTestCase {
     @Override
-    protected AggregatorFunction.Provider aggregatorFunction() {
-        return AggregatorFunctionProviders.sum();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        return AggregatorFunction.SUM;
     }
 
     @Override

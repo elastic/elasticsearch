@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GroupingMaxAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunction() {
-        return GroupingAggregatorFunction.max;
+    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
+        return GroupingAggregatorFunction.MAX;
     }
 
     @Override

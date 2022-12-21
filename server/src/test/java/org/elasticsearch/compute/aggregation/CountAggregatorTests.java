@@ -14,8 +14,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountAggregatorTests extends AggregatorTestCase {
     @Override
-    protected AggregatorFunction.Provider aggregatorFunction() {
-        return AggregatorFunctionProviders.count();
+    protected AggregatorFunction.Factory aggregatorFunction() {
+        return AggregatorFunction.COUNT;
     }
 
     @Override

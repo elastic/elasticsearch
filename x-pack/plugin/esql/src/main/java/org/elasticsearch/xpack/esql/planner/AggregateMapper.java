@@ -8,16 +8,12 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionProviders;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgDouble;
-import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgLong;
 
 /**
  * Basic class that handles the translation of logical aggregate provider to the compute agg provider.
@@ -26,19 +22,19 @@ import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.
  */
 class AggregateMapper {
 
-    static AggregatorFunction.Provider map(AggregateFunction aggregateFunction) {
+    static AggregatorFunction.Factory map(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof Avg avg) {
-            return avg.dataType().isRational() ? avgDouble() : avgLong();
+            return avg.dataType().isRational() ? AggregatorFunction.AVG_DOUBLE : AggregatorFunction.AVG_LONG;
         }
 
         if (aggregateFunction instanceof Count) {
-            return AggregatorFunctionProviders.count();
+            return AggregatorFunction.COUNT;
         } else if (aggregateFunction instanceof Max) {
-            return AggregatorFunctionProviders.max();
+            return AggregatorFunction.MAX;
         } else if (aggregateFunction instanceof Min) {
-            return AggregatorFunctionProviders.min();
+            return AggregatorFunction.MIN;
         } else if (aggregateFunction instanceof Sum) {
-            return AggregatorFunctionProviders.sum();
+            return AggregatorFunction.SUM;
         }
 
         throw new UnsupportedOperationException("No provider available for aggregate function=" + aggregateFunction);

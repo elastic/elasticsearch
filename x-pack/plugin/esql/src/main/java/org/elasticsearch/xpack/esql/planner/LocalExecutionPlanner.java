@@ -249,17 +249,17 @@ public class LocalExecutionPlanner {
 
             for (NamedExpression e : aggregate.aggregates()) {
                 if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                    GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunc;
+                    GroupingAggregatorFunction.Factory aggregatorFunc;
                     if (aggregateFunction instanceof Avg) {
-                        aggregatorFunc = GroupingAggregatorFunction.avg;
+                        aggregatorFunc = GroupingAggregatorFunction.AVG;
                     } else if (aggregateFunction instanceof Count) {
-                        aggregatorFunc = GroupingAggregatorFunction.count;
+                        aggregatorFunc = GroupingAggregatorFunction.COUNT;
                     } else if (aggregateFunction instanceof Max) {
-                        aggregatorFunc = GroupingAggregatorFunction.max;
+                        aggregatorFunc = GroupingAggregatorFunction.MAX;
                     } else if (aggregateFunction instanceof Min) {
-                        aggregatorFunc = GroupingAggregatorFunction.min;
+                        aggregatorFunc = GroupingAggregatorFunction.MIN;
                     } else if (aggregateFunction instanceof Sum) {
-                        aggregatorFunc = GroupingAggregatorFunction.sum;
+                        aggregatorFunc = GroupingAggregatorFunction.SUM;
                     } else {
                         throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
                     }

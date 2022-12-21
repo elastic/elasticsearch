@@ -11,7 +11,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.Aggregator;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionProviders;
+import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.AvgLongAggregatorTests;
 import org.elasticsearch.compute.aggregation.MaxAggregatorTests;
@@ -142,8 +142,8 @@ public class AggregationOperatorTests extends OperatorTestCase {
     private Operator operator(AggregatorMode mode, int channel1, int channel2) {
         return new AggregationOperator(
             List.of(
-                new Aggregator.AggregatorFactory(AggregatorFunctionProviders.avgLong(), mode, channel1).get(),
-                new Aggregator.AggregatorFactory(AggregatorFunctionProviders.max(), mode, channel2).get()
+                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONG, mode, channel1).get(),
+                new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, channel2).get()
             )
         );
     }

@@ -14,8 +14,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GroupingMinAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunction() {
-        return GroupingAggregatorFunction.min;
+    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
+        return GroupingAggregatorFunction.MIN;
     }
 
     @Override

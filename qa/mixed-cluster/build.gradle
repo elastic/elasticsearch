@@ -57,6 +57,13 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         nonInputProperties.systemProperty('tests.clustername', baseName)
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+
+      systemProperty 'tests.rest.blacklist', [
+        // muted when matrix_stats was moved from its own module to aggregations module
+        'aggregations/matrix_stats_multi_value_field/Multi value field Min',
+        'aggregations/matrix_stats_multi_value_field/Multi value field Max'
+      ]
+
       onlyIf { project.bwc_tests_enabled }
     }
 

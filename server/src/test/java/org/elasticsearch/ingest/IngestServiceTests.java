@@ -2113,16 +2113,18 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private IngestService createIngestServiceForMultiPipeline(String reallyLongId) {
+        var asyncCompoundProcessor = mockCompoundProcessor();
         var ingestService = createWithProcessors(Map.of("set", (factories, tag, description, config) -> {
             var field = (String) config.remove("field");
             var value = (String) config.remove("value");
             return new WrappingProcessorImpl("set", tag, description, document -> document.setFieldValue(field, value)) {
             };
-        }));
-        var setProcessorTemplate = """
-            {"processors": [{ "set": { "field": "_id", "value": "%s"}}]}""";
-        var setToInvalidIdPipeline = formatted(setProcessorTemplate, reallyLongId);
-        var validPipeline = formatted(setProcessorTemplate, "some-dummy-id");
+        }, "async", (f, t, d, c) -> asyncCompoundProcessor));
+        var setToInvalidIdPipeline = formatted("""
+            {"processors": [{ "set": { "field": "_id", "value": "%s"}}, {"async": {}}]}""", reallyLongId);
+        var validPipeline = """
+            {"processors": [{ "set": { "field": "_id", "value": "some-dummy-id"}}]}""";
+
         var clusterState = createPipelineOnIngestService(
             "invalid-pipeline",
             ingestService,

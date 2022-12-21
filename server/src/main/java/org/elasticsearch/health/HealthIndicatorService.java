@@ -23,9 +23,15 @@ import java.util.stream.Collectors;
  */
 public interface HealthIndicatorService {
 
+    int MAX_AFFECTED_RESOURCES_COUNT = 1000;
+
     String name();
 
-    HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo);
+    default HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        return calculate(verbose, MAX_AFFECTED_RESOURCES_COUNT, healthInfo);
+    }
+
+    HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the

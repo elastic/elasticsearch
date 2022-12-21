@@ -40,7 +40,15 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class IndicesStatsResponseTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final IndicesStatsResponse response = new IndicesStatsResponse(new ShardStats[0], 0, 0, 0, null, ClusterState.EMPTY_STATE);
+        final IndicesStatsResponse response = new IndicesStatsResponse(
+            new ShardStats[0],
+            0,
+            0,
+            0,
+            null,
+            ClusterState.EMPTY_STATE.getMetadata(),
+            ClusterState.EMPTY_STATE.routingTable()
+        );
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(
@@ -87,7 +95,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             0,
             0,
             null,
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE.getMetadata(),
+            ClusterState.EMPTY_STATE.routingTable()
         );
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
@@ -125,7 +134,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             shards,
             0,
             null,
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE.getMetadata(),
+            ClusterState.EMPTY_STATE.routingTable()
         );
         final ToXContent.Params paramsClusterLevel = new ToXContent.MapParams(Map.of("level", "cluster"));
         final var iteratorClusterLevel = indicesStatsResponse.toXContentChunked(paramsClusterLevel);

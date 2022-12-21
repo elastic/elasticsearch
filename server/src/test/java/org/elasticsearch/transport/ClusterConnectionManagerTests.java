@@ -352,9 +352,20 @@ public class ClusterConnectionManagerTests extends ESTestCase {
     }
 
     public void testConcurrentConnectsDuringClose() throws Exception {
+
+        // This test ensures that closing the connection manager doesn't block forever, even if there's a constant stream of attempts to
+        // open connections. Note that closing the connection manager _does_ block while there are in-flight connection attempts, and in
+        // practice each attempt will (eventually) finish, so we're just trying to test that constant open attempts do not cause starvation.
+        //
+        // It works by spawning connection-open attempts in several concurrent loops, putting a Runnable to complete each attempt into a
+        // queue, and then consuming and completing the enqueued runnables in a separate thread. The consuming thread is throttled via a
+        // Semaphore, from which the main thread steals a permit which ensures that there's always at least one pending connection while the
+        // close is ongoing even though no connection attempt blocks forever.
+
         final var pendingConnectionPermits = new Semaphore(0);
         final var pendingConnections = ConcurrentCollections.<Runnable>newQueue();
 
+        // transport#openConnection enqueues a Runnable to complete the connection attempt
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -366,15 +377,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
 
-        // we create a situation where there's always at least one pending connection by having the main thread acquire one of the
-        // permits; on closing, the connection manager should not wait for all connection-initiation refs to be released (because this will
-        // never happen), it should start rejecting connections straight away. Once we start to see connections being rejected, we
-        // release the main thread's permit to allow the last connection attempt to complete
+        // Once we start to see connections being rejected, we give back the stolen permit so that the last connection can complete
+        final var onConnectException = new RunOnce(pendingConnectionPermits::release);
 
+        // Create a few threads which open connections in a loop. Must be at least 2 so that there's always more connections incoming.
         final var connectionLoops = between(2, 4);
         final var connectionLoopCountDown = new CountDownLatch(connectionLoops);
-        final var onConnectException = new RunOnce(pendingConnectionPermits::release);
-        final var expectConnectionFailures = new AtomicBoolean();
+        final var expectConnectionFailures = new AtomicBoolean(); // unexpected failures would make this test pass vacuously
 
         class ConnectionLoop extends AbstractRunnable {
             private final boolean useConnectToNode = randomBoolean();
@@ -416,12 +425,14 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             threadPool.generic().execute(new ConnectionLoop());
         }
 
+        // Create a separate thread to complete pending connection attempts, throttled by the pendingConnectionPermits semaphore
         final var completionThread = new Thread(() -> {
             while (true) {
                 try {
                     assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    // There could still be items in the queue when we are interrupted, so drain the queue before exiting:
                     while (pendingConnectionPermits.tryAcquire()) {
                         //noinspection ConstantConditions
                         pendingConnections.poll().run();
@@ -434,7 +445,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         });
         completionThread.start();
 
+        // Steal a permit so that the consumer lags behind the producers ...
         assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
+        // ... and then send a connection attempt through the system to ensure that the lagging has started
         Releasables.closeExpectNoException(
             PlainActionFuture.<Releasable, RuntimeException>get(
                 fut -> connectionManager.connectToNode(
@@ -448,8 +461,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             )
         );
 
+        // Now close the connection manager
         expectConnectionFailures.set(true);
         connectionManager.close();
+        // Success! The close call returned
+
+        // Clean up and check everything completed properly
         assertTrue(connectionLoopCountDown.await(10, TimeUnit.SECONDS));
         completionThread.interrupt();
         completionThread.join();

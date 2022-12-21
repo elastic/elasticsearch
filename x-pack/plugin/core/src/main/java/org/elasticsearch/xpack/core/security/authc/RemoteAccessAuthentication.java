@@ -63,6 +63,34 @@ public final class RemoteAccessAuthentication {
         return roleDescriptorsBytesList;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteAccessAuthentication that = (RemoteAccessAuthentication) o;
+
+        if (false == authentication.equals(that.authentication)) return false;
+        return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = authentication.hashCode();
+        result = 31 * result + roleDescriptorsBytesList.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "RemoteAccessAuthentication{"
+            + "authentication="
+            + authentication
+            + ", roleDescriptorsBytesList="
+            + roleDescriptorsBytesList
+            + '}';
+    }
+
     private static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
@@ -76,7 +104,7 @@ public final class RemoteAccessAuthentication {
         return roleDescriptorsBytesList;
     }
 
-    private String encode() throws IOException {
+    public String encode() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(authentication.getEffectiveSubject().getVersion());
         Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
@@ -85,7 +113,7 @@ public final class RemoteAccessAuthentication {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    private static RemoteAccessAuthentication decode(final String header) throws IOException {
+    public static RemoteAccessAuthentication decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);

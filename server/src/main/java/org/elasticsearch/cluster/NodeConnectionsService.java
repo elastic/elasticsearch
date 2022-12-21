@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -97,10 +97,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-            discoveryNodes.getSize(),
-            ActionListener.wrap(onCompletion)
-        );
+        final CountDownActionListener listener = new CountDownActionListener(discoveryNodes.getSize(), onCompletion);
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         synchronized (mutex) {
@@ -159,10 +156,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 runnables.add(onCompletion);
             } else {
                 logger.trace("ensureConnections: {}", targetsByNode);
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    connectionTargets.size(),
-                    ActionListener.wrap(onCompletion)
-                );
+                final CountDownActionListener listener = new CountDownActionListener(connectionTargets.size(), onCompletion);
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.connect(listener));
                 }

@@ -81,10 +81,10 @@ final class Vec3d {
      * @return The H3 index.
      */
     static long geoToH3(int res, double lat, double lon) {
-        final double cosLat = Math.cos(lat);
-        final double z = Math.sin(lat);
-        final double x = Math.cos(lon) * cosLat;
-        final double y = Math.sin(lon) * cosLat;
+        final double cosLat = FastMath.cos(lat);
+        final double z = FastMath.sin(lat);
+        final double x = FastMath.cos(lon) * cosLat;
+        final double y = FastMath.sin(lon) * cosLat;
         // determine the icosahedron face
         int face = 0;
         double sqd = Vec3d.faceCenterPoint[0].pointSquareDist(x, y, z);
@@ -96,7 +96,7 @@ final class Vec3d {
             }
         }
         // cos(r) = 1 - 2 * sin^2(r/2) = 1 - 2 * (sqd / 4) = 1 - sqd/2
-        double r = Math.acos(1 - sqd / 2);
+        double r = FastMath.acos(1 - sqd / 2);
 
         if (r < Constants.EPSILON) {
             return FaceIJK.faceIjkToH3(res, face, new CoordIJK(0, 0, 0));
@@ -113,7 +113,7 @@ final class Vec3d {
         }
 
         // perform gnomonic scaling of r
-        r = Math.tan(r);
+        r = FastMath.tan(r);
 
         // scale for current resolution length u
         r /= Constants.RES0_U_GNOMONIC;
@@ -122,7 +122,7 @@ final class Vec3d {
         }
         // we now have (r, theta) in hex2d with theta ccw from x-axes
         // convert to face and centered IJK coordinates
-        return FaceIJK.faceIjkToH3(res, face, Vec2d.hex2dToCoordIJK(r * Math.cos(theta), r * Math.sin(theta)));
+        return FaceIJK.faceIjkToH3(res, face, Vec2d.hex2dToCoordIJK(r * FastMath.cos(theta), r * FastMath.sin(theta)));
     }
 
     /**
@@ -164,7 +164,7 @@ final class Vec3d {
         final double c1c2Z = c1X * c2Y - c1Y * c2X;
 
         final double sign = Math.signum(dotProduct(this.x, this.y, this.z, c1c2X, c1c2Y, c1c2Z));
-        return Math.atan2(sign * magnitude(c1c2X, c1c2Y, c1c2Z), dotProduct(c1X, c1Y, c1Z, c2X, c2Y, c2Z));
+        return FastMath.atan2(sign * magnitude(c1c2X, c1c2Y, c1c2Z), dotProduct(c1X, c1Y, c1Z, c2X, c2Y, c2Z));
     }
 
     /**

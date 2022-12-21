@@ -64,7 +64,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             false,  // scriptable
             false,  // timezone aware
             false,  // filtered (not defined per field, but for all fields below)
-            false   // format
+            false,  // format
+            false   // includes and excludes
         );
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, n) -> fieldsParser.parse(p, null).build(), FIELDS);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SUPPORT);

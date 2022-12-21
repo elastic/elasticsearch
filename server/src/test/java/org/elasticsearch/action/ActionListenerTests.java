@@ -14,7 +14,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -207,6 +209,53 @@ public class ActionListenerTests extends ESTestCase {
             assertThat(onResponseTimes.get(), equalTo(0));
             assertThat(onFailureTimes.get(), equalTo(1));
         }
+    }
+
+    public void testConcurrentNotifyOnce() throws InterruptedException {
+        final var completed = new AtomicBoolean();
+        final var listener = ActionListener.notifyOnce(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                assertTrue(completed.compareAndSet(false, true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(completed.compareAndSet(false, true));
+            }
+
+            @Override
+            public String toString() {
+                return "inner-listener";
+            }
+        });
+        assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
+
+        final var threads = new Thread[between(1, 10)];
+        final var startBarrier = new CyclicBarrier(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    startBarrier.await(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                if (randomBoolean()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(new RuntimeException("test"));
+                }
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertTrue(completed.get());
     }
 
     public void testCompleteWith() {

@@ -32,6 +32,8 @@ final class Vec2d {
     /** sin(60') */
     private static final double M_SIN60 = Constants.M_SQRT3_2;
 
+    private static final double VEC2D_RESOLUTION = 1e-7;
+
     /**
      * icosahedron face centers in lat/lng radians
      */
@@ -124,7 +126,7 @@ final class Vec2d {
             return faceCenterGeo[face];
         }
 
-        double theta = Math.atan2(y, x);
+        double theta = FastMath.atan2(y, x);
 
         // scale for current resolution length u
         for (int i = 0; i < res; i++) {
@@ -142,7 +144,7 @@ final class Vec2d {
         r *= Constants.RES0_U_GNOMONIC;
 
         // perform inverse gnomonic scaling of r
-        r = Math.atan(r);
+        r = FastMath.atan(r);
 
         // adjust theta for Class III
         // if a substrate grid, then it's already been adjusted for Class III
@@ -257,6 +259,10 @@ final class Vec2d {
         return coordIJK;
     }
 
+    public boolean numericallyIdentical(Vec2d vec2d) {
+        return Math.abs(vec2d.x - x) < VEC2D_RESOLUTION && Math.abs(vec2d.y - y) < VEC2D_RESOLUTION;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -280,16 +286,14 @@ final class Vec2d {
      * @param p3 The second endpoint of the second line.
      */
     public static Vec2d v2dIntersect(Vec2d p0, Vec2d p1, Vec2d p2, Vec2d p3) {
-        double[] s1 = new double[2], s2 = new double[2];
-        s1[0] = p1.x - p0.x;
-        s1[1] = p1.y - p0.y;
-        s2[0] = p3.x - p2.x;
-        s2[1] = p3.y - p2.y;
+        final double s1x = p1.x - p0.x;
+        final double s1y = p1.y - p0.y;
+        final double s2x = p3.x - p2.x;
+        final double s2y = p3.y - p2.y;
 
-        float t;
-        t = (float) ((s2[0] * (p0.y - p2.y) - s2[1] * (p0.x - p2.x)) / (-s2[0] * s1[1] + s1[0] * s2[1]));
+        final double t = ((s2x * (p0.y - p2.y) - s2y * (p0.x - p2.x)) / (-s2x * s1y + s1x * s2y));
 
-        return new Vec2d(p0.x + (t * s1[0]), p0.y + (t * s1[1]));
+        return new Vec2d(p0.x + (t * s1x), p0.y + (t * s1y));
     }
 
     /**
@@ -354,18 +358,18 @@ final class Vec2d {
                 lon = constrainLng(p1.getLonRad());
             }
         } else { // not due north or south
-            final double sinDistance = Math.sin(distance);
-            final double cosDistance = Math.cos(distance);
-            final double sinP1Lat = Math.sin(p1.getLatRad());
-            final double cosP1Lat = Math.cos(p1.getLatRad());
-            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * Math.cos(az);
+            final double sinDistance = FastMath.sin(distance);
+            final double cosDistance = FastMath.cos(distance);
+            final double sinP1Lat = FastMath.sin(p1.getLatRad());
+            final double cosP1Lat = FastMath.cos(p1.getLatRad());
+            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * FastMath.cos(az);
             if (sinlat > 1.0) {
                 sinlat = 1.0;
             }
             if (sinlat < -1.0) {
                 sinlat = -1.0;
             }
-            lat = Math.asin(sinlat);
+            lat = FastMath.asin(sinlat);
             if (Math.abs(lat - M_PI_2) < Constants.EPSILON)  // north pole
             {
                 lat = M_PI_2;
@@ -375,9 +379,9 @@ final class Vec2d {
                 lat = -M_PI_2;
                 lon = 0.0;
             } else {
-                final double cosLat = Math.cos(lat);
-                sinlng = Math.sin(az) * sinDistance / cosLat;
-                coslng = (cosDistance - sinP1Lat * Math.sin(lat)) / cosP1Lat / cosLat;
+                final double cosLat = FastMath.cos(lat);
+                sinlng = FastMath.sin(az) * sinDistance / cosLat;
+                coslng = (cosDistance - sinP1Lat * FastMath.sin(lat)) / cosP1Lat / cosLat;
                 if (sinlng > 1.0) {
                     sinlng = 1.0;
                 }
@@ -390,7 +394,7 @@ final class Vec2d {
                 if (coslng < -1.0) {
                     coslng = -1.0;
                 }
-                lon = constrainLng(p1.getLonRad() + Math.atan2(sinlng, coslng));
+                lon = constrainLng(p1.getLonRad() + FastMath.atan2(sinlng, coslng));
             }
         }
         return new LatLng(lat, lon);

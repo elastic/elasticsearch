@@ -663,7 +663,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         context.lookup()
                     );
                     CompositeFieldScript compositeFieldScript = leafFactory.newInstance(leafReaderContext);
-                    return new Response(compositeFieldScript.runForDoc(0));
+                    compositeFieldScript.runForDoc(0);
+                    return new Response(compositeFieldScript.getFieldValues());
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");

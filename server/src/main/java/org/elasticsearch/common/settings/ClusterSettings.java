@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.WriteAckDelay;
+import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
@@ -199,6 +201,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.THRESHOLD_SETTING,
+        DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_TYPE,
@@ -536,6 +539,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HealthNodeTaskExecutor.ENABLED_SETTING,
         LocalHealthMonitor.POLL_INTERVAL_SETTING,
         TransportHealthNodeAction.HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT,
+        SimulatePipelineTransportAction.INGEST_NODE_TRANSPORT_ACTION_TIMEOUT,
         WriteAckDelay.WRITE_ACK_DELAY_INTERVAL,
         WriteAckDelay.WRITE_ACK_DELAY_RANDOMNESS_BOUND,
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION : null,
@@ -551,7 +555,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_KEEP_COUNT : null,
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_NO_DELAY : null,
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_REUSE_ADDRESS : null,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE : null
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE : null,
+        StatelessSecureSettings.STATELESS_SECURE_SETTINGS
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

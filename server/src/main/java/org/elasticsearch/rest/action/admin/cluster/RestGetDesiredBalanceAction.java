@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +35,7 @@ public class RestGetDesiredBalanceAction extends BaseRestHandler {
         return restChannel -> client.execute(
             GetDesiredBalanceAction.INSTANCE,
             new DesiredBalanceRequest(),
-            new RestToXContentListener<>(restChannel)
+            new RestChunkedToXContentListener<>(restChannel)
         );
     }
 }

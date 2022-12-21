@@ -12,16 +12,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -63,20 +66,17 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(DISK_METADATA.getPreferredName());
-        diskMetadata.toXContent(builder, params);
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single((builder, params) -> {
+            builder.startObject(DISK_METADATA.getPreferredName());
+            diskMetadata.toXContent(builder, params);
+            builder.endObject();
+            return builder;
+        });
     }
 
     public static HealthMetadata getFromClusterState(ClusterState clusterState) {
         return clusterState.custom(HealthMetadata.TYPE);
-    }
-
-    @Override
-    public boolean isFragment() {
-        return true;
     }
 
     public Disk getDiskMetadata() {

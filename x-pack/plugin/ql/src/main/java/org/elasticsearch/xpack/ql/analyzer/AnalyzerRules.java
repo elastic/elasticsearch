@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.Rule;
 
 import static java.util.Arrays.asList;
@@ -66,8 +67,25 @@ public final class AnalyzerRules {
             return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t));
         }
 
-        @Override
         protected abstract LogicalPlan rule(SubPlan plan);
+
+        protected boolean skipResolved() {
+            return true;
+        }
+    }
+
+    public abstract static class ParameterizedAnalyzerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
+        SubPlan,
+        LogicalPlan,
+        P> {
+
+        // transformUp (post-order) - that is first children and then the node
+        // but with a twist; only if the tree is not resolved or analyzed
+        public final LogicalPlan apply(LogicalPlan plan, P context) {
+            return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t, context));
+        }
+
+        protected abstract LogicalPlan rule(SubPlan plan, P context);
 
         protected boolean skipResolved() {
             return true;

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
@@ -27,6 +28,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.TrustManagerFactory;
+
+import static org.elasticsearch.common.ssl.SslConfigurationLoader.GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -43,6 +46,7 @@ public class SSLConfigurationSettings {
     final Setting<String> truststoreAlgorithm;
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
+    final Setting<List<X509Field>> trustRestrictionsX509Fields;
     final Setting<List<String>> caPaths;
     final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
@@ -143,16 +147,29 @@ public class SSLConfigurationSettings {
         TRUST_STORE_TYPE_TEMPLATE
     );
 
-    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(
+    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_PATH_TEMPLATE = key -> new Setting<>(
         key,
         s -> null,
         Optional::ofNullable,
         Property.NodeScope,
         Property.Filtered
     );
-    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS = SslSetting.setting(
+    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS_PATH = SslSetting.setting(
         "trust_restrictions.path",
-        TRUST_RESTRICTIONS_TEMPLATE
+        TRUST_RESTRICTIONS_PATH_TEMPLATE
+    );
+
+    public static final Function<String, Setting<List<X509Field>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
+        key,
+        GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS.stream().map(X509Field::toString).collect(Collectors.toList()),
+        X509Field::parseForRestrictedTrust,
+        Property.NodeScope,
+        Property.Filtered
+    );
+
+    public static final SslSetting<List<X509Field>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
+        SslConfigurationKeys.TRUST_RESTRICTIONS_X509_FIELDS,
+        TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );
 
     private static final SslSetting<SecureString> LEGACY_KEY_PASSWORD = SslSetting.setting(
@@ -228,7 +245,8 @@ public class SSLConfigurationSettings {
         truststorePassword = TRUSTSTORE_PASSWORD.withPrefix(prefix);
         truststoreAlgorithm = TRUSTSTORE_ALGORITHM.withPrefix(prefix);
         truststoreType = TRUSTSTORE_TYPE.withPrefix(prefix);
-        trustRestrictionsPath = TRUST_RESTRICTIONS.withPrefix(prefix);
+        trustRestrictionsPath = TRUST_RESTRICTIONS_PATH.withPrefix(prefix);
+        trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS.withPrefix(prefix);
         caPaths = CERT_AUTH_PATH.withPrefix(prefix);
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
@@ -241,6 +259,7 @@ public class SSLConfigurationSettings {
             truststoreAlgorithm,
             truststoreType,
             trustRestrictionsPath,
+            trustRestrictionsX509Fields,
             caPaths,
             clientAuth,
             verificationMode
@@ -304,7 +323,8 @@ public class SSLConfigurationSettings {
             TRUSTSTORE_ALGORITHM,
             KEY_STORE_TYPE,
             TRUSTSTORE_TYPE,
-            TRUST_RESTRICTIONS,
+            TRUST_RESTRICTIONS_PATH,
+            TRUST_RESTRICTIONS_X509_FIELDS,
             KEY_PATH,
             LEGACY_KEY_PASSWORD,
             KEY_PASSWORD,

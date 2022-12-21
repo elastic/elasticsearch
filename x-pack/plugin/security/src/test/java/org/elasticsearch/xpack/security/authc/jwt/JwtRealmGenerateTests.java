@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.is;
 public class JwtRealmGenerateTests extends JwtRealmTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmGenerateTests.class);
 
-    private static final MinMax JWT_AUTHC_RANGE_1 = new MinMax(1, 1);
+    private static final int JWT_AUTHC_REPEATS_1 = 1;
     private static final Date DATE_2000_1_1 = Date.from(ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
     private static final Date DATE_2099_1_1 = Date.from(ZonedDateTime.of(2099, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
 
@@ -147,7 +147,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
         this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
@@ -239,7 +239,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPairPkc.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_REPEATS_1);
         this.printArtifacts(jwtIssuer, config, null, jwt);
     }
 
@@ -345,7 +345,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
         this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
@@ -442,7 +442,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         assertThat(JwtValidateUtil.verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
         this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 

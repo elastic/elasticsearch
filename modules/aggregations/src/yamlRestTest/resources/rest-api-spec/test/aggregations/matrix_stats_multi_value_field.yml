@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      version: " - 8.6.99"
+      reason: serialization bug fixed in 8.7.0
 
   - do:
       indices.create:

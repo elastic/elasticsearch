@@ -126,10 +126,7 @@ public final class ProcessUtils {
                 if (processHandle.isAlive() == false) {
                     return;
                 }
-                LOGGER.info(
-                    "Process did not terminate after {}, stopping it forcefully",
-                    PROCESS_DESTROY_TIMEOUT
-                );
+                LOGGER.info("Process did not terminate after {}, stopping it forcefully", PROCESS_DESTROY_TIMEOUT);
                 processHandle.destroyForcibly();
             }
 

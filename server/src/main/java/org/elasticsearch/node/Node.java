@@ -997,7 +997,13 @@ public class Node implements Closeable {
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService, threadPool);
+            HealthService healthService = createHealthService(
+                clusterService,
+                clusterModule,
+                coordinationDiagnosticsService,
+                threadPool,
+                systemIndices
+            );
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
@@ -1199,7 +1205,8 @@ public class Node implements Closeable {
         ClusterService clusterService,
         ClusterModule clusterModule,
         CoordinationDiagnosticsService coordinationDiagnosticsService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        SystemIndices systemIndices
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
@@ -1207,7 +1214,7 @@ public class Node implements Closeable {
         var serverHealthIndicatorServices = new ArrayList<>(
             List.of(
                 new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
+                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
             )
         );
         serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));

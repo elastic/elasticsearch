@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -39,11 +41,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
@@ -87,7 +94,14 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
     public void testKeywordsArray() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1).build());
+        String exclude = randomBoolean() ? randomFrom("item-3", "item-4", "item-5", "item-99") : null;
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1)
+                .setIncludeExclude(
+                    exclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(exclude)))) : null
+                )
+                .build()
+        );
 
         double minimumSupport = randomDoubleBetween(0.13, 0.41, true);
         int minimumSetSize = randomIntBetween(2, 5);
@@ -205,19 +219,62 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             );
         }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
-            assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
+            assertResults(
+                expectedResults,
+                results.getMapReduceResult().getFrequentItemSets(),
+                minimumSupport,
+                minimumSetSize,
+                size,
+                exclude,
+                null
+            );
         }, new AggTestConfig(builder, keywordType).withQuery(query));
     }
 
     public void testMixedSingleValues() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1).build());
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD2).build());
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD3).build());
+        String stringExclude = randomBoolean() ? randomFrom("host-2", "192.168.0.1", "client-2", "127.0.0.1") : null;
+        Integer intExclude = randomBoolean() ? randomIntBetween(0, 10) : null;
+
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1)
+                .setIncludeExclude(
+                    stringExclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(stringExclude)))) : null
+                )
+                .build()
+        );
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD2)
+                .setIncludeExclude(
+                    stringExclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(stringExclude)))) : null
+                )
+                .build()
+        );
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD3)
+                .setIncludeExclude(
+                    stringExclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(stringExclude)))) : null
+                )
+                .build()
+        );
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(FLOAT_FIELD).build());
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).build());
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(IP_FIELD).build());
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD)
+                .setIncludeExclude(
+                    intExclude != null
+                        ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(String.valueOf(intExclude)))))
+                        : null
+                )
+                .build()
+        );
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(IP_FIELD)
+                .setIncludeExclude(
+                    stringExclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(stringExclude)))) : null
+                )
+                .build()
+        );
 
         double minimumSupport = randomDoubleBetween(0.13, 0.51, true);
         int minimumSetSize = randomIntBetween(2, 6);
@@ -382,7 +439,15 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             );
         }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
-            assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
+            assertResults(
+                expectedResults,
+                results.getMapReduceResult().getFrequentItemSets(),
+                minimumSupport,
+                minimumSetSize,
+                size,
+                stringExclude,
+                intExclude
+            );
         }, new AggTestConfig(builder, keywordType1, keywordType2, keywordType3, intType, floatType, ipType).withQuery(query));
 
     }
@@ -390,10 +455,18 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
     public void testSingleValueWithDate() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 
+        String dateExclude = randomBoolean() ? randomFrom("2022-06-02", "2022-06-03", "1970-01-01") : null;
+
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1).build());
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD2).build());
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD3).build());
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build());
+        fields.add(
+            new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD)
+                .setIncludeExclude(
+                    dateExclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(dateExclude)))) : null
+                )
+                .build()
+        );
 
         double minimumSupport = randomDoubleBetween(0.13, 0.51, true);
         int minimumSetSize = randomIntBetween(2, 6);
@@ -571,7 +644,15 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             );
         }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
-            assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
+            assertResults(
+                expectedResults,
+                results.getMapReduceResult().getFrequentItemSets(),
+                minimumSupport,
+                minimumSetSize,
+                size,
+                dateExclude,
+                null
+            );
         }, new AggTestConfig(builder, keywordType1, keywordType2, keywordType3, dateType, ipType).withQuery(query));
 
     }
@@ -594,11 +675,45 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void assertResults(List<FrequentItemSet> expected, FrequentItemSet[] actual, double minSupport, int minimumSetSize, int size) {
+    private void assertResults(
+        List<FrequentItemSet> expected,
+        FrequentItemSet[] actual,
+        double minSupport,
+        int minimumSetSize,
+        int size,
+        String stringExclude,
+        Integer intExclude
+    ) {
         // sort the expected results descending by doc count
         expected.get(0).getFields().values().stream().mapToLong(v -> v.stream().count()).sum();
 
-        List<FrequentItemSet> filteredExpected = expected.stream()
+        List<FrequentItemSet> filteredExpectedWithDups = expected.stream()
+            .map(
+                fi -> new FrequentItemSet(
+                    fi.getFields()
+                        .entrySet()
+                        .stream()
+                        .map(
+                            // filter the string exclude from the list of objects
+                            keyValues -> tuple(
+                                keyValues.getKey(),
+                                keyValues.getValue().stream().filter(v -> v.equals(stringExclude) == false).collect(Collectors.toList())
+                            )
+                        )
+                        .map(
+                            // filter the int exclude
+                            keyValues -> tuple(
+                                keyValues.v1(),
+                                keyValues.v2().stream().filter(v -> v.equals(intExclude) == false).collect(Collectors.toList())
+                            )
+                        )
+                        // after filtering out excludes the list of objects might be empty
+                        .filter(t -> t.v2().size() > 0)
+                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2)),
+                    fi.getDocCount(),
+                    fi.getSupport()
+                )
+            )
             .filter(fi -> fi.getSupport() >= minSupport)
             .filter(
                 fi -> {
@@ -637,6 +752,17 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                 return (int) (b.getDocCount() - a.getDocCount());
             })
             .collect(Collectors.toList());
+
+        // after removing excluded items there might be duplicate entries, which need to be collapsed, we do this by very simple hashing
+        List<FrequentItemSet> filteredExpected = new ArrayList<>();
+        Set<Integer> valuesSeen = new HashSet<>();
+        for (FrequentItemSet fi : filteredExpectedWithDups) {
+            if (valuesSeen.add(
+                fi.getFields().entrySet().stream().mapToInt(v -> Objects.hash(v.getKey(), v.getValue())).reduce(13, (t, s) -> 41 * t + s)
+            )) {
+                filteredExpected.add(fi);
+            }
+        }
 
         // if size applies, cut the list, however if sets have the same number of items it's unclear which ones are returned
         int additionalSetsThatShareTheSameDocCount = 0;

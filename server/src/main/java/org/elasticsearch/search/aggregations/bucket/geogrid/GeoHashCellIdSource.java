@@ -42,7 +42,7 @@ public class GeoHashCellIdSource extends CellIdSource {
             @Override
             protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
                 final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
-                if (validPoint(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
+                if (pointInBounds(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
                     value = Geohash.longEncode(hash);
                     return true;
                 }
@@ -69,7 +69,7 @@ public class GeoHashCellIdSource extends CellIdSource {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
-                if (validPoint(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
+                if (pointInBounds(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
                     values[valuesIdx] = Geohash.longEncode(hash);
                     return valuesIdx + 1;
                 }

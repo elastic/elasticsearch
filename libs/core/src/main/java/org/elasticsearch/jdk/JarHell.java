@@ -100,7 +100,7 @@ public class JarHell {
      * @throws IllegalStateException if the classpath contains empty elements
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
-    public static Set<URL> parseClassPath(String classPath) {
+    static Set<URL> parseClassPath(String classPath) {
         if (classPath.isEmpty()) {
             return Set.of();
         }

@@ -16,14 +16,16 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.CompileClasspath;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
-
 import javax.inject.Inject;
 
 public abstract class GenerateNamedComponentsTask extends DefaultTask {
@@ -75,5 +77,11 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
 
     public void setPluginScannerClasspath(FileCollection pluginScannerClasspath) {
         this.pluginScannerClasspath = pluginScannerClasspath;
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public FileCollection getPluginScannerClasspath() {
+        return pluginScannerClasspath;
     }
 }

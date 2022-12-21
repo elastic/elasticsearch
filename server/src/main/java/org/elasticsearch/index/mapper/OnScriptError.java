@@ -11,6 +11,9 @@ package org.elasticsearch.index.mapper;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Represents the behaviour when a runtime field or an index-time script fails: either fail and raise the error, or continue and ignore the error.
+ */
 public enum OnScriptError {
     FAIL,
     CONTINUE;

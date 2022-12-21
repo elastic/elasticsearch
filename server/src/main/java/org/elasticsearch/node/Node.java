@@ -1234,22 +1234,22 @@ public class Node implements Closeable {
         ClusterService clusterService,
         RepositoriesService repositoryService
     ) {
-        final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
-        if (recoveryPlannerPlugins.isEmpty()) {
+        final List<RecoveryPlannerService> recoveryPlannerServices = pluginsService.filterPlugins(RecoveryPlannerPlugin.class)
+            .stream()
+            .map(
+                plugin -> plugin.createRecoveryPlannerService(
+                    new ShardSnapshotsService(client, repositoryService, threadPool, clusterService)
+                )
+            )
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
+        if (recoveryPlannerServices.isEmpty()) {
             return new PeerOnlyRecoveryPlannerService();
+        } else if (recoveryPlannerServices.size() > 1) {
+            throw new IllegalStateException("Expected a single RecoveryPlannerService but got: " + recoveryPlannerServices.size());
         }
-
-        if (recoveryPlannerPlugins.size() > 1) {
-            throw new IllegalStateException("A single RecoveryPlannerPlugin was expected but got: " + recoveryPlannerPlugins);
-        }
-
-        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(
-            client,
-            repositoryService,
-            threadPool,
-            clusterService
-        );
-        return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
+        return recoveryPlannerServices.get(0);
     }
 
     private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {

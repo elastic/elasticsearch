@@ -434,7 +434,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     Thread.currentThread().interrupt();
                     // There could still be items in the queue when we are interrupted, so drain the queue before exiting:
                     while (pendingConnectionPermits.tryAcquire()) {
-                        //noinspection ConstantConditions
+                        // noinspection ConstantConditions
                         pendingConnections.poll().run();
                     }
                     return;

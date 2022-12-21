@@ -567,8 +567,9 @@ The response’s `hits.sequences` property contains up to 10 samples. Use the
 `size` parameter to get a smaller or larger set of samples. Pipes are not
 supported for sample queries.
 
-Each sample has a unique set of `join_keys` and an array of events that each
-match a filter. Events are returned in the order of the filters they match:
+Each sample has a unique set of `join_keys` and an array with one matching event
+for each of the filters. Events are returned in the order of the filters they
+match:
 
 [source,console-result]
 ----

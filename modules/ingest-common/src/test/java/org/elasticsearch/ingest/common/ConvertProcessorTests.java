@@ -379,7 +379,7 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
-    public void testMACConvert() throws Exception {
+    public void testValidMACConvert() throws Exception {
         List<String> fieldValue = new ArrayList<>();
         List<String> expectedList = new ArrayList<>();
         Map<String, String> testValueMap = new HashMap<>();
@@ -387,6 +387,8 @@ public class ConvertProcessorTests extends ESTestCase {
         testValueMap.put("10-AC-AF-BC-16-22", "10-AC-AF-BC-16-22");
         testValueMap.put("10A.CAF.BC1.622", "10-AC-AF-BC-16-22");
         testValueMap.put("10:ac:af:bc:16:22", "10-AC-AF-BC-16-22");
+        testValueMap.put("00:01:10:ac:af:bc:16:22", "00-01-10-AC-AF-BC-16-22");
+        testValueMap.put("00-01-10-AC-AF-BC-16-22", "00-01-10-AC-AF-BC-16-22");
 
         testValueMap.forEach((key, value) -> {
             fieldValue.add(key);
@@ -398,6 +400,25 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.MAC, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
+    }
+
+    public void testInvalidMACConvert() throws Exception {
+        List<String> fieldValue = new ArrayList<>();
+        fieldValue.add("XX:xx:AF:BC:16:22");
+        fieldValue.add("XX:01:10:ac:af:bc:16:22");
+        fieldValue.add("::01:10:ac:af:bc:16:22");
+        fieldValue.add("00:00:01:10:ac:af:bc:16:22");
+        fieldValue.add("01-10-ac-af-bc-16-22");
+        fieldValue.add("10:AC:AF:BC:16:2");
+
+        String value = fieldValue.get(randomIntBetween(0, fieldValue.size() - 1));
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.MAC, false);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), containsString("[" + value + "] is not a valid MAC Address"));
     }
 
     public void testConvertString() throws Exception {

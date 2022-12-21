@@ -19,6 +19,7 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -176,6 +177,7 @@ public class GoogleCloudStorageService {
         final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
+            .setStorageRetryStrategy(storageRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
@@ -230,6 +232,12 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build();
+    }
+
+    @SuppressWarnings("deprecation")
+    static StorageRetryStrategy storageRetryStrategy() {
+        // It's fine to use the legacy lenient retry strategy, since we implement our own retry logic on top of the GCS API
+        return StorageRetryStrategy.getLegacyStorageRetryStrategy();
     }
 
     /**

@@ -160,7 +160,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     }
 
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100; i++) {
             int precision = randomIntBetween(0, 3);
             Geometry geometry = randomValueOtherThanMany(this::geometryIsInvalid, () -> boxToGeo(randomBBox()));
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);

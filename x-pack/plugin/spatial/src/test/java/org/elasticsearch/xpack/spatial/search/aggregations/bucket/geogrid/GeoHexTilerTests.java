@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
@@ -54,22 +59,77 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         return UnboundedGeoHexGridTiler.calcMaxAddresses(precisionDiff);
     }
 
-    public void testLargeBounds() throws Exception {
+    public void testLargeShape() throws Exception {
         // We have a shape and a tile both covering all mercator space, so we expect all level0 H3 cells to match
-        Rectangle tile = new Rectangle(-180, 180, 85, -85);
-        Rectangle shapeRectangle = new Rectangle(-180, 180, 85, -85);
+        Rectangle shapeRectangle = new Rectangle(-180, 180, 90, -90);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
 
         GeoBoundingBox boundingBox = new GeoBoundingBox(
-            new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
-            new GeoPoint(tile.getMinLat(), tile.getMaxLon())
+            new GeoPoint(shapeRectangle.getMaxLat(), shapeRectangle.getMinLon()),
+            new GeoPoint(shapeRectangle.getMinLat(), shapeRectangle.getMaxLon())
         );
 
-        GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(boundingBox, 0), NOOP_BREAKER);
-        assertTrue(values.advanceExact(0));
-        int numTiles = values.docValueCount();
-        int expectedTiles = expectedBuckets(value, 0, boundingBox);
-        assertThat(expectedTiles, equalTo(numTiles));
+        for (int precision = 0; precision < 4; precision++) {
+            GeoShapeCellValues values = new GeoShapeCellValues(
+                makeGeoShapeValues(value),
+                getBoundedGridTiler(boundingBox, precision),
+                NOOP_BREAKER
+            );
+            assertTrue(values.advanceExact(0));
+            int numTiles = values.docValueCount();
+            int expectedTiles = expectedBuckets(value, precision, boundingBox);
+            assertThat(expectedTiles, equalTo(numTiles));
+        }
+    }
+
+    public void testLargeShapeWithBounds() throws Exception {
+        // We have a shape covering all space
+        Rectangle shapeRectangle = new Rectangle(-180, 180, 90, -90);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
+
+        Point point = GeometryTestUtils.randomPoint();
+        int res = randomIntBetween(0, H3.MAX_H3_RES - 4);
+        long h3 = H3.geoToH3(point.getLat(), point.getLon(), res);
+        Rectangle tile = H3CartesianUtil.toBoundingBox(h3);
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(
+                GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(tile.getMaxLat())),
+                GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(tile.getMinLon()))
+            ),
+            new GeoPoint(
+                GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(tile.getMinLat())),
+                GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(tile.getMaxLon()))
+            )
+        );
+
+        for (int precision = res; precision < res + 4; precision++) {
+            String msg = "Failed " + WellKnownText.toWKT(point) + " at resolution " + res + " with precision " + precision;
+            GeoShapeCellValues values = new GeoShapeCellValues(
+                makeGeoShapeValues(value),
+                getBoundedGridTiler(boundingBox, precision),
+                NOOP_BREAKER
+            );
+            assertTrue(values.advanceExact(0));
+            long[] h3bins = ArrayUtil.copyOfSubArray(values.getValues(), 0, values.docValueCount());
+            assertCorner(h3bins, new Point(tile.getMinLon(), tile.getMinLat()), precision, msg);
+            assertCorner(h3bins, new Point(tile.getMaxLon(), tile.getMinLat()), precision, msg);
+            assertCorner(h3bins, new Point(tile.getMinLon(), tile.getMaxLat()), precision, msg);
+            assertCorner(h3bins, new Point(tile.getMaxLon(), tile.getMaxLat()), precision, msg);
+        }
+    }
+
+    private void assertCorner(long[] h3bins, Point point, int precision, String msg) throws IOException {
+        GeoShapeValues.GeoShapeValue cornerValue = geoShapeValue(point);
+        GeoShapeCellValues cornerValues = new GeoShapeCellValues(
+            makeGeoShapeValues(cornerValue),
+            getUnboundedGridTiler(precision),
+            NOOP_BREAKER
+        );
+        assertTrue(cornerValues.advanceExact(0));
+        long[] h3binsCorner = ArrayUtil.copyOfSubArray(cornerValues.getValues(), 0, cornerValues.docValueCount());
+        for (long corner : h3binsCorner) {
+            assertTrue(msg, Arrays.binarySearch(h3bins, corner) != -1);
+        }
     }
 
     @Override

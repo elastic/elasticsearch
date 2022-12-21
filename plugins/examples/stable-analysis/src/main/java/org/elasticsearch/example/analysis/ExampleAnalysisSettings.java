@@ -18,8 +18,12 @@ import org.elasticsearch.plugin.api.settings.ListSetting;
 import java.util.List;
 
 /**
- * This is a setings interface that will be injected into a plugins' constructors
+ * This is a settings interface that will be injected into a plugins' constructors
  * annotated with @Inject.
+ * The settings interface has to be annotated with @AnalysisSettings so that Elasticsearch can generate
+ * its dynamic implementation.
+ * Methods on the interface should be noarg and have a returned type.
+ * For types supported see the plugin-api/org.elasticsearch.plugin.api.settings classes
  * @see ExampleAnalyzerFactory an example injection of this interface
  */
 @AnalysisSettings

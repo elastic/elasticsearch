@@ -166,21 +166,38 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     /**
-     * Check that running query on a runtime field that throws errors with enabled lenient error handling catches those silently
+     * Check that running query on a runtime field script that fails has the expected behaviour according to its configuration
      */
-    public void testQueryErrorHandling() throws IOException {
+    public final void testOnScriptError() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.CONTINUE);
+                {
+                    AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.CONTINUE);
+                    SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                    Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
+                    assertEquals(0, searcher.count(query));
+                }
+                {
+                    AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.FAIL);
+                    SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                    Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
+                    expectThrows(RuntimeException.class, () -> searcher.count(query));
+                }
+            }
+        }
+    }
+
+    public final void testOnScriptErrorFail() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.FAIL);
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
-                try {
-                    assertThat(searcher.count(query), equalTo(0));
-                } catch (RuntimeException e) {
-                    fail("lenient error handling should silently ignore all runtime errors, but got " + e);
-                }
+                expectThrows(RuntimeException.class, () -> searcher.count(query));
             }
         }
     }

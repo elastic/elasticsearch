@@ -416,7 +416,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             if (indexAccessControl != null
                 && indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) { // We want to track DLS usage when it's been actually used.
+                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
                 // Check to see if any of the roles defined for the current user rewrite to match_all
 
                 SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);

@@ -241,10 +241,21 @@ public class IndexNameExpressionResolver {
     }
 
     private static Collection<String> resolveExpressions(Context context, String... expressions) {
-        return WildcardExpressionResolver.resolve(
-            context,
-            DateMathExpressionResolver.resolve(context, expressions == null ? List.of() : List.of(expressions))
-        );
+        if (context.getOptions().expandWildcardExpressions() == false) {
+            if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
+                return List.of();
+            } else {
+                return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, List.of(expressions)));
+            }
+        } else {
+            if (expressions == null
+                || expressions.length == 0
+                || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
+                return WildcardExpressionResolver.resolveAll(context);
+            } else {
+                return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, List.of(expressions)));
+            }
+        }
     }
 
     /**
@@ -1113,18 +1124,12 @@ public class IndexNameExpressionResolver {
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             if (context.getOptions().expandWildcardExpressions() == false) {
-                if (expressions.size() == 1 && expressions.get(0).equals(Metadata.ALL)) {
-                    return List.of();
-                } else {
-                    if (context.getOptions().ignoreUnavailable() == false) {
-                        for (String expression : expressions) {
-                            ensureAliasOrIndexExists(context, expression);
-                        }
+                if (context.getOptions().ignoreUnavailable() == false) {
+                    for (String expression : expressions) {
+                        ensureAliasOrIndexExists(context, expression);
                     }
-                    return expressions;
                 }
-            } else if (isEmptyOrTrivialWildcard(expressions)) {
-                return innerResolveAll(context);
+                return expressions;
             } else {
                 return innerResolve(context, expressions);
             }
@@ -1134,7 +1139,7 @@ public class IndexNameExpressionResolver {
          * Returns all the indices and all the datastreams, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the datastreams themselves or their backing indices.
          */
-        private static Collection<String> innerResolveAll(Context context) {
+        public static Collection<String> resolveAll(Context context) {
             List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
             if (context.includeDataStreams() == false) {
                 return resolvedExpressions;
@@ -1350,11 +1355,6 @@ public class IndexNameExpressionResolver {
                     return indicesStateStream.map(indexMeta -> indexMeta.getIndex().getName());
                 }
             });
-        }
-
-        private static boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty()
-                || (expressions.size() == 1 && (Metadata.ALL.equals(expressions.get(0)) || Regex.isMatchAllPattern(expressions.get(0))));
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(Context context) {

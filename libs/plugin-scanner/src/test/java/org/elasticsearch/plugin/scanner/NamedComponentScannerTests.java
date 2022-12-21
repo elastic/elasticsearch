@@ -195,7 +195,7 @@ public class NamedComponentScannerTests extends ESTestCase {
                 "b_component": "p.B"
               }
             }
-            """.replaceAll("[\n\r\s]", "")));// todo line sep
+            """.replaceAll("[\n\r\s]", "")));
     }
 
     private Collection<ClassReader> classReaderStream(Class<?>... classes) {

@@ -12,12 +12,18 @@ import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public final class Retry {
+    private static final Executor EXECUTOR = new Executor() {
+        @Override
+        public void execute(Runnable command) {
+            new Thread(command).start();
+        }
+    };
+
     private Retry() {}
 
     public static void retryUntilTrue(Duration timeout, Duration delay, Callable<Boolean> predicate) throws TimeoutException,
@@ -36,26 +42,18 @@ public final class Retry {
 
     private static <T> T getValueWithTimeout(long timeout, TimeUnit timeUnit, Callable<T> predicate) throws TimeoutException,
         ExecutionException {
-        ExecutorService executor = Executors.newFixedThreadPool(1);
         CompletableFuture<T> future = CompletableFuture.supplyAsync(() -> {
             try {
                 return predicate.call();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }, executor);
+        }, EXECUTOR);
 
         try {
             return future.get(timeout, timeUnit);
         } catch (InterruptedException e) {
             throw new TimeoutException();
-        } finally {
-            executor.shutdownNow();
-            try {
-                executor.awaitTermination(1, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                // ignore
-            }
         }
     }
 }

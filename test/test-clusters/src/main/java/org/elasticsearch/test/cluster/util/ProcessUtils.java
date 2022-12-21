@@ -18,20 +18,19 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public final class ProcessUtils {
     private static final Logger LOGGER = LogManager.getLogger(ProcessUtils.class);
     private static final Logger PROCESS_LOGGER = LogManager.getLogger("process-output");
-    private static final int PROCESS_DESTROY_TIMEOUT = 20;
-    private static final TimeUnit PROCESS_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final Duration PROCESS_DESTROY_TIMEOUT = Duration.ofSeconds(20);
 
     private ProcessUtils() {}
 
@@ -128,9 +127,8 @@ public final class ProcessUtils {
                     return;
                 }
                 LOGGER.info(
-                    "Process did not terminate after {} {}, stopping it forcefully",
-                    PROCESS_DESTROY_TIMEOUT,
-                    PROCESS_DESTROY_TIMEOUT_UNIT
+                    "Process did not terminate after {}, stopping it forcefully",
+                    PROCESS_DESTROY_TIMEOUT
                 );
                 processHandle.destroyForcibly();
             }
@@ -156,10 +154,10 @@ public final class ProcessUtils {
 
     private static void waitForProcessToExit(ProcessHandle processHandle) {
         try {
-            processHandle.onExit().get(PROCESS_DESTROY_TIMEOUT, PROCESS_DESTROY_TIMEOUT_UNIT);
-        } catch (InterruptedException e) {
-            LOGGER.info("Interrupted while waiting for ES process", e);
-            Thread.currentThread().interrupt();
+            Retry.retryUntilTrue(PROCESS_DESTROY_TIMEOUT, Duration.ofSeconds(1), () -> {
+                processHandle.destroy();
+                return processHandle.isAlive() == false;
+            });
         } catch (ExecutionException e) {
             LOGGER.info("Failure while waiting for process to exist", e);
         } catch (TimeoutException e) {

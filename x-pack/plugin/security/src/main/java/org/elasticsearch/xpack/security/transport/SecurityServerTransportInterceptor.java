@@ -20,10 +20,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -53,8 +49,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -170,7 +164,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                assertNoRemoteAccessHeadersInContext();
+                // TODO bring this back once we properly clear the thread context on fulfilling cluster of remote access headers
+                // once they are processed
+                // assertNoRemoteAccessHeadersInContext();
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
@@ -375,156 +371,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 private String withApiKeyPrefix(final String clusterCredential) {
                     return "ApiKey " + clusterCredential;
-                }
-            }
-
-            private void assertNoRemoteAccessHeadersInContext() {
-                assert securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) == null
-                    : "remote access headers should not be in security context";
-                assert securityContext.getThreadContext()
-                    .getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null
-                    : "remote access headers should not be in security context";
-            }
-        };
-    }
-
-    private AsyncSender interceptForRemoteAccessRequests(final AsyncSender sender) {
-        return new AsyncSender() {
-            @Override
-            public <T extends TransportResponse> void sendRequest(
-                Transport.Connection connection,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options,
-                TransportResponseHandler<T> handler
-            ) {
-                final Optional<RemoteAccessCredentials> remoteAccessCredentials = getRemoteAccessCredentials(connection, request);
-                if (remoteAccessCredentials.isPresent()) {
-                    sendWithRemoteAccessHeaders(remoteAccessCredentials.get(), connection, action, request, options, handler);
-                } else {
-                    // Send regular request, without remote access headers
-                    try {
-                        sender.sendRequest(connection, action, request, options, handler);
-                    } catch (Exception e) {
-                        handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
-                    }
-                }
-            }
-
-            /**
-             * Returns cluster credentials if the connection is remote, cluster credentials are set up for the target cluster, and access
-             * via remote access headers is supported for the request type and authenticated subject. If remote access is not supported,
-             * this method does not return credentials even if they are configured, to signify that the request should be sent according to
-             * the basic security model
-             */
-            private Optional<RemoteAccessCredentials> getRemoteAccessCredentials(
-                final Transport.Connection connection,
-                final TransportRequest request
-            ) {
-                final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                if (optionalRemoteClusterAlias.isEmpty()) {
-                    logger.trace("Connection is not remote");
-                    return Optional.empty();
-                }
-
-                final String remoteClusterAlias = optionalRemoteClusterAlias.get();
-                final String remoteClusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
-                if (remoteClusterCredential == null) {
-                    logger.trace("No cluster credential is configured for remote cluster [{}]", remoteClusterAlias);
-                    return Optional.empty();
-                }
-
-                if (false == isAllowlistedForRemoteAccessHeaders(request)) {
-                    logger.trace("Request to remote cluster [{}] does not have an allow-listed type", remoteClusterAlias);
-                    return Optional.empty();
-                }
-
-                final Authentication authentication = securityContext.getAuthentication();
-                assert authentication != null : "authentication must be present in security context";
-                final Subject effectiveSubject = authentication.getEffectiveSubject();
-                if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
-                    logger.trace(
-                        "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
-                        remoteClusterAlias,
-                        effectiveSubject.getType()
-                    );
-                    return Optional.empty();
-                }
-                if (User.isInternal(effectiveSubject.getUser())) {
-                    logger.trace("Effective subject of request to remote cluster [{}] is an internal user", remoteClusterAlias);
-                    return Optional.empty();
-                }
-
-                return Optional.of(new RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
-            }
-
-            private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
-                final RemoteAccessCredentials remoteAccessCredentials,
-                final Transport.Connection connection,
-                final String action,
-                final TransportRequest request,
-                final TransportRequestOptions options,
-                final TransportResponseHandler<T> handler
-            ) {
-                final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
-                if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
-                    throw new IllegalArgumentException(
-                        "Settings for remote cluster ["
-                            + remoteClusterAlias
-                            + "] indicate remote access headers should be sent but target cluster version ["
-                            + connection.getVersion()
-                            + "] does not support receiving them"
-                    );
-                }
-
-                logger.debug("Sending request to [{}] with remote access headers for [{}] action", remoteClusterAlias, action);
-
-                final Authentication authentication = securityContext.getAuthentication();
-                assert authentication != null : "authentication must be present in security context";
-
-                final ThreadContext threadContext = securityContext.getThreadContext();
-                final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                    remoteClusterAlias,
-                    authentication.getEffectiveSubject(),
-                    ActionListener.wrap(roleDescriptorsIntersection -> {
-                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                            remoteAccessCredentials.writeToContext(threadContext);
-                            new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
-                            sender.sendRequest(connection, action, request, options, contextRestoreHandler);
-                        }
-                    }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
-                );
-            }
-
-            private boolean isAllowlistedForRemoteAccessHeaders(final TransportRequest request) {
-                // more types:
-                // ScrollFreeContextRequest
-                // CLEAR_SCROLL_CONTEXTS_ACTION_NAME takes an empty request
-                // InternalScrollSearchRequest
-
-                // How do these work?
-                // CanMatchNodeRequest
-                // QuerySearchRequest
-
-                // all good to skip: ShardFetchSearchRequest, SearchFreeContextRequest
-                return request instanceof ShardSearchRequest
-                    || request instanceof ShardFetchRequest
-                    || request instanceof SearchRequest
-                    || request instanceof QuerySearchRequest
-                    || request instanceof CanMatchNodeRequest
-                    || request instanceof SearchTransportService.ScrollFreeContextRequest
-                    || request instanceof InternalScrollSearchRequest
-                    || request instanceof ClusterSearchShardsRequest;
-            }
-
-            record RemoteAccessCredentials(String clusterAlias, String credentials) {
-                void writeToContext(final ThreadContext ctx) {
-                    ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, encodedWithApiKeyPrefix(credentials));
-                }
-
-                private String encodedWithApiKeyPrefix(final String clusterCredential) {
-                    return Base64.getEncoder().encodeToString(("ApiKey " + clusterCredential).getBytes(StandardCharsets.UTF_8));
                 }
             }
         };

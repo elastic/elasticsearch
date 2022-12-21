@@ -47,10 +47,12 @@ public class RemoteAccessAuthenticator implements Authenticator {
             return null;
         }
 
+        // TODO once we've read the headers, we should clear them from the context
         assert threadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) != null;
         try {
             logger.info("Extracting remote access credentials for [{}]", apiKeyCredentials.principal());
-            return new RemoteAccessCredentials(apiKeyCredentials, RemoteAccessAuthentication.readFromContext(threadContext));
+            final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
+            return new RemoteAccessCredentials(apiKeyCredentials, remoteAccessAuthentication);
         } catch (IOException ex) {
             logger.error("Failed extracting remote access authentication header", ex);
             return null;

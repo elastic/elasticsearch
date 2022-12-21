@@ -352,8 +352,7 @@ public class SearchTransportService {
         return new HashMap<>(clientConnections);
     }
 
-    // TODO shouldn't be public
-    public static class ScrollFreeContextRequest extends TransportRequest {
+    static class ScrollFreeContextRequest extends TransportRequest {
         private ShardSearchContextId contextId;
 
         ScrollFreeContextRequest(ShardSearchContextId contextId) {

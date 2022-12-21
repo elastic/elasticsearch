@@ -990,8 +990,7 @@ public class ApiKeyService {
                 threadContext,
                 // TODO does not belong here
                 SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
-                "ApiKey",
-                true
+                "ApiKey"
             )
         );
     }

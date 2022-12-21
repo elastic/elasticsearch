@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -24,8 +22,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -83,6 +79,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -595,7 +592,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         final AtomicReference<String> sentCredential = new AtomicReference<>();
@@ -650,10 +646,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
         assertTrue(calledWrappedSender.get());
-        assertThat(
-            sentCredential.get(),
-            equalTo(Base64.getEncoder().encodeToString(("ApiKey " + remoteClusterCredential).getBytes(StandardCharsets.UTF_8)))
-        );
+        assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
         assertThat(
             sentRemoteAccessAuthentication.get(),
             equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
@@ -712,7 +705,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             remoteClusterAuthorizationResolver,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         final AtomicReference<Authentication> sentAuthentication = new AtomicReference<>();
@@ -780,7 +772,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
@@ -843,12 +834,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {
-        return randomFrom(
-            new Tuple<>(SearchAction.NAME, mock(SearchRequest.class)),
-            new Tuple<>(SearchTransportService.QUERY_ACTION_NAME, mock(ShardSearchRequest.class)),
-            new Tuple<>(SearchTransportService.FETCH_ID_ACTION_NAME, mock(ShardFetchRequest.class)),
-            new Tuple<>(ClusterSearchShardsAction.NAME, mock(ClusterSearchShardsRequest.class))
-        );
+        final String action = randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST.toArray(new String[0]));
+        return new Tuple<>(action, mock(TransportRequest.class));
     }
 
     private String[] randomRoles() {

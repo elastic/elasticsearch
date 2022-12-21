@@ -53,7 +53,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     @Override
-    public void renormalize(Quantiles quantiles) {
+    public void renormalize(Quantiles quantiles, Runnable setupStep) {
         if (isEnabled() == false) {
             return;
         }
@@ -61,8 +61,13 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         // Needed to ensure work is not added while the tryFinishWork() method is running
         synchronized (this) {
             latestQuantilesHolder = (latestQuantilesHolder == null)
-                ? new AugmentedQuantiles(quantiles, null, new CountDownLatch(1))
-                : new AugmentedQuantiles(quantiles, latestQuantilesHolder.getEvictedTimestamp(), latestQuantilesHolder.getLatch());
+                ? new AugmentedQuantiles(quantiles, setupStep, null, new CountDownLatch(1))
+                : new AugmentedQuantiles(
+                    quantiles,
+                    setupStep,
+                    latestQuantilesHolder.getEvictedTimestamp(),
+                    latestQuantilesHolder.getLatch()
+                );
             tryStartWork();
         }
     }
@@ -153,6 +158,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
             assert latestAugmentedQuantiles != null;
             if (latestAugmentedQuantiles != null) { // TODO: remove this if the assert doesn't trip in CI over the next year or so
+                latestAugmentedQuantiles.runSetupStep();
                 Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
                 CountDownLatch latch = latestAugmentedQuantiles.getLatch();
                 try {
@@ -181,17 +187,23 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
      */
     private class AugmentedQuantiles {
         private final Quantiles quantiles;
+        private final Runnable setupStep;
         private final Date earliestEvictedTimestamp;
         private final CountDownLatch latch;
 
-        AugmentedQuantiles(Quantiles quantiles, Date earliestEvictedTimestamp, CountDownLatch latch) {
+        AugmentedQuantiles(Quantiles quantiles, Runnable setupStep, Date earliestEvictedTimestamp, CountDownLatch latch) {
             this.quantiles = Objects.requireNonNull(quantiles);
+            this.setupStep = Objects.requireNonNull(setupStep);
             this.earliestEvictedTimestamp = earliestEvictedTimestamp;
             this.latch = Objects.requireNonNull(latch);
         }
 
         Quantiles getQuantiles() {
             return quantiles;
+        }
+
+        void runSetupStep() {
+            setupStep.run();
         }
 
         Date getEvictedTimestamp() {

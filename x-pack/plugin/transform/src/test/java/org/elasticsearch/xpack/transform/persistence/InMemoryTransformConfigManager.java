@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.persistence;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -243,6 +244,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     public void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
+        TimeValue timeout,
         boolean allowNoMatch,
         ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     ) {
@@ -359,7 +361,11 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     }
 
     @Override
-    public void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener) {
+    public void getTransformStoredDocs(
+        Collection<String> transformIds,
+        TimeValue timeout,
+        ActionListener<List<TransformStoredDoc>> listener
+    ) {
         List<TransformStoredDoc> docs = new ArrayList<>();
         for (String transformId : transformIds) {
             TransformStoredDoc storedDoc = transformStoredDocs.get(transformId);
@@ -381,17 +387,16 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     }
 
     @Override
-    public void getAllTransformIds(ActionListener<Set<String>> listener) {
+    public void getAllTransformIds(TimeValue timeout, ActionListener<Set<String>> listener) {
         Set<String> allIds = new HashSet<>(configs.keySet());
         allIds.addAll(oldConfigs.keySet());
         listener.onResponse(allIds);
     }
 
     @Override
-    public void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener) {
+    public void getAllOutdatedTransformIds(TimeValue timeout, ActionListener<Tuple<Long, Set<String>>> listener) {
         Set<String> outdatedIds = new HashSet<>(oldConfigs.keySet());
         outdatedIds.removeAll(configs.keySet());
         listener.onResponse(new Tuple<>(Long.valueOf(configs.size() + outdatedIds.size()), outdatedIds));
     }
-
 }

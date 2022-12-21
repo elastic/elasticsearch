@@ -27,3 +27,8 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-plugin-scanner'
   }
 }
+tasks.named('forbiddenApisMain').configure {
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
+}
+

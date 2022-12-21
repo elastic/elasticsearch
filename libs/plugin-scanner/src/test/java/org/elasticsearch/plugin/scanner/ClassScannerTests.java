@@ -15,9 +15,8 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ClassScannerTests extends ESTestCase {
     static final System.Logger logger = System.getLogger(ClassScannerTests.class.getName());
@@ -27,10 +26,10 @@ public class ClassScannerTests extends ESTestCase {
             map.put(classname, classname);
             return null;
         });
-        Stream<ClassReader> classReaderStream = ClassReaders.ofClassPath();
-        logger.log(System.Logger.Level.INFO, "classReaderStream size " + ClassReaders.ofClassPath().collect(Collectors.toList()).size());
+        List<ClassReader> classReaders = ClassReaders.ofClassPath();
+        logger.log(System.Logger.Level.INFO, "classReaderStream size " + classReaders.size());
 
-        reader.visit(classReaderStream);
+        reader.visit(classReaders);
         Map<String, String> extensibleClasses = reader.getFoundClasses();
 
         org.hamcrest.MatcherAssert.assertThat(

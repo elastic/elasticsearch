@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -164,10 +163,9 @@ public class SimpleRole implements Role {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
-        FieldPermissionsCache fieldPermissionsCache,
-        DlsFlsFeatureUsageTracker dlsFlsFeatureUsageTracker
+        FieldPermissionsCache fieldPermissionsCache
     ) {
-        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache, dlsFlsFeatureUsageTracker);
+        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.authz.support.DlsFlsFeatureUsageTracker;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
@@ -54,7 +52,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class IndicesPermissionTests extends ESTestCase {
 
@@ -69,7 +66,6 @@ public class IndicesPermissionTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("_alias"));
         Metadata md = Metadata.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         SortedMap<String, IndexAbstraction> lookup = md.getIndicesLookup();
 
         // basics:
@@ -78,13 +74,7 @@ public class IndicesPermissionTests extends ESTestCase {
         Role role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        IndicesAccessControl permissions = role.authorize(
-            SearchAction.NAME,
-            Sets.newHashSet("_index"),
-            lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
-        );
+        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -96,7 +86,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), null, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -107,7 +97,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(FieldPermissions.DEFAULT, query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
@@ -118,7 +108,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -142,7 +132,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
@@ -173,7 +163,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), fooQuery, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         Set<BytesReference> bothQueries = Sets.union(fooQuery, query);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -206,7 +196,6 @@ public class IndicesPermissionTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("_alias"));
         Metadata md = Metadata.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         SortedMap<String, IndexAbstraction> lookup = md.getIndicesLookup();
 
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
@@ -215,13 +204,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .add(new FieldPermissions(fieldPermissionDef(null, null)), null, IndexPrivilege.ALL, randomBoolean(), "*")
             .build();
-        IndicesAccessControl permissions = role.authorize(
-            SearchAction.NAME,
-            Sets.newHashSet("_index"),
-            lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
-        );
+        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -273,7 +256,6 @@ public class IndicesPermissionTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         IndicesPermission core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.ALL,
             FieldPermissions.DEFAULT,
@@ -289,13 +271,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a1"
             )
             .build();
-        IndicesAccessControl iac = core.authorize(
-            SearchAction.NAME,
-            Sets.newHashSet("a1", "ba"),
-            lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
-        );
+        IndicesAccessControl iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo("denied_field"));
         assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5)));
         // did not define anything for ba so we allow all
@@ -336,7 +312,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a2"
             )
             .build();
-        iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
         assertFalse(iac.getIndexPermissions("a1").getFieldPermissions().hasFieldLevelSecurity());
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field"));
@@ -387,7 +363,6 @@ public class IndicesPermissionTests extends ESTestCase {
             true
         ).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
 
         // allow_restricted_indices: false
@@ -402,8 +377,7 @@ public class IndicesPermissionTests extends ESTestCase {
             SearchAction.NAME,
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(false));
         assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(false));
@@ -423,8 +397,7 @@ public class IndicesPermissionTests extends ESTestCase {
             SearchAction.NAME,
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -441,7 +414,6 @@ public class IndicesPermissionTests extends ESTestCase {
             true
         ).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
 
         // allow_restricted_indices: false
@@ -456,8 +428,7 @@ public class IndicesPermissionTests extends ESTestCase {
             SearchAction.NAME,
             Sets.newHashSet(asyncSearchIndex),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(false));
         assertThat(iac.hasIndexPermissions(asyncSearchIndex), is(false));
@@ -471,13 +442,7 @@ public class IndicesPermissionTests extends ESTestCase {
             true,
             "*"
         ).build();
-        iac = indicesPermission.authorize(
-            SearchAction.NAME,
-            Sets.newHashSet(asyncSearchIndex),
-            lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
-        );
+        iac = indicesPermission.authorize(SearchAction.NAME, Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.hasIndexPermissions(asyncSearchIndex), is(true));
         assertThat(iac.getIndexPermissions(asyncSearchIndex), is(notNullValue()));
@@ -502,7 +467,6 @@ public class IndicesPermissionTests extends ESTestCase {
         Metadata metadata = builder.build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesPermission indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.READ,
@@ -515,8 +479,7 @@ public class IndicesPermissionTests extends ESTestCase {
             SearchAction.NAME,
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
 
         assertThat(iac.isGranted(), is(true));
@@ -536,8 +499,7 @@ public class IndicesPermissionTests extends ESTestCase {
             randomFrom(PutMappingAction.NAME, AutoPutMappingAction.NAME),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
 
         assertThat(iac.isGranted(), is(false));
@@ -571,7 +533,6 @@ public class IndicesPermissionTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> lookup = metadata.build().getIndicesLookup();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        DlsFlsFeatureUsageTracker dlsFlsTracker = new DlsFlsFeatureUsageTracker(mock(XPackLicenseState.class));
         IndicesPermission core = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
             IndexPrivilege.INDEX,
             FieldPermissions.DEFAULT,
@@ -591,8 +552,7 @@ public class IndicesPermissionTests extends ESTestCase {
             PutMappingAction.NAME,
             Sets.newHashSet("test1", "test_write1"),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test1"), is(notNullValue()));
@@ -616,13 +576,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
-        iac = core.authorize(
-            AutoPutMappingAction.NAME,
-            Sets.newHashSet("test1", "test_write1"),
-            lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
-        );
+        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test1"), is(notNullValue()));
         assertThat(iac.hasIndexPermissions("test1"), is(true));
@@ -636,19 +590,18 @@ public class IndicesPermissionTests extends ESTestCase {
                 + "users who require access to update mappings must be granted explicit privileges"
         );
 
-        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test_write2"), is(notNullValue()));
         assertThat(iac.hasIndexPermissions("test_write2"), is(true));
-        iac = core.authorize(PutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache, dlsFlsTracker);
+        iac = core.authorize(PutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
         assertThat(iac.getIndexPermissions("test_write2"), is(nullValue()));
         assertThat(iac.hasIndexPermissions("test_write2"), is(false));
         iac = core.authorize(
             AutoPutMappingAction.NAME,
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(true));
         for (IndexMetadata im : backingIndices) {
@@ -659,8 +612,7 @@ public class IndicesPermissionTests extends ESTestCase {
             PutMappingAction.NAME,
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
-            fieldPermissionsCache,
-            dlsFlsTracker
+            fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(false));
         for (IndexMetadata im : backingIndices) {

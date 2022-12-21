@@ -58,7 +58,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private Long afterValueGlobalOrd;
     private Long highestCompetitiveValueGlobalOrd;
     private boolean isTopValueInsertionPoint;
-    private volatile CompetitiveIterator currentCompetitiveIterator;
+    private CompetitiveIterator currentCompetitiveIterator;
     private int segmentsDynamicPruningUsed;
     private int totalSegments;
 

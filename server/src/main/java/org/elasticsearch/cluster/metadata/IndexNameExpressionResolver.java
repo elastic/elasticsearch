@@ -240,7 +240,7 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static Collection<String> resolveExpressions(Context context, String... expressions) {
+    protected static Collection<String> resolveExpressions(Context context, String... expressions) {
         if (context.getOptions().expandWildcardExpressions() == false) {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();

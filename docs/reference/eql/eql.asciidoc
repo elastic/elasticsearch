@@ -323,9 +323,9 @@ GET /my-data-stream/_eql/search
 [[eql-search-sample]]
 === Sample chronologically unordered events
 
-Sample queries enable you to search for events that match a join key and a set
-of filters. Samples are similar to sequences, but do not return events in
-chronological order. In fact, sample queries can run on data without a
+Use EQL's <<eql-samples,sample syntax>> to search for events that match a join
+key and a set of filters. Samples are similar to sequences, but do not return
+events in chronological order. In fact, sample queries can run on data without a
 timestamp. Sample queries can be useful to find correlations in events that
 don't always occur in the same sequence, or that occur across long time spans.
 
@@ -717,7 +717,7 @@ GET /my-index*/_eql/search
 ----
 // TEST[continued]
 
-This will return samples where each of the events share the same value for
+This will return samples where each of the events shares the same value for
 `os` or `op_sys` (as well as for `host`). For example:
 
 [source,console-result]

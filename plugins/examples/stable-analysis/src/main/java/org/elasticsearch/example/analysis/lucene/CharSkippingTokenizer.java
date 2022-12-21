@@ -13,12 +13,15 @@ import org.apache.lucene.analysis.util.CharTokenizer;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-public class SkippingCharFilter extends CharTokenizer {
+/*
+A tokenizer that skips configured tokens.
+configured tokens are passed as list of single char strings.
+ */
+public class CharSkippingTokenizer extends CharTokenizer {
 
     private final Set<Integer> setOfChars;
 
-    public SkippingCharFilter(List<String> tokenizerListOfChars) {
+    public CharSkippingTokenizer(List<String> tokenizerListOfChars) {
         this.setOfChars = tokenizerListOfChars.stream().map(s -> (int) s.charAt(0)).collect(Collectors.toSet());
 
     }

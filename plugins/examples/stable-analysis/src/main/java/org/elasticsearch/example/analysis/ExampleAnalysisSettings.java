@@ -24,7 +24,7 @@ import java.util.List;
  * its dynamic implementation.
  * Methods on the interface should be noarg and have a returned type.
  * For types supported see the plugin-api/org.elasticsearch.plugin.api.settings classes
- * @see ExampleAnalyzerFactory an example injection of this interface
+ * @see CustomAnalyzerFactory an example injection of this interface
  */
 @AnalysisSettings
 public interface ExampleAnalysisSettings {
@@ -33,21 +33,21 @@ public interface ExampleAnalysisSettings {
      * see the ReplaceCharWithNumberCharFilterFactory
      */
     @StringSetting(path = "old_char", defaultValue = " ")
-    String oldChar();
+    String oldCharToReplaceInCharFilter();
 
     /*
      * This method presents the use of int typed setting.
      * see the ReplaceCharWithNumberCharFilterFactory
      */
     @IntSetting(path = "new_number", defaultValue = 0)
-    int newNumber();
+    int newNumberToReplaceInCharFilter();
 
     /*
      * This method presents the use of long typed setting.
      * see the ExampleTokenFilterFactory
      */
     @LongSetting(path = "token_filter_number", defaultValue = 0L)
-    long tokenFilterNumber();
+    long digitToSkipInTokenFilter();
 
     /*
      * This method presents the use of boolean typed setting.
@@ -60,5 +60,5 @@ public interface ExampleAnalysisSettings {
      * see the ExampleTokenizerFactory
      */
     @ListSetting(path = "tokenizer_list_of_chars")
-    List<String> tokenizerListOfChars();
+    List<String> singleCharsToSkipInTokenizer();
 }

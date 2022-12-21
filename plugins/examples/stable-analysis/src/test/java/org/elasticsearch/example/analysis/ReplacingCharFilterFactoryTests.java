@@ -16,11 +16,11 @@ import org.mockito.Mockito;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExampleCharFilterFactoryTests {
+public class ReplacingCharFilterFactoryTests {
     @Test
     public void exampleCharFilterIsAnnotatedWithName() {
         ExampleAnalysisSettings settings = Mockito.mock(ExampleAnalysisSettings.class);
-        CharFilterFactory charFilterFactory = new ExampleCharFilterFactory(settings);
+        CharFilterFactory charFilterFactory = new ReplacingCharFilterFactory(settings);
         assertThat(charFilterFactory.name(), equalTo("example_char_filter"));
     }
 }

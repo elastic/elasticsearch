@@ -15,14 +15,14 @@ import org.elasticsearch.plugin.api.Inject;
 import java.io.Reader;
 
 @NamedComponent( "example_char_filter")
-public class ExampleCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+public class ReplacingCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
     private final String oldChar;
     private final int newNumber;
 
     @Inject
-    public ExampleCharFilterFactory(ExampleAnalysisSettings settings) {
-        oldChar = settings.oldChar();
-        newNumber = settings.newNumber();
+    public ReplacingCharFilterFactory(ExampleAnalysisSettings settings) {
+        oldChar = settings.oldCharToReplaceInCharFilter();
+        newNumber = settings.newNumberToReplaceInCharFilter();
     }
 
     @Override

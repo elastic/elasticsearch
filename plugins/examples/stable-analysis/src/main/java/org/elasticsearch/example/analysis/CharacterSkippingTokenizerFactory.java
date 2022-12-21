@@ -9,24 +9,24 @@
 package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.example.analysis.lucene.SkippingCharFilter;
+import org.elasticsearch.example.analysis.lucene.CharSkippingTokenizer;
 import org.elasticsearch.plugin.api.Inject;
 import org.elasticsearch.plugin.api.NamedComponent;
 
 import java.util.List;
 
 @NamedComponent("example_tokenizer_factory")
-public class ExampleTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+public class CharacterSkippingTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
     private final List<String> tokenizerListOfChars;
 
     @Inject
-    public ExampleTokenizerFactory(ExampleAnalysisSettings settings) {
-        this.tokenizerListOfChars = settings.tokenizerListOfChars();
+    public CharacterSkippingTokenizerFactory(ExampleAnalysisSettings settings) {
+        this.tokenizerListOfChars = settings.singleCharsToSkipInTokenizer();
     }
 
     @Override
     public Tokenizer create() {
-        return new SkippingCharFilter(tokenizerListOfChars);
+        return new CharSkippingTokenizer(tokenizerListOfChars);
     }
 }
 

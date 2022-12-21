@@ -9,19 +9,18 @@
 package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.example.analysis.lucene.AppendTokenFilter;
 import org.elasticsearch.example.analysis.lucene.SkipStartingWithDigitTokenFilter;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.api.Inject;
 
 @NamedComponent( "example_token_filter_factory")
-public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
+public class SkippingTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
     private final long tokenFilterNumber;
 
     @Inject
-    public ExampleTokenFilterFactory(ExampleAnalysisSettings settings) {
-        this.tokenFilterNumber = settings.tokenFilterNumber();
+    public SkippingTokenFilterFactory(ExampleAnalysisSettings settings) {
+        this.tokenFilterNumber = settings.digitToSkipInTokenFilter();
     }
 
     @Override
@@ -31,7 +30,7 @@ public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analy
 
     @Override
     public TokenStream normalize(TokenStream tokenStream) {
-        return new AppendTokenFilter(tokenStream, String.valueOf(tokenFilterNumber));
+        return new SkipStartingWithDigitTokenFilter(tokenStream, tokenFilterNumber);
     }
 
     @Override

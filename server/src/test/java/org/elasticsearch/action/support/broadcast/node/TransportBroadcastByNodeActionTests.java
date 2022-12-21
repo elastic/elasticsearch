@@ -126,33 +126,22 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             Writeable.Reader<Request> request,
             String executor
         ) {
-            super(
-                "indices:admin/test",
-                TransportBroadcastByNodeActionTests.this.clusterService,
-                transportService,
-                actionFilters,
-                indexNameExpressionResolver,
-                request,
-                executor
-            );
+            super("indices:admin/test", clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor);
         }
 
         @Override
-        protected EmptyResult readShardResult(StreamInput in) throws IOException {
+        protected EmptyResult readShardResult(StreamInput in) {
             return EmptyResult.readEmptyResultFrom(in);
         }
 
         @Override
-        protected Response newResponse(
-            Request request,
-            int totalShards,
-            int successfulShards,
-            int failedShards,
-            List<EmptyResult> emptyResults,
-            List<DefaultShardOperationFailedException> shardFailures,
-            ClusterState clusterState
-        ) {
-            return new Response(totalShards, successfulShards, failedShards, shardFailures);
+        protected ResponseFactory<Response, EmptyResult> getResponseFactory(Request request, ClusterState clusterState) {
+            return (totalShards, successfulShards, failedShards, emptyResults, shardFailures) -> new Response(
+                totalShards,
+                successfulShards,
+                failedShards,
+                shardFailures
+            );
         }
 
         @Override
@@ -301,7 +290,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(null, request, listener).start();
+            action.doExecute(null, request, listener);
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
             assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
@@ -319,7 +308,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             );
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
-            action.new AsyncAction(null, request, listener).start();
+            action.doExecute(null, request, listener);
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
             assertEquals("index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
@@ -330,7 +319,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        action.new AsyncAction(null, request, listener).start();
+        action.doExecute(null, request, listener);
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
@@ -388,7 +377,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 
-        action.new AsyncAction(null, request, listener).start();
+        action.doExecute(null, request, listener);
 
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
@@ -481,7 +470,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
         }
 
-        action.new AsyncAction(null, request, listener).start();
+        action.doExecute(null, request, listener);
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[] { TEST_INDEX });
@@ -539,7 +528,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.AsyncAction asyncAction =
-            action.new AsyncAction(task, request, listener);
+            action.new AsyncAction(task, request, clusterService.state(), null, listener);
         asyncAction.start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         int cancelAt = randomIntBetween(0, Math.max(0, capturedRequests.size() - 2));

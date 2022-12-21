@@ -173,7 +173,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 })
             );
         } else {
-            throw new IllegalStateException("Cannot start geoip downloader task because one is already running");
+            logger.error("Cannot start geoip downloader task because one is already running");
         }
     }
 

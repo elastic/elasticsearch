@@ -102,7 +102,9 @@ public final class ConvertProcessor extends AbstractProcessor {
             public Object convert(Object value) {
                 StringBuilder stringBuilder = new StringBuilder();
                 String stringValue = value.toString().toUpperCase().replaceAll("[^a-fA-F0-9]", "");
-                if (stringValue.length() != 12) throw new IllegalArgumentException(
+
+                // throw error if invalid 48-bit/64-bit MAC Address.
+                if ((stringValue.length() == 12 || stringValue.length() == 16) == false) throw new IllegalArgumentException(
                     "[" + value + "] is not a valid MAC Address"
                 );
 

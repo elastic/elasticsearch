@@ -45,6 +45,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -373,6 +374,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final var connectionLoops = between(2, 4);
         final var connectionLoopCountDown = new CountDownLatch(connectionLoops);
         final var onConnectException = new RunOnce(pendingConnectionPermits::release);
+        final var expectConnectionFailures = new AtomicBoolean();
 
         class ConnectionLoop extends AbstractRunnable {
             private final boolean useConnectToNode = randomBoolean();
@@ -394,6 +396,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
+                        assertTrue(expectConnectionFailures.get());
                         assertThat(e, instanceOf(ConnectTransportException.class));
                         assertThat(e.getMessage(), containsString("connection manager is closed"));
                         onConnectException.run();
@@ -420,6 +423,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     while (pendingConnectionPermits.tryAcquire()) {
+                        //noinspection ConstantConditions
                         pendingConnections.poll().run();
                     }
                     return;
@@ -444,6 +448,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             )
         );
 
+        expectConnectionFailures.set(true);
         connectionManager.close();
         assertTrue(connectionLoopCountDown.await(10, TimeUnit.SECONDS));
         completionThread.interrupt();

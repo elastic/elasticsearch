@@ -10,6 +10,8 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 // gradle has an open issue of failing applying plugins in
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
@@ -33,10 +35,17 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
     }
   }
 
-configure(allprojects) {
+  configure(allprojects) {
     project.tasks.withType(Test).configureEach { Test test ->
       test.dependsOn(rootProject.jdks.provisioned_runtime)
       test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+    }
+    project.plugins.withType(RestTestBasePlugin) {
+      // Use later JDK for new REST test plugins since :test:test-clusters requires Java 17+
+      project.tasks.withType(StandaloneRestIntegTestTask).configureEach { StandaloneRestIntegTestTask test ->
+        test.dependsOn(rootProject.jdks.provisioned_runtime)
+        test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+      }
     }
   }
 }

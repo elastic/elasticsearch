@@ -29,14 +29,18 @@ import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
 
-public class RestTestBasePlugin implements Plugin<Project> {
+/**
+ * @deprecated use {@link RestTestBasePlugin} instead
+ */
+@Deprecated
+public class LegacyRestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
     private static final String TESTS_CLUSTER = "tests.cluster";
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
     private ProviderFactory providerFactory;
 
     @Inject
-    public RestTestBasePlugin(ProviderFactory providerFactory) {
+    public LegacyRestTestBasePlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
     }
 

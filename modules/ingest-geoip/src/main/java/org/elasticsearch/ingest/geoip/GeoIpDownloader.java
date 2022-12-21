@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -213,9 +214,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void updateTaskState() {
-        PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
-        updatePersistentTaskState(state, future);
-        state = ((GeoIpTaskState) future.actionGet().getState());
+        try {
+            PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
+            updatePersistentTaskState(state, future);
+            state = ((GeoIpTaskState) future.actionGet().getState());
+        } catch (ResourceNotFoundException e) {
+            logger.debug(
+                "Attempted to update the {}-{} task after it had been stopped",
+                this.getPersistentTaskId(),
+                this.getAllocationId()
+            );
+        }
     }
 
     // visible for testing

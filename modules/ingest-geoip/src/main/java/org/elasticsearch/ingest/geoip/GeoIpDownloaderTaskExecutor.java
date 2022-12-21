@@ -36,6 +36,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
@@ -66,6 +68,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final Settings settings;
     private final PersistentTasksService persistentTasksService;
     private final AtomicReference<GeoIpDownloader> currentTask = new AtomicReference<>();
+    private final Semaphore taskSemaphore = new Semaphore(1);
 
     GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
         super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
@@ -149,18 +152,29 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     private void startTask(Runnable onFailure) {
-        persistentTasksService.sendStartRequest(
-            GEOIP_DOWNLOADER,
-            GEOIP_DOWNLOADER,
-            new GeoIpTaskParams(),
-            ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                if (t instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create geoip downloader task", e);
-                    onFailure.run();
-                }
-            })
-        );
+        boolean canStartTask;
+        try {
+            canStartTask = taskSemaphore.tryAcquire(200, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        if (canStartTask) {
+            persistentTasksService.sendStartRequest(
+                GEOIP_DOWNLOADER,
+                GEOIP_DOWNLOADER,
+                new GeoIpTaskParams(),
+                ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
+                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                    if (t instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("failed to create geoip downloader task", e);
+                        onFailure.run();
+                    }
+                })
+            );
+        } else {
+            throw new IllegalStateException("Cannot start geoip downloader task because one is already running");
+        }
     }
 
     private void stopTask(Runnable onFailure) {

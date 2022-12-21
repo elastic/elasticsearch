@@ -36,6 +36,10 @@ EQL::
 Graph::
 * Fix potential issue with graph api's timed out field in response {es-pull}91006[#91006]
 
+Health::
+* Don't account for the unassigned reason when diagnosing NO_VALID_SHARD_COPY {es-pull}92416[#92416]
+* Use https in the short URLs for the `shards_availability` indicator {es-pull}92310[#92310]
+
 Indices APIs::
 * Trigger index settings providers when updating component templates {es-pull}91615[#91615] (issue: {es-issue}91592[#91592])
 
@@ -44,6 +48,8 @@ Infra/Core::
 * Datastream unavailable exception metadata {es-pull}91461[#91461]
 * Fix `BytesRefArray` on append empty `BytesRef` {es-pull}91364[#91364]
 * Fix index expression options for requests with a single name or pattern {es-pull}91231[#91231]
+* Force init of Unbox in log4j {es-pull}92377[#92377] (issue: {es-issue}91964[#91964])
+* In file based settings, wait until security index is ready for role mappings {es-pull}92173[#92173] (issue: {es-issue}91939[#91939])
 * Index expression exclusions never trigger "not found" {es-pull}90902[#90902]
 * Update error states from inside the main state executor {es-pull}90346[#90346] (issue: {es-issue}90337[#90337])
 
@@ -71,8 +77,14 @@ Monitoring::
 Network::
 * Clean up on exception while chunking XContent {es-pull}92024[#92024]
 
+SQL::
+* Fix NPE on logging when not tracking total hits {es-pull}92425[#92425]
+
 Search::
 * Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
+
+Store::
+* Fix numOpenOutputs and modCount in ByteSizeCachingDirectory {es-pull}92440[#92440] (issue: {es-issue}92434[#92434])
 
 Transform::
 * Skip remote clusters when performing up front privileges validation {es-pull}91788[#91788]

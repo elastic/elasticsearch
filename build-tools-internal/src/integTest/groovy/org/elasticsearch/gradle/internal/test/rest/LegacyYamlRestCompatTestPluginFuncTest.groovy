@@ -17,7 +17,7 @@ import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.TaskOutcome
 
-class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
+class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1
     def specIntermediateDir = "restResources/v${compatibleVersion}/yamlSpecs"
@@ -45,7 +45,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         buildFile << """
         plugins {
-          id 'elasticsearch.yaml-rest-compat-test'
+          id 'elasticsearch.legacy-yaml-rest-compat-test'
         }
         """
 
@@ -71,7 +71,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         buildFile << """
-            apply plugin: 'elasticsearch.yaml-rest-compat-test'
+            apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;
@@ -151,7 +151,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         buildFile << """
         plugins {
-          id 'elasticsearch.yaml-rest-compat-test'
+          id 'elasticsearch.legacy-yaml-rest-compat-test'
         }
 
         """
@@ -194,7 +194,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         buildFile << """
-            apply plugin: 'elasticsearch.yaml-rest-compat-test'
+            apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;

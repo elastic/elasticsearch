@@ -797,10 +797,10 @@ sequence
 === Samples
 
 You can use EQL samples to describe and match a chronologically unordered series
-of events. All events in a sample share the same value for the field that is
-specified using the `by` keyword (join key). Each item in a sample is an event
-category and event condition, surrounded by square brackets (`[ ]`). Events are
-listed in the order of the filters they match.
+of events. All events in a sample share the same value for one or more fields
+that are specified using the <<eql-by-keyword,`by` keyword>> (join keys). Each
+item in a sample is an event category and event condition, surrounded by square
+brackets (`[ ]`). Events are listed in the order of the filters they match.
 
 [source,eql]
 ----
@@ -829,12 +829,9 @@ sample by host
   [ process where true ]
 ----
 
-[discrete]
-[[eql-samples-by-keyword]]
-==== `by` keyword
-
-Sample queries support the `by` keyword to only match events that share the same
-values. Refer to <<eql-by-keyword,`by` keyword>>.
+Sample queries do not take into account the chronological ordering of events.
+The `with maxspan` and `with runs` statements as well as the `until` keyword are
+not supported. 
 
 [discrete]
 [[eql-functions]]

@@ -314,20 +314,16 @@ GET /my-data-stream/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-
-
-
-
-
 [discrete]
 [[eql-search-sample]]
 === Sample chronologically unordered events
 
-Use EQL's <<eql-samples,sample syntax>> to search for events that match a join
-key and a set of filters. Samples are similar to sequences, but do not return
-events in chronological order. In fact, sample queries can run on data without a
-timestamp. Sample queries can be useful to find correlations in events that
-don't always occur in the same sequence, or that occur across long time spans.
+Use EQL's <<eql-samples,sample syntax>> to search for events that match one or
+more join keys and a set of filters. Samples are similar to sequences, but do
+not return events in chronological order. In fact, sample queries can run on
+data without a timestamp. Sample queries can be useful to find correlations in
+events that don't always occur in the same sequence, or that occur across long
+time spans.
 
 .Click to show the sample data used in the examples below
 [%collapsible]
@@ -544,8 +540,8 @@ POST /my-index-000003/_bulk?refresh
 ----
 ====
 
-A sample query specifies a join key, using the `by` keyword, and up to
-five filters:
+A sample query specifies at least one join key, using the <<eql-by-keyword,`by`
+keyword>>, and up to five filters:
 
 [source,console]
 ----
@@ -700,8 +696,7 @@ match a filter. Events are returned in the order of the filters they match:
 <4> This event matches the third filter.
 <5> The events in the second sample have a value of `farcry` for `host`.
 
-Similar to sequence queries, you can use the <<eql-by-keyword,`by` keyword>> to
-match events that share the same field values:
+You can specify multiple join keys:
 
 [source,console]
 ----
@@ -717,8 +712,8 @@ GET /my-index*/_eql/search
 ----
 // TEST[continued]
 
-This will return samples where each of the events shares the same value for
-`os` or `op_sys` (as well as for `host`). For example:
+This query will return samples where each of the events shares the same value
+for `os` or `op_sys`, as well as for `host`. For example:
 
 [source,console-result]
 ----
@@ -851,10 +846,6 @@ This will return samples where each of the events shares the same value for
 
 <1> The events in this sample have a value of `doom` for `host` and a value of
 `redhat` for `os` or `op_sys`.
-
-Sample queries do not take into account the chronological ordering of events.
-The `with maxspan` and `with runs` statements as well as the `until` keyword are
-not supported. 
 
 [discrete]
 [[retrieve-selected-fields]]

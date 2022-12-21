@@ -1,0 +1,5 @@
+pr: 92484
+summary: Add MAC type in the convert processor.
+area: Ingest
+type: enhancement
+issues: []

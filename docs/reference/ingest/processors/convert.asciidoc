@@ -7,13 +7,15 @@
 Converts a field in the currently ingested document to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
-The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
+The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, `mac`, and `auto`.
 
 Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to
 false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 Specifying `ip` will set the target field to the value of `field` if it contains a valid IPv4 or IPv6 address
 that can be indexed into an <<ip,IP field type>>.
+
+Specifying `mac` will set the target field to the value of `field` if t contains a valid 48-bit MAC Address. Moreover, it would convert the MAC Address in RFC 7042 format.
 
 Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string, non-IP type.
 For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. Do note

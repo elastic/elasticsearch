@@ -245,7 +245,7 @@ public class IndexNameExpressionResolver {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
             } else {
-                return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, List.of(expressions)));
+                return ExplicitResourceNameFilter.filter(context, DateMathExpressionResolver.resolve(context, List.of(expressions)));
             }
         } else {
             if (expressions == null
@@ -253,7 +253,10 @@ public class IndexNameExpressionResolver {
                 || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
                 return WildcardExpressionResolver.resolveAll(context);
             } else {
-                return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, List.of(expressions)));
+                return WildcardExpressionResolver.resolve(
+                    context,
+                    ExplicitResourceNameFilter.filter(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
+                );
             }
         }
     }
@@ -1119,23 +1122,6 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Returns a collection of resource names given the {@param expressions} which contains wildcards and exclusions.
-         */
-        public static Collection<String> resolve(Context context, List<String> expressions) {
-            Objects.requireNonNull(expressions);
-            if (context.getOptions().expandWildcardExpressions() == false) {
-                if (context.getOptions().ignoreUnavailable() == false) {
-                    for (String expression : expressions) {
-                        ensureAliasOrIndexExists(context, expression);
-                    }
-                }
-                return expressions;
-            } else {
-                return innerResolve(context, expressions);
-            }
-        }
-
-        /**
          * Returns all the indices and all the datastreams, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the datastreams themselves or their backing indices.
          */
@@ -1180,7 +1166,7 @@ public class IndexNameExpressionResolver {
          * ultimately returned, instead of the alias or datastream name</li>
          * </ol>
          */
-        private static Collection<String> innerResolve(Context context, List<String> expressions) {
+        public static Collection<String> resolve(Context context, List<String> expressions) {
             if (Objects.requireNonNull(expressions).isEmpty()) {
                 throw new IllegalStateException("Cannot resolve empty index expression");
             }
@@ -1222,11 +1208,6 @@ public class IndexNameExpressionResolver {
                         }
                         result.remove(expression);
                     } else {
-                        // missing expression that is neither an exclusion nor a wildcard
-                        // TODO investigate if this check can be moved outside the wildcard resolver
-                        if (context.getOptions().ignoreUnavailable() == false) {
-                            ensureAliasOrIndexExists(context, expression);
-                        }
                         if (result != null) {
                             // skip adding the expression as an optimization
                             result.add(expression);
@@ -1586,6 +1567,30 @@ public class IndexNameExpressionResolver {
                 throw new ElasticsearchParseException("nothing captured");
             }
             return beforePlaceHolderSb.toString();
+        }
+    }
+
+    public static final class ExplicitResourceNameFilter {
+
+        private ExplicitResourceNameFilter() {
+            // Utility class
+        }
+
+        public static List<String> filter(final Context context, List<String> expressions) {
+            boolean wildcardSeen = false;
+            for (String expression : expressions) {
+                boolean isExclusion = wildcardSeen && expression.startsWith("-");
+                boolean isWildcard = context.getOptions().expandWildcardExpressions() && Regex.isSimpleMatchPattern(expression);
+                if (isExclusion == false && isWildcard == false) {
+                    if (context.getOptions().ignoreUnavailable() == false) {
+                        ensureAliasOrIndexExists(context, expression);
+                    }
+                }
+                if (isWildcard) {
+                    wildcardSeen = true;
+                }
+            }
+            return expressions;
         }
     }
 

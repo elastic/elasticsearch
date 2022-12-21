@@ -13,7 +13,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
 import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 /**
  * This project exists to test the _xpack prefix for REST compatibility. The _xpack prefix was removed from the specification, but still supported

@@ -30,10 +30,16 @@ describe activity that goes beyond IOCs.
 [[eql-required-fields]]
 === Required fields
 
-To run an EQL search, the searched data stream or index must contain a
-_timestamp_ and _event category_ field. By default, EQL uses the `@timestamp`
-and `event.category` fields from the {ecs-ref}[Elastic Common Schema
-(ECS)]. To use a different timestamp or event category field, see
+With the exception of sample queries, EQL searches require that the searched
+data stream or index  contains a _timestamp_ field. By default, EQL uses the
+`@timestamp` field from the {ecs-ref}[Elastic Common Schema (ECS)]. 
+
+EQL searches also require an _event category_ field, unless you use the
+<<eql-syntax-match-any-event-category,`any` keyword>> to search for  documents
+without an event category field. By default, EQL uses the ECS `event.category`
+field.
+
+To use a different timestamp or event category field, see
 <<specify-a-timestamp-or-event-category-field>>.
 
 TIP: While no schema is required to use EQL, we recommend using the

@@ -52,6 +52,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T setting(String setting, Supplier<String> value) {
+        this.settingsProviders.add(s -> Map.of(setting, value.get()));
+        return cast(this);
+    }
+
     Map<String, String> getSettings() {
         return inherit(() -> parent.getSettings(), settings);
     }

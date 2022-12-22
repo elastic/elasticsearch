@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHexGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexCellIdSource;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHex
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.InternalGeoHexGrid;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHexGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregator;
@@ -305,14 +307,10 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler;
-                    if (geoBoundingBox.isUnbounded()) {
-                        tiler = new UnboundedGeoHashGridTiler(precision);
-                    } else {
-                        tiler = new BoundedGeoHashGridTiler(precision, geoBoundingBox);
-                    }
-                    ;
-                    GeoHashGridAggregator agg = new GeoHashGridAggregator(
+                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
+                        ? new UnboundedGeoHashGridTiler(precision)
+                        : new BoundedGeoHashGridTiler(precision, geoBoundingBox);
+                    return new GeoHashGridAggregator(
                         name,
                         factories,
                         cb -> new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler, cb),
@@ -323,7 +321,6 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                         collectsFromSingleBucket,
                         metadata
                     );
-                    return agg;
                 }
                 throw LicenseUtils.newComplianceException("geohash_grid aggregation on geo_shape fields");
             },
@@ -346,12 +343,9 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler;
-                    if (geoBoundingBox.isUnbounded()) {
-                        tiler = new UnboundedGeoTileGridTiler(precision);
-                    } else {
-                        tiler = new BoundedGeoTileGridTiler(precision, geoBoundingBox);
-                    }
+                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
+                        ? new UnboundedGeoTileGridTiler(precision)
+                        : new BoundedGeoTileGridTiler(precision, geoBoundingBox);
                     return new GeoTileGridAggregator(
                         name,
                         factories,
@@ -365,6 +359,42 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                     );
                 }
                 throw LicenseUtils.newComplianceException("geotile_grid aggregation on geo_shape fields");
+            },
+            true
+        );
+
+        builder.register(
+            GeoHexGridAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                context,
+                parent,
+                collectsFromSingleBucket,
+                metadata) -> {
+                if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
+                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
+                        ? new UnboundedGeoHexGridTiler(precision)
+                        : new BoundedGeoHexGridTiler(precision, geoBoundingBox);
+                    return new GeoHexGridAggregator(
+                        name,
+                        factories,
+                        cb -> new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler, cb),
+                        requiredSize,
+                        shardSize,
+                        context,
+                        parent,
+                        collectsFromSingleBucket,
+                        metadata
+                    );
+                }
+                throw LicenseUtils.newComplianceException("geohex_grid aggregation on geo_shape fields");
             },
             true
         );

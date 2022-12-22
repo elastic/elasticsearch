@@ -37,7 +37,7 @@ public class LocalDistributionResolver implements DistributionResolver {
                             + "':\n\n"
                             + "tasks.named('"
                             + taskName
-                            + "').configure {\n"
+                            + "') {\n"
                             + "  usesDefaultDistribution()\n"
                             + "}"
                     );

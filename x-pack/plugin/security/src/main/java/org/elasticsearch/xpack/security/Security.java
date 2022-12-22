@@ -259,6 +259,8 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.DlsFlsFeatureTrackingIndicesAccessControlWrapper;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.IndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
@@ -858,6 +860,7 @@ public class Security extends Plugin
         components.add(authcService.get());
         systemIndices.getMainIndexManager().addStateListener(authcService.get()::onSecurityIndexStateChange);
 
+        Set<IndicesAccessControlWrapper> indicesAccessControlWrappers = new HashSet<>();
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
             new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)
@@ -872,8 +875,10 @@ public class Security extends Plugin
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
                 )
             );
+            indicesAccessControlWrappers.add(new DlsFlsFeatureTrackingIndicesAccessControlWrapper(getLicenseState()));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
+        indicesAccessControlWrappers = Set.copyOf(indicesAccessControlWrappers);
 
         final AuthorizationService authzService = new AuthorizationService(
             settings,
@@ -888,7 +893,8 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService,
-            restrictedIndices
+            restrictedIndices,
+            indicesAccessControlWrappers
         );
 
         components.add(nativeRolesStore); // used by roles actions

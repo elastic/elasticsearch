@@ -49,6 +49,10 @@ public class IndicesAccessControl {
         this.indexPermissions = Objects.requireNonNull(indexPermissionsSupplier);
     }
 
+    protected IndicesAccessControl(IndicesAccessControl copy) {
+        this(copy.granted, copy.indexPermissions);
+    }
+
     /**
      * @return The document and field permissions for an index if exist, otherwise <code>null</code> is returned.
      *         If <code>null</code> is being returned this means that there are no field or document level restrictions.

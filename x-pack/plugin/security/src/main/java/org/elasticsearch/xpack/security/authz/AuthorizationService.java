@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.IndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -130,6 +131,7 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
+    private final Set<IndicesAccessControlWrapper> indicesAccessControlWrappers;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -147,7 +149,8 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices
+        RestrictedIndices restrictedIndices,
+        Set<IndicesAccessControlWrapper> indicesAccessControlWrappers
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -169,6 +172,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.indicesAccessControlWrappers = indicesAccessControlWrappers;
     }
 
     public void checkPrivileges(
@@ -521,7 +525,7 @@ public class AuthorizationService {
         final Metadata metadata,
         final ActionListener<Void> listener
     ) {
-        final IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
+        final IndicesAccessControl indicesAccessControl = wrapIndicesAccessControl(result.getIndicesAccessControl());
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
@@ -610,6 +614,24 @@ public class AuthorizationService {
                         }
                     }
                 });
+        }
+    }
+
+    private IndicesAccessControl wrapIndicesAccessControl(IndicesAccessControl indicesAccessControl) {
+        if (indicesAccessControlWrappers.isEmpty()
+            || indicesAccessControl == null
+            || indicesAccessControl == IndicesAccessControl.ALLOW_NO_INDICES
+            || indicesAccessControl == IndicesAccessControl.DENIED
+            || indicesAccessControl == IndicesAccessControl.allowAll()
+            || indicesAccessControl.getClass().equals(IndicesAccessControl.class) == false) {
+            // Wrap only if it's not one of the statically defined nor already wrapped.
+            return indicesAccessControl;
+        } else {
+            IndicesAccessControl result = indicesAccessControl;
+            for (IndicesAccessControlWrapper wrapper : indicesAccessControlWrappers) {
+                result = wrapper.wrap(indicesAccessControl);
+            }
+            return result;
         }
     }
 
@@ -783,7 +805,7 @@ public class AuthorizationService {
                     collection.forEach(tuple -> {
                         final IndicesAccessControl existing = actionToIndicesAccessControl.putIfAbsent(
                             tuple.v1(),
-                            tuple.v2().getIndicesAccessControl()
+                            wrapIndicesAccessControl(tuple.v2().getIndicesAccessControl())
                         );
                         if (existing != null) {
                             throw new IllegalStateException("a value already exists for action " + tuple.v1());

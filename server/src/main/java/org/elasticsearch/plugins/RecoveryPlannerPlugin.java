@@ -11,10 +11,12 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 
+import java.util.Optional;
+
 /**
- * A plugin that allows creating custom {@code RecoveryPlannerService}. Only one plugin of this type
- * is allowed to be installed at once.
+ * A plugin that allows creating custom {@code RecoveryPlannerService}. Only one {@code RecoveryPlannerService} is allowed to be active
+ * at once.
  */
 public interface RecoveryPlannerPlugin {
-    RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService);
+    Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService);
 }

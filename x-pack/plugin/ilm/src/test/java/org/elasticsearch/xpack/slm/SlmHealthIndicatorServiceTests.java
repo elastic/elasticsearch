@@ -223,7 +223,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + "] repeated failures without successful execution since ["
                                     + FORMATTER.formatMillis(execTime)
                                     + "]",
-                                "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/policy-id?human"
+                                "Check the snapshot lifecycle policy for detailed failure info:\n- GET /_slm/policy/policy-id?human"
                             ),
                             List.of(new Diagnosis.Resource(Type.SLM_POLICY, List.of("test-policy")))
                         )

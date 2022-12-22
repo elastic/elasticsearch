@@ -87,7 +87,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             assertEquals(expectedColumns.get(i).v1(), actualColumns.get(i).get("name"));
             String expectedType = expectedColumns.get(i).v2();
             if (expectedType != null) {
-                assertEquals(expectedType, actualColumns.get(i).get("type"));
+                assertEquals("incorrect type for [" + expectedColumns.get(i).v1() + "]", expectedType, actualColumns.get(i).get("type"));
             }
         }
     }

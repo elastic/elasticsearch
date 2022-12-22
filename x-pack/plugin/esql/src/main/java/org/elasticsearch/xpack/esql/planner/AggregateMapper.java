@@ -24,19 +24,20 @@ class AggregateMapper {
 
     static AggregatorFunction.Factory map(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof Avg avg) {
-            return avg.dataType().isRational() ? AggregatorFunction.AVG_DOUBLE : AggregatorFunction.AVG_LONG;
+            return avg.dataType().isRational() ? AggregatorFunction.AVG_DOUBLES : AggregatorFunction.AVG_LONGS;
         }
-
         if (aggregateFunction instanceof Count) {
             return AggregatorFunction.COUNT;
-        } else if (aggregateFunction instanceof Max) {
-            return AggregatorFunction.MAX;
-        } else if (aggregateFunction instanceof Min) {
-            return AggregatorFunction.MIN;
-        } else if (aggregateFunction instanceof Sum) {
-            return AggregatorFunction.SUM;
         }
-
+        if (aggregateFunction instanceof Max) {
+            return AggregatorFunction.MAX;
+        }
+        if (aggregateFunction instanceof Min) {
+            return aggregateFunction.dataType().isRational() ? AggregatorFunction.MIN_DOUBLES : AggregatorFunction.MIN_LONGS;
+        }
+        if (aggregateFunction instanceof Sum) {
+            return aggregateFunction.dataType().isRational() ? AggregatorFunction.SUM_DOUBLES : AggregatorFunction.SUM_LONGS;
+        }
         throw new UnsupportedOperationException("No provider available for aggregate function=" + aggregateFunction);
     }
 }

@@ -9,43 +9,47 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AvgLongAggregatorTests extends AggregatorTestCase {
+public class SumDoubleAggregatorTests extends AggregatorTestCase {
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.AVG_LONGS;
+        return AggregatorFunction.SUM_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "avg of longs";
+        return "sum of doubles";
     }
 
     @Override
-    public void assertSimpleResult(int end, Block result) {
-        double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum() / end;
+    protected void assertSimpleResult(int end, Block result) {
+        double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum();
         assertThat(result.getDouble(0), equalTo(expected));
     }
 
-    public void testOverflowFails() {
+    public void testLongOverflowSucceeds() {
+        List<Page> results = new ArrayList<>();
+
         try (
             Driver d = new Driver(
                 new SequenceLongBlockSourceOperator(LongStream.of(Long.MAX_VALUE - 1, 2)),
                 List.of(simple(nonBreakingBigArrays()).get()),
-                new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
+                new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
-            Exception e = expectThrows(ArithmeticException.class, d::run);
-            assertThat(e.getMessage(), equalTo("long overflow"));
+            d.run();
         }
+        assertThat(results.get(0).getBlock(0).getDouble(0), equalTo((double) Long.MAX_VALUE + 1));
     }
 }

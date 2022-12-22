@@ -28,7 +28,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONG, mode, 0),
+                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONGS, mode, 0),
                 new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, mode.isInputPartial() ? 1 : 0)
             ),
             mode

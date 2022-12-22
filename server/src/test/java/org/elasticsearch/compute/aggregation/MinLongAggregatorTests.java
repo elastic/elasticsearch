@@ -12,19 +12,19 @@ import org.elasticsearch.compute.data.Block;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MinAggregatorTests extends AggregatorTestCase {
+public class MinLongAggregatorTests extends AggregatorTestCase {
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.MIN;
+        return AggregatorFunction.MIN_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "min";
+        return "min of longs";
     }
 
     @Override
     public void assertSimpleResult(int end, Block result) {
-        assertThat(result.getDouble(0), equalTo((double) 0));
+        assertThat(result.getLong(0), equalTo(0L));
     }
 }

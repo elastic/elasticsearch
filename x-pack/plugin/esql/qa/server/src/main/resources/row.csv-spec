@@ -154,13 +154,28 @@ rowWithMultipleStats
 row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | stats avg = avg(x), min(x), max(x), count(x), avg(x), avg(ab), avg(a);
 
 avg:double | min(x):integer | max(x):integer | count(x):long | avg(x):double | avg(ab):double | avg(a):double
-8.0 | 8.0 | 8.0 | 1 | 8.0 | 5.0 | 4.0
+       8.0 |              8 |            8.0 |             1 |           8.0 |            5.0 |           4.0
 ;
 
 rowWithMultipleStatsOverNull
 row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
 
-c:long | a:double | mi:integer | ma:integer | s:long
-0 | NaN | Infinity | -Infinity | 0.0
+c:long | a:double |            mi:integer | ma:integer | s:long
+     0 |      NaN |   9223372036854775807 |  -Infinity |      0
 ;
 
+
+min
+row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats min(l), min(d), min(ln), min(dn);
+
+min(l):integer | min(d):double |     min(ln):integer | min(dn):double
+             1 |           1.0 | 9223372036854775807 |       Infinity
+;
+
+
+sum
+row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn);
+
+sum(l):long | sum(d):double | sum(ln):long | sum(dn):double
+          1 |           1.0 |            0 |            0.0
+;

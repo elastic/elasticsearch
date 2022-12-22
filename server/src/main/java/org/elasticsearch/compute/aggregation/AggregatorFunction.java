@@ -37,15 +37,16 @@ public interface AggregatorFunction {
         }
     }
 
-    Factory AVG_DOUBLE = new Factory("avg", "doubles", DoubleAvgAggregator::create);
-
-    Factory AVG_LONG = new Factory("avg", "longs", LongAvgAggregator::create);
+    Factory AVG_DOUBLES = new Factory("avg", "doubles", AvgDoubleAggregator::create);
+    Factory AVG_LONGS = new Factory("avg", "longs", AvgLongAggregator::create);
 
     Factory COUNT = new Factory("count", null, CountRowsAggregator::create);
 
     Factory MAX = new Factory("max", null, MaxAggregator::create);
 
-    Factory MIN = new Factory("min", null, MinAggregator::create);
+    Factory MIN_DOUBLES = new Factory("min", "doubles", MinDoubleAggregator::create);
+    Factory MIN_LONGS = new Factory("min", "longs", MinLongAggregator::create);
 
-    Factory SUM = new Factory("sum", null, SumAggregator::create);
+    Factory SUM_DOUBLES = new Factory("sum", "doubles", SumDoubleAggregator::create);
+    Factory SUM_LONGS = new Factory("sum", "longs", LongSumAggregator::create);
 }

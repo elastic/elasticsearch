@@ -28,6 +28,9 @@ public abstract class AggregatorTestCase extends ForkingOperatorTestCase {
 
     protected abstract void assertSimpleResult(int end, Block result);
 
+    // TODO tests for no input
+    // TODO tests for description
+
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new AggregationOperator.AggregationOperatorFactory(

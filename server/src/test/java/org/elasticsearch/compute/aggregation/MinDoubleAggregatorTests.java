@@ -10,24 +10,21 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 
-import java.util.stream.LongStream;
-
 import static org.hamcrest.Matchers.equalTo;
 
-public class AvgDoubleAggregatorTests extends AggregatorTestCase {
+public class MinDoubleAggregatorTests extends AggregatorTestCase {
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.AVG_DOUBLES;
+        return AggregatorFunction.MIN_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "avg of doubles";
+        return "min of doubles";
     }
 
     @Override
-    protected void assertSimpleResult(int end, Block result) {
-        double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum() / end;
-        assertThat(result.getDouble(0), equalTo(expected));
+    public void assertSimpleResult(int end, Block result) {
+        assertThat(result.getDouble(0), equalTo((double) 0));
     }
 }

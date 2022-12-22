@@ -20,16 +20,16 @@ import java.nio.ByteOrder;
 import java.util.Objects;
 
 @Experimental
-class DoubleAvgAggregator implements AggregatorFunction {
+class AvgLongAggregator implements AggregatorFunction {
 
     private final AvgState state;
     private final int channel;
 
-    static DoubleAvgAggregator create(int inputChannel) {
-        return new DoubleAvgAggregator(inputChannel, new AvgState());
+    static AvgLongAggregator create(int inputChannel) {
+        return new AvgLongAggregator(inputChannel, new AvgState());
     }
 
-    private DoubleAvgAggregator(int channel, AvgState state) {
+    private AvgLongAggregator(int channel, AvgState state) {
         this.channel = channel;
         this.state = state;
     }
@@ -40,9 +40,7 @@ class DoubleAvgAggregator implements AggregatorFunction {
         Block block = page.getBlock(channel);
         AvgState state = this.state;
         for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i) == false) { // skip null values
-                state.add(block.getDouble(i));
-            }
+            state.value = Math.addExact(state.value, block.getLong(i));
         }
         state.count += block.validPositionCount();
     }
@@ -57,7 +55,7 @@ class DoubleAvgAggregator implements AggregatorFunction {
             AvgState tmpState = new AvgState();
             for (int i = 0; i < block.getPositionCount(); i++) {
                 blobBlock.get(i, tmpState);
-                state.add(tmpState.value, tmpState.delta);
+                state.value = Math.addExact(state.value, tmpState.value);
                 state.count += tmpState.count;
             }
         } else {
@@ -78,7 +76,7 @@ class DoubleAvgAggregator implements AggregatorFunction {
     @Override
     public Block evaluateFinal() {
         AvgState s = state;
-        double result = s.value / s.count;
+        double result = ((double) s.value) / s.count;
         return new DoubleArrayBlock(new double[] { result }, 1);
     }
 
@@ -94,41 +92,19 @@ class DoubleAvgAggregator implements AggregatorFunction {
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
     static class AvgState implements AggregatorState<AvgState> {
 
-        private double value;
-        private double delta;
-
-        private long count;
+        long value;
+        long count;
 
         private final AvgStateSerializer serializer;
 
         AvgState() {
-            this(0, 0, 0);
+            this(0, 0);
         }
 
-        AvgState(double value, double delta, long count) {
+        AvgState(long value, long count) {
             this.value = value;
-            this.delta = delta;
             this.count = count;
             this.serializer = new AvgStateSerializer();
-        }
-
-        void add(double valueToAdd) {
-            add(valueToAdd, 0d);
-        }
-
-        void add(double valueToAdd, double deltaToAdd) {
-            // If the value is Inf or NaN, just add it to the running tally to "convert" to
-            // Inf/NaN. This keeps the behavior bwc from before kahan summing
-            if (Double.isFinite(valueToAdd) == false) {
-                value = valueToAdd + value;
-            }
-
-            if (Double.isFinite(value)) {
-                double correctedSum = valueToAdd + (delta + deltaToAdd);
-                double updatedValue = value + correctedSum;
-                delta = correctedSum - (updatedValue - value);
-                value = updatedValue;
-            }
         }
 
         @Override
@@ -145,26 +121,24 @@ class DoubleAvgAggregator implements AggregatorFunction {
         }
     }
 
-    // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
+    // @SerializedSize(value = Long.BYTES + Long.BYTES)
     static class AvgStateSerializer implements AggregatorStateSerializer<AvgState> {
 
-        // record Shape (double value, double delta, long count) {}
+        // record Shape (long value, long count) {}
 
-        static final int BYTES_SIZE = Double.BYTES + Double.BYTES + Long.BYTES;
+        static final int BYTES_SIZE = Long.BYTES + Long.BYTES;
 
         @Override
         public int size() {
             return BYTES_SIZE;
         }
 
-        private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
         private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
         public int serialize(AvgState value, byte[] ba, int offset) {
-            doubleHandle.set(ba, offset, value.value);
-            doubleHandle.set(ba, offset + 8, value.delta);
-            longHandle.set(ba, offset + 16, value.count);
+            longHandle.set(ba, offset, value.value);
+            longHandle.set(ba, offset + 8, value.count);
             return BYTES_SIZE; // number of bytes written
         }
 
@@ -172,12 +146,10 @@ class DoubleAvgAggregator implements AggregatorFunction {
         @Override
         public void deserialize(AvgState value, byte[] ba, int offset) {
             Objects.requireNonNull(value);
-            double kvalue = (double) doubleHandle.get(ba, offset);
-            double kdelta = (double) doubleHandle.get(ba, offset + 8);
-            long count = (long) longHandle.get(ba, offset + 16);
+            long kvalue = (long) longHandle.get(ba, offset);
+            long count = (long) longHandle.get(ba, offset + 8);
 
             value.value = kvalue;
-            value.delta = kdelta;
             value.count = count;
         }
     }

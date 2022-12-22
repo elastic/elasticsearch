@@ -37,11 +37,10 @@ public class ClassReaders {
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static Stream<ClassReader> ofDirWithJars(String path) {
-        if (path == null) {
+    public static Stream<ClassReader> ofDirWithJars(Path dir) {
+        if (dir == null) {
             return Stream.empty();
         }
-        Path dir = Paths.get(path);
         try {
             return ofPaths(Files.list(dir));
         } catch (IOException e) {

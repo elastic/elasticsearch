@@ -77,7 +77,7 @@ public class NamedComponentScannerTests extends ESTestCase {
             """)));
 
         Collection<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()),
+            ClassReaders.ofDirWithJars(dirWithJar),
             ClassReaders.ofClassPath()
         )// contains plugin-api
             .collect(Collectors.toList());
@@ -152,7 +152,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         Collection<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()),
+            ClassReaders.ofDirWithJars(dirWithJar),
             ClassReaders.ofClassPath()
         )// contains plugin-api
             .collect(Collectors.toList());

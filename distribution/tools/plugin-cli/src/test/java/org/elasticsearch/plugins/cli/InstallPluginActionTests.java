@@ -142,6 +142,8 @@ public class InstallPluginActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
+
         pluginDir = createPluginDir(temp);
         terminal = MockTerminal.create();
         env = createEnv(temp);
@@ -241,8 +243,28 @@ public class InstallPluginActionTests extends ESTestCase {
         return createPlugin(name, structure, additionalProps);
     }
 
+    static void writeStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps) throws IOException {
+        String[] properties = pluginProperties(name, additionalProps, true);
+        PluginTestUtil.writeStablePluginProperties(structure, properties);
+
+        if (hasNamedComponentFile) {
+            Map<String, Map<String, String>> namedComponents = namedComponentsMap();
+            PluginTestUtil.writeNamedComponentsFile(structure, namedComponents);
+        }
+
+        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
+        writeJar(structure.resolve("plugin.jar"), className);
+    }
+
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
-        String[] properties = Stream.concat(
+        String[] properties = pluginProperties(name, additionalProps, false);
+        PluginTestUtil.writePluginProperties(structure, properties);
+        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
+        writeJar(structure.resolve("plugin.jar"), className);
+    }
+
+    private static String[] pluginProperties(String name, String[] additionalProps, boolean isStable) {
+        return Stream.of(
             Stream.of(
                 "description",
                 "fake desc",
@@ -253,15 +275,12 @@ public class InstallPluginActionTests extends ESTestCase {
                 "elasticsearch.version",
                 Version.CURRENT.toString(),
                 "java.version",
-                System.getProperty("java.specification.version"),
-                "classname",
-                "FakePlugin"
+                System.getProperty("java.specification.version")
+
             ),
+            isStable ? Stream.empty() : Stream.of("classname", "FakePlugin"),
             Arrays.stream(additionalProps)
-        ).toArray(String[]::new);
-        PluginTestUtil.writePluginProperties(structure, properties);
-        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
-        writeJar(structure.resolve("plugin.jar"), className);
+        ).flatMap(Function.identity()).toArray(String[]::new);
     }
 
     static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
@@ -273,6 +292,11 @@ public class InstallPluginActionTests extends ESTestCase {
         }
         securityPolicyContent.append("\n};\n");
         Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps) throws IOException {
+        writeStablePlugin(name, structure, hasNamedComponentFile, additionalProps);
+        return new InstallablePlugin(name, writeZip(structure, null).toUri().toURL().toString());
     }
 
     static InstallablePlugin createPlugin(String name, Path structure, String... additionalProps) throws IOException {
@@ -307,6 +331,10 @@ public class InstallPluginActionTests extends ESTestCase {
         assertPluginInternal(name, environment.pluginsFile(), original);
         assertConfigAndBin(name, original, environment);
         assertInstallCleaned(environment);
+    }
+
+    void assertNamedComponentFile(String name, Path pluginDir) {
+
     }
 
     void assertPluginInternal(String name, Path pluginsFile, Path originalPlugin) throws IOException {
@@ -1505,5 +1533,17 @@ public class InstallPluginActionTests extends ESTestCase {
             installPlugin(id);
             assertThat(terminal.getErrorOutput(), containsString("[" + id + "] is no longer a plugin"));
         }
+    }
+
+    public void testStablePluginWithNamedComponents() throws Exception {
+        InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, true);
+        installPlugins(List.of(stablePluginZip), env.v1());
+        assertPlugin("stable1", pluginDir, env.v2());
+        assertNamedComponentFile("stable1", pluginDir);
+    }
+
+    private static Map<String, Map<String, String>> namedComponentsMap() {
+        return Map.of("org.elasticsearch.ExtensibleInterface",
+            Map.of("a_component", "p.A"));
     }
 }

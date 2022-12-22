@@ -38,9 +38,12 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugin.scanner.ClassReaders;
+import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsUtils;
+import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -867,7 +870,23 @@ public class InstallPluginAction implements Closeable {
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
 
+        if (info.isStable() && hasNamedComponentFile(pluginRoot) == false) {
+            generateNameComponentFile(pluginRoot);
+        }
         return info;
+    }
+
+    private void generateNameComponentFile(Path pluginRoot) {
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(pluginRoot).collect(Collectors.toList());
+
+        NamedComponentScanner scanner = new NamedComponentScanner();
+        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
+        Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        scanner.writeToFile(namedComponentsMap, outputFile);
+    }
+
+    private boolean hasNamedComponentFile(Path pluginRoot) {
+        return Files.exists(pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME));
     }
 
     private static final String LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR;

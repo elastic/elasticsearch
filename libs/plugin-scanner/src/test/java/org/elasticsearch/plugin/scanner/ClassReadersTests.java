@@ -126,7 +126,7 @@ public class ClassReadersTests extends ESTestCase {
             public class D {}
             """)));
 
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar)) {
             List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
             org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
         }

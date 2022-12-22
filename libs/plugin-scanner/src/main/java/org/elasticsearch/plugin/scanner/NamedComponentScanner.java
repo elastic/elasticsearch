@@ -39,7 +39,7 @@ public class NamedComponentScanner {
     }
 
     // scope for testing
-    void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) {
+    public void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) {
         try {
             // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
             Files.createDirectories(outputFile.getParent());

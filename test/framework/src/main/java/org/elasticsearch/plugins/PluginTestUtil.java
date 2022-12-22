@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Properties;
 
 /** Utility methods for testing plugins */
@@ -59,5 +60,9 @@ public class PluginTestUtil {
         try (OutputStream out = Files.newOutputStream(propertiesFile)) {
             properties.store(out, "");
         }
+    }
+
+    public static void writeNamedComponentsFile(Path structure, Map<String, Map<String, String>> namedComponents) {
+
     }
 }

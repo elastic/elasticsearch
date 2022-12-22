@@ -9,8 +9,8 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
     description 'An easy, safe and fast scripting language for Elasticsearch'

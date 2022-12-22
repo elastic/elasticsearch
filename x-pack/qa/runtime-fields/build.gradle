@@ -115,7 +115,8 @@ subprojects {
           'search.highlight/50_synthetic_source/*',
           'aggregations/top_hits/synthetic _source',
           // Runtime fields produce a slightly different result for multi valued matrix_stats yaml tests:
-          // (muted when matrix_stats was moved from its own module to aggregations module)
+          // (this appears to always have been the case. muted when matrix_stats was moved from its own
+          // module to aggregations module)
           'aggregations/matrix_stats_multi_value_field/Multi value field Min',
           'aggregations/matrix_stats_multi_value_field/Multi value field Max',
           'aggregations/matrix_stats_multi_value_field/Partially unmapped',

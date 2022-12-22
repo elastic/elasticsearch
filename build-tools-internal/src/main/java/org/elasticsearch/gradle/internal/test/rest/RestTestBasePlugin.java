@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
@@ -99,9 +100,17 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 project.getDependencies()
-                    .add(modulesConfiguration.getName(), project.getDependencies().project(Map.of("path", project.getPath())));
+                    .add(
+                        modulesConfiguration.getName(),
+                        project.getDependencies()
+                            .project(Map.of("path", project.getPath(), "configuration", BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG))
+                    );
             } else {
-                project.getDependencies().add(pluginsConfiguration.getName(), project.files(project.getTasks().named("bundlePlugin")));
+                project.getDependencies()
+                    .add(
+                        pluginsConfiguration.getName(),
+                        project.files(project.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME))
+                    );
             }
 
         });

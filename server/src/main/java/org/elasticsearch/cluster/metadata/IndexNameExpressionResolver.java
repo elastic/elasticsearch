@@ -1169,7 +1169,7 @@ public class IndexNameExpressionResolver {
             Collection<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
-                String expression = validateAliasOrIndex(expressions.get(i));
+                String expression = expressions.get(i);
                 boolean isExclusion = false;
                 if (expression.charAt(0) == '-' && wildcardSeen) {
                     isExclusion = true;
@@ -1217,20 +1217,6 @@ public class IndexNameExpressionResolver {
             } else {
                 return result;
             }
-        }
-
-        private static String validateAliasOrIndex(String expression) {
-            if (Strings.isEmpty(expression)) {
-                throw notFoundException(expression);
-            }
-            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
-            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
-            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
-            // if the expression can't be found.
-            if (expression.charAt(0) == '_') {
-                throw new InvalidIndexNameException(expression, "must not start with '_'.");
-            }
-            return expression;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {
@@ -1575,6 +1561,7 @@ public class IndexNameExpressionResolver {
         public static List<String> filter(final Context context, List<String> expressions) {
             boolean wildcardSeen = false;
             for (String expression : expressions) {
+                validateAliasOrIndex(expression);
                 boolean isExclusion = wildcardSeen && expression.startsWith("-");
                 boolean isWildcard = context.getOptions().expandWildcardExpressions() && Regex.isSimpleMatchPattern(expression);
                 if (isExclusion == false && isWildcard == false) {
@@ -1587,6 +1574,20 @@ public class IndexNameExpressionResolver {
                 }
             }
             return expressions;
+        }
+
+        private static String validateAliasOrIndex(String expression) {
+            if (Strings.isEmpty(expression)) {
+                throw notFoundException(expression);
+            }
+            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
+            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
+            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
+            // if the expression can't be found.
+            if (expression.charAt(0) == '_') {
+                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+            }
+            return expression;
         }
     }
 

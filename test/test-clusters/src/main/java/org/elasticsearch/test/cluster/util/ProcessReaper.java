@@ -22,8 +22,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ProcessReaper {
-    private static final String REAPER_CLASS = "org/elasticsearch/gradle/reaper/Reaper.class";
-    private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS);
+    private static final String REAPER_CLASS_LOCATION = "org/elasticsearch/gradle/reaper/Reaper.class";
+    private static final String REAPER_CLASS = "org.elasticsearch.gradle.reaper.Reaper";
+    private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS_LOCATION);
     private static final Logger LOGGER = LogManager.getLogger(ProcessReaper.class);
     private static final ProcessReaper INSTANCE = new ProcessReaper();
     private final Path reaperDir;
@@ -107,8 +108,9 @@ public class ProcessReaper {
                         .toString(), // same jvm as gradle
                     "-Xms4m",
                     "-Xmx16m", // no need for a big heap, just need to read some files and execute
-                    "-jar",
+                    "-cp",
                     jarPath.toString(),
+                    REAPER_CLASS,
                     reaperDir.toString()
                 );
                 LOGGER.info("Launching reaper: " + String.join(" ", builder.command()));
@@ -127,7 +129,7 @@ public class ProcessReaper {
     }
 
     private Path locateReaperJar() {
-        URL main = this.getClass().getClassLoader().getResource(REAPER_CLASS);
+        URL main = this.getClass().getClassLoader().getResource(REAPER_CLASS_LOCATION);
         if (main != null) {
             String mainPath = main.getFile();
             Matcher matcher = REAPER_JAR_PATH_PATTERN.matcher(mainPath);
@@ -138,7 +140,7 @@ public class ProcessReaper {
             }
         }
 
-        throw new RuntimeException("Unable to locate " + REAPER_CLASS + " on classpath.");
+        throw new RuntimeException("Unable to locate " + REAPER_CLASS_LOCATION + " on classpath.");
     }
 
     private void ensureReaperAlive() {

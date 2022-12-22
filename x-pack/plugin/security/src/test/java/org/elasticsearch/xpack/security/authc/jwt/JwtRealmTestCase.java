@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -72,8 +71,6 @@ import static org.mockito.Mockito.when;
 
 public abstract class JwtRealmTestCase extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmTestCase.class);
-
-    record JwtRealmsServiceSettingsBuilder(Settings.Builder settingsBuilder) {}
 
     record JwtRealmSettingsBuilder(String name, Settings.Builder settingsBuilder) {}
 
@@ -117,12 +114,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(plainActionFuture.get().isAuthenticated(), is(false));
     }
 
-    protected JwtRealmsService generateJwtRealmsService(final JwtRealmsServiceSettingsBuilder jwtRealmRealmsSettingsBuilder) {
-        return new JwtRealmsService(jwtRealmRealmsSettingsBuilder.settingsBuilder.build());
-    }
-
     protected List<JwtIssuerAndRealm> generateJwtIssuerRealmPairs(
-        final JwtRealmsServiceSettingsBuilder jwtRealmsServiceSettingsBuilder,
         final int realmsCount,
         final int authzCount,
         final int algsCount,
@@ -133,20 +125,11 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final boolean createHttpsServer
     ) throws Exception {
         // Create JWT authc realms and mocked authz realms. Initialize each JWT realm, and test ensureInitialized() before and after.
-        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(jwtRealmsServiceSettingsBuilder);
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         this.jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
 
-            final JwtIssuer jwtIssuer = this.createJwtIssuer(
-                i,
-                randomFrom(jwtRealmsService.getPrincipalClaimNames()),
-                algsCount,
-                audiencesCount,
-                usersCount,
-                rolesCount,
-                createHttpsServer
-            );
+            final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
                 final JwtRealmSettingsBuilder realmSettingsBuilder = this.createJwtRealmSettingsBuilder(
@@ -154,7 +137,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                     authzCount,
                     jwtCacheSize
                 );
-                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, realmSettingsBuilder);
+                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, realmSettingsBuilder);
 
                 // verify exception before initialize()
                 final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
@@ -174,7 +157,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected JwtIssuer createJwtIssuer(
         final int i,
-        final String principalClaimName,
         final int algsCount,
         final int audiencesCount,
         final int userCount,
@@ -185,7 +167,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final List<String> audiences = IntStream.range(0, audiencesCount).mapToObj(j -> issuer + "_aud" + (j + 1)).toList();
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
-        final JwtIssuer jwtIssuer = new JwtIssuer(issuer, audiences, principalClaimName, users, createHttpsServer);
+        final JwtIssuer jwtIssuer = new JwtIssuer(issuer, audiences, users, createHttpsServer);
         final List<String> algorithms = randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final boolean areHmacJwksOidcSafe = randomBoolean();
         final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, areHmacJwksOidcSafe);
@@ -202,21 +184,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         }
 
         // TODO If x-pack Security plug-in add supports for reloadable settings, update HMAC JWKSet and HMAC OIDC JWK in ES Keystore
-    }
-
-    protected JwtRealmsServiceSettingsBuilder createJwtRealmsSettingsBuilder() throws Exception {
-        final List<String> principalClaimNames = randomBoolean()
-            ? List.of("principalClaim_" + randomAlphaOfLength(6))
-            : randomSubsetOf(randomIntBetween(1, 6), JwtRealmsServiceSettings.DEFAULT_PRINCIPAL_CLAIMS);
-
-        final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
-            .put(this.globalSettings)
-            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimNames));
-
-        final MockSecureSettings secureSettings = new MockSecureSettings(); // none for now, placeholder for future
-        jwtRealmsServiceSettings.setSecureSettings(secureSettings);
-
-        return new JwtRealmsServiceSettingsBuilder(jwtRealmsServiceSettings);
     }
 
     protected JwtRealmSettingsBuilder createJwtRealmSettingsBuilder(final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize)
@@ -367,7 +334,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected JwtRealm createJwtRealm(
         final List<Realm> allRealms, // JWT realms and authz realms
-        final JwtRealmsService jwtRealmsService,
         final JwtIssuer jwtIssuer,
         final JwtRealmSettingsBuilder realmSettingsBuilder
     ) {
@@ -381,7 +347,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final UserRoleMapper userRoleMapper = super.buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.principals : Map.of());
 
         // If authz names is not set, register the users here in the JWT authc realm.
-        final JwtRealm jwtRealm = new JwtRealm(authcConfig, jwtRealmsService, sslService, userRoleMapper);
+        final JwtRealm jwtRealm = new JwtRealm(authcConfig, sslService, userRoleMapper);
         allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.
@@ -446,20 +412,15 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             }
             assertThat(jwtAuthenticationToken, is(notNullValue()));
             final String tokenPrincipal = jwtAuthenticationToken.principal();
-            final SecureString tokenJwt = jwtAuthenticationToken.getEndUserSignedJwt();
             final SecureString tokenSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
             assertThat(tokenPrincipal, is(notNullValue()));
-            if (tokenJwt.equals(jwt) == false) {
-                assertThat(tokenJwt, is(equalTo(jwt)));
-            }
-            assertThat(tokenJwt, is(equalTo(jwt)));
             if (tokenSecret != null) {
                 if (tokenSecret.equals(sharedSecret) == false) {
                     assertThat(tokenSecret, is(equalTo(sharedSecret)));
                 }
                 assertThat(tokenSecret, is(equalTo(sharedSecret)));
             }
-            LOGGER.info("GOT TOKEN: principal=[" + tokenPrincipal + "], jwt=[" + tokenJwt + "], secret=[" + tokenSecret + "].");
+            LOGGER.info("GOT TOKEN: principal=[" + tokenPrincipal + "], jwt=[" + jwt + "], secret=[" + tokenSecret + "].");
 
             // Loop through all authc/authz realms. Confirm user is returned with expected principal and roles.
             User authenticatedUser = null;

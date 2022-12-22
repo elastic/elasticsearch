@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -95,23 +95,13 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected Rectangle getTile(double lng, double lat, int precision) {
-        CellBoundary boundary = H3.h3ToGeoBoundary(hashAsString(lng, lat, precision));
-        double minLat = Double.POSITIVE_INFINITY;
-        double minLon = Double.POSITIVE_INFINITY;
-        double maxLat = Double.NEGATIVE_INFINITY;
-        double maxLon = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < boundary.numPoints(); i++) {
-            double boundaryLat = boundary.getLatLon(i).getLatDeg();
-            double boundaryLon = boundary.getLatLon(i).getLonDeg();
-            minLon = Math.min(minLon, boundaryLon);
-            maxLon = Math.max(maxLon, boundaryLon);
-            minLat = Math.min(minLat, boundaryLat);
-            maxLat = Math.max(maxLat, boundaryLat);
-        }
-        if (maxLon - minLon > 180) {
-            return new Rectangle(maxLon, minLon, maxLat, minLat);
+        final LatLonBounds bounds = GeoHexCellIdSource.getGeoBounds(H3.h3ToGeoBoundary(hashAsString(lng, lat, precision)));
+        final double minLat = bounds.checkNoBottomLatitudeBound() ? -90d : Math.toDegrees(bounds.getMinLatitude());
+        final double maxLat = bounds.checkNoTopLatitudeBound() ? 90d : Math.toDegrees(bounds.getMaxLatitude());
+        if (bounds.checkNoLongitudeBound()) {
+            return new Rectangle(-180d, 180d, maxLat, minLat);
         } else {
-            return new Rectangle(minLon, maxLon, maxLat, minLat);
+            return new Rectangle(Math.toDegrees(bounds.getLeftLongitude()), Math.toDegrees(bounds.getRightLongitude()), maxLat, minLat);
         }
     }
 

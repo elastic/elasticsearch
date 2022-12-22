@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class JwtValidateUtilTests extends JwtTestCase {
 
@@ -49,6 +48,6 @@ public class JwtValidateUtilTests extends JwtTestCase {
             + "]. Supported signature algorithms are "
             + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
             + ".";
-        assertThat(exp1.getMessage(), is(equalTo(msg1)));
+        assertThat(exp1.getMessage(), equalTo(msg1));
     }
 }

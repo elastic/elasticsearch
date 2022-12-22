@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class JwkValidateUtilTests extends JwtTestCase {
 
@@ -46,7 +45,7 @@ public class JwkValidateUtilTests extends JwtTestCase {
         for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
             final JWK jwk = JwtTestCase.randomJwkRsa(JWSAlgorithm.parse(signatureAlgorithmRsa));
             final int minLength = JwkValidateUtil.computeBitLengthRsa(jwk.toRSAKey().toPublicKey());
-            assertThat(minLength, is(anyOf(equalTo(2048), equalTo(3072))));
+            assertThat(minLength, anyOf(equalTo(2048), equalTo(3072)));
         }
     }
 

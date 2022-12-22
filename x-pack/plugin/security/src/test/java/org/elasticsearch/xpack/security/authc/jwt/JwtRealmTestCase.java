@@ -107,7 +107,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
         final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
         jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
-        assertThat(plainActionFuture.get(), is(notNullValue()));
+        assertThat(plainActionFuture.get(), notNullValue());
         assertThat(plainActionFuture.get().isAuthenticated(), is(false));
     }
 
@@ -360,14 +360,12 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected JwtIssuerAndRealm randomJwtIssuerRealmPair() throws ParseException {
         // Select random JWT issuer and JWT realm pair, and log the realm settings
-        assertThat(jwtIssuerAndRealms, is(notNullValue()));
-        assertThat(jwtIssuerAndRealms, is(not(empty())));
+        assertThat(jwtIssuerAndRealms, notNullValue());
+        assertThat(jwtIssuerAndRealms, not(empty()));
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomFrom(jwtIssuerAndRealms);
         final JwtRealm jwtRealm = jwtIssuerAndRealm.realm;
-        assertThat(jwtRealm, is(notNullValue()));
-        assertThat(JwtRealmInspector.getAllowedIssuer(jwtRealm), is(equalTo(jwtIssuerAndRealm.issuer.issuerClaimValue))); // assert equal,
-                                                                                                                          // don't print
-                                                                                                                          // both
+        assertThat(jwtRealm, notNullValue());
+        assertThat(JwtRealmInspector.getAllowedIssuer(jwtRealm), equalTo(jwtIssuerAndRealm.issuer.issuerClaimValue));
         assertThat(
             jwtIssuerAndRealm.issuer.audiencesClaimValue.stream().anyMatch(JwtRealmInspector.getAllowedAudiences(jwtRealm)::contains),
             is(true)
@@ -383,7 +381,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final SecureString sharedSecret,
         final int jwtAuthcRepeats
     ) {
-
         // Select one JWT authc Issuer/Realm pair. Select one test user, to use inside the authc test loop.
         final List<JwtRealm> jwtRealmsList = jwtIssuerAndRealms.stream().map(p -> p.realm).toList();
 

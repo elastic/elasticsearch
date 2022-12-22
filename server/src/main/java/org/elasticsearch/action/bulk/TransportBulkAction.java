@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -754,10 +755,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
-            return indexAbstractions.computeIfAbsent(
-                request.index(),
-                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
-            );
+            try {
+                return indexAbstractions.computeIfAbsent(
+                    request.index(),
+                    key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+                );
+            } catch (IndexNotFoundException e) {
+                if (e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                    throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams", e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         IndexRouting routing(Index index) {

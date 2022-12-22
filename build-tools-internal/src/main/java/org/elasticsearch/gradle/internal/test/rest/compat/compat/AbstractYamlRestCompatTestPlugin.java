@@ -6,19 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.rest.compat;
+package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
-import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesExtension;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin;
-import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
@@ -37,6 +35,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -50,7 +49,7 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYaml
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
-public class YamlRestCompatTestPlugin implements Plugin<Project> {
+public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project> {
     public static final String BWC_MINOR_CONFIG_NAME = "bwcMinor";
     private static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
     private static final String COMPATIBILITY_APIS_CONFIGURATION = "restCompatSpecs";
@@ -67,7 +66,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private FileOperations fileOperations;
 
     @Inject
-    public YamlRestCompatTestPlugin(ProjectLayout projectLayout, FileOperations fileOperations) {
+    public AbstractYamlRestCompatTestPlugin(ProjectLayout projectLayout, FileOperations fileOperations) {
         this.projectLayout = projectLayout;
         this.fileOperations = fileOperations;
     }
@@ -81,17 +80,17 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
-        project.getPluginManager().apply(RestTestBasePlugin.class);
+        project.getPluginManager().apply(LegacyRestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
-        project.getPluginManager().apply(InternalYamlRestTestPlugin.class);
+        project.getPluginManager().apply(getBasePlugin());
 
         RestResourcesExtension extension = project.getExtensions().getByType(RestResourcesExtension.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlCompatTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-        SourceSet yamlTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME);
-        GradleUtils.extendSourceSet(project, InternalYamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
+        SourceSet yamlTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME);
+        GradleUtils.extendSourceSet(project, LegacyYamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
@@ -217,11 +216,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
-        String testTaskName = "yamlRestTestV" + COMPATIBLE_VERSION + "CompatTest";
-
         // setup the test task
-        Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet, testTaskName);
-        project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {
+        TaskProvider<? extends Test> yamlRestCompatTestTask = registerTestTask(project, yamlCompatTestSourceSet);
+        yamlRestCompatTestTask.configure(testTask -> {
             testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
             testTask.setTestClassesDirs(
@@ -236,11 +233,11 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             );
 
             // run compatibility tests after "normal" tests
-            testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
+            testTask.mustRunAfter(project.getTasks().named(LegacyYamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.onlyIf(t -> isEnabled(extraProperties));
         });
 
-        setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet);
+        setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet, true);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlCompatTestSourceSet);
@@ -258,6 +255,10 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getTasks().named(REST_COMPAT_CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestCompatTestTask));
 
     }
+
+    public abstract TaskProvider<? extends Test> registerTestTask(Project project, SourceSet sourceSet);
+
+    public abstract Class<? extends Plugin<Project>> getBasePlugin();
 
     private boolean isEnabled(ExtraPropertiesExtension extraProperties) {
         Object bwcEnabled = extraProperties.getProperties().get("bwc_tests_enabled");

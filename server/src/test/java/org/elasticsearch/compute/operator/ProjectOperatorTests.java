@@ -6,26 +6,30 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.compute;
+package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.ProjectOperator;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.core.Tuple;
 
 import java.util.BitSet;
+import java.util.List;
+import java.util.stream.LongStream;
 
-public class ProjectOperatorTests extends ESTestCase {
+import static org.hamcrest.Matchers.equalTo;
 
-    public void testProjectionOnEmptyPage() throws Exception {
+public class ProjectOperatorTests extends OperatorTestCase {
+    public void testProjectionOnEmptyPage() {
         var page = new Page(0);
         var projection = new ProjectOperator(randomMask(randomIntBetween(2, 10)));
         projection.addInput(page);
         assertEquals(page, projection.getOutput());
     }
 
-    public void testProjection() throws Exception {
+    public void testProjection() {
         var size = randomIntBetween(2, 5);
         var blocks = new Block[size];
         for (int i = 0; i < blocks.length; i++) {
@@ -56,5 +60,39 @@ public class ProjectOperatorTests extends ESTestCase {
             mask.set(i, randomBoolean());
         }
         return mask;
+    }
+
+    @Override
+    protected SourceOperator simpleInput(int end) {
+        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+    }
+
+    @Override
+    protected Operator simple(BigArrays bigArrays) {
+        BitSet mask = new BitSet();
+        mask.set(1, true);
+        return new ProjectOperator(mask);
+    }
+
+    @Override
+    protected void assertSimpleOutput(int end, List<Page> results) {
+        long expected = end;
+        int total = 0;
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(1));
+            Block remaining = page.getBlock(0);
+            total += page.getPositionCount();
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                assertThat(remaining.getLong(i), equalTo(expected));
+                expected--;
+            }
+        }
+        assertThat(total, equalTo(end));
+    }
+
+    @Override
+    protected ByteSizeValue smallEnoughToCircuitBreak() {
+        assumeTrue("doesn't use big arrays so can't braak", false);
+        return null;
     }
 }

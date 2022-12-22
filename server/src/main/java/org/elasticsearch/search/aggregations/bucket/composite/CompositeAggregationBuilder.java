@@ -27,10 +27,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -185,23 +183,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             }
     }
 
-    private static String validateSubAggregations(Collection<AggregationBuilder> builders) {
-        if (builders == null || builders.isEmpty()) {
-            return null;
-        }
-
-        for (final AggregationBuilder builder : builders) {
-            if ("time_series".equals(builder.getType().toLowerCase(Locale.ROOT))) {
-                return builder.getType();
-            }
-            final String subAggregations = validateSubAggregations(builder.getSubAggregations());
-            if (subAggregations != null) {
-                return subAggregations;
-            }
-        }
-        return null;
-    }
-
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {
         if (sources == null || sources.isEmpty()) {
             throw new IllegalArgumentException("Composite [" + SOURCES_FIELD_NAME.getPreferredName() + "] cannot be null or empty");
@@ -240,12 +221,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             );
         }
         if (context.isInSortOrderExecutionRequired()) {
-            final String invalidSubAggregation = validateSubAggregations(subfactoriesBuilder.getAggregatorFactories());
-            if (invalidSubAggregation != null) {
-                throw new IllegalArgumentException(
-                    "[composite] aggregation cannot be used with a child aggregation of" + " type: [" + invalidSubAggregation + "]"
-                );
-            }
+            throw new IllegalArgumentException("[composite] aggregation is incompatible with time series execution mode");
         }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {

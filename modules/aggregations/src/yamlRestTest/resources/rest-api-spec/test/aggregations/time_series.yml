@@ -115,7 +115,7 @@ setup:
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
-      catch: '/\[composite] aggregation cannot be used with a child aggregation of type: \[time_series\]/'
+      catch: '/\[composite\] aggregation is incompatible with time series execution mode/'
       search:
         index: tsdb
         body:

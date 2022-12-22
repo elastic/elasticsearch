@@ -362,7 +362,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                                         + project
                                         + "':\n\n"
                                         + "dependencies {\n"
-                                        + "  clusterModules "
+                                        + "  clusterPlugins "
                                         + "project(':plugins:"
                                         + pluginName
                                         + "')"

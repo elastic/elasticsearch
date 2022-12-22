@@ -26,6 +26,7 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("node.portsfile", "true");
         settings.put("http.port", "0");
         settings.put("transport.port", "0");
+        settings.put("network.host", "_local_");
 
         if (nodeSpec.getDistributionType() == DistributionType.DEFAULT) {
             // Disable deprecation indexing which is enabled by default in 7.16

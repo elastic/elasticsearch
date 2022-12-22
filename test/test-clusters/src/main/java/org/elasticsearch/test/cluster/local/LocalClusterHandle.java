@@ -31,6 +31,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class LocalClusterHandle implements ClusterHandle {
     private static final Logger LOGGER = LogManager.getLogger(LocalClusterHandle.class);
@@ -124,12 +125,18 @@ public class LocalClusterHandle implements ClusterHandle {
         try {
             Retry.retryUntilTrue(CLUSTER_UP_TIMEOUT, Duration.ZERO, () -> {
                 Node node = nodes.get(0);
-                String scheme = node.getSpec().isSettingTrue("xpack.security.http.ssl.enabled") ? "https" : "http";
+                boolean securityEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.enabled", "true"));
+                boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
+                boolean securityAutoConfigured = isSecurityAutoConfigured(node);
+                String scheme = securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
                 WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
                 if (node.getSpec().getUsers().isEmpty() == false) {
                     User credentials = node.getSpec().getUsers().get(0);
                     wait.setUsername(credentials.getUsername());
                     wait.setPassword(credentials.getPassword());
+                }
+                if (securityAutoConfigured) {
+                    wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
                 }
                 return wait.wait(500);
             });
@@ -137,6 +144,15 @@ public class LocalClusterHandle implements ClusterHandle {
             throw new RuntimeException("Timed out after " + CLUSTER_UP_TIMEOUT + " waiting for cluster '" + name + "' status to be yellow");
         } catch (ExecutionException e) {
             throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
+        }
+    }
+
+    private boolean isSecurityAutoConfigured(Node node) {
+        Path configFile = node.getWorkingDir().resolve("config").resolve("elasticsearch.yml");
+        try (Stream<String> lines = Files.lines(configFile)) {
+            return lines.anyMatch(l -> l.contains("BEGIN SECURITY AUTO CONFIGURATION"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

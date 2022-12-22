@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
@@ -89,9 +90,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
         });
 
         // Create configures for module and plugin dependencies
-        Configuration modulesConfiguration = createPluginConfiguration(project, MODULES_CONFIGURATION, true);
-        Configuration pluginsConfiguration = createPluginConfiguration(project, PLUGINS_CONFIGURATION, false);
-        Configuration extractedPluginsConfiguration = createPluginConfiguration(project, EXTRACTED_PLUGINS_CONFIGURATION, true);
+        Configuration modulesConfiguration = createPluginConfiguration(project, MODULES_CONFIGURATION, true, false);
+        Configuration pluginsConfiguration = createPluginConfiguration(project, PLUGINS_CONFIGURATION, false, false);
+        Configuration extractedPluginsConfiguration = createPluginConfiguration(project, EXTRACTED_PLUGINS_CONFIGURATION, true, true);
         extractedPluginsConfiguration.extendsFrom(pluginsConfiguration);
         configureArtifactTransforms(project);
 
@@ -100,7 +101,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 project.getDependencies().add(modulesConfiguration.getName(), project.files(project.getTasks().named("bundlePlugin")));
             } else {
-                project.getDependencies().add(pluginsConfiguration.getName(), project.files(project.getTasks().named("bundlePlugin")));
+                project.getDependencies().add(PLUGINS_CONFIGURATION, getBundleZipTaskDependency(project, project.getPath()));
             }
 
         });
@@ -158,14 +159,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     private void registerConfigurationInputs(Task task, Configuration configuration) {
         task.getInputs()
-            .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
-            .withPropertyName(configuration.getName() + "-classpath")
-            .withNormalizer(ClasspathNormalizer.class);
-
-        task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false)))
             .withPropertyName(configuration.getName() + "-files")
             .withPathSensitivity(PathSensitivity.RELATIVE);
+
+        task.getInputs()
+            .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
+            .withPropertyName(configuration.getName() + "-classpath")
+            .withNormalizer(ClasspathNormalizer.class);
     }
 
     private void registerDistributionInputs(Task task, ElasticsearchDistribution distribution) {
@@ -191,7 +192,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .map(Project::getPath);
     }
 
-    private Configuration createPluginConfiguration(Project project, String name, boolean useExploded) {
+    private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
         return project.getConfigurations().create(name, c -> {
             if (useExploded) {
                 c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE));
@@ -226,9 +227,21 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
                 }
 
-                dependencies.addAll(additionalDependencies);
-            });
+                    dependencies.addAll(additionalDependencies);
+                });
+            }
         });
+    }
+
+    private Dependency getExplodedBundleDependency(Project project, String projectPath) {
+        return project.getDependencies()
+            .project(Map.of("path", projectPath, "configuration", BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG));
+    }
+
+    private Dependency getBundleZipTaskDependency(Project project, String projectPath) {
+        Project dependencyProject = project.findProject(projectPath);
+        return project.getDependencies()
+            .create(project.files(dependencyProject.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME)));
     }
 
     private void configureArtifactTransforms(Project project) {

@@ -15,12 +15,16 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.GetFeatureUsageRequest;
+import org.elasticsearch.license.GetFeatureUsageResponse;
+import org.elasticsearch.license.TransportGetFeatureUsageAction;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -28,21 +32,34 @@ import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
+
+    private static final Set<String> DLS_FLS_FEATURE_NAMES = Set.of(
+        DOCUMENT_LEVEL_SECURITY_FEATURE.getName(),
+        FIELD_LEVEL_SECURITY_FEATURE.getName()
+    );
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
@@ -114,6 +131,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        assertThat(fetchFeatureUsages(), not(containsInAnyOrder(DLS_FLS_FEATURE_NAMES)));
 
         SearchResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
@@ -123,6 +141,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("1"));
+        assertThat(DLS_FLS_FEATURE_NAMES, everyItem(is(in(fetchFeatureUsages()))));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("test")
@@ -132,6 +151,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("2"));
+        assertThat(DLS_FLS_FEATURE_NAMES, everyItem(is(in(fetchFeatureUsages()))));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
             .prepareSearch("test")
@@ -141,6 +161,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertSearchHits(response, "1", "2");
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(DLS_FLS_FEATURE_NAMES, everyItem(is(in(fetchFeatureUsages()))));
     }
 
     public void testUpdatesAreRejected() {
@@ -256,6 +277,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(2));
             assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
             assertThat(response.getHits().getAt(1).getSourceAsMap().get("id"), equalTo("2"));
+
         }
     }
 
@@ -441,4 +463,18 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         }
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
+
+    private Set<String> fetchFeatureUsages() {
+        final Set<String> result = new HashSet<>();
+        // Nodes are chosen at random when test is executed,
+        // hence we have to aggregate feature usage across all nodes in the cluster.
+        Set.of(internalCluster().getNodeNames()).stream().forEach(node -> {
+            PlainActionFuture<GetFeatureUsageResponse> listener = new PlainActionFuture<>();
+            client(node).execute(TransportGetFeatureUsageAction.TYPE, new GetFeatureUsageRequest(), listener);
+            GetFeatureUsageResponse response = listener.actionGet();
+            for (var feature : response.getFeatures()) {
+                result.add(feature.getName());
+            }
+        });
+        return result;
 }

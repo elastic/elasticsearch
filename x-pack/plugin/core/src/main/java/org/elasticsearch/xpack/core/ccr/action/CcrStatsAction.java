@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 
@@ -87,7 +88,7 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
                     (builder, params) -> builder.startObject().field("auto_follow_stats", autoFollowStats, params).field("follow_stats")
                 ),
                 followStats.toXContentChunked(outerParams),
-                Iterators.single((builder, params) -> builder.endObject())
+                ChunkedToXContentHelper.endObject()
             );
         }
 
@@ -103,7 +104,6 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         public int hashCode() {
             return Objects.hash(autoFollowStats, followStats);
         }
-
     }
 
 }

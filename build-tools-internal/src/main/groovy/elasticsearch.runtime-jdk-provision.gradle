@@ -17,36 +17,31 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 // apply plugin: 'elasticsearch.jdk-download'
 
-if (BuildParams.getIsRuntimeJavaHomeSet()) {
-  configure(allprojects) {
-    project.tasks.withType(Test).configureEach { Test test ->
-      if (BuildParams.getIsRuntimeJavaHomeSet()) {
-        test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
-      }
-    }
+jdks {
+  provisioned_runtime {
+    vendor = VersionProperties.bundledJdkVendor
+    version = VersionProperties.bundledJdkVersion
+    platform = OS.current().name().toLowerCase()
+    architecture = Architecture.current().name().toLowerCase()
   }
-} else {
-  jdks {
-    provisioned_runtime {
-      vendor = VersionProperties.bundledJdkVendor
-      version = VersionProperties.bundledJdkVersion
-      platform = OS.current().name().toLowerCase()
-      architecture = Architecture.current().name().toLowerCase()
-    }
-  }
+}
 
-  configure(allprojects) {
-    project.tasks.withType(Test).configureEach { Test test ->
+configure(allprojects) {
+  project.tasks.withType(Test).configureEach { Test test ->
+    if (BuildParams.getIsRuntimeJavaHomeSet()) {
+      test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+    } else {
       test.dependsOn(rootProject.jdks.provisioned_runtime)
       test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
     }
-    project.plugins.withType(RestTestBasePlugin) {
-      // Use later JDK for new REST test plugins since :test:test-clusters requires Java 17+
-      project.tasks.withType(StandaloneRestIntegTestTask).configureEach { StandaloneRestIntegTestTask test ->
-        test.dependsOn(rootProject.jdks.provisioned_runtime)
-        test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
-      }
+  }
+  project.plugins.withType(RestTestBasePlugin) {
+    // Use later JDK for new REST test plugins since :test:test-clusters requires Java 17+
+    project.tasks.withType(StandaloneRestIntegTestTask).configureEach { StandaloneRestIntegTestTask test ->
+      test.dependsOn(rootProject.jdks.provisioned_runtime)
+      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
     }
   }
 }
+
 // if neither condition above is executed, tests will use the gradle jvm

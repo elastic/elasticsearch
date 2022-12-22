@@ -53,6 +53,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
+    public static final Pattern BUNDLE_ARTIFACT_PATTERN = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
 
     private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
@@ -315,8 +316,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void installPlugins() {
             if (spec.getPlugins().isEmpty() == false) {
-                Pattern pattern = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
-
                 LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), spec.getName());
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
                     .map(Path::of)
@@ -326,7 +325,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .stream()
                     .map(
                         pluginName -> pluginPaths.stream()
-                            .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
+                            .map(path -> Pair.of(BUNDLE_ARTIFACT_PATTERN.matcher(path.getFileName().toString()), path))
                             .filter(pair -> pair.left.matches())
                             .map(p -> p.right.getParent().resolve(p.left.group(1)))
                             .findFirst()
@@ -395,26 +394,31 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private void installModule(String moduleName, List<Path> modulePaths) {
             Path destination = distributionDir.resolve("modules").resolve(moduleName);
             if (Files.notExists(destination)) {
-                Path modulePath = modulePaths.stream().filter(path -> path.endsWith(moduleName)).findFirst().orElseThrow(() -> {
-                    String taskPath = System.getProperty("tests.task");
-                    String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
-                    String moduleDependency = moduleName.startsWith("x-pack")
-                        ? "project(xpackModule('" + moduleName.substring(7) + "'))"
-                        : "project(':modules:" + moduleName + "')";
+                Path modulePath = modulePaths.stream()
+                    .map(path -> Pair.of(BUNDLE_ARTIFACT_PATTERN.matcher(path.getFileName().toString()), path))
+                    .filter(pair -> pair.left.matches())
+                    .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        String taskPath = System.getProperty("tests.task");
+                        String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
+                        String moduleDependency = moduleName.startsWith("x-pack")
+                            ? "project(xpackModule('" + moduleName.substring(7) + "'))"
+                            : "project(':modules:" + moduleName + "')";
 
-                    throw new RuntimeException(
-                        "Unable to locate module '"
-                            + moduleName
-                            + "'. Ensure you've added the following to the build script for project '"
-                            + project
-                            + "':\n\n"
-                            + "dependencies {\n"
-                            + "  clusterModules "
-                            + moduleDependency
-                            + "\n}"
-                    );
+                        throw new RuntimeException(
+                            "Unable to locate module '"
+                                + moduleName
+                                + "'. Ensure you've added the following to the build script for project '"
+                                + project
+                                + "':\n\n"
+                                + "dependencies {\n"
+                                + "  clusterModules "
+                                + moduleDependency
+                                + "\n}"
+                        );
 
-                });
+                    });
 
                 IOUtils.syncWithCopy(modulePath.getParent(), destination);
 

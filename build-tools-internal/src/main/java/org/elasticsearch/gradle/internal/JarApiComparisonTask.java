@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.TaskAction;
@@ -36,12 +35,9 @@ public abstract class JarApiComparisonTask extends DefaultTask {
         JarScanner oldJS = new JarScanner(getOldJar().get().toString());
         JarScanner newJS = new JarScanner(getNewJar().get().toString());
         try {
-            System.out.println(JarScanner.compareSignatures(
-                oldJS.jarSignature(),
-                newJS.jarSignature()
-            ));
+            JarScanner.compareSignatures(oldJS.jarSignature(), newJS.jarSignature());
         } catch (IOException e) {
-            System.err.println("oops...");
+            throw new RuntimeException(e);
         }
     }
 
@@ -137,11 +133,11 @@ public abstract class JarApiComparisonTask extends DefaultTask {
                 ));
         }
 
-        public static String compareSignatures(Map<String, Set<String>> oldSignature, Map<String, Set<String>> newSignature) {
+        public static void compareSignatures(Map<String, Set<String>> oldSignature, Map<String, Set<String>> newSignature) {
             Set<String> deletedClasses = new HashSet<>(oldSignature.keySet());
             deletedClasses.removeAll(newSignature.keySet());
             if (deletedClasses.size() > 0) {
-                throw new GradleException("Classes have been removed: " + deletedClasses);
+                throw new IllegalStateException("Classes from a previous version not found: " + deletedClasses);
             }
 
             Map<String, Set<String>> deletedMembersMap = new HashMap<>();
@@ -153,10 +149,9 @@ public abstract class JarApiComparisonTask extends DefaultTask {
                 }
             }
             if (deletedMembersMap.size() > 0) {
-                throw new GradleException("Methods have been removed: " + deletedMembersMap);
+                throw new IllegalStateException("Classes from a previous version have been modified, violating backwards compatibility: "
+                    + deletedMembersMap);
             }
-
-            return "OKAY!";
         }
     }
 }

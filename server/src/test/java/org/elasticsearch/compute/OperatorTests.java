@@ -44,7 +44,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -214,13 +216,8 @@ public class OperatorTests extends ESTestCase {
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                         List.of(
                             new ValuesSourceReaderOperator(
-                                List.of(CoreValuesSourceType.NUMERIC),
-                                List.of(vs),
-                                List.of(reader),
-                                0,
-                                1,
-                                2,
-                                fieldName
+                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, reader)),
+                                new LuceneDocRef(0, 1, 2)
                             ),
                             new LongGroupingOperator(3, bigArrays),
                             new LongMaxOperator(4), // returns highest group number
@@ -283,13 +280,8 @@ public class OperatorTests extends ESTestCase {
                                 luceneSourceOperator,
                                 List.of(
                                     new ValuesSourceReaderOperator(
-                                        List.of(CoreValuesSourceType.NUMERIC),
-                                        List.of(vs),
-                                        List.of(reader),
-                                        0,
-                                        1,
-                                        2,
-                                        fieldName
+                                        List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, reader)),
+                                        new LuceneDocRef(0, 1, 2)
                                     )
                                 ),
                                 new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
@@ -361,44 +353,25 @@ public class OperatorTests extends ESTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 // implements cardinality on value field
+                var luceneDocRef = new LuceneDocRef(0, 1, 2);
                 Driver driver = new Driver(
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(
                         new ValuesSourceReaderOperator(
-                            List.of(CoreValuesSourceType.NUMERIC),
-                            List.of(intVs),
-                            List.of(reader),
-                            0,
-                            1,
-                            2,
-                            intField.name()
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, intVs, reader)),
+                            luceneDocRef
                         ),
                         new ValuesSourceReaderOperator(
-                            List.of(CoreValuesSourceType.NUMERIC),
-                            List.of(longVs),
-                            List.of(reader),
-                            0,
-                            1,
-                            2,
-                            longField.name()
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, longVs, reader)),
+                            luceneDocRef
                         ),
                         new ValuesSourceReaderOperator(
-                            List.of(CoreValuesSourceType.NUMERIC),
-                            List.of(doubleVs),
-                            List.of(reader),
-                            0,
-                            1,
-                            2,
-                            doubleField.name()
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, doubleVs, reader)),
+                            luceneDocRef
                         ),
                         new ValuesSourceReaderOperator(
-                            List.of(CoreValuesSourceType.KEYWORD),
-                            List.of(keywordVs),
-                            List.of(reader),
-                            0,
-                            1,
-                            2,
-                            kwFieldName
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, keywordVs, reader)),
+                            luceneDocRef
                         )
                     ),
                     new PageConsumerOperator(page -> {
@@ -499,7 +472,7 @@ public class OperatorTests extends ESTestCase {
                 List.of(new LongGroupingOperator(1, bigArrays)),
                 new PageConsumerOperator(page -> logger.info("New page: {}", page)),
                 () -> {}
-            );
+            )
         ) {
             runToCompletion(randomExecutor(), List.of(driver1, driver2));
             // TODO where is the assertion here?
@@ -553,7 +526,7 @@ public class OperatorTests extends ESTestCase {
                 List.of(),
                 new PageConsumerOperator(page -> logger.info("New page with #blocks: {}", page.getBlockCount())),
                 () -> {}
-            );
+            )
         ) {
             runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4));
         }
@@ -611,13 +584,8 @@ public class OperatorTests extends ESTestCase {
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                         List.of(
                             new ValuesSourceReaderOperator(
-                                List.of(CoreValuesSourceType.NUMERIC),
-                                List.of(vs),
-                                List.of(reader),
-                                0,
-                                1,
-                                2,
-                                fieldName
+                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, reader)),
+                                new LuceneDocRef(0, 1, 2)
                             ),
                             new HashAggregationOperator(
                                 3, // group by channel
@@ -696,13 +664,14 @@ public class OperatorTests extends ESTestCase {
                     List.of(
                         new MapPageOperator(p -> p.appendBlock(new ConstantIntBlock(1, p.getPositionCount()))),
                         new OrdinalsGroupingOperator(
-                            gField,
-                            2,
-                            1,
-                            0,
-                            List.of(randomBoolean() ? getOrdinalsValuesSource(gField) : getBytesValuesSource(gField)),
-                            List.of(CoreValuesSourceType.KEYWORD),
-                            List.of(reader),
+                            List.of(
+                                new ValueSourceInfo(
+                                    CoreValuesSourceType.KEYWORD,
+                                    randomBoolean() ? getOrdinalsValuesSource(gField) : getBytesValuesSource(gField),
+                                    reader
+                                )
+                            ),
+                            new LuceneDocRef(0, 1, 2),
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 3)
                             ),
@@ -830,7 +799,7 @@ public class OperatorTests extends ESTestCase {
                     }
                 }),
                 () -> {}
-            );
+            )
         ) {
             driver.run();
         }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -27,16 +26,12 @@ import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
+import org.elasticsearch.compute.lucene.LuceneDocRef;
+import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -55,13 +50,9 @@ import static java.util.stream.Collectors.joining;
 @Experimental
 public class OrdinalsGroupingOperator implements Operator {
     private boolean finished = false;
-    private final String fieldName;
-    private final int shardIndexChannel;
-    private final int segmentIndexChannel;
-    private final int docIDChannel;
-    private final List<ValuesSource> valuesSources;
-    private final List<ValuesSourceType> valuesSourceTypes;
-    private final List<IndexReader> indexReaders;
+
+    private final List<ValueSourceInfo> sources;
+    private final LuceneDocRef luceneDocRef;
 
     private final List<GroupingAggregatorFactory> aggregatorFactories;
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
@@ -71,42 +62,15 @@ public class OrdinalsGroupingOperator implements Operator {
     private ValuesAggregator valuesAggregator;
 
     public record OrdinalsGroupingOperatorFactory(
-        String fieldName,
-        int shardIndexChannel,
-        int segmentIndexChannel,
-        int docIDChannel,
-        List<SearchContext> searchContexts,
+        List<ValueSourceInfo> sources,
+        LuceneDocRef luceneDocRef,
         List<GroupingAggregatorFactory> aggregators,
         BigArrays bigArrays
     ) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            List<ValuesSource> valuesSources = new ArrayList<>(searchContexts.size());
-            List<ValuesSourceType> valuesSourceTypes = new ArrayList<>(searchContexts.size());
-            List<IndexReader> indexReaders = new ArrayList<>(searchContexts.size());
-            for (SearchContext searchContext : searchContexts) {
-                SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
-                MappedFieldType fieldType = ctx.getFieldType(fieldName);
-                IndexFieldData<?> fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                FieldContext fieldContext = new FieldContext(fieldName, fieldData, fieldType);
-                ValuesSourceType vsType = fieldData.getValuesSourceType();
-                valuesSourceTypes.add(vsType);
-                ValuesSource vs = vsType.getField(fieldContext, null);
-                valuesSources.add(vs);
-                indexReaders.add(ctx.getIndexReader());
-            }
-            return new OrdinalsGroupingOperator(
-                fieldName,
-                shardIndexChannel,
-                segmentIndexChannel,
-                docIDChannel,
-                valuesSources,
-                valuesSourceTypes,
-                indexReaders,
-                aggregators,
-                bigArrays
-            );
+            return new OrdinalsGroupingOperator(sources, luceneDocRef, aggregators, bigArrays);
         }
 
         @Override
@@ -116,30 +80,20 @@ public class OrdinalsGroupingOperator implements Operator {
     }
 
     public OrdinalsGroupingOperator(
-        String fieldName,
-        int shardIndexChannel,
-        int segmentIndexChannel,
-        int docIDChannel,
-        List<ValuesSource> valuesSources,
-        List<ValuesSourceType> valuesSourceTypes,
-        List<IndexReader> indexReaders,
+        List<ValueSourceInfo> sources,
+        LuceneDocRef luceneDocRef,
         List<GroupingAggregatorFactory> aggregatorFactories,
         BigArrays bigArrays
     ) {
         Objects.requireNonNull(aggregatorFactories);
-        boolean bytesValues = valuesSources.get(0) instanceof ValuesSource.Bytes;
-        for (int i = 1; i < valuesSources.size(); i++) {
-            if (valuesSources.get(i) instanceof ValuesSource.Bytes != bytesValues) {
+        boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
+        for (int i = 1; i < sources.size(); i++) {
+            if (sources.get(i).source() instanceof ValuesSource.Bytes != bytesValues) {
                 throw new IllegalStateException("ValuesSources are mismatched");
             }
         }
-        this.fieldName = fieldName;
-        this.shardIndexChannel = shardIndexChannel;
-        this.segmentIndexChannel = segmentIndexChannel;
-        this.docIDChannel = docIDChannel;
-        this.valuesSources = valuesSources;
-        this.valuesSourceTypes = valuesSourceTypes;
-        this.indexReaders = indexReaders;
+        this.sources = sources;
+        this.luceneDocRef = luceneDocRef;
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
         this.bigArrays = bigArrays;
@@ -154,21 +108,22 @@ public class OrdinalsGroupingOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        Block docs = page.getBlock(docIDChannel);
+        Block docs = page.getBlock(luceneDocRef.docRef());
         if (docs.getPositionCount() == 0) {
             return;
         }
-        final ConstantIntBlock shardIndexBlock = (ConstantIntBlock) page.getBlock(shardIndexChannel);
+        final ConstantIntBlock shardIndexBlock = (ConstantIntBlock) page.getBlock(luceneDocRef.shardRef());
         final int shardIndex = shardIndexBlock.getInt(0);
-        if (valuesSources.get(shardIndex)instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
-            final ConstantIntBlock segmentIndexBlock = (ConstantIntBlock) page.getBlock(segmentIndexChannel);
+        var source = sources.get(shardIndex);
+        if (source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
+            final ConstantIntBlock segmentIndexBlock = (ConstantIntBlock) page.getBlock(luceneDocRef.segmentRef());
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
                 new SegmentID(shardIndex, segmentIndexBlock.getInt(0)),
                 k -> {
                     final List<GroupingAggregator> groupingAggregators = createGroupingAggregators();
                     boolean success = false;
                     try {
-                        final LeafReaderContext leafReaderContext = indexReaders.get(shardIndex).leaves().get(k.segmentIndex);
+                        final LeafReaderContext leafReaderContext = source.reader().leaves().get(k.segmentIndex);
                         final OrdinalSegmentAggregator ordinalSegmentAggregator = new OrdinalSegmentAggregator(
                             groupingAggregators,
                             withOrdinals,
@@ -190,18 +145,7 @@ public class OrdinalsGroupingOperator implements Operator {
         } else {
             if (valuesAggregator == null) {
                 int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
-                valuesAggregator = new ValuesAggregator(
-                    fieldName,
-                    shardIndexChannel,
-                    segmentIndexChannel,
-                    docIDChannel,
-                    channelIndex,
-                    valuesSources,
-                    valuesSourceTypes,
-                    indexReaders,
-                    aggregatorFactories,
-                    bigArrays
-                );
+                valuesAggregator = new ValuesAggregator(sources, luceneDocRef, channelIndex, aggregatorFactories, bigArrays);
             }
             valuesAggregator.addInput(page);
         }
@@ -415,27 +359,14 @@ public class OrdinalsGroupingOperator implements Operator {
         private final HashAggregationOperator aggregator;
 
         ValuesAggregator(
-            String fieldName,
-            int shardIndexChannel,
-            int segmentIndexChannel,
-            int docIDChannel,
+            List<ValueSourceInfo> sources,
+            LuceneDocRef luceneDocRef,
             int channelIndex,
-            List<ValuesSource> valuesSources,
-            List<ValuesSourceType> valuesSourceTypes,
-            List<IndexReader> indexReaders,
             List<GroupingAggregatorFactory> aggregatorFactories,
             BigArrays bigArrays
         ) {
-            this.extractor = new ValuesSourceReaderOperator(
-                valuesSourceTypes,
-                valuesSources,
-                indexReaders,
-                docIDChannel,
-                segmentIndexChannel,
-                shardIndexChannel,
-                fieldName
-            );
-            boolean bytesValues = valuesSources.get(0) instanceof ValuesSource.Bytes;
+            this.extractor = new ValuesSourceReaderOperator(sources, luceneDocRef);
+            boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
             this.aggregator = new HashAggregationOperator(
                 channelIndex,
                 aggregatorFactories,

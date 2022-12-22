@@ -8,7 +8,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,13 +29,8 @@ import java.util.List;
 @Experimental
 public class ValuesSourceReaderOperator implements Operator {
 
-    private final List<ValuesSourceType> valuesSourceTypes;
-    private final List<ValuesSource> valuesSources;
-    private final List<IndexReader> indexReaders;
-    private final int docChannel;
-    private final int leafOrdChannel;
-    private final int shardChannel;
-    private final String field;
+    private final List<ValueSourceInfo> sources;
+    private final LuceneDocRef luceneDocRef;
 
     private BlockDocValuesReader lastReader;
     private int lastShard = -1;
@@ -49,31 +42,16 @@ public class ValuesSourceReaderOperator implements Operator {
 
     /**
      * Creates a new extractor that uses ValuesSources load data
-     * @param indexReaders the index readers to use for extraction
-     * @param docChannel the channel that contains the doc ids
-     * @param leafOrdChannel the channel that contains the segment ordinal
+     * @param sources the value source, type and index readers to use for extraction
+     * @param luceneDocRef record containing the shard, leaf/segment and doc reference (channel)
      * @param field the lucene field to use
      */
-    public record ValuesSourceReaderOperatorFactory(
-        List<ValuesSourceType> valuesSourceTypes,
-        List<ValuesSource> valuesSources,
-        List<IndexReader> indexReaders,
-        int docChannel,
-        int leafOrdChannel,
-        int shardChannel,
-        String field
-    ) implements OperatorFactory {
+    public record ValuesSourceReaderOperatorFactory(List<ValueSourceInfo> sources, LuceneDocRef luceneDocRef, String field)
+        implements
+            OperatorFactory {
         @Override
         public Operator get() {
-            return new ValuesSourceReaderOperator(
-                valuesSourceTypes,
-                valuesSources,
-                indexReaders,
-                docChannel,
-                leafOrdChannel,
-                shardChannel,
-                field
-            );
+            return new ValuesSourceReaderOperator(sources, luceneDocRef);
         }
 
         @Override
@@ -84,28 +62,12 @@ public class ValuesSourceReaderOperator implements Operator {
 
     /**
      * Creates a new extractor
-     * @param valuesSources the {@link ValuesSource} instances to use for extraction
-     * @param indexReaders the index readers to use for extraction
-     * @param docChannel the channel that contains the doc ids
-     * @param leafOrdChannel the channel that contains the segment ordinal
-     * @param field the lucene field to use
+     * @param sources the value source, type and index readers to use for extraction
+     * @param luceneDocRef contains the channel for the shard, segment and doc Ids
      */
-    public ValuesSourceReaderOperator(
-        List<ValuesSourceType> valuesSourceTypes,
-        List<ValuesSource> valuesSources,
-        List<IndexReader> indexReaders,
-        int docChannel,
-        int leafOrdChannel,
-        int shardChannel,
-        String field
-    ) {
-        this.valuesSourceTypes = valuesSourceTypes;
-        this.valuesSources = valuesSources;
-        this.indexReaders = indexReaders;
-        this.docChannel = docChannel;
-        this.leafOrdChannel = leafOrdChannel;
-        this.shardChannel = shardChannel;
-        this.field = field;
+    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, LuceneDocRef luceneDocRef) {
+        this.sources = sources;
+        this.luceneDocRef = luceneDocRef;
     }
 
     @Override
@@ -132,9 +94,9 @@ public class ValuesSourceReaderOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        Block docs = page.getBlock(docChannel);
-        ConstantIntBlock leafOrd = (ConstantIntBlock) page.getBlock(leafOrdChannel);
-        ConstantIntBlock shardOrd = (ConstantIntBlock) page.getBlock(shardChannel);
+        Block docs = page.getBlock(luceneDocRef.docRef());
+        ConstantIntBlock leafOrd = (ConstantIntBlock) page.getBlock(luceneDocRef.segmentRef());
+        ConstantIntBlock shardOrd = (ConstantIntBlock) page.getBlock(luceneDocRef.shardRef());
 
         if (docs.getPositionCount() > 0) {
             int segment = leafOrd.getInt(0);
@@ -142,10 +104,9 @@ public class ValuesSourceReaderOperator implements Operator {
             int firstDoc = docs.getInt(0);
             try {
                 if (lastShard != shard || lastSegment != segment || BlockDocValuesReader.canReuse(lastReader, firstDoc) == false) {
-                    ValuesSource vs = valuesSources.get(shard);
-                    ValuesSourceType vt = valuesSourceTypes.get(shard);
-                    LeafReaderContext leafReaderContext = indexReaders.get(shard).leaves().get(segment);
-                    lastReader = BlockDocValuesReader.createBlockReader(vs, vt, leafReaderContext);
+                    var info = sources.get(shard);
+                    LeafReaderContext leafReaderContext = info.reader().leaves().get(segment);
+                    lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), leafReaderContext);
                     lastShard = shard;
                     lastSegment = segment;
                 }

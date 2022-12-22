@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +23,9 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
+import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AggregationOperator.AggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Driver;
@@ -47,13 +48,7 @@ import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -101,7 +96,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -306,12 +300,14 @@ public class LocalExecutionPlanner {
                         );
                     } else {
                         var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
-                        operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-                            grpAttrib.name(),
-                            source.layout.getChannel(sourceAttributes.get(2).id()),
-                            source.layout.getChannel(sourceAttributes.get(1).id()),
+                        var luceneDocRef = new LuceneDocRef(
                             source.layout.getChannel(sourceAttributes.get(0).id()),
-                            context.searchContexts,
+                            source.layout.getChannel(sourceAttributes.get(1).id()),
+                            source.layout.getChannel(sourceAttributes.get(2).id())
+                        );
+                        operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
+                            ValueSources.sources(context.searchContexts, grpAttrib.name()),
+                            luceneDocRef,
                             aggregatorFactories,
                             BigArrays.NON_RECYCLING_INSTANCE
                         );
@@ -363,33 +359,16 @@ public class LocalExecutionPlanner {
             layout.appendChannel(attr.id());
             Layout previousLayout = op.layout;
 
-            // Create ValuesSource object for the field to extract its values
-            final List<Tuple<ValuesSourceType, ValuesSource>> valuesSources = context.searchContexts.stream()
-                .map(SearchContext::getSearchExecutionContext)
-                .map(ctx -> {
-                    MappedFieldType fieldType = ctx.getFieldType(attr.name());
-                    IndexFieldData<?> fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    FieldContext fieldContext = new FieldContext(attr.name(), fieldData, fieldType);
-                    ValuesSourceType vstype = fieldData.getValuesSourceType();
-                    ValuesSource vs = vstype.getField(fieldContext, null);
-                    return Tuple.tuple(vstype, vs);
-                })
-                .collect(Collectors.toList());
+            var sources = ValueSources.sources(context.searchContexts, attr.name());
 
-            final List<IndexReader> indexReaders = context.searchContexts.stream()
-                .map(ctx -> ctx.getSearchExecutionContext().getIndexReader())
-                .collect(Collectors.toList());
+            var luceneDocRef = new LuceneDocRef(
+                previousLayout.getChannel(sourceAttrs.get(0).id()),
+                previousLayout.getChannel(sourceAttrs.get(1).id()),
+                previousLayout.getChannel(sourceAttrs.get(2).id())
+            );
 
             op = op.with(
-                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
-                    valuesSources.stream().map(Tuple::v1).collect(Collectors.toList()),
-                    valuesSources.stream().map(Tuple::v2).collect(Collectors.toList()),
-                    indexReaders,
-                    previousLayout.getChannel(sourceAttrs.get(0).id()),
-                    previousLayout.getChannel(sourceAttrs.get(1).id()),
-                    previousLayout.getChannel(sourceAttrs.get(2).id()),
-                    attr.name()
-                ),
+                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, luceneDocRef, attr.name()),
                 layout.build()
             );
         }

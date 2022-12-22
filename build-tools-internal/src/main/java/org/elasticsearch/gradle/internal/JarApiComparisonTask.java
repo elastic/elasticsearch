@@ -62,10 +62,7 @@ public abstract class JarApiComparisonTask extends DefaultTask {
         List<String> classNames() throws IOException {
             Pattern classEnding = Pattern.compile(".*\\.class$");
             try (JarFile jf = new JarFile(this.path)) {
-                return jf.stream()
-                    .map(ZipEntry::getName)
-                    .filter(classEnding.asMatchPredicate())
-                    .collect(Collectors.toList());
+                return jf.stream().map(ZipEntry::getName).filter(classEnding.asMatchPredicate()).collect(Collectors.toList());
             }
         }
 
@@ -87,7 +84,7 @@ public abstract class JarApiComparisonTask extends DefaultTask {
                 command.add(classpath);
             }
             command.add(location);
-            pb.command(command.toArray(new String[]{}));
+            pb.command(command.toArray(new String[] {}));
             Process p;
             try {
                 p = pb.start();
@@ -106,9 +103,7 @@ public abstract class JarApiComparisonTask extends DefaultTask {
         }
 
         public static Set<String> signaturesSet(List<String> javapOutput) {
-            return javapOutput.stream()
-                .filter(s -> s.matches("^\\s*public.*"))
-                .collect(Collectors.toSet());
+            return javapOutput.stream().filter(s -> s.matches("^\\s*public.*")).collect(Collectors.toSet());
         }
 
         public static Set<String> moduleInfoSignaturesSet(List<String> javapOutput) {
@@ -120,17 +115,13 @@ public abstract class JarApiComparisonTask extends DefaultTask {
 
         // NEXT: we have all the pieces, so we can create a signatures map of classname -> set of public elements
         public Map<String, Set<String>> jarSignature() throws IOException {
-            return this.classNames().stream()
-                .collect(Collectors.toMap(
-                    s -> s,
-                    s -> {
-                        List<String> disassembled = disassembleFromJar(s, null);
-                        if ("module-info.class".equals(s)) {
-                            return moduleInfoSignaturesSet(disassembled);
-                        }
-                        return signaturesSet(disassembled);
-                    }
-                ));
+            return this.classNames().stream().collect(Collectors.toMap(s -> s, s -> {
+                List<String> disassembled = disassembleFromJar(s, null);
+                if ("module-info.class".equals(s)) {
+                    return moduleInfoSignaturesSet(disassembled);
+                }
+                return signaturesSet(disassembled);
+            }));
         }
 
         public static void compareSignatures(Map<String, Set<String>> oldSignature, Map<String, Set<String>> newSignature) {
@@ -149,10 +140,10 @@ public abstract class JarApiComparisonTask extends DefaultTask {
                 }
             }
             if (deletedMembersMap.size() > 0) {
-                throw new IllegalStateException("Classes from a previous version have been modified, violating backwards compatibility: "
-                    + deletedMembersMap);
+                throw new IllegalStateException(
+                    "Classes from a previous version have been modified, violating backwards compatibility: " + deletedMembersMap
+                );
             }
         }
     }
 }
-

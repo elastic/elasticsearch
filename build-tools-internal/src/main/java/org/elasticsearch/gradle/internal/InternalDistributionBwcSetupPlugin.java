@@ -115,8 +115,13 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String stableAnalysisPluginProjectDir = "libs/plugin-analysis-api";
 
         DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
-            new File(checkoutDir.get(), stableAnalysisPluginProjectDir + "/build/distributions/elasticsearch-plugin-analysis-api-"
-                + bwcVersion.get() + "-SNAPSHOT.jar"),
+            new File(
+                checkoutDir.get(),
+                stableAnalysisPluginProjectDir
+                    + "/build/distributions/elasticsearch-plugin-analysis-api-"
+                    + bwcVersion.get()
+                    + "-SNAPSHOT.jar"
+            ),
             null
         );
 

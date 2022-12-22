@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
 
-public class MockHttpProxyServerTest extends ESTestCase {
+public class MockHttpProxyServerTests extends ESTestCase {
 
     public void testProxyServerWorks() throws Exception {
         String httpBody = randomAlphaOfLength(32);

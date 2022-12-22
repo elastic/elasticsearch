@@ -20,17 +20,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -419,21 +417,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             )
         );
 
-        String json;
-        long chunkCount = 0;
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.humanReadable(true);
-            builder.startObject();
-            final var iterator = sip.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-            builder.endObject();
-            json = Strings.toString(builder);
-        }
-
-        assertEquals(2 + sip.asStream().count(), chunkCount);
+        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 2));
+        final var json = Strings.toString(ChunkedToXContentHelper.objectFromFragment(sip), false, true);
         assertThat(
             json,
             anyOf(

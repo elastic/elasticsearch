@@ -42,6 +42,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.DlsFlsFeatureTrackingIndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.IndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -131,7 +133,7 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
-    private final Set<IndicesAccessControlWrapper> indicesAccessControlWrappers;
+    private final IndicesAccessControlWrapper indicesAccessControlWrapper;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -149,8 +151,7 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices,
-        Set<IndicesAccessControlWrapper> indicesAccessControlWrappers
+        RestrictedIndices restrictedIndices
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -172,7 +173,11 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
-        this.indicesAccessControlWrappers = indicesAccessControlWrappers;
+        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+            this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(licenseState);
+        } else {
+            this.indicesAccessControlWrapper = iac -> iac;
+        }
     }
 
     public void checkPrivileges(
@@ -618,8 +623,7 @@ public class AuthorizationService {
     }
 
     private IndicesAccessControl wrapIndicesAccessControl(IndicesAccessControl indicesAccessControl) {
-        if (indicesAccessControlWrappers.isEmpty()
-            || indicesAccessControl == null
+        if (indicesAccessControl == null
             || indicesAccessControl == IndicesAccessControl.ALLOW_NO_INDICES
             || indicesAccessControl == IndicesAccessControl.DENIED
             || indicesAccessControl == IndicesAccessControl.allowAll()
@@ -627,11 +631,7 @@ public class AuthorizationService {
             // Wrap only if it's not one of the statically defined nor already wrapped.
             return indicesAccessControl;
         } else {
-            IndicesAccessControl result = indicesAccessControl;
-            for (IndicesAccessControlWrapper wrapper : indicesAccessControlWrappers) {
-                result = wrapper.wrap(indicesAccessControl);
-            }
-            return result;
+            return indicesAccessControlWrapper.wrap(indicesAccessControl);
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 /**
  * A wrapper which allows adding additional functionality and intercepting calls to {@link IndicesAccessControl} methods.
  */
+@FunctionalInterface
 public interface IndicesAccessControlWrapper {
 
     IndicesAccessControl wrap(IndicesAccessControl indicesAccessControl);

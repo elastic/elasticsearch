@@ -42,8 +42,8 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -165,7 +165,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .withPathSensitivity(PathSensitivity.RELATIVE);
 
         task.getInputs()
-            .files(providerFactory.provider(() -> configuration.filter(f -> f.getName().endsWith(".jar"))))
+            .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
             .withPropertyName(configuration.getName() + "-classpath")
             .withNormalizer(ClasspathNormalizer.class);
     }
@@ -203,7 +203,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             if (isExtended == false) {
                 c.withDependencies(dependencies -> {
                     // Add dependencies of any modules
-                    Collection<Dependency> additionalDependencies = new HashSet<>();
+                    Collection<Dependency> additionalDependencies = new LinkedHashSet<>();
                     for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                         Dependency dependency = iterator.next();
                         if (dependency instanceof ProjectDependency projectDependency) {

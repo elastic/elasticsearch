@@ -61,8 +61,9 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
   }
 
   tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
-    dependsOn assemble, libDependency
-    oldJar = libDependency.getSingleFile() // only works for unreleased versions
-    newJar = layout.buildDirectory.file('distributions/elasticsearch-plugin-analysis-api-8.7.0-SNAPSHOT.jar')
+    dependsOn configurations."stableAnalysisPluginApi${baseName}"
+    // TODO: "normalize" input with a classpath resolution strategy
+    oldJar.fileProvider(project.provider(() -> configurations."stableAnalysisPluginApi${baseName}".singleFile))
+    newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
   }
 }

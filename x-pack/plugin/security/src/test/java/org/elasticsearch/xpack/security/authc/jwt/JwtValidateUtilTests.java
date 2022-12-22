@@ -43,10 +43,7 @@ public class JwtValidateUtilTests extends JwtTestCase {
             }
         }
         // Fail: "ES256K"
-        final Exception exp1 = expectThrows(
-            JOSEException.class,
-            () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K.getName(), false)
-        );
+        final Exception exp1 = expectThrows(JOSEException.class, () -> helpTestSignatureAlgorithm(JWSAlgorithm.ES256K.getName(), false));
         final String msg1 = "Unsupported signature algorithm ["
             + JWSAlgorithm.ES256K
             + "]. Supported signature algorithms are "

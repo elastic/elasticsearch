@@ -76,7 +76,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create realm settings
         final String realmName = "jwt8";
         final Settings.Builder configBuilder = Settings.builder()
-            .put(this.globalSettings)
+            .put(globalSettings)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
@@ -103,18 +103,18 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         configBuilder.setSecureSettings(secureSettings);
 
         // Create realm
-        final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 8);
+        final RealmConfig config = buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 8);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.principals);
+        final UserRoleMapper userRoleMapper = buildRoleMapper(jwtIssuer.principals);
         final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
-        jwtRealm.initialize(Collections.singletonList(jwtRealm), super.licenseState);
+        jwtRealm.initialize(Collections.singletonList(jwtRealm), licenseState);
         final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
         final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
-        super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
-        super.printJwtRealmAndIssuer(jwtIssuerAndRealm);
+        jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // shutdown() closes issuer+realm if necessary
+        printJwtRealmAndIssuer(jwtIssuerAndRealm);
 
         // Create JWT
-        final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+        final User user = randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
             randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
@@ -137,8 +137,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final SecureString jwt = signJwt(algJwkPairHmac.jwk(), unsignedJwt);
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
+        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
+        printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
     /**
@@ -164,7 +164,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create realm settings (no secure settings)
         final String realmName = "jwt1";
         final Settings.Builder configBuilder = Settings.builder()
-            .put(this.globalSettings)
+            .put(globalSettings)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
@@ -185,22 +185,22 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic)
+                saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic)
             );
 
         // Create realm
-        final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 2);
+        final RealmConfig config = buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 2);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.principals);
+        final UserRoleMapper userRoleMapper = buildRoleMapper(jwtIssuer.principals);
         final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
-        jwtRealm.initialize(Collections.singletonList(jwtRealm), super.licenseState);
+        jwtRealm.initialize(Collections.singletonList(jwtRealm), licenseState);
         final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
         final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
-        super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
-        super.printJwtRealmAndIssuer(jwtIssuerAndRealm);
+        jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // shutdown() closes issuer+realm if necessary
+        printJwtRealmAndIssuer(jwtIssuerAndRealm);
 
         // Create JWT
-        final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+        final User user = randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
             randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : algJwkPairPkc.jwk().getKeyID(), // kid
@@ -223,8 +223,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final SecureString jwt = signJwt(algJwkPairPkc.jwk(), unsignedJwt);
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_REPEATS_1);
-        this.printArtifacts(jwtIssuer, config, null, jwt);
+        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_REPEATS_1);
+        printArtifacts(jwtIssuer, config, null, jwt);
     }
 
     /**
@@ -254,7 +254,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String realmName = "jwt2";
         final String authzRealmName = "lookup_native";
         final Settings.Builder configBuilder = Settings.builder()
-            .put(this.globalSettings)
+            .put(globalSettings)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
@@ -284,23 +284,23 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         configBuilder.setSecureSettings(secureSettings);
 
         // Create authz realm
-        final RealmConfig authzConfig = this.buildRealmConfig("native", authzRealmName, Settings.EMPTY, 0);
+        final RealmConfig authzConfig = buildRealmConfig("native", authzRealmName, Settings.EMPTY, 0);
         final MockLookupRealm authzRealm = new MockLookupRealm(authzConfig);
         jwtIssuer.principals.values().forEach(authzRealm::registerUser); // authz realm will do roles lookup
 
         // Create realm
-        final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 3);
+        final RealmConfig config = buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 3);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(Map.of()); // authc realm will not do role mapping
+        final UserRoleMapper userRoleMapper = buildRoleMapper(Map.of()); // authc realm will not do role mapping
         final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
-        jwtRealm.initialize(List.of(authzRealm, jwtRealm), super.licenseState);
+        jwtRealm.initialize(List.of(authzRealm, jwtRealm), licenseState);
         final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
         final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
-        super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
-        super.printJwtRealmAndIssuer(jwtIssuerAndRealm);
+        jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // shutdown() closes issuer+realm if necessary
+        printJwtRealmAndIssuer(jwtIssuerAndRealm);
 
         // Create JWT
-        final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+        final User user = randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
             randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
@@ -323,8 +323,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final SecureString jwt = signJwt(algJwkPairHmac.jwk(), unsignedJwt);
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
+        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
+        printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
     /**
@@ -352,7 +352,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create realm settings
         final String realmName = "jwt3";
         final Settings.Builder configBuilder = Settings.builder()
-            .put(this.globalSettings)
+            .put(globalSettings)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES),
@@ -379,19 +379,19 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         configBuilder.setSecureSettings(secureSettings);
 
         // Create realm
-        final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 4);
+        final RealmConfig config = buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 4);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.principals);
+        final UserRoleMapper userRoleMapper = buildRoleMapper(jwtIssuer.principals);
         final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
-        jwtRealm.initialize(List.of(jwtRealm), super.licenseState);
+        jwtRealm.initialize(List.of(jwtRealm), licenseState);
         final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, configBuilder);
         final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
-        super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
-        super.printJwtRealmAndIssuer(jwtIssuerAndRealm);
+        jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // shutdown() closes issuer+realm if necessary
+        printJwtRealmAndIssuer(jwtIssuerAndRealm);
 
         // Create JWT
         final JwtIssuer.AlgJwkPair selectedHmac = randomFrom(hmacKeys);
-        final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+        final User user = randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
             randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : selectedHmac.jwk().getKeyID(), // kid
@@ -414,8 +414,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final SecureString jwt = signJwt(selectedHmac.jwk(), unsignedJwt);
 
         // Verify authc+authz, then print all artifacts
-        super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
+        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
+        printArtifacts(jwtIssuer, config, clientSecret, jwt);
     }
 
     private void printArtifacts(

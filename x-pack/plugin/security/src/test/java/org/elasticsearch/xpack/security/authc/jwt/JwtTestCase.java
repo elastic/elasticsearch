@@ -86,10 +86,10 @@ public abstract class JwtTestCase extends ESTestCase {
 
     @Before
     public void beforeEachTest() {
-        this.pathHome = createTempDir().toString();
-        this.globalSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), this.pathHome).build();
-        this.env = TestEnvironment.newEnvironment(this.globalSettings); // "path.home" sub-dirs: config,plugins,data,logs,bin,lib,modules
-        this.threadContext = new ThreadContext(this.globalSettings);
+        pathHome = createTempDir().toString();
+        globalSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), pathHome).build();
+        env = TestEnvironment.newEnvironment(globalSettings); // "path.home" sub-dirs: config,plugins,data,logs,bin,lib,modules
+        threadContext = new ThreadContext(globalSettings);
     }
 
     protected Settings.Builder generateRandomRealmSettings(final String name) throws IOException {
@@ -98,7 +98,7 @@ public abstract class JwtTestCase extends ESTestCase {
         final boolean includePublicKey = includeRsa || includeEc;
         final boolean includeHmac = randomBoolean() || (includePublicKey == false); // one of HMAC/RSA/EC must be true
         final boolean populateUserMetadata = randomBoolean();
-        final Path jwtSetPathObj = PathUtils.get(this.pathHome);
+        final Path jwtSetPathObj = PathUtils.get(pathHome);
         final String jwkSetPath = randomBoolean()
             ? "https://op.example.com/jwkset.json"
             : Files.createTempFile(jwtSetPathObj, "jwkset.", ".json").toString();
@@ -232,12 +232,11 @@ public abstract class JwtTestCase extends ESTestCase {
     ) {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(realmType, realmName);
         final Settings settings = Settings.builder()
-            .put(this.globalSettings)
-            // .put("path.home", this.pathHome)
+            .put(globalSettings)
             .put(realmSettings)
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), realmOrder)
             .build();
-        return new RealmConfig(realmIdentifier, settings, this.env, this.threadContext);
+        return new RealmConfig(realmIdentifier, settings, env, threadContext);
     }
 
     protected UserRoleMapper buildRoleMapper(final Map<String, User> registeredUsers) {
@@ -608,13 +607,13 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public String saveToTempFile(final String prefix, final String suffix, final String content) throws IOException {
-        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), prefix, suffix);
+        final Path path = Files.createTempFile(PathUtils.get(pathHome), prefix, suffix);
         Files.writeString(path, content);
         return path.toString();
     }
 
     public ThreadContext createThreadContext(final CharSequence jwt, final CharSequence sharedSecret) {
-        final ThreadContext requestThreadContext = new ThreadContext(this.globalSettings);
+        final ThreadContext requestThreadContext = new ThreadContext(globalSettings);
         if (jwt != null) {
             requestThreadContext.putHeader(
                 JwtRealm.HEADER_END_USER_AUTHENTICATION,

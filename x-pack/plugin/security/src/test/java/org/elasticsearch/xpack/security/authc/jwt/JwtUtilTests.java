@@ -157,6 +157,4 @@ public class JwtUtilTests extends JwtTestCase {
         assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/jwkset.json"), is(notNullValue()));
         assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/jwkset.json"), is(notNullValue()));
     }
-
-    public void testParseHttpsUri() {}
 }

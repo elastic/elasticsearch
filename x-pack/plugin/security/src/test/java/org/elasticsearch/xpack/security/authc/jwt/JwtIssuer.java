@@ -70,44 +70,40 @@ public class JwtIssuer implements Closeable {
 
     // The flag areHmacJwksOidcSafe indicates if all provided HMAC JWKs are UTF8, for HMAC OIDC JWK encoding compatibility.
     void setJwks(final List<AlgJwkPair> algAndJwks, final boolean areHmacJwksOidcSafe) throws JOSEException {
-        this.algorithmsAll = algAndJwks.stream().map(e -> e.alg).toList();
-        LOGGER.info("Setting JWKs: algorithms=[{}], areHmacJwksOidcSafe=[{}]", String.join(",", this.algorithmsAll), areHmacJwksOidcSafe);
-        this.algAndJwksAll = algAndJwks;
-        this.algAndJwksPkc = this.algAndJwksAll.stream()
-            .filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(e.alg))
-            .toList();
-        this.algAndJwksHmac = this.algAndJwksAll.stream()
-            .filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg))
-            .toList();
-        if ((this.algAndJwksHmac.size() == 1) && (areHmacJwksOidcSafe) && (randomBoolean())) {
-            this.algAndJwkHmacOidc = this.algAndJwksHmac.get(0);
-            this.algAndJwksHmac = Collections.emptyList();
+        algorithmsAll = algAndJwks.stream().map(e -> e.alg).toList();
+        LOGGER.info("Setting JWKs: algorithms=[{}], areHmacJwksOidcSafe=[{}]", String.join(",", algorithmsAll), areHmacJwksOidcSafe);
+        algAndJwksAll = algAndJwks;
+        algAndJwksPkc = algAndJwksAll.stream().filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(e.alg)).toList();
+        algAndJwksHmac = algAndJwksAll.stream().filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg)).toList();
+        if ((algAndJwksHmac.size() == 1) && (areHmacJwksOidcSafe) && (randomBoolean())) {
+            algAndJwkHmacOidc = algAndJwksHmac.get(0);
+            algAndJwksHmac = Collections.emptyList();
         } else {
-            this.algAndJwkHmacOidc = null;
+            algAndJwkHmacOidc = null;
         }
 
         // Encode PKC JWKSet (key material bytes are wrapped in Base64URL, and then wraps in JSON)
-        final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
-        this.encodedJwkSetPkcPublicPrivate = JwtUtil.serializeJwkSet(jwkSetPkc, false);
-        this.encodedJwkSetPkcPublic = JwtUtil.serializeJwkSet(jwkSetPkc, true);
+        final JWKSet jwkSetPkc = new JWKSet(algAndJwksPkc.stream().map(p -> p.jwk).toList());
+        encodedJwkSetPkcPublicPrivate = JwtUtil.serializeJwkSet(jwkSetPkc, false);
+        encodedJwkSetPkcPublic = JwtUtil.serializeJwkSet(jwkSetPkc, true);
 
         // Encode HMAC JWKSet (key material bytes are wrapped in Base64URL, and then wraps in JSON)
-        final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
-        this.encodedJwkSetHmac = JwtUtil.serializeJwkSet(jwkSetHmac, false);
+        final JWKSet jwkSetHmac = new JWKSet(algAndJwksHmac.stream().map(p -> p.jwk).toList());
+        encodedJwkSetHmac = JwtUtil.serializeJwkSet(jwkSetHmac, false);
 
         // Encode HMAC OIDC JWK (key material bytes are decoded from UTF8 to UNICODE String)
-        this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
+        encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(algAndJwkHmacOidc.jwk);
 
-        if (this.httpsServer != null) {
-            this.httpsServer.updateJwkSetPkcContents(this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
+        if (httpsServer != null) {
+            httpsServer.updateJwkSetPkcContents(encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
         }
     }
 
     @Override
     public void close() {
-        if (this.httpsServer != null) {
+        if (httpsServer != null) {
             try {
-                this.httpsServer.close();
+                httpsServer.close();
             } catch (IOException e) {
                 LOGGER.warn("Exception closing HTTPS server for issuer [" + issuerClaimValue + "]", e);
             }

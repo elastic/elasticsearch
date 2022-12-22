@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -18,8 +17,7 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
-import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -51,13 +49,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -81,8 +72,6 @@ import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
@@ -194,27 +183,28 @@ public class LocalExecutionPlanner {
         if (aggregate.groupings().isEmpty()) {
             // not grouping
             List<AggregatorFactory> aggregatorFactories = new ArrayList<>();
-            for (NamedExpression e : aggregate.aggregates()) {
-                if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                    var provider = AggregateMapper.map(aggregateFunction);
+            for (NamedExpression ne : aggregate.aggregates()) {
+                // add the field to the layout
+                layout.appendChannel(ne.id());
+
+                if (ne instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                    AggregatorMode aggMode = null;
+                    NamedExpression sourceAttr = null;
 
                     if (mode == AggregateExec.Mode.PARTIAL) {
-                        aggregatorFactories.add(
-                            new AggregatorFactory(
-                                provider,
-                                AggregatorMode.INITIAL,
-                                source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
-                            )
-                        );
-                        layout.appendChannel(alias.id());
+                        aggMode = AggregatorMode.INITIAL;
+                        // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
+                        sourceAttr = (NamedExpression) aggregateFunction.field();
                     } else if (mode == AggregateExec.Mode.FINAL) {
-                        aggregatorFactories.add(
-                            new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.getChannel(alias.id()))
-                        );
-                        layout.appendChannel(alias.id());
+                        aggMode = AggregatorMode.FINAL;
+                        sourceAttr = alias;
                     } else {
                         throw new UnsupportedOperationException();
                     }
+
+                    var aggFactory = AggregateMapper.map(aggregateFunction);
+                    aggregatorFactories.add(new AggregatorFactory(aggFactory, aggMode, source.layout.getChannel(sourceAttr.id())));
+
                 } else {
                     throw new UnsupportedOperationException();
                 }
@@ -227,13 +217,14 @@ public class LocalExecutionPlanner {
             }
         } else {
             // grouping
-            List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
+            List<GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
             AttributeSet groups = Expressions.references(aggregate.groupings());
             if (groups.size() != 1) {
                 throw new UnsupportedOperationException("just one group, for now");
             }
             Attribute grpAttrib = groups.iterator().next();
             layout.appendChannel(grpAttrib.id());
+
             final Supplier<BlockHash> blockHash;
             if (grpAttrib.dataType() == DataTypes.KEYWORD) {
                 blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays);
@@ -241,84 +232,59 @@ public class LocalExecutionPlanner {
                 blockHash = () -> BlockHash.newLongHash(context.bigArrays);
             }
 
-            for (NamedExpression e : aggregate.aggregates()) {
-                if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                    GroupingAggregatorFunction.Factory aggregatorFunc;
-                    if (aggregateFunction instanceof Avg) {
-                        aggregatorFunc = GroupingAggregatorFunction.AVG;
-                    } else if (aggregateFunction instanceof Count) {
-                        aggregatorFunc = GroupingAggregatorFunction.COUNT;
-                    } else if (aggregateFunction instanceof Max) {
-                        aggregatorFunc = GroupingAggregatorFunction.MAX;
-                    } else if (aggregateFunction instanceof Min) {
-                        aggregatorFunc = GroupingAggregatorFunction.MIN;
-                    } else if (aggregateFunction instanceof Sum) {
-                        aggregatorFunc = GroupingAggregatorFunction.SUM;
-                    } else {
-                        throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
-                    }
+            for (NamedExpression ne : aggregate.aggregates()) {
+
+                if (ne instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                    layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
+
+                    AggregatorMode aggMode = null;
+                    NamedExpression sourceAttr = null;
+
                     if (mode == AggregateExec.Mode.PARTIAL) {
-                        aggregatorFactories.add(
-                            new GroupingAggregator.GroupingAggregatorFactory(
-                                context.bigArrays,
-                                aggregatorFunc,
-                                AggregatorMode.INITIAL,
-                                source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
-                            )
-                        );
-                        layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
+                        aggMode = AggregatorMode.INITIAL;
+                        sourceAttr = Expressions.attribute(aggregateFunction.field());
                     } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                        aggregatorFactories.add(
-                            new GroupingAggregator.GroupingAggregatorFactory(
-                                context.bigArrays,
-                                aggregatorFunc,
-                                AggregatorMode.FINAL,
-                                source.layout.getChannel(alias.id())
-                            )
-                        );
-                        layout.appendChannel(alias.id());
+                        aggMode = AggregatorMode.FINAL;
+                        sourceAttr = alias;
                     } else {
                         throw new UnsupportedOperationException();
                     }
-                } else if (aggregate.groupings().contains(e) == false) {
-                    var u = e instanceof Alias ? ((Alias) e).child() : e;
+
+                    var aggFactory = AggregateMapper.mapGrouping(aggregateFunction);
+
+                    aggregatorFactories.add(
+                        new GroupingAggregatorFactory(context.bigArrays, aggFactory, aggMode, source.layout.getChannel(sourceAttr.id()))
+                    );
+
+                } else if (aggregate.groupings().contains(ne) == false) {
+                    var u = ne instanceof Alias ? ((Alias) ne).child() : ne;
                     throw new UnsupportedOperationException(
                         "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
                     );
                 }
             }
             if (aggregatorFactories.isEmpty() == false) {
-                if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                    final Integer inputChannel = source.layout.getChannel(grpAttrib.id());
-                    // The grouping-by values are ready, let's group on them directly.
-                    if (inputChannel != null) {
-                        operatorFactory = new HashAggregationOperatorFactory(
-                            inputChannel,
-                            aggregatorFactories,
-                            blockHash,
-                            AggregatorMode.FINAL
-                        );
-                    } else {
-                        var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
-                        var luceneDocRef = new LuceneDocRef(
-                            source.layout.getChannel(sourceAttributes.get(0).id()),
-                            source.layout.getChannel(sourceAttributes.get(1).id()),
-                            source.layout.getChannel(sourceAttributes.get(2).id())
-                        );
-                        operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-                            ValueSources.sources(context.searchContexts, grpAttrib.name()),
-                            luceneDocRef,
-                            aggregatorFactories,
-                            BigArrays.NON_RECYCLING_INSTANCE
-                        );
-                    }
-                } else if (mode == AggregateExec.Mode.FINAL) {
-                    operatorFactory = new HashAggregationOperatorFactory(
-                        source.layout.getChannel(grpAttrib.id()),
-                        aggregatorFactories,
-                        blockHash,
-                        AggregatorMode.FINAL
+                var attrSource = grpAttrib;
+
+                final Integer inputChannel = source.layout.getChannel(attrSource.id());
+
+                if (inputChannel == null) {
+                    var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
+                    var luceneDocRef = new LuceneDocRef(
+                        source.layout.getChannel(sourceAttributes.get(0).id()),
+                        source.layout.getChannel(sourceAttributes.get(1).id()),
+                        source.layout.getChannel(sourceAttributes.get(2).id())
                     );
+                    // The grouping-by values are ready, let's group on them directly.
+                    // Costin: why are they ready and not already exposed in the layout?
+                    operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
+                        ValueSources.sources(context.searchContexts, attrSource.name()),
+                        luceneDocRef,
+                        aggregatorFactories,
+                        BigArrays.NON_RECYCLING_INSTANCE
+                    );
+                } else {
+                    operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHash);
                 }
             }
         }
@@ -460,7 +426,7 @@ public class LocalExecutionPlanner {
         NamedExpression namedExpression = eval.fields().get(0);
         ExpressionEvaluator evaluator;
         if (namedExpression instanceof Alias alias) {
-            evaluator = toEvaluator(alias.child(), source.layout);
+            evaluator = EvalMapper.toEvaluator(alias.child(), source.layout);
         } else {
             throw new UnsupportedOperationException();
         }
@@ -473,55 +439,7 @@ public class LocalExecutionPlanner {
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
-        if (exp instanceof ArithmeticOperation ao) {
-            ExpressionEvaluator leftEval = toEvaluator(ao.left(), layout);
-            ExpressionEvaluator rightEval = toEvaluator(ao.right(), layout);
-            return (page, pos) -> {
-                Number left = (Number) leftEval.computeRow(page, pos);
-                Number right = (Number) rightEval.computeRow(page, pos);
-                return ao.function().apply(left, right);
-            };
-        } else if (exp instanceof GreaterThan gt) {
-            ExpressionEvaluator e1 = toEvaluator(gt.left(), layout);
-            ExpressionEvaluator e2 = toEvaluator(gt.right(), layout);
-            if (gt.left().dataType().isRational()) {
-                return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() > ((Number) e2.computeRow(page, pos)).doubleValue();
-            } else {
-                return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() > ((Number) e2.computeRow(page, pos)).longValue();
-            }
-        } else if (exp instanceof Attribute attr) {
-            int channel = layout.getChannel(attr.id());
-            return (page, pos) -> page.getBlock(channel).getObject(pos);
-        } else if (exp instanceof Literal lit) {
-            if (lit.value() == null) { // NULL, the literal
-                return (page, pos) -> null;
-            } else if (exp.dataType().isRational()) {
-                double d = Double.parseDouble(lit.value().toString());
-                return (page, pos) -> d;
-            } else {
-                long l = Long.parseLong(lit.value().toString());
-                return (page, pos) -> l;
-            }
-        } else if (exp instanceof Round round) {
-            ExpressionEvaluator fieldEvaluator = toEvaluator(round.field(), layout);
-            // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
-            ExpressionEvaluator decimalsEvaluator = round.decimals() != null ? toEvaluator(round.decimals(), layout) : null;
-            if (round.field().dataType().isRational()) {
-                return (page, pos) -> {
-                    // decimals could be null
-                    // it's not the same null as round.decimals() being null
-                    Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
-                    return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
-                };
-            } else {
-                return (page, pos) -> fieldEvaluator.computeRow(page, pos);
-            }
-        } else if (exp instanceof Length length) {
-            ExpressionEvaluator e1 = toEvaluator(length.field(), layout);
-            return (page, pos) -> Length.process(((BytesRef) e1.computeRow(page, pos)).utf8ToString());
-        } else {
-            throw new UnsupportedOperationException(exp.nodeName());
-        }
+        return EvalMapper.toEvaluator(exp, layout);
     }
 
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
@@ -577,6 +495,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
+        // TODO: should this be extracted into a separate eval block?
         return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
     }
 

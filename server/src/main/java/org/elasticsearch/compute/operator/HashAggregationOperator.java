@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
@@ -45,8 +44,7 @@ public class HashAggregationOperator implements Operator {
     public record HashAggregationOperatorFactory(
         int groupByChannel,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
-        Supplier<BlockHash> blockHash,
-        AggregatorMode mode // TODO remove me?
+        Supplier<BlockHash> blockHash
     ) implements OperatorFactory {
         @Override
         public Operator get() {
@@ -56,7 +54,7 @@ public class HashAggregationOperator implements Operator {
         @Override
         public String describe() {
             return "HashAggregationOperator(mode = "
-                + mode
+                + "<not-needed>"
                 + ", aggs = "
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))
                 + ")";

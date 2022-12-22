@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
  * Its purpose is to encapsulate the various low-level details for each aggregate provider (which could be placed inside the aggregate
  * provider implementation itself).
  */
+// NOTE: this would look even better with JEP 406 & co
 class AggregateMapper {
 
     static AggregatorFunction.Factory map(AggregateFunction aggregateFunction) {
@@ -39,5 +41,23 @@ class AggregateMapper {
             return aggregateFunction.dataType().isRational() ? AggregatorFunction.SUM_DOUBLES : AggregatorFunction.SUM_LONGS;
         }
         throw new UnsupportedOperationException("No provider available for aggregate function=" + aggregateFunction);
+    }
+
+    static GroupingAggregatorFunction.Factory mapGrouping(AggregateFunction aggregateFunction) {
+        GroupingAggregatorFunction.Factory aggregatorFunc = null;
+        if (aggregateFunction instanceof Avg) {
+            aggregatorFunc = GroupingAggregatorFunction.AVG;
+        } else if (aggregateFunction instanceof Count) {
+            aggregatorFunc = GroupingAggregatorFunction.COUNT;
+        } else if (aggregateFunction instanceof Max) {
+            aggregatorFunc = GroupingAggregatorFunction.MAX;
+        } else if (aggregateFunction instanceof Min) {
+            aggregatorFunc = GroupingAggregatorFunction.MIN;
+        } else if (aggregateFunction instanceof Sum) {
+            aggregatorFunc = GroupingAggregatorFunction.SUM;
+        } else {
+            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
+        }
+        return aggregatorFunc;
     }
 }

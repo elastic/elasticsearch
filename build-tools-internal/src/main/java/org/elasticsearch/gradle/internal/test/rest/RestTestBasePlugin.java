@@ -40,6 +40,8 @@ import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -199,6 +201,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             }
             c.withDependencies(dependencies -> {
                 // Add dependencies of any modules
+                Collection<Dependency> additionalDependencies = new HashSet<>();
                 for (Dependency dependency : dependencies) {
                     if (dependency instanceof ProjectDependency projectDependency) {
                         List<String> extendedPlugins = projectDependency.getDependencyProject()
@@ -208,11 +211,13 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
                         for (String extendedPlugin : extendedPlugins) {
                             findModulePath(project, extendedPlugin).ifPresent(
-                                modulePath -> dependencies.add(project.getDependencies().project(Map.of("path", modulePath)))
+                                modulePath -> additionalDependencies.add(project.getDependencies().project(Map.of("path", modulePath)))
                             );
                         }
                     }
                 }
+
+                dependencies.addAll(additionalDependencies);
             });
         });
     }

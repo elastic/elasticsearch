@@ -62,9 +62,9 @@ public final class LatLng {
      * @return The azimuth in radians.
      */
     double geoAzimuthRads(double lat, double lon) {
-        return Math.atan2(
-            Math.cos(lat) * Math.sin(lon - this.lon),
-            Math.cos(this.lat) * Math.sin(lat) - Math.sin(this.lat) * Math.cos(lat) * Math.cos(lon - this.lon)
+        return FastMath.atan2(
+            FastMath.cos(lat) * FastMath.sin(lon - this.lon),
+            FastMath.cos(this.lat) * FastMath.sin(lat) - FastMath.sin(this.lat) * FastMath.cos(lat) * FastMath.cos(lon - this.lon)
         );
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.example.analysis.lucene.AppendTokenFilter;
 import org.elasticsearch.example.analysis.lucene.Skip1TokenFilter;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
@@ -23,7 +22,7 @@ public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analy
 
     @Override
     public TokenStream normalize(TokenStream tokenStream) {
-        return new AppendTokenFilter(tokenStream, "1");
+        return new Skip1TokenFilter(tokenStream);
     }
 
     @Override

@@ -377,22 +377,18 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final SecureString sharedSecret,
         final int jwtAuthcRepeats
     ) {
-        // Select one JWT authc Issuer/Realm pair. Select one test user, to use inside the authc test loop.
         final List<JwtRealm> jwtRealmsList = jwtIssuerAndRealms.stream().map(p -> p.realm).toList();
 
         // Select different test JWKs from the JWT realm, and generate test JWTs for the test user. Run the JWT through the chain.
         for (int authcRun = 1; authcRun <= jwtAuthcRepeats; authcRun++) {
-            // Create request with headers set
             final ThreadContext requestThreadContext = createThreadContext(jwt, sharedSecret);
             logger.info("REQ[" + authcRun + "/" + jwtAuthcRepeats + "] HEADERS=" + requestThreadContext.getHeaders());
 
             // Any JWT realm can recognize and extract the request headers.
             final var jwtAuthenticationToken = (JwtAuthenticationToken) randomFrom(jwtRealmsList).token(requestThreadContext);
             assertThat(jwtAuthenticationToken, notNullValue());
-            final String tokenPrincipal = jwtAuthenticationToken.principal();
-            final SecureString tokenSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
-            assertThat(tokenPrincipal, notNullValue());
-            assertThat(tokenSecret, equalTo(sharedSecret));
+            assertThat(jwtAuthenticationToken.principal(), notNullValue());
+            assertThat(jwtAuthenticationToken.getClientAuthenticationSharedSecret(), equalTo(sharedSecret));
 
             // Loop through all authc/authz realms. Confirm user is returned with expected principal and roles.
             User authenticatedUser = null;

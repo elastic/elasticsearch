@@ -289,6 +289,9 @@ public class TaskManagerTests extends ESTestCase {
             public void setParentTask(TaskId taskId) {}
 
             @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }
@@ -308,6 +311,9 @@ public class TaskManagerTests extends ESTestCase {
 
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {
@@ -470,6 +476,9 @@ public class TaskManagerTests extends ESTestCase {
         return new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {

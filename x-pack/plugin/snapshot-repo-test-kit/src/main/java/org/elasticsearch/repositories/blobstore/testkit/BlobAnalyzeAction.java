@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -39,7 +40,6 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -274,11 +274,19 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         void run() {
-            writeRandomBlob(
-                request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
-                true,
-                this::onLastReadForInitialWrite,
-                write1Step
+            final CancellableThreads cancellableThreads = new CancellableThreads();
+            task.addListener(() -> {
+                // This interrupts the blob writing thread in case it stuck in a sleep() due to rate limiting.
+                cancellableThreads.cancel(task.getReasonCancelled());
+            });
+
+            cancellableThreads.execute(
+                () -> writeRandomBlob(
+                    request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
+                    true,
+                    this::onLastReadForInitialWrite,
+                    write1Step
+                )
             );
 
             if (request.writeAndOverwrite) {
@@ -621,7 +629,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
     }
 
-    public static class Request extends ActionRequest implements TaskAwareRequest {
+    public static class Request extends ActionRequest {
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;

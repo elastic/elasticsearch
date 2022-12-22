@@ -319,6 +319,9 @@ public class MasterService extends AbstractLifecycleComponent {
             public void setParentTask(TaskId taskId) {}
 
             @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }

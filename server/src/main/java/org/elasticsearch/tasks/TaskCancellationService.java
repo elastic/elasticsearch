@@ -43,6 +43,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -57,6 +58,12 @@ public class TaskCancellationService {
             ThreadPool.Names.SAME,
             BanParentTaskRequest::new,
             new BanParentRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            CANCEL_CHILD_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            CancelChildRequest::new,
+            new CancelChildRequestHandler()
         );
     }
 
@@ -328,4 +335,66 @@ public class TaskCancellationService {
             }
         }
     }
+
+    private static class CancelChildRequest extends TransportRequest {
+
+        private final TaskId parentTaskId;
+        private final long childRequestId;
+        private final String reason;
+
+        static CancelChildRequest createCancelChildRequest(TaskId parentTaskId, long childRequestId, String reason) {
+            return new CancelChildRequest(parentTaskId, childRequestId, reason);
+        }
+
+        private CancelChildRequest(TaskId parentTaskId, long childRequestId, String reason) {
+            this.parentTaskId = parentTaskId;
+            this.childRequestId = childRequestId;
+            this.reason = reason;
+        }
+
+        private CancelChildRequest(StreamInput in) throws IOException {
+            super(in);
+            parentTaskId = TaskId.readFromStream(in);
+            childRequestId = in.readLong();
+            reason = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            parentTaskId.writeTo(out);
+            out.writeLong(childRequestId);
+            out.writeString(reason);
+        }
+    }
+
+    private class CancelChildRequestHandler implements TransportRequestHandler<CancelChildRequest> {
+        @Override
+        public void messageReceived(final CancelChildRequest request, final TransportChannel channel, Task task) throws Exception {
+            taskManager.cancelChildLocal(request.parentTaskId, request.childRequestId, request.reason);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    /**
+     * Sends an action to cancel a child task, associated with the given request ID and parent task.
+     */
+    public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
+        logger.debug(
+            "sending cancellation of child of parent task [{}] with request ID [{}] on the connection [{}] because of [{}]",
+            parentTask,
+            childRequestId,
+            childConnection,
+            reason
+        );
+        final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
+        transportService.sendRequest(
+            childConnection,
+            CANCEL_CHILD_ACTION_NAME,
+            request,
+            TransportRequestOptions.EMPTY,
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        );
+    }
+
 }

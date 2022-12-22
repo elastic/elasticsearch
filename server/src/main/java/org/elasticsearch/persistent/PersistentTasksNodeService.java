@@ -176,6 +176,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             }
 
             @Override
+            public void setRequestId(long requestId) {
+                throw new UnsupportedOperationException("does not have a request ID");
+            }
+
+            @Override
             public TaskId getParentTask() {
                 return parentTaskId;
             }

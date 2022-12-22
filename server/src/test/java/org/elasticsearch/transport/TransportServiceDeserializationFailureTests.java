@@ -126,6 +126,11 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 }
 
                 @Override
+                public void setRequestId(long requestId) {
+                    fail("should not be called");
+                }
+
+                @Override
                 public TaskId getParentTask() {
                     return TaskId.EMPTY_TASK_ID;
                 }

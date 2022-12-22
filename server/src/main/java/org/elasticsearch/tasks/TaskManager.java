@@ -154,7 +154,7 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task, traceRequest);
+            registerCancellableTask(task, request.getRequestId(), traceRequest);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
@@ -212,6 +212,9 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 public void onFailure(Exception e) {
                     try {
+                        if (request.getParentTask().isSet()) {
+                            cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+                        }
                         release();
                     } finally {
                         taskListener.onFailure(e);
@@ -231,10 +234,10 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    private void registerCancellableTask(Task task, boolean traceRequest) {
+    private void registerCancellableTask(Task task, long requestId, boolean traceRequest) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
-        cancellableTasks.put(task, holder);
+        cancellableTasks.put(task, requestId, holder);
         if (traceRequest) {
             startTrace(threadPool.getThreadContext(), task);
         }
@@ -253,6 +256,16 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
+    private TaskCancellationService getCancellationService() {
+        final TaskCancellationService service = cancellationService.get();
+        if (service != null) {
+            return service;
+        } else {
+            assert false : "TaskCancellationService is not initialized";
+            throw new IllegalStateException("TaskCancellationService is not initialized");
+        }
+    }
+
     /**
      * Cancels a task
      * <p>
@@ -268,6 +281,32 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             listener.run();
         }
+    }
+
+    /**
+     * Cancels children tasks of the specified parent, with the request ID specified, as long as the request ID is positive.
+     *
+     * Note: There may be multiple children for the same request ID. In this edge case all these multiple children are cancelled.
+     */
+    public void cancelChildLocal(TaskId parentTaskId, long childRequestId, String reason) {
+        if (childRequestId > 0) {
+            List<CancellableTaskHolder> children = cancellableTasks.getChildrenByRequestId(parentTaskId, childRequestId).toList();
+            if (children.isEmpty() == false) {
+                logger.trace("cancelling children of task [{}] and request ID [{}] with reason [{}]", parentTaskId, childRequestId, reason);
+                for (CancellableTaskHolder child : children) {
+                    child.cancel(reason);
+                }
+            }
+        }
+    }
+
+    /**
+     * Send an Action to cancel children tasks of the specified parent, with the request ID specified.
+     *
+     * Note: There may be multiple children for the same request ID. In this edge case all these multiple children are cancelled.
+     */
+    public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
+        getCancellationService().cancelChildRemote(parentTask, childRequestId, childConnection, reason);
     }
 
     /**
@@ -778,13 +817,7 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     public void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-        final TaskCancellationService service = cancellationService.get();
-        if (service != null) {
-            service.cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
-        } else {
-            assert false : "TaskCancellationService is not initialized";
-            throw new IllegalStateException("TaskCancellationService is not initialized");
-        }
+        getCancellationService().cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
     }
 
     public List<String> getTaskHeaders() {

@@ -28,7 +28,6 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -186,7 +185,7 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
 
     }
 
-    public static class Request extends ActionRequest implements TaskAwareRequest {
+    public static class Request extends ActionRequest {
 
         private final String repositoryName;
         private final String blobPath;

@@ -300,6 +300,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             }
 
             @Override
+            public void setRequestId(long requestId) {
+                throw new UnsupportedOperationException("does not have request ID");
+            }
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }

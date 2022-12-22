@@ -108,6 +108,16 @@ public class AsyncTaskManagementService<
         }
 
         @Override
+        public void setRequestId(long requestId) {
+            request.setRequestId(requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return request.getRequestId();
+        }
+
+        @Override
         public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
             Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
                 threadPool.getThreadContext(),

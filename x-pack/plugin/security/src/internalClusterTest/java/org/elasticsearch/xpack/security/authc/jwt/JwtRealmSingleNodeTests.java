@@ -38,6 +38,11 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .put(super.nodeSettings())
             // 1st JWT realm
             .put("xpack.security.authc.realms.jwt.jwt0.order", 10)
+            .put(
+                randomBoolean()
+                    ? Settings.builder().put("xpack.security.authc.realms.jwt.jwt0.token_type", "id_token").build()
+                    : Settings.EMPTY
+            )
             .put("xpack.security.authc.realms.jwt.jwt0.allowed_issuer", "my-issuer-01")
             .put("xpack.security.authc.realms.jwt.jwt0.allowed_audiences", "es-01")
             .put("xpack.security.authc.realms.jwt.jwt0.claims.principal", "sub")

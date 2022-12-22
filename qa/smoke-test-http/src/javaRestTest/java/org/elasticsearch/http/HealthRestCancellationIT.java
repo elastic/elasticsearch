@@ -47,7 +47,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
     }
 
     public void testHealthRestCancellation() throws Exception {
-        runTest(new Request(HttpGet.METHOD_NAME, "/_internal/_health"));
+        runTest(new Request(HttpGet.METHOD_NAME, "/_health"));
     }
 
     private void runTest(Request request) throws Exception {

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -17,12 +19,11 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Collection;
@@ -32,27 +33,28 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 
-public class Analyzer extends RuleExecutor<LogicalPlan> {
+public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
 
-    private final Configuration configuration;
-    private final FunctionRegistry functionRegistry;
+    private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
+
+    static {
+        var optional = new Batch<>("Optional", Limiter.ONCE, new ResolveOrReplaceOptionalRefs());
+        var resolution = new Batch<>("Resolution", new ResolveRefs(), new ResolveFunctions());
+        var cleanup = new Batch<>("Finish Analysis", Limiter.ONCE, new AddMissingEqualsToBoolField());
+
+        rules = asList(optional, resolution, cleanup);
+    }
+
     private final Verifier verifier;
 
-    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier) {
-        this.configuration = configuration;
-        this.functionRegistry = functionRegistry;
+    public Analyzer(AnalyzerContext context, Verifier verifier) {
+        super(context);
         this.verifier = verifier;
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch optional = new Batch("Optional", Limiter.ONCE, new ResolveOrReplaceOptionalRefs());
-
-        Batch resolution = new Batch("Resolution", new ResolveRefs(), new ResolveFunctions());
-
-        Batch cleanup = new Batch("Finish Analysis", Limiter.ONCE, new AddMissingEqualsToBoolField());
-
-        return asList(optional, resolution, cleanup);
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        return rules;
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -99,10 +101,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
+    private static class ResolveFunctions extends AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            var configuration = context.configuration();
+            var functionRegistry = context.functionRegistry();
             return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
                 if (uf.analyzed()) {
                     return uf;

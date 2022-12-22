@@ -73,11 +73,6 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
         this.debugServer = enabled;
     }
 
-    @Override
-    public int getMaxParallelForks() {
-        return 1;
-    }
-
     @Nested
     @Override
     public Collection<ElasticsearchCluster> getClusters() {

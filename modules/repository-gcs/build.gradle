@@ -1,7 +1,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import java.nio.file.Files
@@ -16,7 +16,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 
@@ -271,7 +271,7 @@ def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTes
     dependsOn "createServiceAccountFile"
   }
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-  SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+  SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
   setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
 
@@ -323,7 +323,7 @@ testClusters.matching {
 if (useFixture) {
   tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
   }

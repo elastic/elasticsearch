@@ -271,7 +271,11 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         fields.add(
             new MultiValuesSourceFieldConfig.Builder().setFieldName(IP_FIELD)
                 .setIncludeExclude(
-                    stringExclude != null ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(stringExclude)))) : null
+                    stringExclude != null
+                        ? stringExclude.startsWith("1") // only add exclude if it is an IP
+                            ? new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef(stringExclude))))
+                            : null
+                        : null
                 )
                 .build()
         );

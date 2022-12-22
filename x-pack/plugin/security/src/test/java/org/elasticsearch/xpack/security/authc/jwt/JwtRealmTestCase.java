@@ -25,7 +25,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -61,10 +60,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -385,7 +382,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final SecureString jwt,
         final SecureString sharedSecret,
         final int jwtAuthcRepeats
-    ) throws Exception {
+    ) {
 
         // Select one JWT authc Issuer/Realm pair. Select one test user, to use inside the authc test loop.
         final List<JwtRealm> jwtRealmsList = jwtIssuerAndRealms.stream().map(p -> p.realm).toList();
@@ -396,131 +393,53 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final ThreadContext requestThreadContext = createThreadContext(jwt, sharedSecret);
             LOGGER.info("REQ[" + authcRun + "/" + jwtAuthcRepeats + "] HEADERS=" + requestThreadContext.getHeaders());
 
-            // Loop through all authc/authz realms. Confirm a JWT authc realm recognizes and extracts the request headers.
-            JwtAuthenticationToken jwtAuthenticationToken = null;
-            for (final JwtRealm candidateJwtRealm : jwtRealmsList) {
-                final AuthenticationToken authenticationToken = candidateJwtRealm.token(requestThreadContext);
-                if (authenticationToken != null) {
-                    assertThat(authenticationToken, isA(JwtAuthenticationToken.class));
-                    jwtAuthenticationToken = (JwtAuthenticationToken) authenticationToken;
-                    break;
-                }
-            }
-            assertThat(jwtAuthenticationToken, is(notNullValue()));
+            // Any JWT realm can recognize and extract the request headers.
+            final var jwtAuthenticationToken = (JwtAuthenticationToken) randomFrom(jwtRealmsList).token(requestThreadContext);
+            assertThat(jwtAuthenticationToken, notNullValue());
             final String tokenPrincipal = jwtAuthenticationToken.principal();
             final SecureString tokenSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
-            assertThat(tokenPrincipal, is(notNullValue()));
-            if (tokenSecret != null) {
-                if (tokenSecret.equals(sharedSecret) == false) {
-                    assertThat(tokenSecret, is(equalTo(sharedSecret)));
-                }
-                assertThat(tokenSecret, is(equalTo(sharedSecret)));
-            }
-            LOGGER.info("GOT TOKEN: principal=[" + tokenPrincipal + "], jwt=[" + jwt + "], secret=[" + tokenSecret + "].");
+            assertThat(tokenPrincipal, notNullValue());
+            assertThat(tokenSecret, equalTo(sharedSecret));
 
             // Loop through all authc/authz realms. Confirm user is returned with expected principal and roles.
             User authenticatedUser = null;
-            final List<String> realmAuthenticationResults = new ArrayList<>();
-            final List<String> realmUsageStats = new ArrayList<>();
-            final List<Exception> realmFailureExceptions = new ArrayList<>(jwtRealmsList.size());
-            try {
-                for (final JwtRealm candidateJwtRealm : jwtRealmsList) {
-                    LOGGER.info("TRY AUTHC: expected=[" + jwtRealm.name() + "], candidate[" + candidateJwtRealm.name() + "].");
-                    final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = PlainActionFuture.newFuture();
-                    try {
-                        candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
-                        final AuthenticationResult<User> authenticationResult = authenticateFuture.actionGet();
-                        LOGGER.info("Authentication result with realm [{}]: [{}]", candidateJwtRealm.name(), authenticationResult);
-                        final Exception authenticationResultException = authenticationResult.getException();
-                        final String realmResult = "  realms=["
-                            + jwtRealmsList.size()
-                            + "], expected=["
-                            + jwtRealm.name()
-                            + ","
-                            + jwtRealm.order()
-                            + "], current["
-                            + candidateJwtRealm.name()
-                            + ","
-                            + candidateJwtRealm.order()
-                            + "], status=["
-                            + authenticationResult.getStatus()
-                            + "], authenticated=["
-                            + authenticationResult.isAuthenticated()
-                            + "], msg=["
-                            + authenticationResult.getMessage()
-                            + "], meta=["
-                            + authenticationResult.getMetadata()
-                            + "], user=["
-                            + authenticationResult.getValue()
-                            + "].";
-                        realmAuthenticationResults.add(realmResult);
-                        realmFailureExceptions.add(new Exception(realmResult, authenticationResultException));
-                        switch (authenticationResult.getStatus()) {
-                            case SUCCESS:
-                                assertThat("Unexpected realm SUCCESS status", candidateJwtRealm.name(), is(equalTo(jwtRealm.name())));
-                                assertThat("Expected realm authc false", authenticationResult.isAuthenticated(), is(equalTo(true)));
-                                assertThat("Expected realm exception thrown", authenticationResult.getException(), is(nullValue()));
-                                assertThat("Expected realm message null", authenticationResult.getMessage(), is(nullValue()));
-                                assertThat("Expected realm metadata empty", authenticationResult.getMetadata(), is(anEmptyMap()));
-                                authenticatedUser = authenticationResult.getValue();
-                                assertThat("Expected realm user null", authenticatedUser, is(notNullValue()));
-                                break;
-                            case CONTINUE:
-                                assertThat("Expected realm CONTINUE status", candidateJwtRealm.name(), is(not(equalTo(jwtRealm.name()))));
-                                assertThat("Unexpected realm authc success", authenticationResult.isAuthenticated(), is(equalTo(false)));
-                                continue;
-                            case TERMINATE:
-                                assertThat("Expected realm TERMINATE status", candidateJwtRealm.name(), is(not(equalTo(jwtRealm.name()))));
-                                assertThat("Unexpected realm authc success", authenticationResult.isAuthenticated(), is(equalTo(false)));
-                                break;
-                            default:
-                                fail("Unexpected AuthenticationResult.Status=[" + authenticationResult.getStatus() + "]");
-                                break;
-                        }
-                        break; // Only SUCCESS falls through to here, break out of the loop
-                    } catch (Exception e) {
-                        realmFailureExceptions.add(e);
-                        throw e;
-                    } finally {
-                        final PlainActionFuture<Map<String, Object>> usageStatsFuture = PlainActionFuture.newFuture();
-                        candidateJwtRealm.usageStats(usageStatsFuture);
-                        realmUsageStats.add(
-                            "   realm["
-                                + candidateJwtRealm.name()
-                                + ","
-                                + candidateJwtRealm.order()
-                                + "/"
-                                + jwtRealmsList.size()
-                                + "], stats=["
-                                + usageStatsFuture.actionGet()
-                                + "]"
-                        );
-                    }
+            realmLoop: for (final JwtRealm candidateJwtRealm : jwtRealmsList) {
+                LOGGER.info("TRY AUTHC: expected=[" + jwtRealm.name() + "], candidate[" + candidateJwtRealm.name() + "].");
+                final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = PlainActionFuture.newFuture();
+                candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
+                final AuthenticationResult<User> authenticationResult = authenticateFuture.actionGet();
+                LOGGER.info("Authentication result with realm [{}]: [{}]", candidateJwtRealm.name(), authenticationResult);
+                switch (authenticationResult.getStatus()) {
+                    case SUCCESS:
+                        assertThat("Unexpected realm SUCCESS status", candidateJwtRealm.name(), equalTo(jwtRealm.name()));
+                        assertThat("Expected realm metadata empty", authenticationResult.getMetadata(), is(anEmptyMap()));
+                        authenticatedUser = authenticationResult.getValue();
+                        assertThat("Expected realm user null", authenticatedUser, notNullValue());
+                        break realmLoop;
+                    case CONTINUE:
+                        assertThat("Expected realm CONTINUE status", candidateJwtRealm.name(), not(equalTo(jwtRealm.name())));
+                        continue;
+                    case TERMINATE:
+                        fail("A JWT realm should never terminate the authentication process, but [" + candidateJwtRealm.name() + "] did");
+                        break;
+                    default:
+                        fail("Unexpected AuthenticationResult.Status=[" + authenticationResult.getStatus() + "]");
                 }
-                // Loop ended. Confirm user is returned with expected principal and roles.
-                assertThat("Expected realm " + jwtRealm.name() + " to authenticate.", authenticatedUser, is(notNullValue()));
-                assertThat(user.principal(), equalTo(authenticatedUser.principal()));
-                assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
-                if (jwtRealm.delegatedAuthorizationSupport.hasDelegation()) {
-                    assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's metadata
-                } else if (JwtRealmInspector.shouldPopulateUserMetadata(jwtRealm)) {
-                    assertThat(authenticatedUser.metadata(), hasEntry("jwt_token_type", JwtRealmInspector.getTokenType(jwtRealm).value()));
-                    assertThat(authenticatedUser.metadata(), hasKey(startsWith("jwt_claim_")));
-                } else {
-                    assertThat(
-                        authenticatedUser.metadata(),
-                        equalTo(Map.of("jwt_token_type", JwtRealmInspector.getTokenType(jwtRealm).value()))
-                    );
-                }
-            } catch (Throwable t) {
-                realmFailureExceptions.forEach(t::addSuppressed); // all previous realm exceptions
-                // LOGGER.error("Unexpected exception.", t);
-                throw t;
-            } finally {
-                LOGGER.info("STATS: expected=[" + jwtRealm.name() + "]\n" + String.join("\n", realmUsageStats));
-                if (authenticatedUser != null) {
-                    LOGGER.info("RESULT: expected=[" + jwtRealm.name() + "]\n" + String.join("\n", realmAuthenticationResults));
-                }
+            }
+            // Loop ended. Confirm user is returned with expected principal and roles.
+            assertThat("Expected realm " + jwtRealm.name() + " to authenticate.", authenticatedUser, notNullValue());
+            assertThat(user.principal(), equalTo(authenticatedUser.principal()));
+            assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
+            if (jwtRealm.delegatedAuthorizationSupport.hasDelegation()) {
+                assertThat(user.metadata(), equalTo(authenticatedUser.metadata())); // delegated authz returns user's metadata
+            } else if (JwtRealmInspector.shouldPopulateUserMetadata(jwtRealm)) {
+                assertThat(authenticatedUser.metadata(), hasEntry("jwt_token_type", JwtRealmInspector.getTokenType(jwtRealm).value()));
+                assertThat(authenticatedUser.metadata(), hasKey(startsWith("jwt_claim_")));
+            } else {
+                assertThat(
+                    authenticatedUser.metadata(),
+                    equalTo(Map.of("jwt_token_type", JwtRealmInspector.getTokenType(jwtRealm).value()))
+                );
             }
         }
         LOGGER.info("Test succeeded");

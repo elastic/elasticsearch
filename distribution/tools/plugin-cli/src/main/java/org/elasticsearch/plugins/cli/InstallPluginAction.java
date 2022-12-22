@@ -213,12 +213,12 @@ public class InstallPluginAction implements Closeable {
         this.proxy = proxy;
     }
 
-    //pkg private for testing
+    // pkg private for testing
     public void setNamedComponentScanner(NamedComponentScanner scanner) {
         this.scanner = scanner;
     }
 
-    //pkg private for testing
+    // pkg private for testing
     void setClassReadersProvider(ClassReadersProvider classReadersProvider) {
         this.classReadersProvider = classReadersProvider;
     }

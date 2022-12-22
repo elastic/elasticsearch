@@ -205,7 +205,7 @@ public class InstallPluginActionTests extends ESTestCase {
         parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.osX())), "/"));
         parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.unix())), "/"));
         parameters.add(new Parameter(PathUtils.getDefaultFileSystem(), LuceneTestCase::createTempDir));
-        return parameters.stream().map(p -> new Object[]{p.fileSystem, p.temp}).collect(Collectors.toList());
+        return parameters.stream().map(p -> new Object[] { p.fileSystem, p.temp }).collect(Collectors.toList());
     }
 
     private static Configuration toPosix(Configuration configuration) {
@@ -261,7 +261,8 @@ public class InstallPluginActionTests extends ESTestCase {
         return createPlugin(name, structure, additionalProps);
     }
 
-    static void writeStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps) throws IOException {
+    static void writeStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
+        throws IOException {
         String[] properties = pluginProperties(name, additionalProps, true);
         PluginTestUtil.writeStablePluginProperties(structure, properties);
 
@@ -311,7 +312,8 @@ public class InstallPluginActionTests extends ESTestCase {
         Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps) throws IOException {
+    static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
+        throws IOException {
         writeStablePlugin(name, structure, hasNamedComponentFile, additionalProps);
         return new InstallablePlugin(name, writeZip(structure, null).toUri().toURL().toString());
     }
@@ -840,7 +842,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
         MockTerminal mockTerminal = MockTerminal.create();
-        new MockInstallPluginCommand().main(new String[]{"--help"}, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+        new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         try (BufferedReader reader = new BufferedReader(new StringReader(mockTerminal.getOutput()))) {
             String line = reader.readLine();
 
@@ -1560,15 +1562,14 @@ public class InstallPluginActionTests extends ESTestCase {
         assertNamedComponentFile("stable1", pluginDir, namedComponentsJSON());
     }
 
+    @SuppressWarnings("unchecked")
     public void testStablePluginWithoutNamedComponentsFile() throws Exception {
-        //named component will have to be generated upon install
+        // named component will have to be generated upon install
         InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, false);
 
         List<ClassReader> classReaders = Mockito.mock(List.class);
-        Mockito.when(classReadersProvider.ofDirWithJars(Mockito.any(Path.class)))
-            .thenReturn(classReaders);
-        Mockito.doReturn(namedComponentsMap())
-            .when(namedComponentScanner).scanForNamedClasses(Mockito.eq(classReaders));
+        Mockito.when(classReadersProvider.ofDirWithJars(Mockito.any(Path.class))).thenReturn(classReaders);
+        Mockito.doReturn(namedComponentsMap()).when(namedComponentScanner).scanForNamedClasses(Mockito.eq(classReaders));
 
         installPlugins(List.of(stablePluginZip), env.v1());
         assertPlugin("stable1", pluginDir, env.v2());
@@ -1576,9 +1577,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     private Map<String, Map<String, String>> namedComponentsMap() {
-        return Map.of("org.elasticsearch..ExtensibleInterface",
-            Map.of("a_component", "p.A",
-                "b_component", "p.B"));
+        return Map.of("org.elasticsearch..ExtensibleInterface", Map.of("a_component", "p.A", "b_component", "p.B"));
     }
 
     private static String namedComponentsJSON() {

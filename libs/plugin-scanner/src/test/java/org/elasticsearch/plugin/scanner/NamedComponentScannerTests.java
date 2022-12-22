@@ -23,7 +23,6 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -77,8 +76,8 @@ public class NamedComponentScannerTests extends ESTestCase {
             public class B implements ExtensibleInterface{}
             """)));
         List<ClassReader> classReaderStream = Stream.concat(
-                new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
-                new ClassReadersProvider().ofClassPath().stream()
+            new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
+            new ClassReadersProvider().ofClassPath().stream()
         )// contains plugin-api
             .toList();
 
@@ -152,8 +151,8 @@ public class NamedComponentScannerTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         List<ClassReader> classReaders = Stream.concat(
-                new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
-                new ClassReadersProvider().ofClassPath().stream()
+            new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
+            new ClassReadersProvider().ofClassPath().stream()
         )// contains plugin-api
             .toList();
 

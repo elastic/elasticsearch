@@ -10,6 +10,10 @@ apply plugin: 'elasticsearch.build'
 
 archivesBaseName = 'elasticsearch-plugin-cli'
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")

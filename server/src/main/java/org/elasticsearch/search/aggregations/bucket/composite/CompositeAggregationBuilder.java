@@ -211,6 +211,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         AggregatorFactory parent,
         AggregatorFactories.Builder subfactoriesBuilder
     ) throws IOException {
+        if (context.isInSortOrderExecutionRequired()) {
+            throw new IllegalArgumentException("[composite] aggregation is incompatible with time series execution mode");
+        }
         AggregatorFactory invalid = validateParentAggregations(parent);
         if (invalid != null) {
             throw new IllegalArgumentException(
@@ -219,9 +222,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                     + invalid.getClass().getSimpleName()
                     + "]"
             );
-        }
-        if (context.isInSortOrderExecutionRequired()) {
-            throw new IllegalArgumentException("[composite] aggregation is incompatible with time series execution mode");
         }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {

@@ -8,11 +8,8 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -22,24 +19,35 @@ import org.elasticsearch.compute.aggregation.GroupingMaxAggregatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class HashAggregationOperatorTests extends OperatorTestCase {
+public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected SourceOperator simpleInput(int end) {
         return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l % 5, l)));
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return operator(bigArrays, AggregatorMode.SINGLE, 1, 1);
+    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        return new HashAggregationOperator.HashAggregationOperatorFactory(
+            0,
+            List.of(
+                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG, mode, 1),
+                new GroupingAggregator.GroupingAggregatorFactory(
+                    bigArrays,
+                    GroupingAggregatorFunction.MAX,
+                    mode,
+                    mode.isInputPartial() ? 2 : 1
+                )
+            ),
+            () -> BlockHash.newLongHash(bigArrays),
+            mode
+        );
     }
 
     @Override
@@ -59,77 +67,15 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
         Block groups = results.get(0).getBlock(0);
         Block avgs = results.get(0).getBlock(1);
         Block maxs = results.get(0).getBlock(2);
-        assertThat(groups.getLong(0), equalTo(0L));
-        avg.assertSimpleBucket(avgs, end, 0);
-        max.assertSimpleBucket(maxs, end, 0);
-        assertThat(groups.getLong(1), equalTo(1L));
-        avg.assertSimpleBucket(avgs, end, 1);
-        max.assertSimpleBucket(maxs, end, 1);
-        assertThat(groups.getLong(2), equalTo(2L));
-        avg.assertSimpleBucket(avgs, end, 2);
-        max.assertSimpleBucket(maxs, end, 2);
-        assertThat(groups.getLong(3), equalTo(3L));
-        avg.assertSimpleBucket(avgs, end, 3);
-        max.assertSimpleBucket(maxs, end, 3);
-        assertThat(groups.getLong(4), equalTo(4L));
-        avg.assertSimpleBucket(avgs, end, 4);
-        max.assertSimpleBucket(maxs, end, 4);
+        for (int i = 0; i < 5; i++) {
+            int bucket = (int) groups.getLong(i);
+            avg.assertSimpleBucket(avgs, end, i, bucket);
+            max.assertSimpleBucket(maxs, end, i, bucket);
+        }
     }
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 32));
-    }
-
-    public void testInitialFinal() {
-        int end = between(1_000, 100_000);
-        List<Page> results = new ArrayList<>();
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-
-        try (
-            Driver d = new Driver(
-                simpleInput(end),
-                List.of(operator(bigArrays, AggregatorMode.INITIAL, 1, 1).get(), operator(bigArrays, AggregatorMode.FINAL, 1, 2).get()),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    public void testInitialIntermediateFinal() {
-        int end = between(1_000, 100_000);
-        List<Page> results = new ArrayList<>();
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-
-        try (
-            Driver d = new Driver(
-                simpleInput(end),
-                List.of(
-                    operator(bigArrays, AggregatorMode.INITIAL, 1, 1).get(),
-                    operator(bigArrays, AggregatorMode.INTERMEDIATE, 1, 2).get(),
-                    operator(bigArrays, AggregatorMode.FINAL, 1, 2).get()
-                ),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    private Operator.OperatorFactory operator(BigArrays bigArrays, AggregatorMode mode, int channel1, int channel2) {
-        return new HashAggregationOperator.HashAggregationOperatorFactory(
-            0,
-            List.of(
-                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG, mode, channel1),
-                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.MAX, mode, channel2)
-            ),
-            () -> BlockHash.newLongHash(bigArrays),
-            mode
-        );
     }
 }

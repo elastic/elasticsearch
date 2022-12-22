@@ -13,18 +13,15 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.PageConsumerOperator;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public abstract class AggregatorTestCase extends OperatorTestCase {
+public abstract class AggregatorTestCase extends ForkingOperatorTestCase {
     protected abstract AggregatorFunction.Factory aggregatorFunction();
 
     protected abstract String expectedDescriptionOfAggregator();
@@ -32,8 +29,11 @@ public abstract class AggregatorTestCase extends OperatorTestCase {
     protected abstract void assertSimpleResult(int end, Block result);
 
     @Override
-    protected final Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return operator(AggregatorMode.SINGLE);
+    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        return new AggregationOperator.AggregationOperatorFactory(
+            List.of(new Aggregator.AggregatorFactory(aggregatorFunction(), mode, 0)),
+            mode
+        );
     }
 
     @Override
@@ -55,50 +55,5 @@ public abstract class AggregatorTestCase extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         assumeTrue("doesn't use big array so never breaks", false);
         return null;
-    }
-
-    public void testInitialFinal() {
-        int end = between(1_000, 100_000);
-        List<Page> results = new ArrayList<>();
-
-        try (
-            Driver d = new Driver(
-                simpleInput(end),
-                List.of(operator(AggregatorMode.INITIAL).get(), operator(AggregatorMode.FINAL).get()),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    public void testInitialIntermediateFinal() {
-        int end = between(1_000, 100_000);
-        List<Page> results = new ArrayList<>();
-
-        try (
-            Driver d = new Driver(
-                simpleInput(end),
-                List.of(
-                    operator(AggregatorMode.INITIAL).get(),
-                    operator(AggregatorMode.INTERMEDIATE).get(),
-                    operator(AggregatorMode.FINAL).get()
-                ),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    protected final Operator.OperatorFactory operator(AggregatorMode mode) {
-        return new AggregationOperator.AggregationOperatorFactory(
-            List.of(new Aggregator.AggregatorFactory(aggregatorFunction(), mode, 0)),
-            mode
-        );
     }
 }

@@ -39,7 +39,7 @@ public class AvgLongAggregatorTests extends AggregatorTestCase {
         try (
             Driver d = new Driver(
                 new SequenceLongBlockSourceOperator(LongStream.of(Long.MAX_VALUE - 1, 2)),
-                List.of(operator(AggregatorMode.SINGLE).get()),
+                List.of(simple(nonBreakingBigArrays()).get()),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )

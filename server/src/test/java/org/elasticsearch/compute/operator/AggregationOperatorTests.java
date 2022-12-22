@@ -18,19 +18,21 @@ import org.elasticsearch.compute.aggregation.MaxAggregatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class AggregationOperatorTests extends OperatorTestCase {
+public class AggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return operator(AggregatorMode.SINGLE, 0, 0);
+    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        return new AggregationOperator.AggregationOperatorFactory(
+            List.of(
+                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONG, mode, 0),
+                new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, mode.isInputPartial() ? 1 : 0)
+            ),
+            mode
+        );
     }
 
     @Override
@@ -57,100 +59,5 @@ public class AggregationOperatorTests extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         assumeTrue("doesn't use big array so never breaks", false);
         return null;
-    }
-
-    public void testInitialFinal() {
-        int end = between(1_000, 100_000);
-        List<Page> results = new ArrayList<>();
-
-        try (
-            Driver d = new Driver(
-                simpleInput(end),
-                List.of(operator(AggregatorMode.INITIAL, 0, 0).get(), operator(AggregatorMode.FINAL, 0, 1).get()),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    public void testManyInitialFinal() {
-        int end = between(1_000, 100_000);
-
-        List<Page> partials = oneDriverPerPage(simpleInput(end), () -> List.of(operator(AggregatorMode.INITIAL, 0, 0).get()));
-
-        List<Page> results = new ArrayList<>();
-        try (
-            Driver d = new Driver(
-                new CannedSourceOperator(partials.iterator()),
-                List.of(operator(AggregatorMode.FINAL, 0, 1).get()),
-                new PageConsumerOperator(results::add),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    public void testInitialIntermediateFinal() {
-        int end = between(1_000, 100_000);
-        List<Page> results = new ArrayList<>();
-
-        try (
-            Driver d = new Driver(
-                simpleInput(end),
-                List.of(
-                    operator(AggregatorMode.INITIAL, 0, 0).get(),
-                    operator(AggregatorMode.INTERMEDIATE, 0, 1).get(),
-                    operator(AggregatorMode.FINAL, 0, 1).get()
-                ),
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    private <T> Collection<List<T>> randomSplits(List<T> in) {
-        return in.stream().collect(Collectors.groupingBy(s -> randomInt(in.size() - 1))).values();
-    }
-
-    public void testManyInitialManyPartialFinal() {
-        int end = between(1_000, 100_000);
-
-        List<Page> partials = oneDriverPerPage(simpleInput(end), () -> List.of(operator(AggregatorMode.INITIAL, 0, 0).get()));
-        Collections.shuffle(partials, random());
-        List<Page> intermediates = oneDriverPerPageList(
-            randomSplits(partials).iterator(),
-            () -> List.of(operator(AggregatorMode.INTERMEDIATE, 0, 1).get())
-        );
-
-        List<Page> results = new ArrayList<>();
-        try (
-            Driver d = new Driver(
-                new CannedSourceOperator(intermediates.iterator()),
-                List.of(operator(AggregatorMode.FINAL, 0, 1).get()),
-                new PageConsumerOperator(results::add),
-                () -> {}
-            )
-        ) {
-            d.run();
-        }
-        assertSimpleOutput(end, results);
-    }
-
-    private Operator.OperatorFactory operator(AggregatorMode mode, int channel1, int channel2) {
-        return new AggregationOperator.AggregationOperatorFactory(
-            List.of(
-                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONG, mode, channel1),
-                new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, channel2)
-            ),
-            mode
-        );
     }
 }

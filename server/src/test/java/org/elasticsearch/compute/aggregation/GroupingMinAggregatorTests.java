@@ -19,6 +19,11 @@ public class GroupingMinAggregatorTests extends GroupingAggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "min";
+    }
+
+    @Override
     public void assertSimpleBucket(Block result, int end, int bucket) {
         assertThat(result.getDouble(bucket), equalTo((double) bucket));
     }

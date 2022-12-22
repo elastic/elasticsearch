@@ -33,7 +33,9 @@ public abstract class OperatorTestCase extends ESTestCase {
         return new SequenceLongBlockSourceOperator(LongStream.range(0, end));
     }
 
-    protected abstract Operator simple(BigArrays bigArrays);
+    protected abstract Operator.OperatorFactory simple(BigArrays bigArrays);
+
+    protected abstract String expectedDescriptionOfSimple();
 
     protected abstract void assertSimpleOutput(int end, List<Page> results);
 
@@ -44,7 +46,7 @@ public abstract class OperatorTestCase extends ESTestCase {
     protected abstract ByteSizeValue smallEnoughToCircuitBreak();
 
     public final void testSimple() {
-        assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()));
+        assertSimple(nonBreakingBigArrays());
     }
 
     public final void testCircuitBreaking() {
@@ -64,6 +66,14 @@ public abstract class OperatorTestCase extends ESTestCase {
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
+    }
+
+    public final void testSimpleDescription() {
+        assertThat(simple(nonBreakingBigArrays()).describe(), equalTo(expectedDescriptionOfSimple()));
+    }
+
+    protected final BigArrays nonBreakingBigArrays() {
+        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
     }
 
     protected final List<Page> oneDriverPerPage(SourceOperator source, Supplier<List<Operator>> operators) {
@@ -116,7 +126,7 @@ public abstract class OperatorTestCase extends ESTestCase {
         try (
             Driver d = new Driver(
                 simpleInput(end),
-                List.of(simple(bigArrays.withCircuitBreaking())),
+                List.of(simple(bigArrays.withCircuitBreaking()).get()),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )

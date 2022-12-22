@@ -13,6 +13,8 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
+import java.util.function.IntFunction;
+
 @Experimental
 public interface AggregatorFunction {
 
@@ -24,32 +26,26 @@ public interface AggregatorFunction {
 
     Block evaluateFinal();
 
-    @FunctionalInterface
-    interface Factory extends Describable {
-        AggregatorFunction create(int inputChannel);
+    record Factory(String name, String type, IntFunction<AggregatorFunction> build) implements Describable {
+        public AggregatorFunction build(int inputChannel) {
+            return build.apply(inputChannel);
+        }
 
         @Override
-        default String describe() {
-            var description = getClass().getName();
-            // FooBarAggregator --> fooBar
-            description = description.substring(0, description.length() - 10);
-            var startChar = Character.toLowerCase(description.charAt(0));
-            if (startChar != description.charAt(0)) {
-                description = startChar + description.substring(1);
-            }
-            return description;
+        public String describe() {
+            return type == null ? name : name + " of " + type;
         }
     }
 
-    Factory AVG_DOUBLE = DoubleAvgAggregator::create;
+    Factory AVG_DOUBLE = new Factory("avg", "doubles", DoubleAvgAggregator::create);
 
-    Factory AVG_LONG = LongAvgAggregator::create;
+    Factory AVG_LONG = new Factory("avg", "longs", LongAvgAggregator::create);
 
-    Factory COUNT = CountRowsAggregator::create;
+    Factory COUNT = new Factory("count", null, CountRowsAggregator::create);
 
-    Factory MAX = MaxAggregator::create;
+    Factory MAX = new Factory("max", null, MaxAggregator::create);
 
-    Factory MIN = MinAggregator::create;
+    Factory MIN = new Factory("min", null, MinAggregator::create);
 
-    Factory SUM = SumAggregator::create;
+    Factory SUM = new Factory("sum", null, SumAggregator::create);
 }

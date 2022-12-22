@@ -25,6 +25,11 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "sum";
+    }
+
+    @Override
     protected void assertSimpleResult(int end, Block result) {
         double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum();
         assertThat(result.getDouble(0), equalTo(expected));
@@ -34,7 +39,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         try (
             Driver d = new Driver(
                 new SequenceLongBlockSourceOperator(LongStream.of(Long.MAX_VALUE - 1, 2)),
-                List.of(operator(AggregatorMode.SINGLE)),
+                List.of(operator(AggregatorMode.SINGLE).get()),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )

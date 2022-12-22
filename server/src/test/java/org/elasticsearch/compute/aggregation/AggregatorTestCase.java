@@ -27,11 +27,18 @@ import static org.hamcrest.Matchers.hasSize;
 public abstract class AggregatorTestCase extends OperatorTestCase {
     protected abstract AggregatorFunction.Factory aggregatorFunction();
 
+    protected abstract String expectedDescriptionOfAggregator();
+
     protected abstract void assertSimpleResult(int end, Block result);
 
     @Override
-    protected final Operator simple(BigArrays bigArrays) {
+    protected final Operator.OperatorFactory simple(BigArrays bigArrays) {
         return operator(AggregatorMode.SINGLE);
+    }
+
+    @Override
+    protected final String expectedDescriptionOfSimple() {
+        return "AggregationOperator(mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + ")";
     }
 
     @Override
@@ -57,7 +64,7 @@ public abstract class AggregatorTestCase extends OperatorTestCase {
         try (
             Driver d = new Driver(
                 simpleInput(end),
-                List.of(operator(AggregatorMode.INITIAL), operator(AggregatorMode.FINAL)),
+                List.of(operator(AggregatorMode.INITIAL).get(), operator(AggregatorMode.FINAL).get()),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -74,7 +81,11 @@ public abstract class AggregatorTestCase extends OperatorTestCase {
         try (
             Driver d = new Driver(
                 simpleInput(end),
-                List.of(operator(AggregatorMode.INITIAL), operator(AggregatorMode.INTERMEDIATE), operator(AggregatorMode.FINAL)),
+                List.of(
+                    operator(AggregatorMode.INITIAL).get(),
+                    operator(AggregatorMode.INTERMEDIATE).get(),
+                    operator(AggregatorMode.FINAL).get()
+                ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -84,7 +95,10 @@ public abstract class AggregatorTestCase extends OperatorTestCase {
         assertSimpleOutput(end, results);
     }
 
-    protected final Operator operator(AggregatorMode mode) {
-        return new AggregationOperator(List.of(new Aggregator.AggregatorFactory(aggregatorFunction(), mode, 0).get()));
+    protected final Operator.OperatorFactory operator(AggregatorMode mode) {
+        return new AggregationOperator.AggregationOperatorFactory(
+            List.of(new Aggregator.AggregatorFactory(aggregatorFunction(), mode, 0)),
+            mode
+        );
     }
 }

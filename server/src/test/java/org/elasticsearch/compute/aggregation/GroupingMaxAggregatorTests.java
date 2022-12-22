@@ -21,6 +21,11 @@ public class GroupingMaxAggregatorTests extends GroupingAggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "max";
+    }
+
+    @Override
     public void assertSimpleBucket(Block result, int end, int bucket) {
         double expected = LongStream.range(0, end).filter(l -> l % 5 == bucket).max().getAsLong();
         assertThat(result.getDouble(bucket), equalTo(expected));

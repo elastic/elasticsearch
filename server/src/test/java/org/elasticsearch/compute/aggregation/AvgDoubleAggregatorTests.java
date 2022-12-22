@@ -21,6 +21,11 @@ public class AvgDoubleAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "avg of doubles";
+    }
+
+    @Override
     protected void assertSimpleResult(int end, Block result) {
         double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum() / end;
         assertThat(result.getDouble(0), equalTo(expected));

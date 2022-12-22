@@ -19,6 +19,11 @@ public class CountAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "count";
+    }
+
+    @Override
     protected void assertSimpleResult(int end, Block result) {
         assertThat(result.getDouble(0), equalTo((double) end));
     }

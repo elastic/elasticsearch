@@ -38,10 +38,10 @@ public class Aggregator {
         }
     }
 
-    public Aggregator(AggregatorFunction.Factory provider, AggregatorMode mode, int inputChannel) {
+    public Aggregator(AggregatorFunction.Factory factory, AggregatorMode mode, int inputChannel) {
         assert mode.isInputPartial() || inputChannel >= 0;
         // input channel is used both to signal the creation of the page (when the input is not partial)
-        this.aggregatorFunction = provider.create(mode.isInputPartial() ? -1 : inputChannel);
+        this.aggregatorFunction = factory.build(mode.isInputPartial() ? -1 : inputChannel);
         // and to indicate the page during the intermediate phase
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
         this.mode = mode;

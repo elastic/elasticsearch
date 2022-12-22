@@ -19,6 +19,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "min";
+    }
+
+    @Override
     public void assertSimpleResult(int end, Block result) {
         assertThat(result.getDouble(0), equalTo((double) 0));
     }

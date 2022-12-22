@@ -35,6 +35,8 @@ import static org.hamcrest.Matchers.hasSize;
 public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
     protected abstract GroupingAggregatorFunction.Factory aggregatorFunction();
 
+    protected abstract String expectedDescriptionOfAggregator();
+
     protected abstract void assertSimpleBucket(Block result, int end, int bucket);
 
     @Override
@@ -43,8 +45,13 @@ public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
     }
 
     @Override
-    protected final Operator simple(BigArrays bigArrays) {
+    protected final Operator.OperatorFactory simple(BigArrays bigArrays) {
         return operator(bigArrays, AggregatorMode.SINGLE);
+    }
+
+    @Override
+    protected final String expectedDescriptionOfSimple() {
+        return "HashAggregationOperator(mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + ")";
     }
 
     @Override
@@ -80,7 +87,7 @@ public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
         try (
             Driver d = new Driver(
                 simpleInput(end),
-                List.of(operator(bigArrays, AggregatorMode.INITIAL), operator(bigArrays, AggregatorMode.FINAL)),
+                List.of(operator(bigArrays, AggregatorMode.INITIAL).get(), operator(bigArrays, AggregatorMode.FINAL).get()),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -99,9 +106,9 @@ public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
             Driver d = new Driver(
                 simpleInput(end),
                 List.of(
-                    operator(bigArrays, AggregatorMode.INITIAL),
-                    operator(bigArrays, AggregatorMode.INTERMEDIATE),
-                    operator(bigArrays, AggregatorMode.FINAL)
+                    operator(bigArrays, AggregatorMode.INITIAL).get(),
+                    operator(bigArrays, AggregatorMode.INTERMEDIATE).get(),
+                    operator(bigArrays, AggregatorMode.FINAL).get()
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -112,11 +119,12 @@ public abstract class GroupingAggregatorTestCase extends OperatorTestCase {
         assertSimpleOutput(end, results);
     }
 
-    private Operator operator(BigArrays bigArrays, AggregatorMode mode) {
-        return new HashAggregationOperator(
+    private Operator.OperatorFactory operator(BigArrays bigArrays, AggregatorMode mode) {
+        return new HashAggregationOperator.HashAggregationOperatorFactory(
             0,
             List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), mode, 1)),
-            () -> BlockHash.newLongHash(bigArrays)
+            () -> BlockHash.newLongHash(bigArrays),
+            mode
         );
     }
 }

@@ -29,8 +29,13 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class AggregationOperatorTests extends OperatorTestCase {
     @Override
-    protected Operator simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         return operator(AggregatorMode.SINGLE, 0, 0);
+    }
+
+    @Override
+    protected String expectedDescriptionOfSimple() {
+        return "AggregationOperator(mode = SINGLE, aggs = avg of longs, max)";
     }
 
     @Override
@@ -61,7 +66,7 @@ public class AggregationOperatorTests extends OperatorTestCase {
         try (
             Driver d = new Driver(
                 simpleInput(end),
-                List.of(operator(AggregatorMode.INITIAL, 0, 0), operator(AggregatorMode.FINAL, 0, 1)),
+                List.of(operator(AggregatorMode.INITIAL, 0, 0).get(), operator(AggregatorMode.FINAL, 0, 1).get()),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -74,13 +79,13 @@ public class AggregationOperatorTests extends OperatorTestCase {
     public void testManyInitialFinal() {
         int end = between(1_000, 100_000);
 
-        List<Page> partials = oneDriverPerPage(simpleInput(end), () -> List.of(operator(AggregatorMode.INITIAL, 0, 0)));
+        List<Page> partials = oneDriverPerPage(simpleInput(end), () -> List.of(operator(AggregatorMode.INITIAL, 0, 0).get()));
 
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 new CannedSourceOperator(partials.iterator()),
-                List.of(operator(AggregatorMode.FINAL, 0, 1)),
+                List.of(operator(AggregatorMode.FINAL, 0, 1).get()),
                 new PageConsumerOperator(results::add),
                 () -> {}
             )
@@ -98,9 +103,9 @@ public class AggregationOperatorTests extends OperatorTestCase {
             Driver d = new Driver(
                 simpleInput(end),
                 List.of(
-                    operator(AggregatorMode.INITIAL, 0, 0),
-                    operator(AggregatorMode.INTERMEDIATE, 0, 1),
-                    operator(AggregatorMode.FINAL, 0, 1)
+                    operator(AggregatorMode.INITIAL, 0, 0).get(),
+                    operator(AggregatorMode.INTERMEDIATE, 0, 1).get(),
+                    operator(AggregatorMode.FINAL, 0, 1).get()
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -118,18 +123,18 @@ public class AggregationOperatorTests extends OperatorTestCase {
     public void testManyInitialManyPartialFinal() {
         int end = between(1_000, 100_000);
 
-        List<Page> partials = oneDriverPerPage(simpleInput(end), () -> List.of(operator(AggregatorMode.INITIAL, 0, 0)));
+        List<Page> partials = oneDriverPerPage(simpleInput(end), () -> List.of(operator(AggregatorMode.INITIAL, 0, 0).get()));
         Collections.shuffle(partials, random());
         List<Page> intermediates = oneDriverPerPageList(
             randomSplits(partials).iterator(),
-            () -> List.of(operator(AggregatorMode.INTERMEDIATE, 0, 1))
+            () -> List.of(operator(AggregatorMode.INTERMEDIATE, 0, 1).get())
         );
 
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 new CannedSourceOperator(intermediates.iterator()),
-                List.of(operator(AggregatorMode.FINAL, 0, 1)),
+                List.of(operator(AggregatorMode.FINAL, 0, 1).get()),
                 new PageConsumerOperator(results::add),
                 () -> {}
             )
@@ -139,12 +144,13 @@ public class AggregationOperatorTests extends OperatorTestCase {
         assertSimpleOutput(end, results);
     }
 
-    private Operator operator(AggregatorMode mode, int channel1, int channel2) {
-        return new AggregationOperator(
+    private Operator.OperatorFactory operator(AggregatorMode mode, int channel1, int channel2) {
+        return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONG, mode, channel1).get(),
-                new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, channel2).get()
-            )
+                new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONG, mode, channel1),
+                new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, channel2)
+            ),
+            mode
         );
     }
 }

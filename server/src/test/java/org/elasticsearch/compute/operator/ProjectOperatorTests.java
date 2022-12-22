@@ -68,10 +68,15 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         BitSet mask = new BitSet();
         mask.set(1, true);
-        return new ProjectOperator(mask);
+        return new ProjectOperator.ProjectOperatorFactory(mask);
+    }
+
+    @Override
+    protected String expectedDescriptionOfSimple() {
+        return "ProjectOperator(mask = {1})";
     }
 
     @Override

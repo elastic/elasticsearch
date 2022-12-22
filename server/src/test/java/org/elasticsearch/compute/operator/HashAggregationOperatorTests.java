@@ -38,8 +38,13 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         return operator(bigArrays, AggregatorMode.SINGLE, 1, 1);
+    }
+
+    @Override
+    protected String expectedDescriptionOfSimple() {
+        return "HashAggregationOperator(mode = SINGLE, aggs = avg, max)";
     }
 
     @Override
@@ -84,7 +89,7 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
         try (
             Driver d = new Driver(
                 simpleInput(end),
-                List.of(operator(bigArrays, AggregatorMode.INITIAL, 1, 1), operator(bigArrays, AggregatorMode.FINAL, 1, 2)),
+                List.of(operator(bigArrays, AggregatorMode.INITIAL, 1, 1).get(), operator(bigArrays, AggregatorMode.FINAL, 1, 2).get()),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
@@ -103,9 +108,9 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
             Driver d = new Driver(
                 simpleInput(end),
                 List.of(
-                    operator(bigArrays, AggregatorMode.INITIAL, 1, 1),
-                    operator(bigArrays, AggregatorMode.INTERMEDIATE, 1, 2),
-                    operator(bigArrays, AggregatorMode.FINAL, 1, 2)
+                    operator(bigArrays, AggregatorMode.INITIAL, 1, 1).get(),
+                    operator(bigArrays, AggregatorMode.INTERMEDIATE, 1, 2).get(),
+                    operator(bigArrays, AggregatorMode.FINAL, 1, 2).get()
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -116,14 +121,15 @@ public class HashAggregationOperatorTests extends OperatorTestCase {
         assertSimpleOutput(end, results);
     }
 
-    private Operator operator(BigArrays bigArrays, AggregatorMode mode, int channel1, int channel2) {
-        return new HashAggregationOperator(
+    private Operator.OperatorFactory operator(BigArrays bigArrays, AggregatorMode mode, int channel1, int channel2) {
+        return new HashAggregationOperator.HashAggregationOperatorFactory(
             0,
             List.of(
                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG, mode, channel1),
                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.MAX, mode, channel2)
             ),
-            () -> BlockHash.newLongHash(bigArrays)
+            () -> BlockHash.newLongHash(bigArrays),
+            mode
         );
     }
 }

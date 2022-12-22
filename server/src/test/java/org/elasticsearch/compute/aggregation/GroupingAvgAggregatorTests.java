@@ -22,6 +22,11 @@ public class GroupingAvgAggregatorTests extends GroupingAggregatorTestCase {
     }
 
     @Override
+    protected String expectedDescriptionOfAggregator() {
+        return "avg";
+    }
+
+    @Override
     public void assertSimpleBucket(Block result, int end, int bucket) {
         Supplier<LongStream> seq = () -> LongStream.range(0, end).filter(l -> l % 5 == bucket);
         double expected = seq.get().mapToDouble(Double::valueOf).sum() / seq.get().count();

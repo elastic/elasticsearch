@@ -73,7 +73,7 @@ public final class Features {
     }
 
     private static boolean isSupported(String feature) {
-        String runtimeJavaProp = System.getProperty("tests.runtime.java");
+        String runtimeJavaProp = System.getProperty("tests.runtime.java.version");
         JavaVersion runtimeJava = runtimeJavaProp != null ? JavaVersion.parse(runtimeJavaProp) : JavaVersion.current();
         if (feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) && runtimeJava.compareTo(JavaVersion.parse("9")) >= 0) {
             return true;

@@ -172,7 +172,7 @@ public class ReproduceInfoPrinter extends RunListener {
 
             appendOpt(
                 "runtime.java",
-                System.getProperty("tests.runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)))
+                System.getProperty("tests.runtime.java.version", Integer.toString(JavaVersion.current().getVersion().get(0)))
             );
             appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));

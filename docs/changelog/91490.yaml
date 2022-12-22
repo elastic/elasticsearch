@@ -1,5 +1,0 @@
-pr: 91490
-summary: Avoid potential unsupported operation exception in doc bitset cache
-area: Authorization
-type: bug
-issues: []

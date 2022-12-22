@@ -47,7 +47,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
 
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     /**
      * This has been found to be approximately 300MB on linux by manual testing.

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -41,6 +42,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     public static final String NAME = "role_mappings";
 
     private final NativeRoleMappingStore roleMappingStore;
+    private final ListenableFuture<Void> securityIndexRecoveryListener = new ListenableFuture<>();
 
     /**
      * Creates a ReservedRoleMappingAction
@@ -84,10 +86,17 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         // non cluster state transform call.
         @SuppressWarnings("unchecked")
         var requests = prepare((List<ExpressionRoleMapping>) source);
-        return new TransformState(prevState.state(), prevState.keys(), l -> nonStateTransform(requests, prevState, l));
+        return new TransformState(
+            prevState.state(),
+            prevState.keys(),
+            l -> securityIndexRecoveryListener.addListener(
+                ActionListener.wrap(ignored -> nonStateTransform(requests, prevState, l), l::onFailure)
+            )
+        );
     }
 
-    private void nonStateTransform(
+    // Exposed for testing purposes
+    protected void nonStateTransform(
         Collection<PutRoleMappingRequest> requests,
         TransformState prevState,
         ActionListener<NonStateTransformResult> listener
@@ -104,7 +113,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             return;
         }
 
-        GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(new ActionListener<>() {
+        GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(tasksCount, new ActionListener<>() {
             @Override
             public void onResponse(Collection<Boolean> booleans) {
                 listener.onResponse(new NonStateTransformResult(ReservedRoleMappingAction.NAME, Collections.unmodifiableSet(entities)));
@@ -114,7 +123,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }, tasksCount);
+        });
 
         for (var request : requests) {
             roleMappingStore.putRoleMapping(request, taskListener);
@@ -143,5 +152,9 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         }
 
         return result;
+    }
+
+    public void securityIndexRecovered() {
+        securityIndexRecoveryListener.onResponse(null);
     }
 }

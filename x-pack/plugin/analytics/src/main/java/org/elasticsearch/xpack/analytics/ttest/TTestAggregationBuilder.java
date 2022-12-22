@@ -46,8 +46,8 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true, false);
-        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true, false);
+        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true, false, false);
+        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true, false, false);
         PARSER.declareString(TTestAggregationBuilder::testType, TYPE_FIELD);
         PARSER.declareInt(TTestAggregationBuilder::tails, TAILS_FIELD);
     }

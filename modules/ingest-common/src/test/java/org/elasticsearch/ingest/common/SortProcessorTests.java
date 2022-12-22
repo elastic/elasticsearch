@@ -15,10 +15,10 @@ import org.elasticsearch.ingest.common.SortProcessor.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +53,7 @@ public class SortProcessorTests extends ESTestCase {
 
         Integer[] expectedResult = new Integer[] { 1, 2, 3, 4, 5, 10, 20, 21, 22, 50, 100 };
         List<Integer> fieldValue = new ArrayList<>(expectedResult.length);
-        fieldValue.addAll(Arrays.asList(expectedResult).subList(0, expectedResult.length));
+        fieldValue.addAll(List.of(expectedResult).subList(0, expectedResult.length));
         Collections.shuffle(fieldValue, random());
 
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
@@ -265,7 +265,7 @@ public class SortProcessorTests extends ESTestCase {
     }
 
     public void testDescendingSortWithTargetField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         int numItems = randomIntBetween(1, 10);
         List<String> fieldValue = new ArrayList<>(numItems);
         List<String> expectedResult = new ArrayList<>(numItems);
@@ -285,7 +285,7 @@ public class SortProcessorTests extends ESTestCase {
     }
 
     public void testAscendingSortWithTargetField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         int numItems = randomIntBetween(1, 10);
         List<String> fieldValue = new ArrayList<>(numItems);
         List<String> expectedResult = new ArrayList<>(numItems);
@@ -305,8 +305,8 @@ public class SortProcessorTests extends ESTestCase {
     }
 
     public void testSortWithTargetFieldLeavesOriginalUntouched() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
-        List<Integer> fieldValue = Arrays.asList(1, 5, 4);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        List<Integer> fieldValue = List.of(1, 5, 4);
         List<Integer> expectedResult = new ArrayList<>(fieldValue);
         Collections.sort(expectedResult);
 

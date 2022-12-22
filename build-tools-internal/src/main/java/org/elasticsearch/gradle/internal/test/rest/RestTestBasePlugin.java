@@ -47,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
 import javax.inject.Inject;
 
 /**
@@ -159,14 +160,18 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     private void registerConfigurationInputs(Task task, Configuration configuration) {
         task.getInputs()
-            .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
-            .withPropertyName(configuration.getName() + "-classpath")
-            .withNormalizer(ClasspathNormalizer.class);
-
-        task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false)))
             .withPropertyName(configuration.getName() + "-files")
             .withPathSensitivity(PathSensitivity.RELATIVE);
+
+        task.getInputs()
+            .files(
+                providerFactory.provider(
+                    () -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar")).getFiles().stream().sorted().toList()
+                )
+            )
+            .withPropertyName(configuration.getName() + "-classpath")
+            .withNormalizer(ClasspathNormalizer.class);
     }
 
     private void registerDistributionInputs(Task task, ElasticsearchDistribution distribution) {
@@ -176,7 +181,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .withPathSensitivity(PathSensitivity.RELATIVE);
 
         task.getInputs()
-            .files(providerFactory.provider(() -> getDistributionFiles(distribution, filter -> filter.include("**/*.jar"))))
+            .files(
+                providerFactory.provider(
+                    () -> getDistributionFiles(distribution, filter -> filter.include("**/*.jar")).getFiles().stream().sorted().toList()
+                )
+            )
             .withPropertyName(distribution.getName() + "-classpath")
             .withNormalizer(ClasspathNormalizer.class);
     }

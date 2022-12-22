@@ -33,42 +33,45 @@ import java.util.stream.Stream;
  *
  * @see ClassReader
  */
-public class ClassReaders {
+public class ClassReadersProvider {
     private static final String MODULE_INFO = "module-info.class";
+
+    public List<ClassReader> ofClassPath() throws IOException {
+        String classpath = System.getProperty("java.class.path");
+        return ofClassPath(classpath);
+    }
 
     /**
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static List<ClassReader> ofDirWithJars(String path) {
+    public List<ClassReader> ofDirWithJars(Path path) {
         if (path == null) {
             return Collections.emptyList();
         }
-        Path dir = Paths.get(path);
-        try {
-            return ofPaths(Files.list(dir));
+        try (var files = Files.list(path)){
+            return ofPaths(files);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    public static List<ClassReader> ofPaths(Set<URL> classpathFiles) {
-        return ofPaths(classpathFiles.stream().map(ClassReaders::toPath));
-    }
+    private List<ClassReader> ofClassPath(String classpath) {
+        if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
+            var classpathSeparator = System.getProperty("path.separator");
 
-    private static Path toPath(URL url) {
-        try {
-            return PathUtils.get(url.toURI());
-        } catch (URISyntaxException e) {
-            throw new AssertionError(e);
+            String[] pathelements = classpath.split(classpathSeparator);
+            return ofPaths(Arrays.stream(pathelements).map(Paths::get));
         }
+        return Collections.emptyList();
     }
 
     /**
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static List<ClassReader> ofPaths(Stream<Path> list) {
+    //scope for testing
+    static List<ClassReader> ofPaths(Stream<Path> list) {
         return list.filter(Files::exists).flatMap(p -> {
             if (p.toString().endsWith(".jar")) {
                 return classesInJar(p).stream();
@@ -107,18 +110,5 @@ public class ClassReaders {
         }
     }
 
-    public static List<ClassReader> ofClassPath() throws IOException {
-        String classpath = System.getProperty("java.class.path");
-        return ofClassPath(classpath);
-    }
 
-    public static List<ClassReader> ofClassPath(String classpath) {
-        if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
-            var classpathSeparator = System.getProperty("path.separator");
-
-            String[] pathelements = classpath.split(classpathSeparator);
-            return ofPaths(Arrays.stream(pathelements).map(Paths::get));
-        }
-        return Collections.emptyList();
-    }
 }

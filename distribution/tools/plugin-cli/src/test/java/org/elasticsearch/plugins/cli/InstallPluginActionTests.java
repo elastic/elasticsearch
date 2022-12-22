@@ -47,6 +47,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.plugin.scanner.ClassReadersProvider;
+import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
@@ -54,6 +56,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
+import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -123,6 +127,8 @@ public class InstallPluginActionTests extends ESTestCase {
     private MockTerminal terminal;
     private Tuple<Path, Environment> env;
     private Path pluginDir;
+    private ClassReadersProvider classReadersProvider;
+    private NamedComponentScanner namedComponentScanner;
 
     private final boolean isPosix;
     private final boolean isReal;
@@ -143,7 +149,8 @@ public class InstallPluginActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
-
+        classReadersProvider = Mockito.mock(ClassReadersProvider.class);
+        namedComponentScanner = Mockito.spy(new NamedComponentScanner());
         pluginDir = createPluginDir(temp);
         terminal = MockTerminal.create();
         env = createEnv(temp);
@@ -153,7 +160,12 @@ public class InstallPluginActionTests extends ESTestCase {
                 // no jarhell check
             }
         };
+        skipJarHellAction.setNamedComponentScanner(namedComponentScanner);
+        skipJarHellAction.setClassReadersProvider(classReadersProvider);
+
         defaultAction = new InstallPluginAction(terminal, env.v2(), false);
+        defaultAction.setNamedComponentScanner(namedComponentScanner);
+        defaultAction.setClassReadersProvider(classReadersProvider);
     }
 
     @Override
@@ -193,14 +205,16 @@ public class InstallPluginActionTests extends ESTestCase {
         parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.osX())), "/"));
         parameters.add(new Parameter(Jimfs.newFileSystem(toPosix(Configuration.unix())), "/"));
         parameters.add(new Parameter(PathUtils.getDefaultFileSystem(), LuceneTestCase::createTempDir));
-        return parameters.stream().map(p -> new Object[] { p.fileSystem, p.temp }).collect(Collectors.toList());
+        return parameters.stream().map(p -> new Object[]{p.fileSystem, p.temp}).collect(Collectors.toList());
     }
 
     private static Configuration toPosix(Configuration configuration) {
         return configuration.toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
     }
 
-    /** Creates a test environment with bin, config and plugins directories. */
+    /**
+     * Creates a test environment with bin, config and plugins directories.
+     */
     static Tuple<Path, Environment> createEnv(Function<String, Path> temp) throws IOException {
         Path home = temp.apply("install-plugin-command-tests");
         Files.createDirectories(home.resolve("bin"));
@@ -217,7 +231,9 @@ public class InstallPluginActionTests extends ESTestCase {
         return temp.apply("pluginDir");
     }
 
-    /** creates a fake jar file with empty class files */
+    /**
+     * creates a fake jar file with empty class files
+     */
     static void writeJar(Path jar, String... classes) throws IOException {
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(jar))) {
             for (String clazz : classes) {
@@ -238,7 +254,9 @@ public class InstallPluginActionTests extends ESTestCase {
         return zip;
     }
 
-    /** creates a plugin .zip and returns the url for testing */
+    /**
+     * creates a plugin .zip and returns the url for testing
+     */
     static InstallablePlugin createPluginZip(String name, Path structure, String... additionalProps) throws IOException {
         return createPlugin(name, structure, additionalProps);
     }
@@ -248,8 +266,7 @@ public class InstallPluginActionTests extends ESTestCase {
         PluginTestUtil.writeStablePluginProperties(structure, properties);
 
         if (hasNamedComponentFile) {
-            Map<String, Map<String, String>> namedComponents = namedComponentsMap();
-            PluginTestUtil.writeNamedComponentsFile(structure, namedComponents);
+            PluginTestUtil.writeNamedComponentsFile(structure, namedComponentsJSON());
         }
 
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
@@ -333,8 +350,9 @@ public class InstallPluginActionTests extends ESTestCase {
         assertInstallCleaned(environment);
     }
 
-    void assertNamedComponentFile(String name, Path pluginDir) {
-
+    void assertNamedComponentFile(String name, Path pluginDir, String expectedContent) throws IOException {
+        Path namedComponents = pluginDir.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        assertThat(Files.readString(namedComponents), equalTo(expectedContent));
     }
 
     void assertPluginInternal(String name, Path pluginsFile, Path originalPlugin) throws IOException {
@@ -822,7 +840,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
         MockTerminal mockTerminal = MockTerminal.create();
-        new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+        new MockInstallPluginCommand().main(new String[]{"--help"}, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         try (BufferedReader reader = new BufferedReader(new StringReader(mockTerminal.getOutput()))) {
             String line = reader.readLine();
 
@@ -1535,15 +1553,42 @@ public class InstallPluginActionTests extends ESTestCase {
         }
     }
 
-    public void testStablePluginWithNamedComponents() throws Exception {
+    public void testStablePluginWithNamedComponentsFile() throws Exception {
         InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, true);
         installPlugins(List.of(stablePluginZip), env.v1());
         assertPlugin("stable1", pluginDir, env.v2());
-        assertNamedComponentFile("stable1", pluginDir);
+        assertNamedComponentFile("stable1", pluginDir, namedComponentsJSON());
     }
 
-    private static Map<String, Map<String, String>> namedComponentsMap() {
-        return Map.of("org.elasticsearch.ExtensibleInterface",
-            Map.of("a_component", "p.A"));
+    public void testStablePluginWithoutNamedComponentsFile() throws Exception {
+        //named component will have to be generated upon install
+        InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, false);
+
+        List<ClassReader> classReaders = Mockito.mock(List.class);
+        Mockito.when(classReadersProvider.ofDirWithJars(Mockito.any(Path.class)))
+            .thenReturn(classReaders);
+        Mockito.doReturn(namedComponentsMap())
+            .when(namedComponentScanner).scanForNamedClasses(Mockito.eq(classReaders));
+
+        installPlugins(List.of(stablePluginZip), env.v1());
+        assertPlugin("stable1", pluginDir, env.v2());
+
+    }
+
+    private Map<String, Map<String, String>> namedComponentsMap() {
+        return Map.of("org.elasticsearch..ExtensibleInterface",
+            Map.of("a_component", "p.A",
+                "b_component", "p.B"));
+    }
+
+    private static String namedComponentsJSON() {
+        return """
+            {
+              "org.elasticsearch..ExtensibleInterface": {
+                "a_component": "p.A",
+                "b_component": "p.B"
+              }
+            }
+            """.replaceAll("[\n\r\s]", "");
     }
 }

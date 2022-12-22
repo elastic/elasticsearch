@@ -26,9 +26,10 @@ import java.util.List;
 import java.util.Map;
 
 public class NamedComponentScanner {
+
     // main method to be used by gradle build plugin
     public static void main(String[] args) throws IOException {
-        List<ClassReader> classReaders = ClassReaders.ofClassPath();
+        List<ClassReader> classReaders = new ClassReadersProvider().ofClassPath();
 
         NamedComponentScanner scanner = new NamedComponentScanner();
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
@@ -37,7 +38,7 @@ public class NamedComponentScanner {
     }
 
     // scope for testing
-    void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) throws IOException {
+    public void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) throws IOException {
         // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
         Files.createDirectories(outputFile.getParent());
 
@@ -58,12 +59,12 @@ public class NamedComponentScanner {
     }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
-    public Map<String, Map<String, String>> scanForNamedClasses(List<ClassReader> classReaderStream) {
+    public Map<String, Map<String, String>> scanForNamedClasses(List<ClassReader> classReaders) {
         ClassScanner extensibleClassScanner = new ClassScanner(Type.getDescriptor(Extensible.class), (classname, map) -> {
             map.put(classname, classname);
             return null;
         });
-        extensibleClassScanner.visit(classReaderStream);
+        extensibleClassScanner.visit(classReaders);
 
         ClassScanner namedComponentsScanner = new ClassScanner(
             Type.getDescriptor(NamedComponent.class),
@@ -77,7 +78,7 @@ public class NamedComponentScanner {
             }
         );
 
-        namedComponentsScanner.visit(classReaderStream);
+        namedComponentsScanner.visit(classReaders);
 
         Map<String, Map<String, String>> componentInfo = new HashMap<>();
         for (var e : namedComponentsScanner.getFoundClasses().entrySet()) {

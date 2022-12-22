@@ -23,6 +23,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,8 +77,8 @@ public class NamedComponentScannerTests extends ESTestCase {
             public class B implements ExtensibleInterface{}
             """)));
         List<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()).stream(),
-            ClassReaders.ofClassPath().stream()
+                new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
+                new ClassReadersProvider().ofClassPath().stream()
         )// contains plugin-api
             .toList();
 
@@ -150,13 +151,13 @@ public class NamedComponentScannerTests extends ESTestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        List<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()).stream(),
-            ClassReaders.ofClassPath().stream()
+        List<ClassReader> classReaders = Stream.concat(
+                new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
+                new ClassReadersProvider().ofClassPath().stream()
         )// contains plugin-api
             .toList();
 
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
+        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,

@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ClassReadersTests extends ESTestCase {
+public class ClassReadersProviderTests extends ESTestCase {
 
     private Path tmpDir() throws IOException {
         return createTempDir();
@@ -37,7 +37,7 @@ public class ClassReadersTests extends ESTestCase {
             module p {}
             """)));
 
-        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar));
+        List<ClassReader> classReaders = new ClassReadersProvider().ofDirWithJars(dirWithJar);
         org.hamcrest.MatcherAssert.assertThat(classReaders, Matchers.empty());
     }
 
@@ -54,7 +54,7 @@ public class ClassReadersTests extends ESTestCase {
             public class B {}
             """)));
 
-        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar));
+        List<ClassReader> classReaders = new ClassReadersProvider().ofDirWithJars(dirWithJar);
         List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
         org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
     }
@@ -91,7 +91,7 @@ public class ClassReadersTests extends ESTestCase {
             public class E {}
             """));
 
-        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(tmp, jar, jar2));
+        List<ClassReader> classReaders = ClassReadersProvider.ofPaths(Stream.of(tmp, jar, jar2));
         List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
         org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
     }
@@ -119,7 +119,7 @@ public class ClassReadersTests extends ESTestCase {
             public class D {}
             """)));
 
-        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar.toString());
+        List<ClassReader> classReaders = new ClassReadersProvider().ofDirWithJars(dirWithJar);
         List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
         org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
     }

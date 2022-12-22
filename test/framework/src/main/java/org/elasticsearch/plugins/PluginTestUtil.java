@@ -62,7 +62,8 @@ public class PluginTestUtil {
         }
     }
 
-    public static void writeNamedComponentsFile(Path structure, Map<String, Map<String, String>> namedComponents) {
-
+    public static void writeNamedComponentsFile(Path pluginDir, String namedComponentsJson) throws IOException {
+        Path namedComponentsFile = pluginDir.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        Files.writeString(namedComponentsFile, namedComponentsJson);
     }
 }

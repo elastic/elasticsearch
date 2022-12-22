@@ -22,8 +22,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
-
 public class ClassReadersTests extends ESTestCase {
 
     private Path tmpDir() throws IOException {
@@ -39,10 +37,8 @@ public class ClassReadersTests extends ESTestCase {
             module p {}
             """)));
 
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(jar))) {
-
-            org.hamcrest.MatcherAssert.assertThat(classReaderStream.collect(Collectors.toList()), Matchers.empty());
-        }
+        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar));
+        org.hamcrest.MatcherAssert.assertThat(classReaders, Matchers.empty());
     }
 
     public void testTwoClassesInAStreamFromJar() throws IOException {
@@ -58,10 +54,9 @@ public class ClassReadersTests extends ESTestCase {
             public class B {}
             """)));
 
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(jar))) {
-            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-            org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
-        }
+        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar));
+        List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
+        org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
     }
 
     public void testStreamOfJarsAndIndividualClasses() throws IOException {
@@ -96,11 +91,9 @@ public class ClassReadersTests extends ESTestCase {
             public class E {}
             """));
 
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(tmp, jar, jar2))) {
-
-            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-            org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
-        }
+        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(tmp, jar, jar2));
+        List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
+        org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
     }
 
     public void testMultipleJarsInADir() throws IOException {
@@ -126,9 +119,8 @@ public class ClassReadersTests extends ESTestCase {
             public class D {}
             """)));
 
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar)) {
-            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-            org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
-        }
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar.toString());
+        List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
+        org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
     }
 }

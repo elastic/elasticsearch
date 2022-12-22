@@ -5,15 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-// This is only required because :server needs this at runtime.
-// We'll be removing this in 8.0 so for now just publish the JAR to make dependency resolution work.
 apply plugin: 'elasticsearch.publish'
 
-tasks.named("test").configure { enabled = false }
-
-// test depend on ES core...
-tasks.named('forbiddenApisMain').configure { enabled = false}
 tasks.named("jarHell").configure { enabled = false }
 
 
@@ -28,11 +21,14 @@ dependencies {
 
   implementation 'org.ow2.asm:asm:9.2'
   implementation 'org.ow2.asm:asm-tree:9.2'
-//  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-//  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 
   testImplementation "junit:junit:${versions.junit}"
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-plugin-scanner'
   }
 }
+tasks.named('forbiddenApisMain').configure {
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
+}
+

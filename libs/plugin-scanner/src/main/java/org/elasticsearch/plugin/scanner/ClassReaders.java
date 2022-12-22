@@ -16,14 +16,17 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
-import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipFile;
 
 /**
  * A utility class containing methods to create streams of ASM's ClassReader
@@ -37,10 +40,11 @@ public class ClassReaders {
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static Stream<ClassReader> ofDirWithJars(Path dir) {
-        if (dir == null) {
-            return Stream.empty();
+    public static List<ClassReader> ofDirWithJars(String path) {
+        if (path == null) {
+            return Collections.emptyList();
         }
+        Path dir = Paths.get(path);
         try {
             return ofPaths(Files.list(dir));
         } catch (IOException e) {
@@ -48,7 +52,7 @@ public class ClassReaders {
         }
     }
 
-    public static Stream<ClassReader> ofPaths(Set<URL> classpathFiles) {
+    public static List<ClassReader> ofPaths(Set<URL> classpathFiles) {
         return ofPaths(classpathFiles.stream().map(ClassReaders::toPath));
     }
 
@@ -64,66 +68,57 @@ public class ClassReaders {
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static Stream<ClassReader> ofPaths(Stream<Path> list) {
+    public static List<ClassReader> ofPaths(Stream<Path> list) {
         return list.filter(Files::exists).flatMap(p -> {
             if (p.toString().endsWith(".jar")) {
-                return classesInJar(p);
+                return classesInJar(p).stream();
             } else {
-                return classesInPath(p);
+                return classesInPath(p).stream();
             }
-        });
+        }).toList();
     }
 
-    private static Stream<ClassReader> classesInJar(Path jar) {
-        try {
-            JarFile jf = new JarFile(jar.toFile(), true, ZipFile.OPEN_READ, Runtime.version());
+    private static List<ClassReader> classesInJar(Path jar) {
+        try (FileSystem jarFs = FileSystems.newFileSystem(jar)) {
+            Path root = jarFs.getPath("/");
+            return classesInPath(root);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
-            Stream<ClassReader> classReaderStream = jf.versionedStream()
-                .filter(e -> e.getName().endsWith(".class") && e.getName().equals(MODULE_INFO) == false)
-                .map(e -> {
-                    try (InputStream is = jf.getInputStream(e)) {
+    private static List<ClassReader> classesInPath(Path root) {
+        try {
+            return Files.walk(root)
+                .filter(p -> p.toString().endsWith(".class"))
+                .filter(p -> p.toString().endsWith(MODULE_INFO) == false)
+                .filter(p -> p.toString().startsWith("/META-INF") == false)// skip multi-release files
+                .map(p -> {
+                    try (InputStream is = Files.newInputStream(p)) {
                         byte[] classBytes = is.readAllBytes();
                         return new ClassReader(classBytes);
                     } catch (IOException ex) {
                         throw new UncheckedIOException(ex);
                     }
-                });
-            return classReaderStream;
+                })
+                .collect(Collectors.toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private static Stream<ClassReader> classesInPath(Path root) {
-        try {
-            Stream<Path> stream = Files.walk(root);
-            return stream.filter(p -> p.toString().endsWith(".class"))
-                .filter(p -> p.toString().endsWith("module-info.class") == false)
-                .map(p -> {
-                    try (InputStream is = Files.newInputStream(p)) {
-                        byte[] classBytes = is.readAllBytes();
-                        return new ClassReader(classBytes);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    public static Stream<ClassReader> ofClassPath() throws IOException {
+    public static List<ClassReader> ofClassPath() throws IOException {
         String classpath = System.getProperty("java.class.path");
         return ofClassPath(classpath);
     }
 
-    public static Stream<ClassReader> ofClassPath(String classpath) {
+    public static List<ClassReader> ofClassPath(String classpath) {
         if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
             var classpathSeparator = System.getProperty("path.separator");
 
             String[] pathelements = classpath.split(classpathSeparator);
             return ofPaths(Arrays.stream(pathelements).map(Paths::get));
         }
-        return Stream.empty();
+        return Collections.emptyList();
     }
 }

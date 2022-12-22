@@ -23,9 +23,9 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -75,12 +75,11 @@ public class NamedComponentScannerTests extends ESTestCase {
             @NamedComponent("b_component")
             public class B implements ExtensibleInterface{}
             """)));
-
-        Collection<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar),
-            ClassReaders.ofClassPath()
+        List<ClassReader> classReaderStream = Stream.concat(
+            ClassReaders.ofDirWithJars(dirWithJar.toString()).stream(),
+            ClassReaders.ofClassPath().stream()
         )// contains plugin-api
-            .collect(Collectors.toList());
+            .toList();
 
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
 
@@ -151,11 +150,11 @@ public class NamedComponentScannerTests extends ESTestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        Collection<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar),
-            ClassReaders.ofClassPath()
+        List<ClassReader> classReaderStream = Stream.concat(
+            ClassReaders.ofDirWithJars(dirWithJar.toString()).stream(),
+            ClassReaders.ofClassPath().stream()
         )// contains plugin-api
-            .collect(Collectors.toList());
+            .toList();
 
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
 
@@ -195,10 +194,10 @@ public class NamedComponentScannerTests extends ESTestCase {
                 "b_component": "p.B"
               }
             }
-            """.replaceAll("[\n\r\s]", "")));// todo line sep
+            """.replaceAll("[\n\r\s]", "")));
     }
 
-    private Collection<ClassReader> classReaderStream(Class<?>... classes) {
+    private List<ClassReader> classReaderStream(Class<?>... classes) {
         try {
             return Arrays.stream(classes).map(clazz -> {
                 String className = classNameToPath(clazz) + ".class";

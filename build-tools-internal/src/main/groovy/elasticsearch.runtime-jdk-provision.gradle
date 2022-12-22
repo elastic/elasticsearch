@@ -37,9 +37,12 @@ configure(allprojects) {
   }
   project.plugins.withType(RestTestBasePlugin) {
     // Use later JDK for new REST test plugins since :test:test-clusters requires Java 17+
+    // The clusters under test still use the configured runtime java home
     project.tasks.withType(StandaloneRestIntegTestTask).configureEach { StandaloneRestIntegTestTask test ->
       test.dependsOn(rootProject.jdks.provisioned_runtime)
       test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+      // Pass actual runtime java version used for clusters under test
+      test.systemProperty("tests.runtime.java", BuildParams.runtimeJavaVersion)
     }
   }
 }

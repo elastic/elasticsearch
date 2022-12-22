@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.util.List;
@@ -46,7 +46,7 @@ public class RestFollowStatsAction extends BaseRestHandler {
             new ThreadedActionListener<>(
                 logger,
                 client.threadPool(),
-                ThreadPool.Names.MANAGEMENT,
+                Ccr.CCR_THREAD_POOL_NAME,
                 new RestChunkedToXContentListener<>(channel),
                 false
             )

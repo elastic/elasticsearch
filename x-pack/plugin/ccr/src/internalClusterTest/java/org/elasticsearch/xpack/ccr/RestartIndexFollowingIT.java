@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
@@ -97,15 +98,26 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        var totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;
-        assertBusy(() -> {
-            if (hasFollowTaskWithFatalException("index2")) {
-                logger.info("follower has encountered a fatal exception, recreating");
+        if (isFollowerStoppedBecauseOfRemoteClusterDisconnection("index2")) {
+            boolean resuming = randomBoolean();
+            logger.info(
+                "shard follow task has been stopped because of remote cluster disconnection, " + (resuming ? "resuming" : "recreating")
+            );
+            if (resuming) {
+                assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
+                assertAcked(followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).actionGet());
+            } else {
                 assertAcked(followerClient().admin().indices().prepareDelete("index2"));
                 followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL)).get();
             }
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs));
-        }, 30L, TimeUnit.SECONDS);
+        }
+
+        var totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;
+        assertBusy(
+            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs)),
+            30L,
+            TimeUnit.SECONDS
+        );
 
         cleanRemoteCluster();
         assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
@@ -161,7 +173,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         });
     }
 
-    private boolean hasFollowTaskWithFatalException(String indexName) {
+    private boolean isFollowerStoppedBecauseOfRemoteClusterDisconnection(String indexName) {
         var request = new FollowStatsAction.StatsRequest();
         request.setIndices(new String[] { indexName });
         var response = followerClient().execute(FollowStatsAction.INSTANCE, request).actionGet();

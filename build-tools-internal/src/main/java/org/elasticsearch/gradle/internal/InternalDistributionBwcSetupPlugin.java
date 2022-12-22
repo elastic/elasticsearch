@@ -110,6 +110,26 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             buildBwcTaskProvider,
             "assemble"
         );
+
+        // Create build tasks for stable plugin jars for compatibility testing
+        String stableAnalysisPluginProjectDir = "libs/plugin-analysis-api";
+
+        DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
+            new File(checkoutDir.get(), stableAnalysisPluginProjectDir + "/build/distributions/elasticsearch-plugin-analysis-api-"
+                + bwcVersion.get() + "-SNAPSHOT.jar"),
+            null
+        );
+
+        createBuildBwcTask(
+            bwcSetupExtension,
+            project,
+            bwcVersion,
+            "elasticsearch-plugin-analysis-api",
+            "libs/elasticsearch-plugin-analysis-api",
+            stableAnalysisPluginProjectArtifact,
+            buildBwcTaskProvider,
+            "assemble"
+        );
     }
 
     private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {

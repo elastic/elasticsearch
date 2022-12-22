@@ -1,3 +1,9 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.JarApiComparisonTask
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -8,6 +14,7 @@
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.bwc-test'
 
 
 tasks.named("loggerUsageCheck").configure {enabled = false }
@@ -25,4 +32,37 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
+}
+
+configurations {
+  stableAnalysisPluginApi
+}
+
+BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString("8.5.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
+  def baseName = "v${bwcVersion}"
+
+  BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+  Configuration stableApiConfiguration = configurations.create("stableAnalysisPluginApi${baseName}") {
+    // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
+    transitive = false
+  }
+  Object libDependency = null
+
+  if (unreleasedVersion) {
+    // For unreleased snapshot versions, build them from source
+    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcElasticsearchPluginAnalysisApi'))
+  } else {
+    // For released versions, download it
+    libDependency = "org.elasticsearch:elasticsearch-plugin-analysis-api:${bwcVersion}"
+  }
+
+  dependencies {
+    "stableAnalysisPluginApi${baseName}"(libDependency)
+  }
+
+  tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
+    dependsOn assemble, libDependency
+    oldJar = libDependency.getSingleFile() // only works for unreleased versions
+    newJar = layout.buildDirectory.file('distributions/elasticsearch-plugin-analysis-api-8.7.0-SNAPSHOT.jar')
+  }
 }

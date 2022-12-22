@@ -129,7 +129,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         assertJwtToken(token5, principal5, sharedSecret, signedJWT5);
     }
 
-    public void testJwtRealmReturnsNullWhenJwtCredentialIsAbsent() {
+    public void testJwtRealmReturnsNullTokenWhenJwtCredentialIsAbsent() {
         final List<JwtRealm> jwtRealms = getJwtRealms();
         final JwtRealm jwtRealm = randomFrom(jwtRealms);
         final String sharedSecret = randomBoolean() ? randomAlphaOfLengthBetween(10, 20) : null;

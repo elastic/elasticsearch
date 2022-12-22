@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -20,11 +21,14 @@ import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -79,6 +83,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         ensureFollowerGreen("index2");
 
         final long secondBatchNumDocs = randomIntBetween(10, 200);
+        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
         for (int i = 0; i < secondBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
@@ -87,16 +92,20 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         ensureLeaderGreen("index1");
 
         final long thirdBatchNumDocs = randomIntBetween(10, 200);
+        logger.info("Indexing [{}] docs as third batch", thirdBatchNumDocs);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(
-                followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
-            )
-        );
+        var totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;
+        assertBusy(() -> {
+            if (hasFollowTaskWithFatalException("index2")) {
+                logger.info("follower has encountered a fatal exception, recreating");
+                assertAcked(followerClient().admin().indices().prepareDelete("index2"));
+                followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL)).get();
+            }
+            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs));
+        }, 30L, TimeUnit.SECONDS);
 
         cleanRemoteCluster();
         assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
@@ -149,6 +158,18 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
                 .get()
                 .getInfos();
             assertThat(infos.size(), equalTo(0));
+        });
+    }
+
+    private boolean hasFollowTaskWithFatalException(String indexName) {
+        var request = new FollowStatsAction.StatsRequest();
+        request.setIndices(new String[] { indexName });
+        var response = followerClient().execute(FollowStatsAction.INSTANCE, request).actionGet();
+        return response.getStatsResponses().stream().map(r -> r.status().getFatalException()).filter(Objects::nonNull).anyMatch(e -> {
+            if (e.getCause()instanceof IllegalStateException ise) {
+                return ise.getMessage().contains("Unable to open any connections to remote cluster");
+            }
+            return false;
         });
     }
 }

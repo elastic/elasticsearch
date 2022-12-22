@@ -45,7 +45,7 @@ public class GeoHexVisitorTests extends ESTestCase {
         doTestGeometry(GeoHexVisitorTests::getGeometryAsPolygon, true);
     }
 
-    private void doTestGeometry(LongFunction<Geometry> function, boolean hasArea) throws IOException {
+    private void doTestGeometry(LongFunction<Geometry> h3ToGeometry, boolean hasArea) throws IOException {
         // we ignore polar cells are they are problematic and do not keep the relationships
         long h3 = randomValueOtherThanMany(
             l -> l == H3.geoToH3(90, 0, H3.getResolution(l)) || l == H3.geoToH3(-90, 0, H3.getResolution(l)),
@@ -59,7 +59,7 @@ public class GeoHexVisitorTests extends ESTestCase {
         final String failMsg = "failing h3: " + h3;
         boolean h3CrossesDateline = visitor.getLeftX() > visitor.getRightX();
         {
-            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(function.apply(h3), CoordinateEncoder.GEO);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(h3ToGeometry.apply(h3), CoordinateEncoder.GEO);
             visitor.reset(h3);
             reader.visit(visitor);
             assertEquals(failMsg, GeoRelation.QUERY_CROSSES, visitor.relation());
@@ -68,7 +68,7 @@ public class GeoHexVisitorTests extends ESTestCase {
             assertTrue(failMsg, visitor.intersectsBbox(rectangle.getMinX(), rectangle.getMaxX(), rectangle.getMinY(), rectangle.getMaxY()));
         }
         {
-            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(function.apply(centerChild), CoordinateEncoder.GEO);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(h3ToGeometry.apply(centerChild), CoordinateEncoder.GEO);
             visitor.reset(h3);
             reader.visit(visitor);
             assertEquals("failing h3: " + h3, GeoRelation.QUERY_CONTAINS, visitor.relation());
@@ -77,7 +77,7 @@ public class GeoHexVisitorTests extends ESTestCase {
             assertTrue(failMsg, visitor.intersectsBbox(rectangle.getMinX(), rectangle.getMaxX(), rectangle.getMinY(), rectangle.getMaxY()));
         }
         {
-            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(function.apply(h3), CoordinateEncoder.GEO);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(h3ToGeometry.apply(h3), CoordinateEncoder.GEO);
             visitor.reset(centerChild);
             reader.visit(visitor);
             if (hasArea) {
@@ -92,7 +92,10 @@ public class GeoHexVisitorTests extends ESTestCase {
             }
         }
         {
-            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(function.apply(noChildIntersecting), CoordinateEncoder.GEO);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(
+                h3ToGeometry.apply(noChildIntersecting),
+                CoordinateEncoder.GEO
+            );
             visitor.reset(centerChild);
             reader.visit(visitor);
             assertEquals("failing h3: " + h3, GeoRelation.QUERY_DISJOINT, visitor.relation());
@@ -105,7 +108,7 @@ public class GeoHexVisitorTests extends ESTestCase {
         }
         {
             GeometryCollection<Geometry> collection = new GeometryCollection<>(
-                List.of(function.apply(centerChild), function.apply(noChildIntersecting))
+                List.of(h3ToGeometry.apply(centerChild), h3ToGeometry.apply(noChildIntersecting))
             );
             GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(collection, CoordinateEncoder.GEO);
             visitor.reset(h3);

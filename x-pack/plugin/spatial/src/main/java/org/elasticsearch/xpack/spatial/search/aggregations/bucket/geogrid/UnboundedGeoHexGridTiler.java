@@ -30,7 +30,7 @@ public class UnboundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     }
 
     @Override
-    protected boolean validH3(long h3) {
+    protected boolean h3IntersectsBounds(long h3) {
         return true;
     }
 

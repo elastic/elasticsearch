@@ -25,10 +25,10 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     }
 
     /** check if the provided H3 bin is in the solution space of this tiler */
-    protected abstract boolean validH3(long h3);
+    protected abstract boolean h3IntersectsBounds(long h3);
 
     /** Return the relation between the H3 bin and the geoValue. If the h3 is out of the tiler solution (e.g.
-     * {@link #validH3(long)} is false), it should return {@link GeoRelation#QUERY_DISJOINT}
+     * {@link #h3IntersectsBounds(long)} is false), it should return {@link GeoRelation#QUERY_DISJOINT}
     */
     protected abstract GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, long h3) throws IOException;
 
@@ -89,7 +89,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      * Adds {@code h3} to {@link GeoShapeCellValues} if {@link #relateTile(GeoShapeValues.GeoShapeValue, long)} returns
      * a relation different to {@link GeoRelation#QUERY_DISJOINT}.
      */
-    private int maybeAdd(long h3, GeoRelation relation, GeoShapeCellValues values, int valueIndex) throws IOException {
+    private int maybeAdd(long h3, GeoRelation relation, GeoShapeCellValues values, int valueIndex) {
         if (relation != GeoRelation.QUERY_DISJOINT) {
             values.resizeCell(valueIndex + 1);
             values.add(valueIndex++, h3);
@@ -135,6 +135,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         int precision,
         int valueIndex
     ) throws IOException {
+        assert H3.getResolution(h3) == precision;
         final GeoRelation relation = relateTile(geoValue, h3);
         if (precision == this.precision) {
             // When we're at the desired level
@@ -174,7 +175,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      * Once at the required depth, then all cells that intersect are added to the collection.
      */
     private int setAllValuesByRecursion(GeoShapeCellValues values, long h3, int precision, int valueIndex, boolean valueInsideBounds) {
-        if (valueInsideBounds || validH3(h3)) {
+        if (valueInsideBounds || h3IntersectsBounds(h3)) {
             if (precision == this.precision) {
                 values.resizeCell(valueIndex + 1);
                 values.add(valueIndex++, h3);

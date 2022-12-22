@@ -93,7 +93,7 @@ public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     }
 
     @Override
-    protected boolean validH3(long h3) {
+    protected boolean h3IntersectsBounds(long h3) {
         visitor.reset(h3);
         final int resolution = H3.getResolution(h3);
         if (resolution != precision) {

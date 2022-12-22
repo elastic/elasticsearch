@@ -105,15 +105,18 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
-                    final H3LatLonGeometry geometry = new H3LatLonGeometry(id);
-                    return pointFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
-                } else if (fieldType instanceof GeoPointScriptFieldType scriptType) {
-                    final H3LatLonGeometry geometry = new H3LatLonGeometry(id);
-                    return scriptType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
-                } else if (fieldType instanceof GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType geoShapeFieldType) {
+                if (fieldType instanceof GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType geoShapeFieldType) {
+                    // shapes are solved on the cartesian geometry
                     final LatLonGeometry geometry = H3CartesianUtil.getLatLonGeometry(H3.stringToH3(id));
                     return geoShapeFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                } else {
+                    // points are solved on the spherical geometry
+                    final H3LatLonGeometry geometry = new H3LatLonGeometry(id);
+                    if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
+                        return pointFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                    } else if (fieldType instanceof GeoPointScriptFieldType scriptType) {
+                        return scriptType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                    }
                 }
                 throw new QueryShardException(
                     context,

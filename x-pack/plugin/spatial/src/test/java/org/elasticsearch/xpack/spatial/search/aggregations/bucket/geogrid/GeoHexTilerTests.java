@@ -209,6 +209,6 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
             return true;
         }
         BoundedGeoHexGridTiler predicate = new BoundedGeoHexGridTiler(finalPrecision, bbox);
-        return predicate.validH3(h3);
+        return predicate.h3IntersectsBounds(h3);
     }
 }

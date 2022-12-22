@@ -98,8 +98,8 @@ public final class H3CartesianUtil {
             return cached[0].length;
         }
         final int resolution = H3.getResolution(h3);
-        final double pole = H3.geoToH3(90, 0, resolution) == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(90d))
-            : H3.geoToH3(-90, 0, resolution) == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-90d))
+        final double pole = NORTH[resolution] == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(90d))
+            : SOUTH[resolution] == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-90d))
             : Double.NaN;
         final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3);
         final int numPoints;

@@ -64,7 +64,7 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
     @Override
     protected boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box) {
         final BoundedGeoHexGridTiler tiler = new BoundedGeoHexGridTiler(precision, box);
-        return tiler.validH3(H3.stringToH3(hashAsString(lng, lat, precision)));
+        return tiler.h3IntersectsBounds(H3.stringToH3(hashAsString(lng, lat, precision)));
     }
 
     @Override

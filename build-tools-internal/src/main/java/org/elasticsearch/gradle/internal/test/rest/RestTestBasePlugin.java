@@ -43,10 +43,10 @@ import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import javax.inject.Inject;
 
 /**
@@ -90,27 +90,18 @@ public class RestTestBasePlugin implements Plugin<Project> {
         });
 
         // Create configures for module and plugin dependencies
-        Configuration modulesConfiguration = createPluginConfiguration(project, MODULES_CONFIGURATION, true);
-        Configuration pluginsConfiguration = createPluginConfiguration(project, PLUGINS_CONFIGURATION, false);
-        Configuration extractedPluginsConfiguration = createPluginConfiguration(project, EXTRACTED_PLUGINS_CONFIGURATION, true);
+        Configuration modulesConfiguration = createPluginConfiguration(project, MODULES_CONFIGURATION, true, false);
+        Configuration pluginsConfiguration = createPluginConfiguration(project, PLUGINS_CONFIGURATION, false, false);
+        Configuration extractedPluginsConfiguration = createPluginConfiguration(project, EXTRACTED_PLUGINS_CONFIGURATION, true, true);
         extractedPluginsConfiguration.extendsFrom(pluginsConfiguration);
         configureArtifactTransforms(project);
 
         // For plugin and module projects, register the current project plugin bundle as a dependency
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
-                project.getDependencies()
-                    .add(
-                        modulesConfiguration.getName(),
-                        project.getDependencies()
-                            .project(Map.of("path", project.getPath(), "configuration", BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG))
-                    );
+                project.getDependencies().add(MODULES_CONFIGURATION, getExplodedBundleDependency(project, project.getPath()));
             } else {
-                project.getDependencies()
-                    .add(
-                        pluginsConfiguration.getName(),
-                        project.files(project.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME))
-                    );
+                project.getDependencies().add(PLUGINS_CONFIGURATION, getBundleZipTaskDependency(project, project.getPath()));
             }
 
         });
@@ -201,34 +192,62 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .map(Project::getPath);
     }
 
-    private Configuration createPluginConfiguration(Project project, String name, boolean useExploded) {
+    private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
         return project.getConfigurations().create(name, c -> {
             if (useExploded) {
                 c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE));
             } else {
                 c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE));
             }
-            c.withDependencies(dependencies -> {
-                // Add dependencies of any modules
-                Collection<Dependency> additionalDependencies = new HashSet<>();
-                for (Dependency dependency : dependencies) {
-                    if (dependency instanceof ProjectDependency projectDependency) {
-                        List<String> extendedPlugins = projectDependency.getDependencyProject()
-                            .getExtensions()
-                            .getByType(PluginPropertiesExtension.class)
-                            .getExtendedPlugins();
+            if (isExtended == false) {
+                c.withDependencies(dependencies -> {
+                    // Add dependencies of any modules
+                    Collection<Dependency> additionalDependencies = new HashSet<>();
+                    for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
+                        Dependency dependency = iterator.next();
+                        if (dependency instanceof ProjectDependency projectDependency) {
+                            Project dependencyProject = projectDependency.getDependencyProject();
+                            List<String> extendedPlugins = dependencyProject.getExtensions()
+                                .getByType(PluginPropertiesExtension.class)
+                                .getExtendedPlugins();
 
-                        for (String extendedPlugin : extendedPlugins) {
-                            findModulePath(project, extendedPlugin).ifPresent(
-                                modulePath -> additionalDependencies.add(project.getDependencies().project(Map.of("path", modulePath)))
-                            );
+                            // Replace project dependency with explicit dependency on exploded configuration to workaround variant bug
+                            if (projectDependency.getTargetConfiguration() == null) {
+                                iterator.remove();
+                                additionalDependencies.add(
+                                    useExploded
+                                        ? getExplodedBundleDependency(project, dependencyProject.getPath())
+                                        : getBundleZipTaskDependency(project, dependencyProject.getPath())
+                                );
+                            }
+
+                            for (String extendedPlugin : extendedPlugins) {
+                                findModulePath(project, extendedPlugin).ifPresent(
+                                    modulePath -> additionalDependencies.add(
+                                        useExploded
+                                            ? getExplodedBundleDependency(project, modulePath)
+                                            : getBundleZipTaskDependency(project, modulePath)
+                                    )
+                                );
+                            }
                         }
                     }
-                }
 
-                dependencies.addAll(additionalDependencies);
-            });
+                    dependencies.addAll(additionalDependencies);
+                });
+            }
         });
+    }
+
+    private Dependency getExplodedBundleDependency(Project project, String projectPath) {
+        return project.getDependencies()
+            .project(Map.of("path", projectPath, "configuration", BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG));
+    }
+
+    private Dependency getBundleZipTaskDependency(Project project, String projectPath) {
+        Project dependencyProject = project.findProject(projectPath);
+        return project.getDependencies()
+            .create(project.files(dependencyProject.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME)));
     }
 
     private void configureArtifactTransforms(Project project) {

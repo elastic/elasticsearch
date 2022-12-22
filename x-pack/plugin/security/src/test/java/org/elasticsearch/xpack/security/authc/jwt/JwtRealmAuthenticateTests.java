@@ -131,8 +131,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Empty all JWT issuer JWKs.
         LOGGER.debug("JWKs 1 backed up, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
         jwtIssuerAndRealm.issuer().setJwks(Collections.emptyList(), jwtIssuerJwks1OidcSafe);
-        super.printJwtIssuer(jwtIssuerAndRealm.issuer());
-        super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
         LOGGER.debug("JWKs 1 emptied, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
@@ -141,8 +141,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Restore original JWKs 1 into the JWT issuer.
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks1Backup, jwtIssuerJwks1OidcSafe);
-        super.printJwtIssuer(jwtIssuerAndRealm.issuer());
-        super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
         LOGGER.debug("JWKs 1 restored, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
@@ -155,8 +155,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             jwtIssuerJwks1OidcSafe
         );
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks2Backup, jwtIssuerJwks1OidcSafe);
-        super.printJwtIssuer(jwtIssuerAndRealm.issuer());
-        super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
         LOGGER.debug("JWKs 2 created, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm still has original JWKs cached in memory.
@@ -195,8 +195,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Empty all JWT issuer JWKs.
         jwtIssuerAndRealm.issuer().setJwks(Collections.emptyList(), jwtIssuerJwks1OidcSafe);
-        super.printJwtIssuer(jwtIssuerAndRealm.issuer());
-        super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
 
         // New JWT continues working because JWT realm will end up with PKC JWKs 2 and HMAC JWKs 1 in memory
         if (isPkcJwtJwks2) {
@@ -227,8 +227,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Restore JWKs 2 to the realm
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks2Backup, jwtIssuerJwks1OidcSafe);
-        super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
-        super.printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
 
         // Trigger JWT realm to reload JWKs and go into a recovered state
         // - jwtJwks2(PKC): Pass (Triggers PKC reload, gets newer PKC JWKs), jwtJwks1(PKC): Fail (Triggers PKC reload, gets new PKC JWKs)
@@ -347,7 +347,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Now perform negative path tests to confirm JWT validation rejects invalid JWTs for different scenarios.
 
         {   // Do one more direct SUCCESS scenario by checking token() and authenticate() directly before moving on to FAILURE scenarios.
-            final ThreadContext requestThreadContext = super.createThreadContext(jwt, clientSecret);
+            final ThreadContext requestThreadContext = createThreadContext(jwt, clientSecret);
             final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm().token(requestThreadContext);
             final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
             jwtIssuerAndRealm.realm().authenticate(token, plainActionFuture);
@@ -358,31 +358,31 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Directly verify FAILURE scenarios for token() parsing failures and authenticate() validation failures.
 
         // Null JWT
-        final ThreadContext tc1 = super.createThreadContext(null, clientSecret);
+        final ThreadContext tc1 = createThreadContext(null, clientSecret);
         assertThat(jwtIssuerAndRealm.realm().token(tc1), nullValue());
 
         // Empty JWT string
-        final ThreadContext tc2 = super.createThreadContext("", clientSecret);
+        final ThreadContext tc2 = createThreadContext("", clientSecret);
         final Exception e2 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc2));
         assertThat(e2.getMessage(), equalTo("JWT bearer token must be non-empty"));
 
         // Non-empty whitespace JWT string
-        final ThreadContext tc3 = super.createThreadContext("", clientSecret);
+        final ThreadContext tc3 = createThreadContext("", clientSecret);
         final Exception e3 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc3));
         assertThat(e3.getMessage(), equalTo("JWT bearer token must be non-empty"));
 
         // Blank client secret
-        final ThreadContext tc4 = super.createThreadContext(jwt, "");
+        final ThreadContext tc4 = createThreadContext(jwt, "");
         final Exception e4 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc4));
         assertThat(e4.getMessage(), equalTo("Client shared secret must be non-empty"));
 
         // Non-empty whitespace JWT client secret
-        final ThreadContext tc5 = super.createThreadContext(jwt, " ");
+        final ThreadContext tc5 = createThreadContext(jwt, " ");
         final Exception e5 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc5));
         assertThat(e5.getMessage(), equalTo("Client shared secret must be non-empty"));
 
         // JWT parse exception
-        final ThreadContext tc6 = super.createThreadContext("Head.Body.Sig", clientSecret);
+        final ThreadContext tc6 = createThreadContext("Head.Body.Sig", clientSecret);
         final Exception e6 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc6));
         assertThat(e6.getMessage(), equalTo("Failed to parse JWT bearer token"));
 
@@ -394,7 +394,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         {   // Verify rejection of unsigned JWT
             final SecureString unsignedJwt = new SecureString(new PlainJWT(validClaimsSet).serialize().toCharArray());
-            final ThreadContext tc = super.createThreadContext(unsignedJwt, clientSecret);
+            final ThreadContext tc = createThreadContext(unsignedJwt, clientSecret);
             expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc));
         }
 
@@ -473,7 +473,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
         final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, false);
-        super.printJwtIssuer(jwtIssuer);
+        printJwtIssuer(jwtIssuer);
         jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
             final String realmName = "realm_" + jwtIssuer.issuerClaimValue + "_" + i;
@@ -495,7 +495,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             if (jwtIssuer.encodedJwkSetPkcPublic.isEmpty() == false) {
                 authcSettings.put(
                     RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                    super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic)
+                    saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic)
                 );
             }
             // JWT authc realm secure settings
@@ -519,10 +519,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             authcSettings.setSecureSettings(secureSettings);
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, authcSettings);
             final JwtRealm jwtRealm = createJwtRealm(allRealms, jwtIssuer, jwtRealmSettingsBuilder);
-            jwtRealm.initialize(allRealms, super.licenseState);
+            jwtRealm.initialize(allRealms, licenseState);
             final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
             jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
-            super.printJwtRealm(jwtRealm);
+            printJwtRealm(jwtRealm);
         }
 
         // pick 2nd realm and use its secret, verify 2nd realm does authc, which implies 1st realm rejects the secret

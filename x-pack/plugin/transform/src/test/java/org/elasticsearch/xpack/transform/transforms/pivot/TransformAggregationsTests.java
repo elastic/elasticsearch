@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -141,7 +141,7 @@ public class TransformAggregationsTests extends ESTestCase {
 
     public void testAggregationsVsTransforms() {
         // Note: if a new plugin is added, it must be added here
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Arrays.asList((new AnalyticsPlugin()), new MatrixAggregationPlugin()));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Arrays.asList((new AnalyticsPlugin()), new AggregationsPlugin()));
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
 
         List<String> aggregationNames = namedWriteables.stream()

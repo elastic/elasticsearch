@@ -477,4 +477,5 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             }
         });
         return result;
+    }
 }

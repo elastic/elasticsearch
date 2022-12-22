@@ -73,7 +73,9 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
         AbstractChunkedSerializingTestCase.assertObjectChunkCount(
             createTestInstance(),
             instance -> Math.toIntExact(
-                2 * instance.getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count() + 2
+                2 * instance.getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count() + instance
+                    .getStatsResponses()
+                    .size() + 2
             )
         );
     }

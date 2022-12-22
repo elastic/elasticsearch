@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -98,26 +99,36 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        if (isFollowerStoppedBecauseOfRemoteClusterDisconnection("index2")) {
-            boolean resuming = randomBoolean();
-            logger.info(
-                "shard follow task has been stopped because of remote cluster disconnection, " + (resuming ? "resuming" : "recreating")
-            );
-            if (resuming) {
-                assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
-                assertAcked(followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).actionGet());
-            } else {
-                assertAcked(followerClient().admin().indices().prepareDelete("index2"));
-                followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL)).get();
-            }
-        }
-
         var totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs)),
-            30L,
-            TimeUnit.SECONDS
-        );
+        final AtomicBoolean resumeAfterDisconnectionOnce = new AtomicBoolean(false);
+        assertBusy(() -> {
+            try {
+                assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs));
+            } catch (AssertionError e) {
+                // if the leader cluster is too slow at restarting, it is possible that the remote cluster connection strategy fails to
+                // connect to any of the nodes. This is treated by the shard follow node task as a fatal exception and operations are
+                // not replicated anymore, requiring to recreate or resuming the follower
+                if (isFollowerStoppedBecauseOfRemoteClusterDisconnection("index2")) {
+                    if (resumeAfterDisconnectionOnce.compareAndSet(false, true)) {
+                        try {
+                            if (randomBoolean()) {
+                                logger.info("shard follow task has been stopped because of remote cluster disconnection, resuming");
+                                pauseFollow("index2");
+                                assertAcked(followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).actionGet());
+                            } else {
+                                logger.info("shard follow task has been stopped because of remote cluster disconnection, recreating");
+                                assertAcked(followerClient().admin().indices().prepareDelete("index2"));
+                                followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL))
+                                    .actionGet();
+                            }
+                        } catch (AssertionError e2) {
+                            e.addSuppressed(e2);
+                        }
+                    }
+                }
+                throw e;
+            }
+        }, 30L, TimeUnit.SECONDS);
 
         cleanRemoteCluster();
         assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());

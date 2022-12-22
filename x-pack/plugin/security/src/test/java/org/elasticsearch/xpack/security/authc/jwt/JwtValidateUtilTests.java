@@ -11,8 +11,6 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
@@ -22,10 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JwtValidateUtilTests extends JwtTestCase {
 
-    private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtilTests.class);
-
     private void helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
-        LOGGER.trace("Testing signature algorithm " + signatureAlgorithm);
+        logger.trace("Testing signature algorithm " + signatureAlgorithm);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());

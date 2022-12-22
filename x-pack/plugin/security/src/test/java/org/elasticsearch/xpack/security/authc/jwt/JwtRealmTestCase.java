@@ -11,8 +11,6 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -67,8 +65,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class JwtRealmTestCase extends JwtTestCase {
-    private static final Logger LOGGER = LogManager.getLogger(JwtRealmTestCase.class);
-
     record JwtRealmSettingsBuilder(String name, Settings.Builder settingsBuilder) {}
 
     record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm, JwtRealmSettingsBuilder realmSettingsBuilder) {}
@@ -171,7 +167,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     protected void copyIssuerJwksToRealmConfig(final JwtIssuerAndRealm jwtIssuerAndRealm) throws Exception {
         if (JwtRealmInspector.isConfiguredJwkSetPkc(jwtIssuerAndRealm.realm)
             && (JwtRealmInspector.getJwkSetPathUri(jwtIssuerAndRealm.realm) == null)) {
-            LOGGER.trace("Updating JwtRealm PKC public JWKSet local file");
+            logger.trace("Updating JwtRealm PKC public JWKSet local file");
             final Path path = PathUtils.get(JwtRealmInspector.getJwkSetPath(jwtIssuerAndRealm.realm));
             Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublic);
         }
@@ -388,7 +384,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         for (int authcRun = 1; authcRun <= jwtAuthcRepeats; authcRun++) {
             // Create request with headers set
             final ThreadContext requestThreadContext = createThreadContext(jwt, sharedSecret);
-            LOGGER.info("REQ[" + authcRun + "/" + jwtAuthcRepeats + "] HEADERS=" + requestThreadContext.getHeaders());
+            logger.info("REQ[" + authcRun + "/" + jwtAuthcRepeats + "] HEADERS=" + requestThreadContext.getHeaders());
 
             // Any JWT realm can recognize and extract the request headers.
             final var jwtAuthenticationToken = (JwtAuthenticationToken) randomFrom(jwtRealmsList).token(requestThreadContext);
@@ -401,11 +397,11 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             // Loop through all authc/authz realms. Confirm user is returned with expected principal and roles.
             User authenticatedUser = null;
             realmLoop: for (final JwtRealm candidateJwtRealm : jwtRealmsList) {
-                LOGGER.info("TRY AUTHC: expected=[" + jwtRealm.name() + "], candidate[" + candidateJwtRealm.name() + "].");
+                logger.info("TRY AUTHC: expected=[" + jwtRealm.name() + "], candidate[" + candidateJwtRealm.name() + "].");
                 final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = PlainActionFuture.newFuture();
                 candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
                 final AuthenticationResult<User> authenticationResult = authenticateFuture.actionGet();
-                LOGGER.info("Authentication result with realm [{}]: [{}]", candidateJwtRealm.name(), authenticationResult);
+                logger.info("Authentication result with realm [{}]: [{}]", candidateJwtRealm.name(), authenticationResult);
                 switch (authenticationResult.getStatus()) {
                     case SUCCESS:
                         assertThat("Unexpected realm SUCCESS status", candidateJwtRealm.name(), equalTo(jwtRealm.name()));
@@ -439,19 +435,19 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 );
             }
         }
-        LOGGER.info("Test succeeded");
+        logger.info("Test succeeded");
     }
 
     protected User randomUser(final JwtIssuer jwtIssuer) {
         final User user = randomFrom(jwtIssuer.principals.values());
-        LOGGER.info("USER[" + user.principal() + "]: roles=[" + String.join(",", user.roles()) + "].");
+        logger.info("USER[" + user.principal() + "]: roles=[" + String.join(",", user.roles()) + "].");
         return user;
     }
 
     protected SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user) throws Exception {
         final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.algAndJwksAll);
         final JWK jwk = algJwkPair.jwk();
-        LOGGER.info(
+        logger.info(
             "ALG["
                 + algJwkPair.alg()
                 + "]. JWK: kty=["
@@ -499,7 +495,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected void printJwtRealm(final JwtRealm jwtRealm) {
-        LOGGER.info(
+        logger.info(
             "REALM["
                 + jwtRealm.name()
                 + ","
@@ -535,15 +531,15 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + "]."
         );
         for (final JWK jwk : JwtRealmInspector.getJwksAlgsHmac(jwtRealm).jwks()) {
-            LOGGER.info("REALM HMAC: jwk=[{}]", jwk);
+            logger.info("REALM HMAC: jwk=[{}]", jwk);
         }
         for (final JWK jwk : JwtRealmInspector.getJwksAlgsPkc(jwtRealm).jwks()) {
-            LOGGER.info("REALM PKC: jwk=[{}]", jwk);
+            logger.info("REALM PKC: jwk=[{}]", jwk);
         }
     }
 
     protected void printJwtIssuer(final JwtIssuer jwtIssuer) {
-        LOGGER.info(
+        logger.info(
             "ISSUER: iss=["
                 + jwtIssuer.issuerClaimValue
                 + "], aud=["
@@ -557,13 +553,13 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + "]."
         );
         if (jwtIssuer.algAndJwkHmacOidc != null) {
-            LOGGER.info("ISSUER HMAC OIDC: alg=[{}] jwk=[{}]", jwtIssuer.algAndJwkHmacOidc.alg(), jwtIssuer.encodedKeyHmacOidc);
+            logger.info("ISSUER HMAC OIDC: alg=[{}] jwk=[{}]", jwtIssuer.algAndJwkHmacOidc.alg(), jwtIssuer.encodedKeyHmacOidc);
         }
         for (final JwtIssuer.AlgJwkPair pair : jwtIssuer.algAndJwksHmac) {
-            LOGGER.info("ISSUER HMAC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
+            logger.info("ISSUER HMAC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
         }
         for (final JwtIssuer.AlgJwkPair pair : jwtIssuer.algAndJwksPkc) {
-            LOGGER.info("ISSUER PKC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
+            logger.info("ISSUER PKC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
         }
     }
 }

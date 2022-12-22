@@ -13,8 +13,6 @@ import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -44,8 +42,6 @@ import java.util.Map;
  * Generate verified JWT configurations for integration tests or documentation.
  */
 public class JwtRealmGenerateTests extends JwtRealmTestCase {
-    private static final Logger LOGGER = LogManager.getLogger(JwtRealmGenerateTests.class);
-
     private static final int JWT_AUTHC_REPEATS_1 = 1;
     private static final Date DATE_2000_1_1 = Date.from(ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
     private static final Date DATE_2099_1_1 = Date.from(ZonedDateTime.of(2099, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
@@ -425,7 +421,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final SecureString jwt
     ) throws Exception {
         final SignedJWT signedJwt = SignedJWT.parse(jwt.toString());
-        LOGGER.info(
+        logger.info(
             JwtRealmGenerateTests.printIssuerSettings(jwtIssuer)
                 + JwtRealmGenerateTests.printRealmSettings(config)
                 + "\n===\nRequest Headers\n===\n"

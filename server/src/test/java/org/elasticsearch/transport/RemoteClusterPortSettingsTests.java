@@ -20,6 +20,7 @@ import java.util.List;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterPortSettingsTests extends ESTestCase {
@@ -49,7 +50,17 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
                 // We can just stick a random value in, even if it doesn't match the type - that validation happens at a different layer
                 .put(profileSetting.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), randomAlphaOfLength(5))
                 .build();
-            expectThrows(IllegalArgumentException.class, () -> RemoteClusterPortSettings.buildRemoteAccessProfileSettings(testSettings));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RemoteClusterPortSettings.buildRemoteAccessProfileSettings(testSettings)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Remote Access settings should not be configured using the [_remote_cluster] profile. "
+                        + "Use the [remote_cluster.] settings instead."
+                )
+            );
         }
     }
 

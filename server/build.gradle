@@ -54,7 +54,7 @@ dependencies {
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
+  api 'com.tdunning:t-digest:3.3'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 

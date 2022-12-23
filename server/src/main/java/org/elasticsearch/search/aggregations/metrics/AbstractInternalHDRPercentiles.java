@@ -84,13 +84,14 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
         if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-            if (state != null) {
+            if (this.state != null) {
                 out.writeBoolean(true);
-                encode(state, out);
+                encode(this.state, out);
             } else {
                 out.writeBoolean(false);
             }
         } else {
+            DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM;
             encode(state, out);
         }
         out.writeBoolean(keyed);

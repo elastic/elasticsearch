@@ -102,6 +102,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 initializeWorkingDirectory();
                 writeConfiguration();
                 createKeystore();
+                addKeystoreSettings();
                 configureSecurity();
                 installPlugins();
                 if (spec.getDistributionType() == DistributionType.INTEG_TEST) {
@@ -269,6 +270,24 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        private void addKeystoreSettings() {
+            spec.getKeystoreSettings()
+                .forEach(
+                    (key, value) -> ProcessUtils.exec(
+                        value,
+                        workingDir,
+                        OS.conditional(
+                            c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
+                                .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
+                        ),
+                        getEnvironmentVariables(),
+                        false,
+                        "add",
+                        key
+                    )
+                );
         }
 
         private void configureSecurity() {

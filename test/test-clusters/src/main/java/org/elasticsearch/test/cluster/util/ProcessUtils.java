@@ -93,8 +93,14 @@ public final class ProcessUtils {
                 inheritIO ? System.err::println : PROCESS_LOGGER::error,
                 executable.getFileName().toString()
             );
+
+            if (input != null) {
+                process.waitFor();
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Error executing process: " + executable.getFileName(), e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             if (inputFile != null) {
                 IOUtils.uncheckedDeleteWithRetry(inputFile);

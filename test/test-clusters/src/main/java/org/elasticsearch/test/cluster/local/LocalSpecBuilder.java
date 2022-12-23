@@ -61,4 +61,9 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Require feature to be enabled in the cluster.
      */
     T feature(FeatureFlag feature);
+
+    /**
+     * Adds a secure setting to the node keystore.
+     */
+    T keystore(String key, String value);
 }

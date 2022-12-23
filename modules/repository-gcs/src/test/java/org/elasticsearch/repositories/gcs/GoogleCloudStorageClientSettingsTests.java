@@ -17,6 +17,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -165,22 +168,29 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        var proxyServer = new MockHttpProxyServer((reader, writer) -> {
-            assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
-            String body = """
-                {
-                    "access_token": "proxy_access_token",
-                    "token_type": "bearer",
-                    "expires_in": 3600
-                }
-                """;
-            writer.write(formatted("""
-                HTTP/1.1 200 OK\r
-                Content-Length: %s\r
-                \r
-                %s""", body.length(), body));
+        var proxyServer = new MockHttpProxyServer((is, os) -> {
+            try (
+                var reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
+            ) {
+                assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
+                String body = """
+                    {
+                        "access_token": "proxy_access_token",
+                        "token_type": "bearer",
+                        "expires_in": 3600
+                    }
+                    """;
+                writer.write(formatted("""
+                    HTTP/1.1 200 OK\r
+                    Content-Length: %s\r
+                    \r
+                    %s""", body.length(), body));
+            }
         }).await();
-        try (proxyServer) {
+        try (proxyServer)
+
+        {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
             assertNotNull(credentials);

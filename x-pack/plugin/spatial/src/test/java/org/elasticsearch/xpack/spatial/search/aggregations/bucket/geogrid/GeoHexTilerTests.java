@@ -82,6 +82,13 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92541")
+    @Override
+    public void testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
+        super.testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92540")
     public void testLargeShapeWithBounds() throws Exception {
         // We have a shape covering all space
         Rectangle shapeRectangle = new Rectangle(-180, 180, 90, -90);

@@ -1167,41 +1167,34 @@ public class IndexNameExpressionResolver {
          * </ol>
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
+            ExpressionIterable expressionIterable = new ExpressionIterable(context, expressions);
             // fast exist if there are no wildcards to evaluate
-            if (expressions.stream().noneMatch(IndexNameExpressionResolver::isWildcard)) {
+            if (expressionIterable.hasWildcard() == false) {
                 return expressions;
             }
             Set<String> result = new HashSet<>();
-            boolean wildcardSeen = false;
-            for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
-                boolean isExclusion = false;
-                if (expression.charAt(0) == '-' && wildcardSeen) {
-                    isExclusion = true;
-                    expression = expression.substring(1);
-                }
-                if (isWildcard(expression)) {
-                    wildcardSeen = true;
-                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
+            for (ExpressionIterable.Expression expression : expressionIterable) {
+                if (expression.isWildcard()) {
+                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression.toString());
                     Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
                     AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
                     if (context.getOptions().allowNoIndices() == false) {
                         emptyWildcardExpansion.set(true);
                         matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
                     }
-                    if (isExclusion) {
+                    if (expression.isExclusion()) {
                         matchingOpenClosedNames.forEachOrdered(result::remove);
                     } else {
                         matchingOpenClosedNames.forEachOrdered(result::add);
                     }
                     if (emptyWildcardExpansion.get()) {
-                        throw notFoundException(expression);
+                        throw notFoundException(expression.toString());
                     }
                 } else {
-                    if (isExclusion) {
-                        result.remove(expression);
+                    if (expression.isExclusion()) {
+                        result.remove(expression.toString());
                     } else {
-                        result.add(expression);
+                        result.add(expression.toString());
                     }
                 }
             }
@@ -1376,16 +1369,12 @@ public class IndexNameExpressionResolver {
 
         public static List<String> resolve(Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
-            boolean wildcardSeen = false;
-            for (String expression : expressions) {
+            for (ExpressionIterable.Expression expression : new ExpressionIterable(context, expressions)) {
                 // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
-                if (Strings.hasLength(expression) && expression.charAt(0) == '-' && wildcardSeen) {
-                    result.add("-" + resolveExpression(expression.substring(1), context::getStartTime));
+                if (expression.isExclusion()) {
+                    result.add("-" + resolveExpression(expression.toString(), context::getStartTime));
                 } else {
-                    result.add(resolveExpression(expression, context::getStartTime));
-                }
-                if (context.getOptions().expandWildcardExpressions() && isWildcard(expression)) {
-                    wildcardSeen = true;
+                    result.add(resolveExpression(expression.toString(), context::getStartTime));
                 }
             }
             return result;
@@ -1548,18 +1537,12 @@ public class IndexNameExpressionResolver {
         }
 
         public static List<String> filter(Context context, List<String> expressions) {
-            boolean wildcardSeen = false;
-            for (String expression : expressions) {
-                validateAliasOrIndex(expression);
-                boolean isExclusion = wildcardSeen && expression.startsWith("-");
-                boolean isWildcard = context.getOptions().expandWildcardExpressions() && isWildcard(expression);
-                if (isExclusion == false && isWildcard == false) {
-                    if (context.getOptions().ignoreUnavailable() == false) {
-                        ensureAliasOrIndexExists(context, expression);
-                    }
-                }
-                if (isWildcard) {
-                    wildcardSeen = true;
+            for (ExpressionIterable.Expression expression : new ExpressionIterable(context, expressions)) {
+                validateAliasOrIndex(expression.toString());
+                if (context.getOptions().ignoreUnavailable() == false
+                    && expression.isExclusion() == false
+                    && expression.isWildcard() == false) {
+                    ensureAliasOrIndexExists(context, expression.toString());
                 }
             }
             return expressions;
@@ -1623,6 +1606,10 @@ public class IndexNameExpressionResolver {
             } else {
                 this.indexOfFirstWildcard = expressions.size();
             }
+        }
+
+        public boolean hasWildcard() {
+            return this.indexOfFirstWildcard < this.expressions.size();
         }
 
         @Override

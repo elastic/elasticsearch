@@ -1374,7 +1374,7 @@ public class IndexNameExpressionResolver {
             // utility class
         }
 
-        public static List<String> resolve(final Context context, List<String> expressions) {
+        public static List<String> resolve(Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
             boolean wildcardSeen = false;
             for (String expression : expressions) {

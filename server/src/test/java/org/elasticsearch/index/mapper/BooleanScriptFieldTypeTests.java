@@ -253,7 +253,10 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("true", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("xor_param", Map.of("param", false)).termQuery(true, mockContext())), equalTo(1));
+                assertThat(
+                    searcher.count(build("xor_param", Map.of("param", false), OnScriptError.FAIL).termQuery(true, mockContext())),
+                    equalTo(1)
+                );
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -264,7 +267,10 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("false", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(null, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("xor_param", Map.of("param", false)).termQuery(false, mockContext())), equalTo(1));
+                assertThat(
+                    searcher.count(build("xor_param", Map.of("param", false), OnScriptError.FAIL).termQuery(false, mockContext())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -400,12 +406,12 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
     @Override
     protected BooleanScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -413,13 +419,20 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         return "boolean";
     }
 
-    private static BooleanScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected BooleanScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new BooleanScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static BooleanFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+            case "read_foo" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new BooleanFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     for (Object foo : (List<?>) lookup.source().source().get("foo")) {
@@ -427,7 +440,13 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     }
                 }
             };
-            case "xor_param" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+            case "xor_param" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new BooleanFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     for (Object foo : (List<?>) lookup.source().source().get("foo")) {
@@ -435,16 +454,24 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup) -> {
+            case "loop" -> (fieldName, params, lookup, onScriptError) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
+            case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
+            };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
-    }
-
-    private static BooleanScriptFieldType build(Script script) {
-        return new BooleanScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

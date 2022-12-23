@@ -13,6 +13,8 @@ import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
+import java.util.function.Supplier;
+
 interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     /**
      * Register a {@link SettingsProvider}.
@@ -23,6 +25,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Add a new node setting.
      */
     T setting(String setting, String value);
+
+    /**
+     * Add a new node setting computed by the given supplier.
+     */
+    T setting(String setting, Supplier<String> value);
 
     /**
      * Register a {@link EnvironmentProvider}.
@@ -54,4 +61,9 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Require feature to be enabled in the cluster.
      */
     T feature(FeatureFlag feature);
+
+    /**
+     * Adds a secure setting to the node keystore.
+     */
+    T keystore(String key, String value);
 }

@@ -73,6 +73,24 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
         return handle.getHttpAddresses();
     }
 
+    @Override
+    public String getHttpAddress(int index) {
+        checkHandle();
+        return handle.getHttpAddress(index);
+    }
+
+    @Override
+    public String getTransportEndpoints() {
+        checkHandle();
+        return handle.getTransportEndpoints();
+    }
+
+    @Override
+    public String getTransportEndpoint(int index) {
+        checkHandle();
+        return handle.getTransportEndpoint(index);
+    }
+
     private void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");

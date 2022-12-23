@@ -102,6 +102,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 initializeWorkingDirectory();
                 writeConfiguration();
                 createKeystore();
+                addKeystoreSettings();
                 configureSecurity();
                 installPlugins();
                 if (spec.getDistributionType() == DistributionType.INTEG_TEST) {
@@ -271,6 +272,27 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
+        private void addKeystoreSettings() {
+            spec.getKeystoreSettings().forEach((key, value) -> {
+                try {
+                    ProcessUtils.exec(
+                        value,
+                        workingDir,
+                        OS.conditional(
+                            c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
+                                .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
+                        ),
+                        getEnvironmentVariables(),
+                        false,
+                        "add",
+                        key
+                    ).waitFor();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
         private void configureSecurity() {
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
@@ -341,7 +363,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                                         + project
                                         + "':\n\n"
                                         + "dependencies {\n"
-                                        + "  clusterModules "
+                                        + "  clusterPlugins "
                                         + "project(':plugins:"
                                         + pluginName
                                         + "')"

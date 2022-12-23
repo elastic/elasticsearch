@@ -56,7 +56,7 @@ public class JoinStatusTests extends ESTestCase {
                     originalJoinStatus.remoteNode(),
                     originalJoinStatus.term(),
                     originalJoinStatus.message(),
-                    ESTestCase.randomValueOtherThan(originalJoinStatus.age(), this::randomNonNegativeTimeValue)
+                    randomValueOtherThan(originalJoinStatus.age(), this::randomNonNegativeTimeValue)
                 );
             }
             case 4 -> {

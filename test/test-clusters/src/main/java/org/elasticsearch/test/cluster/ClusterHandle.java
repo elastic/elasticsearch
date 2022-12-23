@@ -42,4 +42,28 @@ public interface ClusterHandle extends Closeable {
      * @return cluster node HTTP transport addresses
      */
     String getHttpAddresses();
+
+    /**
+     * Returns the HTTP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node HTTP transport addresses
+     */
+    String getHttpAddress(int index);
+
+    /**
+     * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node TCP transport endpoints
+     */
+    String getTransportEndpoints();
+
+    /**
+     * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node TCP transport endpoints
+     */
+    String getTransportEndpoint(int index);
 }

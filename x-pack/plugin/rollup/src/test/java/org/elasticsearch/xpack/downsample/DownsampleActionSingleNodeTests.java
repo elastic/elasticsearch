@@ -746,7 +746,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
             if (helper.isTimeSeriesMetric(field, fieldMapping)) {
-                metricFields.put(field, TimeSeriesParams.MetricType.valueOf(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
             } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }

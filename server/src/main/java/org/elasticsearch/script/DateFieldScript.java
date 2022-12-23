@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
@@ -29,7 +28,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
             DateFormatter formatter,
             OnScriptError onScriptError
         ) {
-            return ctx -> new DateFieldScript(field, params, lookup, formatter, OnScriptError.FAIL, ctx) {
+            return ctx -> new DateFieldScript(field, params, lookup, formatter, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -96,11 +95,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
 
     @Override
     protected void emitFromObject(Object v) {
-        try {
-            emit(formatter.parseMillis(Objects.toString(v)));
-        } catch (Exception e) {
-            // ignore
-        }
+        emit(formatter.parseMillis(v.toString()));
     }
 
     public static class Emit {

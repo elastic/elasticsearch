@@ -23,7 +23,7 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new DoubleFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new DoubleFieldScript(field, params, lookup, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -117,12 +117,8 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
     protected void emitFromObject(Object v) {
         if (v instanceof Number) {
             emit(((Number) v).doubleValue());
-        } else if (v instanceof String) {
-            try {
-                emit(Double.parseDouble((String) v));
-            } catch (NumberFormatException e) {
-                // ignore
-            }
+        } else {
+            emit(Double.parseDouble(v.toString()));
         }
     }
 

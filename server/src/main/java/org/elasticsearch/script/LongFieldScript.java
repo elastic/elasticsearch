@@ -22,7 +22,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new LongFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new LongFieldScript(field, params, lookup, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -79,11 +79,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
 
     @Override
     protected void emitFromObject(Object v) {
-        try {
-            emit(NumberFieldMapper.NumberType.objectToLong(v, true));
-        } catch (Exception e) {
-            // ignore;
-        }
+        emit(NumberFieldMapper.NumberType.objectToLong(v, true));
     }
 
     public static class Emit {

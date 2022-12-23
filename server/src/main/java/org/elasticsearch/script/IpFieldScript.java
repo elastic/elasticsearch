@@ -44,7 +44,7 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new IpFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new IpFieldScript(field, params, lookup, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -136,13 +136,7 @@ public abstract class IpFieldScript extends AbstractFieldScript {
 
     @Override
     protected void emitFromObject(Object v) {
-        if (v instanceof String) {
-            try {
-                emit((String) v);
-            } catch (Exception e) {
-                // ignore parsing exceptions
-            }
-        }
+        emit(v.toString());
     }
 
     public final void emit(String v) {

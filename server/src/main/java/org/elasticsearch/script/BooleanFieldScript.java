@@ -113,12 +113,8 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     protected final void emitFromObject(Object v) {
         if (v instanceof Boolean) {
             emit((Boolean) v);
-        } else if (v instanceof String) {
-            try {
-                emit(Booleans.parseBoolean((String) v));
-            } catch (IllegalArgumentException e) {
-                // ignore
-            }
+        } else {
+            emit(Booleans.parseBoolean(v.toString()));
         }
     }
 

@@ -33,7 +33,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new GeoPointFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new GeoPointFieldScript(field, params, lookup, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -169,14 +169,8 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     }
 
     private void emitPoint(Object point) {
-        if (point != null) {
-            try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(point, true);
-                emit(geoPoint.lat(), geoPoint.lon());
-            } catch (Exception e) {
-                emit(0, 0);
-            }
-        }
+        GeoPoint geoPoint = GeoUtils.parseGeoPoint(point, true);
+        emit(geoPoint.lat(), geoPoint.lon());
     }
 
     protected final void emit(double lat, double lon) {

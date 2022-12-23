@@ -30,7 +30,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     public static final StringFieldScript.Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new StringFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new StringFieldScript(field, params, lookup, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();

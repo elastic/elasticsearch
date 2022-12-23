@@ -119,7 +119,9 @@ public abstract class AbstractFieldScript extends DocBasedScript {
 
     protected final void emitFromSource() {
         for (Object v : extractFromSource(fieldName)) {
-            emitFromObject(v);
+            if (v != null) {
+                emitFromObject(v);
+            }
         }
     }
 

@@ -311,7 +311,6 @@ public class DocumentAndFieldLevelSecurityTests extends AbstractDocumentAndField
             assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(2));
             assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
             assertThat(response.getHits().getAt(1).getSourceAsMap().get("id"), equalTo("2"));
-
         }
     }
 

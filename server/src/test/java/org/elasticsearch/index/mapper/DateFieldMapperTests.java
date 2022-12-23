@@ -669,11 +669,12 @@ public class DateFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected DateFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(
+                return (fieldName, params, searchLookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                     fieldName,
                     params,
                     searchLookup,
                     formatter,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
@@ -683,11 +684,12 @@ public class DateFieldMapperTests extends MapperTestCase {
 
             @Override
             protected DateFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(
+                return (fieldName, params, searchLookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                     fieldName,
                     params,
                     searchLookup,
                     formatter,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override

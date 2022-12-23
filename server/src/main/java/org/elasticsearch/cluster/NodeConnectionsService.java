@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.Setting.Property;
@@ -217,47 +218,65 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
-        private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
+        private final AtomicReference<SequencedConnectionRef> connectionRef = new AtomicReference<>();
+        private final AtomicLong seqNoGenerator = new AtomicLong();
 
         ConnectionTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
         }
 
-        private void setConnectionRef(Releasable connectionReleasable) {
-            Releasables.close(connectionRef.getAndSet(connectionReleasable));
+        private void clearConnectionRef() {
+            Releasables.close(connectionRef.getAndSet(null));
+        }
+
+        private boolean updateConnectionRef(long seqNo, Releasable connectionReleasable) {
+            final var proposed = connectionReleasable == null ? null : new SequencedConnectionRef(seqNo, connectionReleasable);
+            final var previous = connectionRef.getAndUpdate(current -> current != null && seqNo < current.seqNo ? current : proposed);
+            if (previous != null && seqNo < previous.seqNo) {
+                return false;
+            } else {
+                Releasables.close(previous);
+                return true;
+            }
         }
 
         Runnable connect(ActionListener<Void> listener) {
             return () -> {
                 final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
+                final long seqNo = seqNoGenerator.incrementAndGet();
 
                 if (alreadyConnected) {
-                    logger.trace("refreshing connection to {}", discoveryNode);
+                    logger.trace("[{}] refreshing connection to {}", seqNo, discoveryNode);
                 } else {
-                    logger.debug("connecting to {}", discoveryNode);
+                    logger.debug("[{}] connecting to {}", seqNo, discoveryNode);
                 }
 
                 // It's possible that connectionRef is a reference to an older connection that closed out from under us, but that something
-                // else has opened a fresh connection to the node. Therefore we always call connectToNode() and update connectionRef.
+                // else has opened a fresh connection to the node. Therefore we always call connectToNode() and freshen connectionRef.
                 transportService.connectToNode(discoveryNode, new ActionListener<>() {
                     @Override
                     public void onResponse(Releasable connectionReleasable) {
-                        if (alreadyConnected) {
-                            logger.trace("refreshed connection to {}", discoveryNode);
-                        } else {
-                            logger.debug("connected to {}", discoveryNode);
-                        }
-                        consecutiveFailureCount.set(0);
-                        setConnectionRef(connectionReleasable);
+                        if (updateConnectionRef(seqNo, connectionReleasable)) {
+                            if (alreadyConnected) {
+                                logger.trace("[{}] refreshed connection to {}", seqNo, discoveryNode);
+                            } else {
+                                logger.debug("[{}] connected to {}", seqNo, discoveryNode);
+                            }
+                            consecutiveFailureCount.set(0);
 
-                        final boolean isActive;
-                        synchronized (mutex) {
-                            isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
+                            final boolean isActive;
+                            synchronized (mutex) {
+                                isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
+                            }
+                            if (isActive == false) {
+                                logger.debug("[{}] connected to stale target {} - releasing stale connection", seqNo, discoveryNode);
+                                clearConnectionRef();
+                            }
+                        } else {
+                            logger.trace("[{}] superseded by fresher connection to {}", seqNo, discoveryNode);
+                            connectionReleasable.close();
                         }
-                        if (isActive == false) {
-                            logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
-                            setConnectionRef(null);
-                        }
+
                         if (listener != null) {
                             listener.onResponse(null);
                         }
@@ -273,7 +292,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                             () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount),
                             e
                         );
-                        setConnectionRef(null);
+
+                        if (updateConnectionRef(seqNo, null) == false) {
+                            logger.trace("[{}] failed but superseded by fresher connection to {}", seqNo, discoveryNode);
+                        }
+
                         if (listener != null) {
                             listener.onFailure(e);
                         }
@@ -283,14 +306,67 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         void disconnect() {
-            setConnectionRef(null);
+            clearConnectionRef();
             logger.debug("disconnected from {}", discoveryNode);
         }
 
         @Override
         public String toString() {
             synchronized (mutex) {
-                return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + '}';
+                return "ConnectionTarget{discoveryNode=" + discoveryNode + '}';
+            }
+        }
+
+        private record SequencedConnectionRef(long seqNo, Releasable connectionRef) implements Releasable {
+            /*
+             * We keep track of the sequence in which connection attempts were started to avoid later connections being overwritten by
+             * (potentially-unhealthy) earlier ones, which may happen if the connection attempts run concurrently. For instance, if we don't
+             * do this then we can end up disconnected from a node even though we triggered a call to connect() after all close() calls had
+             * finished:
+             *
+             *                    +------------------+                                       +------------------+
+             *                    | ConnectionTarget |                                       | TransportService |
+             * +-----+            +------------------+            +-----+                    +------------------+
+             *    |                         |                        |                                 |
+             *    | connect()#1             |                        |                                 |
+             *    |----------------------------------------------------------------------------------->|
+             *    |                         |                        |         ----------------------\ |
+             *    |                         |                        |         | connection #1 opens |-|
+             *    |                         |                        |         |---------------------| |
+             *    |                         |                        |                                 |
+             *    |                         |                        |                                 | close
+             *    |                         |                        |                                 |<-----------------
+             *    |                         |                        |                                 |
+             *    |                         |                        |        -----------------------\ |
+             *    |                         |                        |        | connection #1 closes |-|
+             *    |                         |                        |        |----------------------| |
+             *    |                         |                        |                                 |
+             *    |                         |                        |                                 | close complete
+             *    |                         |                        |                                 |----------------->
+             *    |                         |                        |                                 |
+             *    |                         |                        | connect()#2                     |
+             *    |                         |                        |-------------------------------->|
+             *    |                         |                        |         ----------------------\ |
+             *    |                         |                        |         | connection #2 opens |-|
+             *    |                         |                        |         |---------------------| |
+             *    |                         |                        |                                 |
+             *    |                         |                        |           returns connection #2 |
+             *    |                         |                        |<--------------------------------|
+             *    |                         |                        |                                 |
+             *    |                         |    store connection #2 |                                 |
+             *    |                         |<-----------------------|                                 |
+             *    |                         |                        |                                 |
+             *    |                         |                        |           returns connection #1 |
+             *    |<-----------------------------------------------------------------------------------|
+             *    |                         |                        |                                 |
+             *    | store connection #1     |                        |                                 |
+             *    |------------------------>|                        |                                 |
+             *    |                         |                        |                                 |
+             */
+
+            @Override
+            public void close() {
+                connectionRef.close();
             }
         }
     }

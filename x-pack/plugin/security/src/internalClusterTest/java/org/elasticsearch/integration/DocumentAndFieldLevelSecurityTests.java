@@ -15,51 +15,35 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.GetFeatureUsageRequest;
-import org.elasticsearch.license.GetFeatureUsageResponse;
-import org.elasticsearch.license.TransportGetFeatureUsageAction;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
-public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
-
-    private static final Set<String> DLS_FLS_FEATURE_NAMES = Set.of(
-        DOCUMENT_LEVEL_SECURITY_FEATURE.getName(),
-        FIELD_LEVEL_SECURITY_FEATURE.getName()
-    );
+@ESIntegTestCase.ClusterScope(numClientNodes = 1)
+public class DocumentAndFieldLevelSecurityTests extends AbstractDocumentAndFieldLevelSecurityTests {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
@@ -72,12 +56,18 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             user3:%s
             user4:%s
             user5:%s
-            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+            user6:%s
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() + "role1:user1\n" + "role2:user1,user4\n" + "role3:user2,user4\n" + "role4:user3,user4,user5\n";
+        return super.configUsersRoles()
+            + "role1:user1\n"
+            + "role2:user1,user4\n"
+            + "role3:user2,user4\n"
+            + "role4:user3,user4,user5\n"
+            + "role5:user6\n"; // no DLS/FLS restrictions
     }
 
     @Override
@@ -114,6 +104,11 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                   field_security:
                      grant: [ field1, id ]
                   query: '{"term" : {"field2" : "value2"}}'
+            role5:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
             """;
     }
 
@@ -131,7 +126,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        assertThat(fetchFeatureUsages(), not(containsInAnyOrder(DLS_FLS_FEATURE_NAMES)));
+        // DLS and FLS features should not be used before running any query
+        assertDlsFlsNotTrackedAcrossAllNodes();
 
         SearchResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
@@ -141,7 +137,6 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("1"));
-        assertThat(DLS_FLS_FEATURE_NAMES, everyItem(is(in(fetchFeatureUsages()))));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("test")
@@ -151,7 +146,6 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("2"));
-        assertThat(DLS_FLS_FEATURE_NAMES, everyItem(is(in(fetchFeatureUsages()))));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
             .prepareSearch("test")
@@ -161,7 +155,47 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertSearchHits(response, "1", "2");
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2").toString(), equalTo("value2"));
-        assertThat(DLS_FLS_FEATURE_NAMES, everyItem(is(in(fetchFeatureUsages()))));
+
+        assertDlsFlsNotTrackedOnCoordOnlyNode();
+        assertDlsFlsTracked();
+    }
+
+    public void testDlsFlsFeatureUsageOnCoordOnlyNodeNotTracked() {
+        assertAcked(
+            client().admin().indices().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
+        );
+        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        // DLS and FLS features should not be used before running any query
+        assertDlsFlsNotTrackedAcrossAllNodes();
+
+        // Running a search on coordinating only node should not track feature usage. It should only be tracked on data nodes.
+        SearchResponse response = internalCluster().coordOnlyNodeClient()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .get();
+        assertHitCount(response, 1);
+
+        assertDlsFlsNotTrackedOnCoordOnlyNode();
+        assertDlsFlsTracked();
+    }
+
+    public void testDlsFlsFeatureUsageNotTracked() {
+        assertAcked(
+            client().admin().indices().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
+        );
+        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+
+        // Running a search with user6 (which has role5 without DLS/FLS) should not trigger feature tracking.
+        SearchResponse response = internalCluster().coordOnlyNodeClient()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+            .prepareSearch("test")
+            .get();
+        assertHitCount(response, 2);
+        assertSearchHits(response, "1", "2");
+
+        assertDlsFlsNotTrackedAcrossAllNodes();
     }
 
     public void testUpdatesAreRejected() {
@@ -462,20 +496,5 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             assertNotNull("expected field [" + field + "] not found", fieldMappingMetadata);
         }
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
-    }
-
-    private Set<String> fetchFeatureUsages() {
-        final Set<String> result = new HashSet<>();
-        // Nodes are chosen at random when test is executed,
-        // hence we have to aggregate feature usage across all nodes in the cluster.
-        Set.of(internalCluster().getNodeNames()).stream().forEach(node -> {
-            PlainActionFuture<GetFeatureUsageResponse> listener = new PlainActionFuture<>();
-            client(node).execute(TransportGetFeatureUsageAction.TYPE, new GetFeatureUsageRequest(), listener);
-            GetFeatureUsageResponse response = listener.actionGet();
-            for (var feature : response.getFeatures()) {
-                result.add(feature.getName());
-            }
-        });
-        return result;
     }
 }

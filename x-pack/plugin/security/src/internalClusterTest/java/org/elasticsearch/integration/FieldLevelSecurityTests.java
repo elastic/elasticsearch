@@ -51,8 +51,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -89,7 +90,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FieldLevelSecurityTests extends SecurityIntegTestCase {
+@ESIntegTestCase.ClusterScope(numClientNodes = 1)
+public class FieldLevelSecurityTests extends AbstractDocumentAndFieldLevelSecurityTests {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
@@ -371,11 +373,17 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
         // user2 has no access to field1, so a query on its field alias should not match with the document:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+        response = internalCluster().coordOnlyNodeClient()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(matchQuery("alias", "value1"))
             .get();
         assertHitCount(response, 0);
+
+        // coordinating only node should not tack DLS/FLS feature usage
+        assertDlsFlsNotTrackedOnCoordOnlyNode();
+        // only FLS feature should have been tracked across all data nodes
+        assertOnlyFlsTracked();
     }
 
     public void testKnnSearch() throws IOException {

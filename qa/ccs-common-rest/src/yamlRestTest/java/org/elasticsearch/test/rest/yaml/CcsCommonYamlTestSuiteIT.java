@@ -23,6 +23,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -32,6 +35,9 @@ import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,9 +64,34 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static RestClient adminSearchClient;
     private static List<HttpHost> clusterHosts;
     private static ClientYamlTestClient searchYamlTestClient;
-
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
+
+    private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
+        .module("aggregations")
+        .module("mapper-extras")
+        .setting("xpack.security.enabled", "false")
+        .feature(FeatureFlag.TIME_SERIES_MODE);
+
+    private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
+        .name(REMOTE_CLUSTER_NAME)
+        .nodes(2)
+        .setting("node.roles", "[data,ingest,master]")
+        .apply(commonClusterConfig)
+        .build();
+
+    private static ElasticsearchCluster localCluster = ElasticsearchCluster.local()
+        .name("local_cluster")
+        .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
+        .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
+        .setting("cluster.remote.connections_per_cluster", "1")
+        .apply(commonClusterConfig)
+        .build();
+
+    @ClassRule
+    // Use a RuleChain to ensure that remote cluster is started before local cluster
+    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
+
     // the CCS api calls that we run against the "search" cluster in this test setup
     private static final Set<String> CCS_APIS = Set.of(
         "search",
@@ -75,6 +106,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         "async_search.delete"
     );
 
+    @Override
+    protected String getTestRestCluster() {
+        return remoteCluster.getHttpAddresses();
+    }
+
     /**
      * initialize the search client and an additional administration client and check for an established connection
      */
@@ -84,9 +120,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             assert adminSearchClient == null;
             assert clusterHosts == null;
 
-            final String cluster = System.getProperty("tests.rest.search_cluster");
-            assertNotNull("[tests.rest.search_cluster] is not configured", cluster);
-            String[] stringUrls = cluster.split(",");
+            String[] stringUrls = localCluster.getHttpAddresses().split(",");
             List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
             for (String stringUrl : stringUrls) {
                 int portSeparator = stringUrl.lastIndexOf(':');

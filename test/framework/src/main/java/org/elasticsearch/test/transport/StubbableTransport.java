@@ -148,8 +148,8 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public BoundTransportAddress boundRemoteAccessAddress() {
-        return delegate.boundRemoteAccessAddress();
+    public BoundTransportAddress boundRemoteIngressAddress() {
+        return delegate.boundRemoteIngressAddress();
     }
 
     @Override

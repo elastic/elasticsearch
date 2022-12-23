@@ -66,6 +66,7 @@ public class RemoteClusterPortSettings {
 
     public static final Setting<Integer> PORT = intSetting(REMOTE_CLUSTER_PREFIX + "port", 9443, 0, 65535, Setting.Property.NodeScope);
 
+    // The default value of -1 means it will use the default bind port as shown above
     public static final Setting<Integer> PUBLISH_PORT = intSetting(
         REMOTE_CLUSTER_PREFIX + "publish_port",
         -1,
@@ -144,7 +145,6 @@ public class RemoteClusterPortSettings {
         validateRemoteAccessSettings(settings);
 
         // Build a synthetic settings object with the `_remote_access` profile properly configured per the friendlier settings,
-        // but inherit any `_remote_access` profile settings that don't conflict.
         Settings syntheticRemoteAccessProfile = Settings.builder()
             .put(settings)
             .put(TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), TCP_KEEP_ALIVE.get(settings))

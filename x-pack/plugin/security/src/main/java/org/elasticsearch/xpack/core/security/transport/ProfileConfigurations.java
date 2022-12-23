@@ -31,7 +31,7 @@ public final class ProfileConfigurations {
             if (profileName.equals(TransportSettings.DEFAULT_PROFILE)) {
                 // don't attempt to parse ssl settings from the profile;
                 // profiles need to be killed with fire
-                // We don't need to check the Remote Access profile here; when remote access settings are validated, we check that there are
+                // We don't need to check _remote_cluster profile here; when remote access settings are validated, we check that there are
                 // no direct usages of the profile, so we can just add it after all the profiles are in place.
                 if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
                     continue;

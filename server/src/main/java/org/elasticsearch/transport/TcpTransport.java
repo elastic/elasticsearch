@@ -427,7 +427,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public BoundTransportAddress boundRemoteAccessAddress() {
+    public BoundTransportAddress boundRemoteIngressAddress() {
         return profileBoundAddresses().get(REMOTE_CLUSTER_PROFILE);
     }
 

@@ -41,10 +41,8 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             // Index some documents, so we can search them from the querying cluster
             Request indexDocRequest = new Request("POST", "/test_idx/_doc");
             indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
-            for (int i = 0; i < 50; i++) {
-                Response response = client().performRequest(indexDocRequest);
-                assertOK(response);
-            }
+            Response response = client().performRequest(indexDocRequest);
+            assertOK(response);
         } else {
             // Check that we can search the fulfilling cluster from the querying cluster
             Request searchRequest = new Request("GET", "/my_remote_cluster:test_idx/_search");

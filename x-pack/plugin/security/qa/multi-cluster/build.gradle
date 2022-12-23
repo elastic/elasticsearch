@@ -19,11 +19,6 @@ boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.toke
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
   setting 'xpack.license.self_generated.type', 'trial'
-  module ':modules:analysis-common'
-  module ':modules:lang-painless'
-  module ':modules:data-streams'
-  module ':x-pack:plugin:mapper-constant-keyword'
-  module ':x-pack:plugin:async-search'
   setting 'remote_cluster.enabled', 'true'
   setting 'remote_cluster.port', '0'
 }
@@ -31,14 +26,7 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
 def queryingCluster = testClusters.register('querying-cluster') {
   requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
   setting 'xpack.license.self_generated.type', 'trial'
-  module ':modules:analysis-common'
-  module ':modules:lang-painless'
-  module ':modules:data-streams'
-  module ':x-pack:plugin:mapper-constant-keyword'
-  module ':x-pack:plugin:async-search'
   setting 'cluster.remote.connections_per_cluster', "1"
-  setting 'remote_cluster.enabled', 'true'
-  setting 'remote_cluster.port', '0'
 
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'

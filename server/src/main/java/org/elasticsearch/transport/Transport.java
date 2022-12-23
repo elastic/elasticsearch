@@ -57,7 +57,7 @@ public interface Transport extends LifecycleComponent {
     /**
      * The address the Remote Access port is bound on, or <code>null</code> if it is not bound.
      */
-    BoundTransportAddress boundRemoteAccessAddress();
+    BoundTransportAddress boundRemoteIngressAddress();
 
     /**
      * Further profile bound addresses

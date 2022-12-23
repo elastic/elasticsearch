@@ -48,7 +48,7 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     }
 
     @Override
-    public BoundTransportAddress boundRemoteAccessAddress() {
+    public BoundTransportAddress boundRemoteIngressAddress() {
         return null;
     }
 

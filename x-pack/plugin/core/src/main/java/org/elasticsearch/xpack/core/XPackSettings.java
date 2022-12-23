@@ -247,7 +247,7 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
-    private static final SSLConfigurationSettings REMOTE_ACCESS_SSL = SSLConfigurationSettings.withPrefix(REMOTE_CLUSTER_SSL_PREFIX, false);
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(REMOTE_CLUSTER_SSL_PREFIX, false);
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
@@ -255,7 +255,7 @@ public class XPackSettings {
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settings.addAll(REMOTE_ACCESS_SSL.getEnabledSettings());
+            settings.addAll(REMOTE_CLUSTER_SSL.getEnabledSettings());
         }
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);

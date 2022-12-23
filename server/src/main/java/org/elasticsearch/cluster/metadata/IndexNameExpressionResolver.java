@@ -1168,7 +1168,7 @@ public class IndexNameExpressionResolver {
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
             // fast exist if there are no wildcards to evaluate
-            if (expressions.stream().noneMatch(Regex::isSimpleMatchPattern)) {
+            if (expressions.stream().noneMatch(IndexNameExpressionResolver::isWildcard)) {
                 return expressions;
             }
             Set<String> result = new HashSet<>();
@@ -1180,7 +1180,7 @@ public class IndexNameExpressionResolver {
                     isExclusion = true;
                     expression = expression.substring(1);
                 }
-                if (Regex.isSimpleMatchPattern(expression)) {
+                if (isWildcard(expression)) {
                     wildcardSeen = true;
                     Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
                     Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
@@ -1232,7 +1232,7 @@ public class IndexNameExpressionResolver {
          * It does NOT consider the open or closed status of index resources.
          */
         private static Stream<IndexAbstraction> matchResourcesToWildcard(Context context, String wildcardExpression) {
-            assert Regex.isSimpleMatchPattern(wildcardExpression);
+            assert isWildcard(wildcardExpression);
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
             if (Regex.isSuffixMatchPattern(wildcardExpression)) {
@@ -1384,7 +1384,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     result.add(resolveExpression(expression, context::getStartTime));
                 }
-                if (context.getOptions().expandWildcardExpressions() && Regex.isSimpleMatchPattern(expression)) {
+                if (context.getOptions().expandWildcardExpressions() && isWildcard(expression)) {
                     wildcardSeen = true;
                 }
             }
@@ -1552,7 +1552,7 @@ public class IndexNameExpressionResolver {
             for (String expression : expressions) {
                 validateAliasOrIndex(expression);
                 boolean isExclusion = wildcardSeen && expression.startsWith("-");
-                boolean isWildcard = context.getOptions().expandWildcardExpressions() && Regex.isSimpleMatchPattern(expression);
+                boolean isWildcard = context.getOptions().expandWildcardExpressions() && isWildcard(expression);
                 if (isExclusion == false && isWildcard == false) {
                     if (context.getOptions().ignoreUnavailable() == false) {
                         ensureAliasOrIndexExists(context, expression);
@@ -1599,7 +1599,7 @@ public class IndexNameExpressionResolver {
             }
 
             public boolean isWildcard() {
-                return idx >= ExpressionIterable.this.indexOfFirstWildcard && Regex.isSimpleMatchPattern(toString());
+                return idx >= ExpressionIterable.this.indexOfFirstWildcard && IndexNameExpressionResolver.isWildcard(toString());
             }
 
             public boolean isExclusion() {
@@ -1635,7 +1635,7 @@ public class IndexNameExpressionResolver {
 
         private static int findIndexOfFirstWildcard(List<String> expressions) {
             for (int i = 0; i < expressions.size(); i++) {
-                if (Regex.isSimpleMatchPattern(expressions.get(i))) {
+                if (isWildcard(expressions.get(i))) {
                     return i;
                 }
             }
@@ -1665,5 +1665,9 @@ public class IndexNameExpressionResolver {
         public IndicesOptions getOptions() {
             throw new UnsupportedOperationException("should never be called");
         }
+    }
+
+    private static boolean isWildcard(String expression) {
+        return Regex.isSimpleMatchPattern(expression);
     }
 }

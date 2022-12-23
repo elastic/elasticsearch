@@ -32,10 +32,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factory> {
-    public static final IpFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new IpFieldScript(
+    public static final IpFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new IpFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -67,6 +68,7 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -101,7 +103,8 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL
                 );
                 IpFieldScript ipFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<InetAddress> results = new ArrayList<>();

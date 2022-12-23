@@ -1,0 +1,5 @@
+pr: 92380
+summary: Add option to allow script errors on runtime fields
+area: Search
+type: enhancement
+issues: []

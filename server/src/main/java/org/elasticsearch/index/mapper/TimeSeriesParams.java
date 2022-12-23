@@ -41,6 +41,15 @@ public final class TimeSeriesParams {
         public final String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+
+        public static MetricType fromString(String value) {
+            for (MetricType metricType : values()) {
+                if (metricType.toString().equals(value)) {
+                    return metricType;
+                }
+            }
+            throw new IllegalArgumentException("No enum constant MetricType." + value);
+        }
     }
 
     public static FieldMapper.Parameter<MetricType> metricParam(Function<FieldMapper, MetricType> initializer, MetricType... values) {

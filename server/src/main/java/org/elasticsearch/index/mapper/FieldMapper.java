@@ -247,7 +247,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
         } catch (Exception e) {
-            if ("continue".equals(onScriptError)) {
+            if (onScriptError == OnScriptError.CONTINUE) {
                 documentParserContext.addIgnoredField(name());
             } else {
                 throw new MapperParsingException("Error executing script on field [" + name() + "]", e);

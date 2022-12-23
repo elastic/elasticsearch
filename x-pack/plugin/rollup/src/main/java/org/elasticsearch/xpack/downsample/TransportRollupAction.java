@@ -480,7 +480,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.valueOf(
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
-        if (TimeSeriesParams.MetricType.counter.equals(metricType)) {
+        if (TimeSeriesParams.MetricType.COUNTER.equals(metricType)) {
             // For counters, we keep the same field type, because they store
             // only one value (the last value of the counter)
             builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();

@@ -911,8 +911,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         metricFields.forEach((field, metricType) -> {
             switch (metricType) {
-                case counter -> assertEquals("double", mappings.get(field).get("type"));
-                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                case COUNTER -> assertEquals("double", mappings.get(field).get("type"));
+                case GAUGE -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
                 default -> fail("Unsupported field type");
             }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));

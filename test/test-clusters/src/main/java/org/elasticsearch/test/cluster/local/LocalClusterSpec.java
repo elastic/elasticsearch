@@ -78,6 +78,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Set<String> plugins;
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
+        private final Map<String, String> keystoreSettings;
 
         public LocalNodeSpec(
             LocalClusterSpec cluster,
@@ -90,7 +91,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Set<String> modules,
             Set<String> plugins,
             DistributionType distributionType,
-            Set<FeatureFlag> features
+            Set<FeatureFlag> features,
+            Map<String, String> keystoreSettings
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -103,6 +105,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.plugins = plugins;
             this.distributionType = distributionType;
             this.features = features;
+            this.keystoreSettings = keystoreSettings;
         }
 
         public LocalClusterSpec getCluster() {
@@ -139,6 +142,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public Set<FeatureFlag> getFeatures() {
             return features;
+        }
+
+        public Map<String, String> getKeystoreSettings() {
+            return keystoreSettings;
         }
 
         public boolean isSecurityEnabled() {

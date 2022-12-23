@@ -1166,7 +1166,11 @@ public class IndexNameExpressionResolver {
          * </ol>
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
-            Collection<String> result = null;
+            // fast exist if there are no wildcards to evaluate
+            if (expressions.stream().noneMatch(Regex::isSimpleMatchPattern)) {
+                return expressions;
+            }
+            Set<String> result = new HashSet<>();
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
@@ -1184,10 +1188,6 @@ public class IndexNameExpressionResolver {
                         emptyWildcardExpansion.set(true);
                         matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
                     }
-                    if (result == null) {
-                        // add all the previous expressions because they exist but were not added, as an optimisation
-                        result = new HashSet<>(expressions.subList(0, i));
-                    }
                     if (isExclusion) {
                         matchingOpenClosedNames.forEachOrdered(result::remove);
                     } else {
@@ -1198,25 +1198,13 @@ public class IndexNameExpressionResolver {
                     }
                 } else {
                     if (isExclusion) {
-                        if (result == null) {
-                            // add all the previous expressions because they exist but were not added, as an optimisation
-                            result = new HashSet<>(expressions.subList(0, i));
-                        }
                         result.remove(expression);
                     } else {
-                        if (result != null) {
-                            // skip adding the expression as an optimization
-                            result.add(expression);
-                        }
+                        result.add(expression);
                     }
                 }
             }
-            if (result == null) {
-                // optimisation that avoids allocating a new collection when all the argument expressions are explicit names
-                return expressions;
-            } else {
-                return result;
-            }
+            return result;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {

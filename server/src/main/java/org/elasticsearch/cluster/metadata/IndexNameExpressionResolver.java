@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1576,6 +1577,69 @@ public class IndexNameExpressionResolver {
                 throw new InvalidIndexNameException(expression, "must not start with '_'.");
             }
             return expression;
+        }
+    }
+
+    public static final class ExpressionIterable implements Iterable<ExpressionIterable.Expression> {
+        private final List<String> expressions;
+        private final int indexOfFirstWildcard;
+
+        public final class Expression {
+            private final int idx;
+
+            Expression(int idx) {
+                assert idx >= 0;
+                assert idx < ExpressionIterable.this.expressions.size();
+                this.idx = idx;
+            }
+
+            @Override
+            public String toString() {
+                return ExpressionIterable.this.expressions.get(this.idx);
+            }
+
+            public boolean isWildcard() {
+                return idx >= ExpressionIterable.this.indexOfFirstWildcard && Regex.isSimpleMatchPattern(toString());
+            }
+
+            public boolean isExclusion() {
+                return idx > ExpressionIterable.this.indexOfFirstWildcard && toString().startsWith("-");
+            }
+        }
+
+        public ExpressionIterable(Context context, List<String> expressions) {
+            this.expressions = expressions;
+            if (context.getOptions().expandWildcardExpressions()) {
+                this.indexOfFirstWildcard = findIndexOfFirstWildcard(expressions);
+            } else {
+                this.indexOfFirstWildcard = expressions.size();
+            }
+        }
+
+        @Override
+        public Iterator<ExpressionIterable.Expression> iterator() {
+            return new Iterator<>() {
+                private int idx = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return idx < ExpressionIterable.this.expressions.size();
+                }
+
+                @Override
+                public Expression next() {
+                    return new Expression(idx++);
+                }
+            };
+        }
+
+        private static int findIndexOfFirstWildcard(List<String> expressions) {
+            for (int i = 0; i < expressions.size(); i++) {
+                if (Regex.isSimpleMatchPattern(expressions.get(i))) {
+                    return i;
+                }
+            }
+            return expressions.size();
         }
     }
 

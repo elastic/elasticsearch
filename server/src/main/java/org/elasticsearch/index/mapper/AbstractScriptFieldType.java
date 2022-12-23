@@ -215,7 +215,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
-        final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
+        private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
             () -> null,
@@ -224,6 +224,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> ic);
+
+        private final FieldMapper.Parameter<String> onScriptError = FieldMapper.Parameter.onScriptErrorParam(m -> m.onScriptError, script);
 
         Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
@@ -247,7 +249,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         protected final RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parent,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            OnScriptError onScriptError
         ) {
             if (script.isConfigured()) {
                 throw new IllegalArgumentException(
@@ -257,7 +260,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             String fullName = parent + "." + name;
             return new LeafRuntimeField(
                 name,
-                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta()),
+                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta(), onScriptError),
                 getParameters()
             );
         }
@@ -267,26 +270,41 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
-            var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion);
+            var fieldType = createFieldType(
+                name,
+                scriptFactory,
+                getScript(),
+                meta(),
+                indexVersion,
+                OnScriptError.fromString(onScriptError.get())
+            );
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);
+        abstract AbstractScriptFieldType<?> createFieldType(
+            String name,
+            Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        );
 
         AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion
+            Version supportedVersion,
+            OnScriptError onScriptError
         ) {
-            return createFieldType(name, factory, script, meta);
+            return createFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {
             List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
             parameters.add(script);
+            parameters.add(onScriptError);
             return Collections.unmodifiableList(parameters);
         }
 
@@ -296,5 +314,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             }
             return script.get();
         }
+
     }
 }

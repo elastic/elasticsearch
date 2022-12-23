@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
@@ -87,6 +88,10 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         );
     }
 
+    public void testGeoShapeGeoHex() throws IOException {
+        doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
+    }
+
     private void doTestGeohashGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
         doTestGrid(
             1,
@@ -124,41 +129,11 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             }
             return points;
         },
-            this::toGeoHexRectangle,
+            h3 -> H3CartesianUtil.toBoundingBox(H3.stringToH3(h3)),
             GeoHexGridAggregationBuilder::new,
             (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2),
             randomGeometriesSupplier
         );
-    }
-
-    private Rectangle toGeoHexRectangle(String bucketKey) {
-        final long h3 = H3.stringToH3(bucketKey);
-        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-        double minLat = Double.POSITIVE_INFINITY;
-        double minLon = Double.POSITIVE_INFINITY;
-        double maxLat = Double.NEGATIVE_INFINITY;
-        double maxLon = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < boundary.numPoints(); i++) {
-            final double boundaryLat = boundary.getLatLon(i).getLatDeg();
-            final double boundaryLon = boundary.getLatLon(i).getLonDeg();
-            minLon = Math.min(minLon, boundaryLon);
-            maxLon = Math.max(maxLon, boundaryLon);
-            minLat = Math.min(minLat, boundaryLat);
-            maxLat = Math.max(maxLat, boundaryLat);
-        }
-        final int resolution = H3.getResolution(h3);
-        if (H3.geoToH3(90, 0, resolution) == h3) {
-            // north pole
-            return new Rectangle(-180d, 180d, 90, minLat);
-        } else if (H3.geoToH3(-90, 0, resolution) == h3) {
-            // south pole
-            return new Rectangle(-180d, 180d, maxLat, -90);
-        } else if (maxLon - minLon > 180d) {
-            // crosses dateline
-            return new Rectangle(maxLon, minLon, maxLat, minLat);
-        } else {
-            return new Rectangle(minLon, maxLon, maxLat, minLat);
-        }
     }
 
     private void doTestGrid(

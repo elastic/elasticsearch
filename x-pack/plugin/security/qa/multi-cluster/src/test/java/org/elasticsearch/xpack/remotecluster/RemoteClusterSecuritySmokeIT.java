@@ -50,7 +50,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             assertOK(response);
             ObjectPath responseObj = ObjectPath.createFromResponse(response);
             int totalHits = responseObj.evaluate("hits.total.value");
-            assertThat(totalHits, equalTo(50));
+            assertThat(totalHits, equalTo(1));
         }
     }
 

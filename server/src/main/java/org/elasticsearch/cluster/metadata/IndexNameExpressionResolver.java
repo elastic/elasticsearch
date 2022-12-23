@@ -1546,7 +1546,7 @@ public class IndexNameExpressionResolver {
             // Utility class
         }
 
-        public static List<String> filter(final Context context, List<String> expressions) {
+        public static List<String> filter(Context context, List<String> expressions) {
             boolean wildcardSeen = false;
             for (String expression : expressions) {
                 validateAliasOrIndex(expression);

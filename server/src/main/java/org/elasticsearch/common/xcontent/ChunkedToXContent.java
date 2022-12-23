@@ -42,4 +42,8 @@ public interface ChunkedToXContent {
             return builder;
         };
     }
+
+    default boolean isFragment() {
+        return true;
+    }
 }

@@ -23,18 +23,12 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
 
     @Override
     protected AbstractXContentTestCase.XContentTester<T> createXContentTester() {
-        return chunkedXContentTester(
-            this::createParser,
-            this::createXContextTestInstance,
-            getToXContentParams(),
-            this::doParseInstance,
-            isFragment()
-        );
+        return chunkedXContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance);
     }
 
     @Override
     protected ToXContent asXContent(T instance) {
-        if (isFragment()) {
+        if (instance.isFragment()) {
             return (ToXContentObject) ((builder, params) -> {
                 builder.startObject();
                 ChunkedToXContent.wrapAsXContentObject(instance).toXContent(builder, params);
@@ -53,8 +47,4 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
      * Parses to a new instance using the provided {@link XContentParser}
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
-
-    protected boolean isFragment() {
-        return false;
-    }
 }

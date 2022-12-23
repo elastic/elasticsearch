@@ -11,15 +11,22 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.List;
 
-import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
+import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE_MULTI;
 
-public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
+public abstract class EqlSampleMultipleEntriesTestCase extends BaseEqlSpecTestCase {
 
-    public EqlSampleTestCase(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
-        this(TEST_SAMPLE, query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+    public EqlSampleMultipleEntriesTestCase(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey
+    ) {
+        this(TEST_SAMPLE_MULTI, query, name, eventIds, joinKeys, size, maxSamplesPerKey);
     }
 
-    public EqlSampleTestCase(
+    public EqlSampleMultipleEntriesTestCase(
         String index,
         String query,
         String name,
@@ -33,7 +40,7 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
-        return asArray(EqlSpecLoader.load("/test_sample.toml"));
+        return asArray(EqlSpecLoader.load("/test_sample_multi.toml"));
     }
 
     @Override

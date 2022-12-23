@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.test.eql.EqlSampleTestCase;
+import org.elasticsearch.test.eql.EqlSampleMultipleEntriesTestCase;
 
 import java.util.List;
 
-public class EqlSampleIT extends EqlSampleTestCase {
+public class EqlSampleMultipleEntriesIT extends EqlSampleMultipleEntriesTestCase {
 
-    public EqlSampleIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
+    public EqlSampleMultipleEntriesIT(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey
+    ) {
         super(query, name, eventIds, joinKeys, size, maxSamplesPerKey);
     }
 

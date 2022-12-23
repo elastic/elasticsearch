@@ -30,6 +30,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Set<String> modules = new HashSet<>();
     private final Set<String> plugins = new HashSet<>();
     private final Set<FeatureFlag> features = new HashSet<>();
+    private final Map<String, String> keystoreSettings = new HashMap<>();
     private DistributionType distributionType;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
@@ -121,6 +122,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     Set<FeatureFlag> getFeatures() {
         return inherit(() -> parent.getFeatures(), features);
+    }
+
+    @Override
+    public T keystore(String key, String value) {
+        this.keystoreSettings.put(key, value);
+        return cast(this);
+    }
+
+    public Map<String, String> getKeystoreSettings() {
+        return inherit(() -> parent.getKeystoreSettings(), keystoreSettings);
     }
 
     private <T> List<T> inherit(Supplier<List<T>> parent, List<T> child) {

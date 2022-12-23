@@ -1,5 +1,5 @@
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 

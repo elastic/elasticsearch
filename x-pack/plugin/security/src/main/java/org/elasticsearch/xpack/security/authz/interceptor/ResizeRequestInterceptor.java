@@ -26,6 +26,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.extractRequestId;
 
 public final class ResizeRequestInterceptor implements RequestInterceptor {
@@ -50,7 +51,8 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
         if (requestInfo.getRequest()instanceof ResizeRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            if (isDlsLicensed) {
+            final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed || isFlsLicensed) {
                 IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                     request.getSourceIndex()

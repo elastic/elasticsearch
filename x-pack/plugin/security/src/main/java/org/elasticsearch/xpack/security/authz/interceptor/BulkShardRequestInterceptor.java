@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 /**
  * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
@@ -49,7 +50,8 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     ) {
         if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            if (isDlsLicensed == false) {
+            final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed == false && isFlsLicensed == false) {
                 listener.onResponse(null);
                 return;
             }

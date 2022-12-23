@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 public final class IndicesAliasesRequestInterceptor implements RequestInterceptor {
 
@@ -58,8 +59,9 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
         if (requestInfo.getRequest()instanceof IndicesAliasesRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            if (isDlsLicensed) {
+            if (isDlsLicensed || isFlsLicensed) {
                 for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
                     if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
                         for (String index : aliasAction.indices()) {

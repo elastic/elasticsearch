@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -51,7 +52,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             // TODO: should we check is DLS/FLS feature allowed here
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            if (isDlsLicensed && supports(indicesRequest)) {
+            final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if ((isDlsLicensed || isFlsLicensed) && supports(indicesRequest)) {
                 final IndicesAccessControl indicesAccessControl = threadContext.getTransient(
                     AuthorizationServiceField.INDICES_PERMISSIONS_KEY
                 );

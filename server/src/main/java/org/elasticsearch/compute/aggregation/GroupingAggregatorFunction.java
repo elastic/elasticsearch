@@ -13,14 +13,15 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
 
 @Experimental
 public interface GroupingAggregatorFunction extends Releasable {
 
-    void addRawInput(Block groupIdBlock, Page page);
+    void addRawInput(Vector groupIdBlock, Page page);
 
-    void addIntermediateInput(Block groupIdBlock, Block block);
+    void addIntermediateInput(Vector groupIdBlock, Block block);
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId

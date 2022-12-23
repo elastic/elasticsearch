@@ -10,10 +10,13 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+
+import java.util.Optional;
 
 @Experimental
 public class GroupingCountAggregator implements GroupingAggregatorFunction {
@@ -38,35 +41,50 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
     }
 
     @Override
-    public void addRawInput(Block groupIdBlock, Page page) {
+    public void addRawInput(Vector groupIdVector, Page page) {
         assert channel >= 0;
+        assert groupIdVector.elementType() == long.class;
         Block valuesBlock = page.getBlock(channel);
-        LongArrayState s = this.state;
-        int len = valuesBlock.getPositionCount();
+        Optional<Vector> vector = valuesBlock.asVector();
+        if (vector.isPresent()) {
+            addRawInputFromVector(groupIdVector, vector.get());
+        } else {
+            addRawInputFromBlock(groupIdVector, valuesBlock);
+        }
+    }
+
+    private void addRawInputFromVector(Vector groupIdVector, Vector valuesVector) {
+        final LongArrayState state = this.state;
+        final int len = groupIdVector.getPositionCount();
         for (int i = 0; i < len; i++) {
-            if (groupIdBlock.isNull(i) == false) {
-                int groupId = (int) groupIdBlock.getLong(i);
-                s.increment(1, groupId);
+            state.increment(1, Math.toIntExact(groupIdVector.getLong(i)));
+        }
+    }
+
+    private void addRawInputFromBlock(Vector groupIdVector, Block valuesBlock) {
+        final LongArrayState state = this.state;
+        final int len = groupIdVector.getPositionCount();
+        for (int i = 0; i < len; i++) {
+            if (valuesBlock.isNull(i) == false) {
+                state.increment(valuesBlock.getValueCount(i), Math.toIntExact(groupIdVector.getLong(i)));  // counts values
             }
         }
     }
 
     @Override
-    public void addIntermediateInput(Block groupIdBlock, Block block) {
+    public void addIntermediateInput(Vector groupIdVector, Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<LongArrayState> blobBlock = (AggregatorStateBlock<LongArrayState>) block;
+            AggregatorStateVector<LongArrayState> blobBlock = (AggregatorStateVector<LongArrayState>) vector.get();
             // TODO exchange big arrays directly without funny serialization - no more copying
             LongArrayState tmpState = new LongArrayState(BigArrays.NON_RECYCLING_INSTANCE, 0);
             blobBlock.get(0, tmpState);
-            final int positions = groupIdBlock.getPositionCount();
-            final LongArrayState s = state;
+            final int positions = groupIdVector.getPositionCount();
+            final LongArrayState state = this.state;
             for (int i = 0; i < positions; i++) {
-                if (groupIdBlock.isNull(i) == false) {
-                    int groupId = (int) groupIdBlock.getLong(i);
-                    s.increment(tmpState.get(i), groupId);
-                }
+                state.increment(tmpState.get(i), Math.toIntExact(groupIdVector.getLong(i)));
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
@@ -84,10 +102,10 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<LongArrayState>, LongArrayState> builder = AggregatorStateBlock
+        AggregatorStateVector.Builder<AggregatorStateVector<LongArrayState>, LongArrayState> builder = AggregatorStateVector
             .builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
@@ -98,7 +116,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
         for (int i = 0; i < positions; i++) {
             result[i] = s.get(i);
         }
-        return new LongArrayBlock(result, positions);
+        return new LongVector(result, positions).asBlock();
     }
 
     @Override

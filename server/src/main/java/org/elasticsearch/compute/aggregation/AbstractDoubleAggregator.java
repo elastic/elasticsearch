@@ -9,10 +9,13 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+
+import java.util.Optional;
 
 @Experimental
 abstract class AbstractDoubleAggregator implements AggregatorFunction {
@@ -40,11 +43,12 @@ abstract class AbstractDoubleAggregator implements AggregatorFunction {
     @Override
     public final void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (false == block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() == false || vector.get() instanceof AggregatorStateVector == false) {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
         }
         @SuppressWarnings("unchecked")
-        AggregatorStateBlock<DoubleState> blobBlock = (AggregatorStateBlock<DoubleState>) block;
+        AggregatorStateVector<DoubleState> blobBlock = (AggregatorStateVector<DoubleState>) vector.get();
         DoubleState tmpState = new DoubleState();
         for (int i = 0; i < block.getPositionCount(); i++) {
             blobBlock.get(i, tmpState);
@@ -54,15 +58,15 @@ abstract class AbstractDoubleAggregator implements AggregatorFunction {
 
     @Override
     public final Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleState>, DoubleState> builder = AggregatorStateBlock
+        AggregatorStateVector.Builder<AggregatorStateVector<DoubleState>, DoubleState> builder = AggregatorStateVector
             .builderOfAggregatorState(DoubleState.class, state.getEstimatedSize());
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public final Block evaluateFinal() {
-        return new DoubleArrayBlock(new double[] { state.doubleValue() }, 1);
+        return new DoubleVector(new double[] { state.doubleValue() }, 1).asBlock();
     }
 
     @Override

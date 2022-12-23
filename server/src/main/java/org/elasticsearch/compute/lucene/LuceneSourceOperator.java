@@ -20,8 +20,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.ConstantIntBlock;
-import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -38,6 +37,8 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantIntBlockWith;
 
 /**
  * Source operator that incrementally runs Lucene searches
@@ -63,7 +64,8 @@ public class LuceneSourceOperator extends SourceOperator {
     private BulkScorer currentScorer = null;
 
     private int currentPagePos;
-    private final int[] currentPage;
+
+    private BlockBuilder currentBlockBuilder;
 
     private int currentScorerPos;
 
@@ -145,7 +147,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.query = query;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentPage = new int[maxPageSize];
+        currentBlockBuilder = BlockBuilder.newIntBlockBuilder(maxPageSize);
     }
 
     private LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
@@ -156,7 +158,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.weight = weight;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentPage = new int[maxPageSize];
+        currentBlockBuilder = BlockBuilder.newIntBlockBuilder(maxPageSize);
     }
 
     @Override
@@ -309,7 +311,7 @@ public class LuceneSourceOperator extends SourceOperator {
 
                 @Override
                 public void collect(int doc) {
-                    currentPage[currentPagePos] = doc;
+                    currentBlockBuilder.appendInt(doc);
                     currentPagePos++;
                 }
             },
@@ -321,10 +323,11 @@ public class LuceneSourceOperator extends SourceOperator {
             if (currentPagePos >= minPageSize || currentScorerPos >= currentLeafReaderContext.maxDoc) {
                 page = new Page(
                     currentPagePos,
-                    new IntArrayBlock(Arrays.copyOf(currentPage, currentPagePos), currentPagePos),
-                    new ConstantIntBlock(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
-                    new ConstantIntBlock(shardId, currentPagePos)
+                    currentBlockBuilder.build(),
+                    newConstantIntBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
+                    newConstantIntBlockWith(shardId, currentPagePos)
                 );
+                currentBlockBuilder = BlockBuilder.newIntBlockBuilder(maxPageSize);
                 currentPagePos = 0;
             }
 

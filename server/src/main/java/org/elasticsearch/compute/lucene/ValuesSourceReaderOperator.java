@@ -11,8 +11,8 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -95,8 +95,10 @@ public class ValuesSourceReaderOperator implements Operator {
     @Override
     public void addInput(Page page) {
         Block docs = page.getBlock(luceneDocRef.docRef());
-        ConstantIntBlock leafOrd = (ConstantIntBlock) page.getBlock(luceneDocRef.segmentRef());
-        ConstantIntBlock shardOrd = (ConstantIntBlock) page.getBlock(luceneDocRef.shardRef());
+        Vector leafOrd = page.getBlock(luceneDocRef.segmentRef()).asVector().get();
+        Vector shardOrd = page.getBlock(luceneDocRef.shardRef()).asVector().get();
+        assert leafOrd.isConstant();
+        assert shardOrd.isConstant();
 
         if (docs.getPositionCount() > 0) {
             int segment = leafOrd.getInt(0);

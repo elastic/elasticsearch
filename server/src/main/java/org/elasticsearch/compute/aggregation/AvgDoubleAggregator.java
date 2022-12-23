@@ -9,15 +9,17 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import java.util.Optional;
 
 @Experimental
 class AvgDoubleAggregator implements AggregatorFunction {
@@ -37,22 +39,40 @@ class AvgDoubleAggregator implements AggregatorFunction {
     @Override
     public void addRawInput(Page page) {
         assert channel >= 0;
-        Block block = page.getBlock(channel);
-        AvgState state = this.state;
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i) == false) { // skip null values
-                state.add(block.getDouble(i));
+        Block valuesBlock = page.getBlock(channel);
+        Optional<Vector> vector = valuesBlock.asVector();
+        if (vector.isPresent()) {
+            addRawInputFromVector(vector.get());
+        } else {
+            addRawInputFromBlock(valuesBlock);
+        }
+    }
+
+    private void addRawInputFromVector(Vector valuesVector) {
+        final AvgState state = this.state;
+        for (int i = 0; i < valuesVector.getPositionCount(); i++) {
+            state.add(valuesVector.getDouble(i));
+        }
+        state.count += valuesVector.getPositionCount();
+    }
+
+    private void addRawInputFromBlock(Block valuesBlock) {
+        final AvgState state = this.state;
+        for (int i = 0; i < valuesBlock.getTotalValueCount(); i++) {  // all values, for now
+            if (valuesBlock.isNull(i) == false) { // skip null values
+                state.add(valuesBlock.getDouble(i));
             }
         }
-        state.count += block.validPositionCount();
+        state.count += valuesBlock.validPositionCount();
     }
 
     @Override
     public void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<AvgState> blobBlock = (AggregatorStateBlock<AvgState>) block;
+            AggregatorStateVector<AvgState> blobBlock = (AggregatorStateVector<AvgState>) vector.get();
             AvgState state = this.state;
             AvgState tmpState = new AvgState();
             for (int i = 0; i < block.getPositionCount(); i++) {
@@ -67,19 +87,19 @@ class AvgDoubleAggregator implements AggregatorFunction {
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<AvgState>, AvgState> builder = AggregatorStateBlock.builderOfAggregatorState(
+        AggregatorStateVector.Builder<AggregatorStateVector<AvgState>, AvgState> builder = AggregatorStateVector.builderOfAggregatorState(
             AvgState.class,
             state.getEstimatedSize()
         );
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public Block evaluateFinal() {
         AvgState s = state;
         double result = s.value / s.count;
-        return new DoubleArrayBlock(new double[] { result }, 1);
+        return BlockBuilder.newConstantDoubleBlockWith(result, 1);
     }
 
     @Override

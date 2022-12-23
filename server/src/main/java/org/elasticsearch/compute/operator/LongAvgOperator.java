@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
@@ -45,9 +45,9 @@ public class LongAvgOperator implements Operator {
         if (finished && returnedResult == false) {
             returnedResult = true;
             if (rawChannel != -1) {
-                return new Page(new LongArrayBlock(new long[] { sum }, 1), new LongArrayBlock(new long[] { count }, 1));
+                return new Page(BlockBuilder.newConstantLongBlockWith(sum, 1), BlockBuilder.newConstantLongBlockWith(count, 1));
             } else {
-                return new Page(new LongArrayBlock(new long[] { sum / count }, 1));
+                return new Page(BlockBuilder.newConstantLongBlockWith(sum / count, 1));
             }
         }
         return null;

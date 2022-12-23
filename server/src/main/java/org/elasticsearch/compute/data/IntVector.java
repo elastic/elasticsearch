@@ -9,41 +9,31 @@
 package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
-import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of integers.
+ * Vector implementation that stores an array of integers.
  */
-public final class IntArrayBlock extends NullsAwareBlock {
+public final class IntVector extends AbstractVector {
 
     private final int[] values;
 
-    public IntArrayBlock(int[] values, int positionCount) {
+    public IntVector(int[] values, int positionCount) {
         super(positionCount);
-        this.values = values;
-    }
-
-    public IntArrayBlock(int[] values, int positionCount, BitSet nulls) {
-        super(positionCount, nulls);
         this.values = values;
     }
 
     @Override
     public int getInt(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
         return values[position];
     }
 
     @Override
     public long getLong(int position) {
-        assert assertPosition(position);
         return getInt(position);  // Widening primitive conversions, no loss of precision
     }
 
     @Override
     public double getDouble(int position) {
-        assert assertPosition(position);
         return getInt(position);  // Widening primitive conversions, no loss of precision
     }
 
@@ -53,7 +43,17 @@ public final class IntArrayBlock extends NullsAwareBlock {
     }
 
     @Override
+    public Class<?> elementType() {
+        return int.class;
+    }
+
+    @Override
+    public boolean isConstant() {
+        return false;
+    }
+
+    @Override
     public String toString() {
-        return "IntArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 }

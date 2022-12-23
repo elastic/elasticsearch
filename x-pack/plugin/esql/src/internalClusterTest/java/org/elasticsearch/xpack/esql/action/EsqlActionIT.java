@@ -151,6 +151,45 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(40L, results.values().get(0).get(0));
     }
 
+    public void testFromStatsMin() {
+        testFromStatsMinImpl("from test | stats min(count)", "min(count)");
+    }
+
+    public void testFromStatsMinWithAlias() {
+        testFromStatsMinImpl("from test | stats minCount=min(count)", "minCount");
+    }
+
+    private void testFromStatsMinImpl(String command, String expectedFieldName) {
+        EsqlQueryResponse results = run(command);
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(expectedFieldName, results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        assertEquals(40L, results.values().get(0).get(0));
+    }
+
+    public void testFromStatsMax() {
+        testFromStatsMaxImpl("from test | stats max(count)", "max(count)");
+    }
+
+    public void testFromStatsMaxWithAlias() {
+        testFromStatsMaxImpl("from test | stats maxCount=max(count)", "maxCount");
+    }
+
+    private void testFromStatsMaxImpl(String command, String expectedFieldName) {
+        EsqlQueryResponse results = run(command);
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(expectedFieldName, results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        // ####: check the type of the result type, should be long
+        assertEquals(46.0, (double) results.values().get(0).get(0), 1d);
+    }
+
     public void testFromStatsGroupingAvgWithSort() {
         testFromStatsGroupingAvgImpl("from test | stats avg(count) by data | sort data | limit 2", "data", "avg(count)");
     }

@@ -41,8 +41,7 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntBlock;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -145,11 +144,11 @@ public class OperatorTests extends ESTestCase {
                 finish();
             }
             final int size = randomIntBetween(1, 10);
-            final long[] array = new long[size];
-            for (int i = 0; i < array.length; i++) {
-                array[i] = randomLongBetween(0, 5);
+            BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(size);
+            for (int i = 0; i < size; i++) {
+                blockBuilder.appendLong(randomLongBetween(0, 5));
             }
-            return new Page(new LongArrayBlock(array, array.length));
+            return new Page(blockBuilder.build());
         }
 
         @Override
@@ -662,7 +661,7 @@ public class OperatorTests extends ESTestCase {
                 Driver driver = new Driver(
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(
-                        new MapPageOperator(p -> p.appendBlock(new ConstantIntBlock(1, p.getPositionCount()))),
+                        new MapPageOperator(p -> p.appendBlock(BlockBuilder.newConstantIntBlockWith(1, p.getPositionCount()))),
                         new OrdinalsGroupingOperator(
                             List.of(
                                 new ValueSourceInfo(

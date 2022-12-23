@@ -8,10 +8,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+
+import java.util.Optional;
 
 abstract class AbstractLongAggregator implements AggregatorFunction {
     private final LongState state;
@@ -38,11 +41,12 @@ abstract class AbstractLongAggregator implements AggregatorFunction {
     @Override
     public final void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (false == block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() == false || vector.get() instanceof AggregatorStateVector == false) {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
         }
         @SuppressWarnings("unchecked")
-        AggregatorStateBlock<LongState> blobBlock = (AggregatorStateBlock<LongState>) block;
+        AggregatorStateVector<LongState> blobBlock = (AggregatorStateVector<LongState>) vector.get();
         LongState tmpState = new LongState();
         for (int i = 0; i < block.getPositionCount(); i++) {
             blobBlock.get(i, tmpState);
@@ -52,17 +56,17 @@ abstract class AbstractLongAggregator implements AggregatorFunction {
 
     @Override
     public final Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<LongState>, LongState> builder = AggregatorStateBlock.builderOfAggregatorState(
+        AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder = AggregatorStateVector.builderOfAggregatorState(
             LongState.class,
             state.getEstimatedSize()
         );
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public final Block evaluateFinal() {
-        return new LongArrayBlock(new long[] { state.longValue() }, 1);
+        return new LongVector(new long[] { state.longValue() }, 1).asBlock();
     }
 
     @Override

@@ -15,15 +15,15 @@ import java.util.Arrays;
 /**
  * Wraps another block and only allows access to positions that have not been filtered out.
  *
- * To ensure fast access, the filter is implemented as an array of positions that map positions in the filtered block to positions in the
- * wrapped block.
+ * To ensure fast access, the filter is implemented as an array of positions that map positions
+ * in the filtered block to positions in the wrapped block.
  */
-public class FilteredBlock extends Block {
+final class FilteredBlock extends AbstractBlock {
 
     private final int[] positions;
     private final Block block;
 
-    public FilteredBlock(Block block, int[] positions) {
+    FilteredBlock(Block block, int[] positions) {
         super(positions.length);
         this.positions = positions;
         this.block = block;
@@ -47,6 +47,11 @@ public class FilteredBlock extends Block {
     @Override
     public Object getObject(int position) {
         return block.getObject(mapPosition(position));
+    }
+
+    @Override
+    public Class<?> elementType() {
+        return block.elementType();
     }
 
     @Override

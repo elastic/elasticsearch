@@ -9,8 +9,8 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.Vector;
 
 import java.io.IOException;
 
@@ -23,7 +23,7 @@ public final class BlockOrdinalsReader {
         this.creationThread = Thread.currentThread();
     }
 
-    public Block readOrdinals(Block docs) throws IOException {
+    public Vector readOrdinals(Vector docs) throws IOException {
         final int positionCount = docs.getPositionCount();
         final long[] ordinals = new long[positionCount];
         int lastDoc = -1;
@@ -42,7 +42,7 @@ public final class BlockOrdinalsReader {
             ordinals[i] = sortedSetDocValues.nextOrd();
             lastDoc = doc;
         }
-        return new LongArrayBlock(ordinals, positionCount);
+        return new LongVector(ordinals, positionCount);
     }
 
     public int docID() {

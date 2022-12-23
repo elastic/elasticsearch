@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.LongFunction;
@@ -61,11 +61,12 @@ public class DoubleTransformerOperator implements Operator {
             return null;
         }
         Block block = lastInput.getBlock(channel);
-        double[] newBlock = new double[block.getPositionCount()];
+        int len = block.getPositionCount();
+        BlockBuilder blockBuilder = BlockBuilder.newDoubleBlockBuilder(len);
         for (int i = 0; i < block.getPositionCount(); i++) {
-            newBlock[i] = doubleTransformer.apply(block.getLong(i));
+            blockBuilder.appendDouble(doubleTransformer.apply(block.getLong(i)));
         }
-        Page lastPage = lastInput.replaceBlock(channel, new DoubleArrayBlock(newBlock, block.getPositionCount()));
+        Page lastPage = lastInput.replaceBlock(channel, blockBuilder.build());
         lastInput = null;
         return lastPage;
     }

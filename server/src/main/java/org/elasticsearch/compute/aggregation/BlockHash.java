@@ -16,8 +16,8 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -81,7 +81,7 @@ public abstract class BlockHash implements Releasable {
             }
 
             // TODO call something like takeKeyOwnership to claim the keys array directly
-            return new LongArrayBlock(keys, keys.length);
+            return new LongVector(keys, keys.length).asBlock();
         }
 
         @Override
@@ -115,7 +115,7 @@ public abstract class BlockHash implements Releasable {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 bytesRefHash.getBytesRefs().writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
-                    return new BytesRefArrayBlock(size, new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE));
+                    return new BytesRefVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock();
                 }
             } catch (IOException e) {
                 throw new IllegalStateException(e);

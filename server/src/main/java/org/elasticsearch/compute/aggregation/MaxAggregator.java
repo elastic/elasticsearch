@@ -9,11 +9,13 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+
+import java.util.Optional;
 
 @Experimental
 final class MaxAggregator implements AggregatorFunction {
@@ -35,16 +37,26 @@ final class MaxAggregator implements AggregatorFunction {
         assert channel >= 0;
         Block block = page.getBlock(channel);
         double max;
-        if (block instanceof LongArrayBlock longBlock) {
-            max = maxFromLongBlock(longBlock);
+        var vector = page.getBlock(channel).asVector();
+        if (vector.isPresent()) {
+            max = maxFromLongVector(vector.get());
         } else {
             max = maxFromBlock(block);
         }
         state.doubleValue(Math.max(state.doubleValue(), max));
     }
 
-    static double maxFromBlock(Block block) {
-        double max = Double.MIN_VALUE;
+    private static double maxFromLongVector(Vector vector) {
+        double max = Double.NEGATIVE_INFINITY;
+        final int len = vector.getPositionCount();
+        for (int i = 0; i < len; i++) {
+            max = Math.max(max, vector.getLong(i));
+        }
+        return max;
+    }
+
+    private static double maxFromBlock(Block block) {
+        double max = Double.NEGATIVE_INFINITY;
         int len = block.getPositionCount();
         if (block.areAllValuesNull() == false) {
             for (int i = 0; i < len; i++) {
@@ -56,28 +68,17 @@ final class MaxAggregator implements AggregatorFunction {
         return max;
     }
 
-    static double maxFromLongBlock(LongArrayBlock block) {
-        double max = Double.NEGATIVE_INFINITY;
-        if (block.areAllValuesNull() == false) {
-            for (int i = 0; i < block.getPositionCount(); i++) {
-                if (block.isNull(i) == false) {
-                    max = Math.max(max, block.getLong(i));
-                }
-            }
-        }
-        return max;
-    }
-
     @Override
     public void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<DoubleState> blobBlock = (AggregatorStateBlock<DoubleState>) block;
+            AggregatorStateVector<DoubleState> blobVector = (AggregatorStateVector<DoubleState>) vector.get();
             DoubleState state = this.state;
             DoubleState tmpState = new DoubleState();
             for (int i = 0; i < block.getPositionCount(); i++) {
-                blobBlock.get(i, tmpState);
+                blobVector.get(i, tmpState);
                 state.doubleValue(Math.max(state.doubleValue(), tmpState.doubleValue()));
             }
         } else {
@@ -87,15 +88,15 @@ final class MaxAggregator implements AggregatorFunction {
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleState>, DoubleState> builder = AggregatorStateBlock
+        AggregatorStateVector.Builder<AggregatorStateVector<DoubleState>, DoubleState> builder = AggregatorStateVector
             .builderOfAggregatorState(DoubleState.class, state.getEstimatedSize());
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public Block evaluateFinal() {
-        return new DoubleArrayBlock(new double[] { state.doubleValue() }, 1);
+        return BlockBuilder.newConstantDoubleBlockWith(state.doubleValue(), 1);
     }
 
     @Override

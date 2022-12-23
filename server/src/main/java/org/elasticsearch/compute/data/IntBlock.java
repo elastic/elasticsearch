@@ -8,31 +8,37 @@
 
 package org.elasticsearch.compute.data;
 
+import java.util.Arrays;
+import java.util.BitSet;
+
 /**
- * Block implementation that stores a constant integer value.
+ * Block implementation that stores an array of integers.
  */
-public class ConstantIntBlock extends Block {
+public final class IntBlock extends AbstractBlock {
 
-    private final int value;
+    private final int[] values;
 
-    public ConstantIntBlock(int value, int positionCount) {
-        super(positionCount);
-        this.value = value;
+    public IntBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
+        super(positionCount, firstValueIndexes, nulls);
+        this.values = values;
     }
 
     @Override
     public int getInt(int position) {
         assert assertPosition(position);
-        return value;
+        assert isNull(position) == false;
+        return values[position];
     }
 
     @Override
     public long getLong(int position) {
+        assert assertPosition(position);
         return getInt(position);  // Widening primitive conversions, no loss of precision
     }
 
     @Override
     public double getDouble(int position) {
+        assert assertPosition(position);
         return getInt(position);  // Widening primitive conversions, no loss of precision
     }
 
@@ -42,12 +48,12 @@ public class ConstantIntBlock extends Block {
     }
 
     @Override
-    public Block filter(int... positions) {
-        return new ConstantIntBlock(value, positions.length);
+    public Class<?> elementType() {
+        return int.class;
     }
 
     @Override
     public String toString() {
-        return "ConstantIntBlock{positions=" + getPositionCount() + ", value=" + value + '}';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 }

@@ -9,15 +9,17 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import java.util.Optional;
 
 @Experimental
 class AvgLongAggregator implements AggregatorFunction {
@@ -38,8 +40,25 @@ class AvgLongAggregator implements AggregatorFunction {
     public void addRawInput(Page page) {
         assert channel >= 0;
         Block block = page.getBlock(channel);
+        Optional<Vector> singleValued = page.getBlock(channel).asVector();
+        if (singleValued.isPresent()) {
+            addRawInputFromSingleValued(singleValued.get());
+        } else {
+            addRawInputFromBlock(block);
+        }
+    }
+
+    final void addRawInputFromSingleValued(Vector block) {
         AvgState state = this.state;
         for (int i = 0; i < block.getPositionCount(); i++) {
+            state.value = Math.addExact(state.value, block.getLong(i));
+        }
+        state.count += block.getPositionCount();
+    }
+
+    final void addRawInputFromBlock(Block block) {
+        AvgState state = this.state;
+        for (int i = 0; i < block.getPositionCount(); i++) {  // TODO: this is not correct, should be value count?
             state.value = Math.addExact(state.value, block.getLong(i));
         }
         state.count += block.validPositionCount();
@@ -48,9 +67,10 @@ class AvgLongAggregator implements AggregatorFunction {
     @Override
     public void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<AvgState> blobBlock = (AggregatorStateBlock<AvgState>) block;
+            AggregatorStateVector<AvgState> blobBlock = (AggregatorStateVector<AvgState>) vector.get();
             AvgState state = this.state;
             AvgState tmpState = new AvgState();
             for (int i = 0; i < block.getPositionCount(); i++) {
@@ -65,19 +85,19 @@ class AvgLongAggregator implements AggregatorFunction {
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<AvgState>, AvgState> builder = AggregatorStateBlock.builderOfAggregatorState(
+        AggregatorStateVector.Builder<AggregatorStateVector<AvgState>, AvgState> builder = AggregatorStateVector.builderOfAggregatorState(
             AvgState.class,
             state.getEstimatedSize()
         );
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public Block evaluateFinal() {
         AvgState s = state;
         double result = ((double) s.value) / s.count;
-        return new DoubleArrayBlock(new double[] { result }, 1);
+        return BlockBuilder.newConstantDoubleBlockWith(result, 1);
     }
 
     @Override

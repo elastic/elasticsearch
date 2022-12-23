@@ -11,7 +11,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntBlock;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
@@ -33,7 +33,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
         var size = randomIntBetween(2, 5);
         var blocks = new Block[size];
         for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = new ConstantIntBlock(i, size);
+            blocks[i] = new ConstantIntVector(i, size).asBlock();
         }
 
         var page = new Page(size, blocks);

@@ -13,8 +13,9 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -103,10 +104,10 @@ public class HashAggregationOperator implements Operator {
             }
             groups[i] = bucketOrd;
         }
-        Block groupIdBlock = new LongArrayBlock(groups, groups.length);
+        Vector groupIdVector = new LongVector(groups, groups.length);
 
         for (GroupingAggregator aggregator : aggregators) {
-            aggregator.processPage(groupIdBlock, page);
+            aggregator.processPage(groupIdVector, page);
         }
     }
 

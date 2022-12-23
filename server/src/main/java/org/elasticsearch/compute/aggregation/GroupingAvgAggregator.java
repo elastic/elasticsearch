@@ -12,16 +12,18 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import java.util.Optional;
 
 @Experimental
 final class GroupingAvgAggregator implements GroupingAggregatorFunction {
@@ -46,30 +48,52 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
     }
 
     @Override
-    public void addRawInput(Block groupIdBlock, Page page) {
+    public void addRawInput(Vector groupIdVector, Page page) {
         assert channel >= 0;
         Block valuesBlock = page.getBlock(channel);
-        GroupingAvgState state = this.state;
-        for (int i = 0; i < valuesBlock.getPositionCount(); i++) {
-            if (groupIdBlock.isNull(i) == false) {
-                int groupId = (int) groupIdBlock.getLong(i);
-                state.add(valuesBlock.getDouble(i), groupId);
+        Optional<Vector> vector = valuesBlock.asVector();
+        if (vector.isPresent()) {
+            addRawInputFromVector(groupIdVector, vector.get());
+        } else {
+            addRawInputFromBlock(groupIdVector, valuesBlock);
+        }
+    }
+
+    private void addRawInputFromVector(Vector groupIdVector, Vector valuesVector) {
+        final GroupingAvgState state = this.state;
+        final int len = valuesVector.getPositionCount();
+        for (int i = 0; i < len; i++) {
+            state.add(valuesVector.getDouble(i), Math.toIntExact(groupIdVector.getLong(i)));
+        }
+    }
+
+    private void addRawInputFromBlock(Vector groupIdVector, Block valuesBlock) {
+        final GroupingAvgState state = this.state;
+        final int len = groupIdVector.getPositionCount();
+        for (int i = 0; i < len; i++) {
+            if (valuesBlock.isNull(i) == false) {
+                final int groupId = Math.toIntExact(groupIdVector.getLong(i));
+                final int firstValueIndex = valuesBlock.getFirstValueIndex(i);
+                for (int offset = 0; offset < valuesBlock.getValueCount(i); offset++) {
+                    state.add(valuesBlock.getDouble(firstValueIndex + offset), groupId);
+                }
             }
         }
     }
 
     @Override
-    public void addIntermediateInput(Block groupIdBlock, Block block) {
+    public void addIntermediateInput(Vector groupIdVector, Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<GroupingAvgState> blobBlock = (AggregatorStateBlock<GroupingAvgState>) block;
+            AggregatorStateVector<GroupingAvgState> blobVector = (AggregatorStateVector<GroupingAvgState>) vector.get();
             // TODO exchange big arrays directly without funny serialization - no more copying
             GroupingAvgState tmpState = new GroupingAvgState(BigArrays.NON_RECYCLING_INSTANCE);
-            blobBlock.get(0, tmpState);
-            this.state.addIntermediate(groupIdBlock, tmpState);
+            blobVector.get(0, tmpState);
+            this.state.addIntermediate(groupIdVector, tmpState);
         } else {
-            throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
+            throw new RuntimeException("expected AggregatorStateVector, got:" + block);
         }
     }
 
@@ -84,10 +108,10 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<GroupingAvgState>, GroupingAvgState> builder = AggregatorStateBlock
+        AggregatorStateVector.Builder<AggregatorStateVector<GroupingAvgState>, GroupingAvgState> builder = AggregatorStateVector
             .builderOfAggregatorState(GroupingAvgState.class, state.getEstimatedSize());
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
@@ -98,7 +122,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         for (int i = 0; i < positions; i++) {
             result[i] = s.values.get(i) / s.counts.get(i);
         }
-        return new DoubleArrayBlock(result, positions);
+        return new DoubleVector(result, positions).asBlock();
     }
 
     @Override
@@ -142,13 +166,11 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
             this.serializer = new AvgStateSerializer();
         }
 
-        void addIntermediate(Block groupIdBlock, GroupingAvgState state) {
-            final int positions = groupIdBlock.getPositionCount();
+        void addIntermediate(Vector groupIdVector, GroupingAvgState state) {
+            final int positions = groupIdVector.getPositionCount();
             for (int i = 0; i < positions; i++) {
-                if (groupIdBlock.isNull(i) == false) {
-                    int groupId = (int) groupIdBlock.getLong(i);
-                    add(state.values.get(i), state.deltas.get(i), groupId, state.counts.get(i));
-                }
+                int groupId = Math.toIntExact(groupIdVector.getLong(i));
+                add(state.values.get(i), state.deltas.get(i), groupId, state.counts.get(i));
             }
         }
 

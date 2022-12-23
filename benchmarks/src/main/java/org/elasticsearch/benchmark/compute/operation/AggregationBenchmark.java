@@ -12,7 +12,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -40,7 +40,7 @@ import java.util.stream.LongStream;
 @Fork(1)
 public class AggregationBenchmark {
     private static final int PAGE_LENGTH = 8 * 1024;
-    private static final Page PAGE = new Page(new LongArrayBlock(LongStream.range(0, PAGE_LENGTH).toArray(), PAGE_LENGTH));
+    private static final Page PAGE = new Page(new LongVector(LongStream.range(0, PAGE_LENGTH).toArray(), PAGE_LENGTH).asBlock());
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod

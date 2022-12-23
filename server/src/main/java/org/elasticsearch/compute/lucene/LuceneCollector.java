@@ -12,10 +12,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.ConstantIntBlock;
-import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantIntBlockWith;
 
 /**
  * Lucene {@link org.apache.lucene.search.Collector} that turns collected docs
@@ -28,7 +29,7 @@ public class LuceneCollector extends SimpleCollector {
     private static final int PAGE_SIZE = 4096;
 
     private final int pageSize;
-    private int[] currentPage;
+    private BlockBuilder currentBlockBuilder;
     private int currentPos;
     private LeafReaderContext lastContext;
     private final ExchangeSink exchangeSink;
@@ -44,11 +45,11 @@ public class LuceneCollector extends SimpleCollector {
 
     @Override
     public void collect(int doc) {
-        if (currentPage == null) {
-            currentPage = new int[pageSize];
+        if (currentBlockBuilder == null) {
+            currentBlockBuilder = BlockBuilder.newIntBlockBuilder(pageSize);
             currentPos = 0;
         }
-        currentPage[currentPos] = doc;
+        currentBlockBuilder.appendInt(doc);
         currentPos++;
         if (currentPos == pageSize) {
             createPage();
@@ -65,11 +66,11 @@ public class LuceneCollector extends SimpleCollector {
 
     private void createPage() {
         if (currentPos > 0) {
-            Page page = new Page(currentPos, new IntArrayBlock(currentPage, currentPos), new ConstantIntBlock(lastContext.ord, currentPos));
+            Page page = new Page(currentPos, currentBlockBuilder.build(), newConstantIntBlockWith(lastContext.ord, currentPos));
             exchangeSink.waitForWriting().actionGet();
             exchangeSink.addPage(page);
         }
-        currentPage = null;
+        currentBlockBuilder = null;
         currentPos = 0;
     }
 

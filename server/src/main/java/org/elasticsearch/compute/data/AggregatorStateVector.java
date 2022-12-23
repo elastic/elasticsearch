@@ -14,14 +14,14 @@ import org.elasticsearch.compute.aggregation.AggregatorState;
 import java.util.Arrays;
 
 @Experimental
-public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
+public class AggregatorStateVector<T extends AggregatorState<T>> extends AbstractVector {
     private final byte[] ba;
 
     private final int itemSize;
 
     private final String description;
 
-    public AggregatorStateBlock(byte[] ba, int positionCount, int itemSize, String description) {
+    public AggregatorStateVector(byte[] ba, int positionCount, int itemSize, String description) {
         super(positionCount);
         this.ba = ba;
         this.itemSize = itemSize;
@@ -44,14 +44,24 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
             + "}";
     }
 
-    public static <T extends AggregatorState<T>> Builder<AggregatorStateBlock<T>, T> builderOfAggregatorState(
+    public static <T extends AggregatorState<T>> Builder<AggregatorStateVector<T>, T> builderOfAggregatorState(
         Class<? extends AggregatorState<T>> cls,
         long estimatedSize
     ) {
         return new AggregatorStateBuilder<>(cls, estimatedSize);
     }
 
-    public interface Builder<B extends Block, V> {
+    @Override
+    public Class<?> elementType() {
+        return byte[].class;
+    }
+
+    @Override
+    public boolean isConstant() {
+        return true;
+    }
+
+    public interface Builder<B extends Vector, V> {
 
         Class<?> type();
 
@@ -60,7 +70,7 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
         B build();
     }
 
-    static class AggregatorStateBuilder<T extends AggregatorState<T>> implements Builder<AggregatorStateBlock<T>, T> {
+    static class AggregatorStateBuilder<T extends AggregatorState<T>> implements Builder<AggregatorStateVector<T>, T> {
 
         private final byte[] ba; // use BigArrays and growable
 
@@ -89,7 +99,7 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
         }
 
         @Override
-        public Builder<AggregatorStateBlock<T>, T> add(T value) {
+        public Builder<AggregatorStateVector<T>, T> add(T value) {
             int bytesWritten = value.serializer().serialize(value, ba, offset);
             offset += bytesWritten;
             positionCount++;
@@ -104,8 +114,8 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
         }
 
         @Override
-        public AggregatorStateBlock<T> build() {
-            return new AggregatorStateBlock<>(Arrays.copyOf(ba, ba.length), positionCount, size, "aggregator state for " + cls);
+        public AggregatorStateVector<T> build() {
+            return new AggregatorStateVector<>(Arrays.copyOf(ba, ba.length), positionCount, size, "aggregator state for " + cls);
         }
     }
 }

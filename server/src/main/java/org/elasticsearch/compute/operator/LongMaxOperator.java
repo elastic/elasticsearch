@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -33,7 +33,7 @@ public class LongMaxOperator implements Operator {
     public Page getOutput() {
         if (finished && returnedResult == false) {
             returnedResult = true;
-            return new Page(new LongArrayBlock(new long[] { max }, 1));
+            return new Page(BlockBuilder.newConstantLongBlockWith(max, 1));
         }
         return null;
     }

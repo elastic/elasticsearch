@@ -45,14 +45,13 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     mode.isInputPartial() ? 2 : 1
                 )
             ),
-            () -> BlockHash.newLongHash(bigArrays),
-            mode
+            () -> BlockHash.newLongHash(bigArrays)
         );
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator(mode = SINGLE, aggs = avg, max)";
+        return "HashAggregationOperator(mode = <not-needed>, aggs = avg, max)";
     }
 
     @Override

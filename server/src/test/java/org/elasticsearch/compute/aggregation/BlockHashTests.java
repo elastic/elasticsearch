@@ -12,8 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +21,7 @@ public class BlockHashTests extends ESTestCase {
 
     public void testBasicLongHash() {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
-        Block block = new LongArrayBlock(values, values.length);
+        Block block = new LongVector(values, values.length).asBlock();
 
         Block keysBlock;
         try (
@@ -48,15 +48,15 @@ public class BlockHashTests extends ESTestCase {
     }
 
     public void testBasicBytesRefHash() {
-        BytesRefArrayBlock.Builder builder = BytesRefArrayBlock.builder(8);
-        builder.append(new BytesRef("item-2"));
-        builder.append(new BytesRef("item-1"));
-        builder.append(new BytesRef("item-4"));
-        builder.append(new BytesRef("item-2"));
-        builder.append(new BytesRef("item-4"));
-        builder.append(new BytesRef("item-1"));
-        builder.append(new BytesRef("item-3"));
-        builder.append(new BytesRef("item-4"));
+        BlockBuilder builder = BlockBuilder.newBytesRefBlockBuilder(8);
+        builder.appendBytesRef(new BytesRef("item-2"));
+        builder.appendBytesRef(new BytesRef("item-1"));
+        builder.appendBytesRef(new BytesRef("item-4"));
+        builder.appendBytesRef(new BytesRef("item-2"));
+        builder.appendBytesRef(new BytesRef("item-4"));
+        builder.appendBytesRef(new BytesRef("item-1"));
+        builder.appendBytesRef(new BytesRef("item-3"));
+        builder.appendBytesRef(new BytesRef("item-4"));
         Block block = builder.build();
 
         Block keysBlock;

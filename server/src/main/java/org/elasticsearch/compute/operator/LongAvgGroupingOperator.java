@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.HashMap;
@@ -63,17 +63,17 @@ public class LongAvgGroupingOperator implements Operator {
         finished = true;
 
         int len = sums.size();
-        long[] groups = new long[len];
-        long[] averages = new long[len];
+        BlockBuilder groupsBlockBuilder = BlockBuilder.newLongBlockBuilder(len);
+        BlockBuilder valuesBlockBuilder = BlockBuilder.newLongBlockBuilder(len);
         int i = 0;
         for (var e : sums.entrySet()) {
-            groups[i] = e.getKey();
+            groupsBlockBuilder.appendLong(e.getKey());
             var groupSum = e.getValue();
-            averages[i] = groupSum.sum / groupSum.count;
+            valuesBlockBuilder.appendLong(groupSum.sum / groupSum.count);
             i++;
         }
-        Block groupBlock = new LongArrayBlock(groups, len);
-        Block averagesBlock = new LongArrayBlock(averages, len);
+        Block groupBlock = groupsBlockBuilder.build();
+        Block averagesBlock = valuesBlockBuilder.build();
         lastPage = new Page(groupBlock, averagesBlock);
     }
 

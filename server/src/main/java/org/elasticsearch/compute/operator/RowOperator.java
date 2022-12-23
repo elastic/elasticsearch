@@ -10,17 +10,17 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantBytesRefBlock;
-import org.elasticsearch.compute.data.ConstantDoubleBlock;
-import org.elasticsearch.compute.data.ConstantIntBlock;
-import org.elasticsearch.compute.data.ConstantLongBlock;
-import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantBytesRefBlockWith;
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantDoubleBlockWith;
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantIntBlockWith;
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantLongBlockWith;
+import static org.elasticsearch.compute.data.BlockBuilder.newConstantNullBlockWith;
 
 public class RowOperator extends SourceOperator {
 
@@ -61,15 +61,15 @@ public class RowOperator extends SourceOperator {
         for (int i = 0; i < objects.size(); i++) {
             Object object = objects.get(i);
             if (object instanceof Integer intVal) {
-                blocks[i] = new ConstantIntBlock(intVal, 1);
+                blocks[i] = newConstantIntBlockWith(intVal, 1);
             } else if (object instanceof Long longVal) {
-                blocks[i] = new ConstantLongBlock(longVal, 1);
+                blocks[i] = newConstantLongBlockWith(longVal, 1);
             } else if (object instanceof Double doubleVal) {
-                blocks[i] = new ConstantDoubleBlock(doubleVal, 1);
+                blocks[i] = newConstantDoubleBlockWith(doubleVal, 1);
             } else if (object instanceof String stringVal) {
-                blocks[i] = new ConstantBytesRefBlock(new BytesRef(stringVal), 1);
+                blocks[i] = newConstantBytesRefBlockWith(new BytesRef(stringVal), 1);
             } else if (object == null) {
-                blocks[i] = new ConstantNullBlock(1);
+                blocks[i] = newConstantNullBlockWith(1);
             } else {
                 throw new UnsupportedOperationException();
             }

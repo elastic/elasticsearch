@@ -13,9 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -25,7 +23,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.BitSet;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -88,8 +85,7 @@ public abstract class BlockDocValuesReader {
         @Override
         public Block readValues(Block docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            final long[] values = new long[positionCount];
-            final BitSet nullsMask = new BitSet(positionCount);
+            BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -98,14 +94,13 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    values[i] = numericDocValues.longValue();
+                    blockBuilder.appendLong(numericDocValues.longValue());
                 } else {
-                    nullsMask.set(i);
-                    values[i] = 0L;
+                    blockBuilder.appendNull();
                 }
                 lastDoc = doc;
             }
-            return new LongArrayBlock(values, positionCount, nullsMask);
+            return blockBuilder.build();
         }
 
         @Override
@@ -125,8 +120,7 @@ public abstract class BlockDocValuesReader {
         @Override
         public Block readValues(Block docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            final double[] values = new double[positionCount];
-            final BitSet nullsMask = new BitSet(positionCount);
+            BlockBuilder blockBuilder = BlockBuilder.newDoubleBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -135,15 +129,14 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    values[i] = numericDocValues.doubleValue();
+                    blockBuilder.appendDouble(numericDocValues.doubleValue());
                 } else {
-                    nullsMask.set(i);
-                    values[i] = 0.0d;
+                    blockBuilder.appendNull();
                 }
                 lastDoc = doc;
                 this.docID = doc;
             }
-            return new DoubleArrayBlock(values, positionCount, nullsMask);
+            return blockBuilder.build();
         }
 
         @Override
@@ -163,7 +156,7 @@ public abstract class BlockDocValuesReader {
         @Override
         public Block readValues(Block docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            BytesRefArrayBlock.Builder builder = BytesRefArrayBlock.builder(positionCount);
+            BlockBuilder blockBuilder = BlockBuilder.newBytesRefBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);
@@ -178,14 +171,14 @@ public abstract class BlockDocValuesReader {
                             "multi-values not supported for now, could not read doc [" + doc + "] with [" + dvCount + "] values"
                         );
                     }
-                    builder.append(binaryDV.nextValue());
+                    blockBuilder.appendBytesRef(binaryDV.nextValue());
                 } else {
-                    builder.appendNull();
+                    blockBuilder.appendNull();
                 }
                 lastDoc = doc;
                 this.docID = doc;
             }
-            return builder.build();
+            return blockBuilder.build();
         }
 
         @Override

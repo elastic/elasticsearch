@@ -42,14 +42,13 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             0,
             List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), mode, 1)),
-            () -> BlockHash.newLongHash(bigArrays),
-            mode
+            () -> BlockHash.newLongHash(bigArrays)
         );
     }
 
     @Override
     protected final String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator(mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + ")";
+        return "HashAggregationOperator(mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + ")";
     }
 
     @Override

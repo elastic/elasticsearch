@@ -11,7 +11,8 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
@@ -66,7 +67,8 @@ public class LongGroupingOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        LongArrayBlock block = (LongArrayBlock) page.getBlock(channel);
+        Block block = page.getBlock(channel);
+        assert block.elementType() == long.class;
         long[] groups = new long[block.getPositionCount()];
         for (int i = 0; i < block.getPositionCount(); i++) {
             long value = block.getLong(i);
@@ -76,7 +78,7 @@ public class LongGroupingOperator implements Operator {
             }
             groups[i] = bucketOrd;
         }
-        lastPage = page.appendBlock(new LongArrayBlock(groups, block.getPositionCount()));
+        lastPage = page.appendBlock(new LongVector(groups, block.getPositionCount()).asBlock());
     }
 
     @Override

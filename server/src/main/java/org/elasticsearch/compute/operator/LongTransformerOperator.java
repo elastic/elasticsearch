@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.LongFunction;
@@ -39,11 +39,11 @@ public class LongTransformerOperator implements Operator {
             return null;
         }
         Block block = lastInput.getBlock(channel);
-        long[] newBlock = new long[block.getPositionCount()];
+        BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(block.getPositionCount());
         for (int i = 0; i < block.getPositionCount(); i++) {
-            newBlock[i] = longTransformer.apply(block.getLong(i));
+            blockBuilder.appendLong(longTransformer.apply(block.getLong(i)));
         }
-        Page lastPage = lastInput.appendBlock(new LongArrayBlock(newBlock, block.getPositionCount()));
+        Page lastPage = lastInput.appendBlock(blockBuilder.build());
         lastInput = null;
         return lastPage;
     }

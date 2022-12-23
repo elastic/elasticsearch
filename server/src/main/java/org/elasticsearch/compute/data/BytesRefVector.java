@@ -9,35 +9,42 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BytesRefArray;
 
-public class ConstantBytesRefBlock extends Block {
+/**
+ * Vector implementation that stores an array of BytesRef values.
+ */
+public final class BytesRefVector extends AbstractVector {
 
-    private final BytesRef value;
+    private final BytesRefArray bytesRefArray;
 
-    public ConstantBytesRefBlock(BytesRef value, int positionCount) {
+    public BytesRefVector(BytesRefArray bytesRefArray, int positionCount) {
         super(positionCount);
-        this.value = value;
+        this.bytesRefArray = bytesRefArray;
     }
 
     @Override
     public BytesRef getBytesRef(int position, BytesRef spare) {
-        assert assertPosition(position);
-        return value;
+        return bytesRefArray.get(position, spare);
     }
 
     @Override
     public Object getObject(int position) {
-        assert assertPosition(position);
-        return value;
+        return getBytesRef(position, new BytesRef());
     }
 
     @Override
-    public Block filter(int... positions) {
-        return new ConstantBytesRefBlock(value, positions.length);
+    public Class<?> elementType() {
+        return BytesRef.class;
+    }
+
+    @Override
+    public boolean isConstant() {
+        return false;
     }
 
     @Override
     public String toString() {
-        return "ConstantStringBlock{positions=" + getPositionCount() + "}";
+        return "BytesRefVector[positions=" + getPositionCount() + "]";
     }
 }

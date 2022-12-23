@@ -14,17 +14,12 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of long values.
  */
-public final class LongArrayBlock extends NullsAwareBlock {
+public final class LongBlock extends AbstractBlock {
 
     private final long[] values;
 
-    public LongArrayBlock(long[] values, int positionCount) {
-        super(positionCount);
-        this.values = values;
-    }
-
-    public LongArrayBlock(long[] values, int positionCount, BitSet nulls) {
-        super(positionCount, nulls);
+    public LongBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
+        super(positionCount, firstValueIndexes, nulls);
         this.values = values;
     }
 
@@ -47,8 +42,13 @@ public final class LongArrayBlock extends NullsAwareBlock {
     }
 
     @Override
+    public Class<?> elementType() {
+        return long.class;
+    }
+
+    @Override
     public String toString() {
-        return "LongArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 
     public long[] getRawLongArray() {

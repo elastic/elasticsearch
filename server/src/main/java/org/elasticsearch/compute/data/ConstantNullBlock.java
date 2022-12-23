@@ -11,9 +11,9 @@ package org.elasticsearch.compute.data;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends Block {
+final class ConstantNullBlock extends AbstractBlock {
 
-    public ConstantNullBlock(int positionCount) {
+    ConstantNullBlock(int positionCount) {
         super(positionCount);
     }
 
@@ -33,20 +33,17 @@ public final class ConstantNullBlock extends Block {
     }
 
     @Override
-    public int getInt(int position) {
-        assert assertPosition(position);
-        return 0;
+    public boolean mayHaveNulls() {
+        return true;
     }
 
     @Override
     public long getLong(int position) {
-        assert assertPosition(position);
         return 0L;
     }
 
     @Override
     public double getDouble(int position) {
-        assert assertPosition(position);
         return 0.0d;
     }
 
@@ -56,12 +53,17 @@ public final class ConstantNullBlock extends Block {
     }
 
     @Override
+    public Class<?> elementType() {
+        return Object.class;
+    }
+
+    @Override
     public Block filter(int... positions) {
         return new ConstantNullBlock(positions.length);
     }
 
     @Override
     public String toString() {
-        return "ConstantNullBlock{positions=" + getPositionCount() + '}';
+        return "ConstantNullBlock[positions=" + getPositionCount() + "]";
     }
 }

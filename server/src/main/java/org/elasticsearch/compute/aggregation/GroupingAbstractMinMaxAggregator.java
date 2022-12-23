@@ -10,10 +10,13 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+
+import java.util.Optional;
 
 @Experimental
 abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFunction {
@@ -31,30 +34,51 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
     protected abstract double initialDefaultValue();
 
     @Override
-    public void addRawInput(Block groupIdBlock, Page page) {
+    public void addRawInput(Vector groupIdVector, Page page) {
         assert channel >= 0;
+        assert groupIdVector.elementType() == long.class;
         Block valuesBlock = page.getBlock(channel);
-        DoubleArrayState s = this.state;
-        int len = valuesBlock.getPositionCount();
+        Optional<Vector> vector = valuesBlock.asVector();
+        if (vector.isPresent()) {
+            addRawInputFromVector(groupIdVector, vector.get());
+        } else {
+            addRawInputFromBlock(groupIdVector, valuesBlock);
+        }
+    }
+
+    private void addRawInputFromVector(Vector groupIdVector, Vector valuesVector) {
+        final DoubleArrayState state = this.state;
+        int len = valuesVector.getPositionCount();
         for (int i = 0; i < len; i++) {
-            int groupId = (int) groupIdBlock.getLong(i);
-            s.set(operator(s.getOrDefault(groupId), valuesBlock.getDouble(i)), groupId);
+            int groupId = Math.toIntExact(groupIdVector.getLong(i));
+            state.set(operator(state.getOrDefault(groupId), valuesVector.getDouble(i)), groupId);
+        }
+    }
+
+    private void addRawInputFromBlock(Vector groupIdVector, Block valuesBlock) {
+        assert valuesBlock.elementType() == double.class;
+        final DoubleArrayState state = this.state;
+        int len = valuesBlock.getTotalValueCount();  // all values, for now
+        for (int i = 0; i < len; i++) {
+            int groupId = Math.toIntExact(groupIdVector.getLong(i));
+            state.set(operator(state.getOrDefault(groupId), valuesBlock.getDouble(i)), groupId);
         }
     }
 
     @Override
-    public void addIntermediateInput(Block groupIdBlock, Block block) {
+    public void addIntermediateInput(Vector groupIdVector, Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        Optional<Vector> vector = block.asVector();
+        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<DoubleArrayState> blobBlock = (AggregatorStateBlock<DoubleArrayState>) block;
+            AggregatorStateVector<DoubleArrayState> blobVector = (AggregatorStateVector<DoubleArrayState>) vector.get();
             // TODO exchange big arrays directly without funny serialization - no more copying
             DoubleArrayState tmpState = new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, initialDefaultValue());
-            blobBlock.get(0, tmpState);
-            final int positions = groupIdBlock.getPositionCount();
+            blobVector.get(0, tmpState);
+            final int positions = groupIdVector.getPositionCount();
             final DoubleArrayState s = state;
             for (int i = 0; i < positions; i++) {
-                int groupId = (int) groupIdBlock.getLong(i);
+                int groupId = Math.toIntExact(groupIdVector.getLong(i));
                 s.set(operator(s.getOrDefault(groupId), tmpState.get(i)), groupId);
             }
         } else {
@@ -74,21 +98,21 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleArrayState>, DoubleArrayState> builder = AggregatorStateBlock
+        AggregatorStateVector.Builder<AggregatorStateVector<DoubleArrayState>, DoubleArrayState> builder = AggregatorStateVector
             .builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public Block evaluateFinal() {
         DoubleArrayState s = state;
         int positions = s.largestIndex + 1;
-        double[] result = new double[positions];
+        double[] values = new double[positions];
         for (int i = 0; i < positions; i++) {
-            result[i] = s.get(i);
+            values[i] = s.get(i);
         }
-        return new DoubleArrayBlock(result, positions);
+        return new DoubleVector(values, positions).asBlock();
     }
 
     @Override

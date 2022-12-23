@@ -9,9 +9,9 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateBlock;
+import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
@@ -40,13 +40,13 @@ public class CountRowsAggregator implements AggregatorFunction {
     @Override
     public void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (block instanceof AggregatorStateBlock) {
+        if (block.asVector().isPresent() && block.asVector().get() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateBlock<LongState> blobBlock = (AggregatorStateBlock<LongState>) block;
+            AggregatorStateVector<LongState> blobVector = (AggregatorStateVector) block.asVector().get();
             LongState state = this.state;
             LongState tmpState = new LongState();
             for (int i = 0; i < block.getPositionCount(); i++) {
-                blobBlock.get(i, tmpState);
+                blobVector.get(i, tmpState);
                 state.longValue(state.longValue() + tmpState.longValue());
             }
         } else {
@@ -56,17 +56,17 @@ public class CountRowsAggregator implements AggregatorFunction {
 
     @Override
     public Block evaluateIntermediate() {
-        AggregatorStateBlock.Builder<AggregatorStateBlock<LongState>, LongState> builder = AggregatorStateBlock.builderOfAggregatorState(
+        AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder = AggregatorStateVector.builderOfAggregatorState(
             LongState.class,
             state.getEstimatedSize()
         );
         builder.add(state);
-        return builder.build();
+        return builder.build().asBlock();
     }
 
     @Override
     public Block evaluateFinal() {
-        return new LongArrayBlock(new long[] { state.longValue() }, 1);
+        return BlockBuilder.newConstantLongBlockWith(state.longValue(), 1);
     }
 
     @Override

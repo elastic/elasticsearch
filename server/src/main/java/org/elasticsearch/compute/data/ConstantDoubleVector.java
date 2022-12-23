@@ -9,20 +9,19 @@
 package org.elasticsearch.compute.data;
 
 /**
- * Block implementation that stores a constant double value.
+ * Vector implementation that stores a constant double value.
  */
-public final class ConstantDoubleBlock extends Block {
+final class ConstantDoubleVector extends AbstractVector {
 
     private final double value;
 
-    public ConstantDoubleBlock(double value, int positionCount) {
+    ConstantDoubleVector(double value, int positionCount) {
         super(positionCount);
         this.value = value;
     }
 
     @Override
     public double getDouble(int position) {
-        assert assertPosition(position);
         return value;
     }
 
@@ -32,12 +31,22 @@ public final class ConstantDoubleBlock extends Block {
     }
 
     @Override
-    public Block filter(int... positions) {
-        return new ConstantDoubleBlock(value, positions.length);
+    public Vector filter(int... positions) {
+        return new ConstantDoubleVector(value, positions.length);
+    }
+
+    @Override
+    public Class<?> elementType() {
+        return double.class;
+    }
+
+    @Override
+    public boolean isConstant() {
+        return true;
     }
 
     @Override
     public String toString() {
-        return "ConstantDoubleBlock{positions=" + getPositionCount() + ", value=" + value + '}';
+        return "ConstantDoubleVector[positions=" + getPositionCount() + ", value=" + value + "]";
     }
 }

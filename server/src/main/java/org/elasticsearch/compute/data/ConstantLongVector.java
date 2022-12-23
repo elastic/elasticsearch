@@ -9,26 +9,24 @@
 package org.elasticsearch.compute.data;
 
 /**
- * Block implementation that stores a constant long value.
+ * Vector implementation that stores a constant long value.
  */
-public final class ConstantLongBlock extends Block {
+final class ConstantLongVector extends AbstractVector {
 
     private final long value;
 
-    public ConstantLongBlock(long value, int positionCount) {
+    ConstantLongVector(long value, int positionCount) {
         super(positionCount);
         this.value = value;
     }
 
     @Override
     public long getLong(int position) {
-        assert assertPosition(position);
         return value;
     }
 
     @Override
     public double getDouble(int position) {
-        assert assertPosition(position);
         return value;  // Widening primitive conversions, no loss of precision
     }
 
@@ -38,12 +36,22 @@ public final class ConstantLongBlock extends Block {
     }
 
     @Override
-    public Block filter(int... positions) {
-        return new ConstantLongBlock(value, positions.length);
+    public Vector filter(int... positions) {
+        return new ConstantLongVector(value, positions.length);
+    }
+
+    @Override
+    public boolean isConstant() {
+        return true;
+    }
+
+    @Override
+    public Class<?> elementType() {
+        return long.class;
     }
 
     @Override
     public String toString() {
-        return "ConstantLongBlock{positions=" + getPositionCount() + ", value=" + value + '}';
+        return "ConstantLongVector[positions=" + getPositionCount() + ", value=" + value + ']';
     }
 }

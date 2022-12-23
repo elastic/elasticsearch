@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -55,7 +55,7 @@ public class SumLongAggregatorTests extends AggregatorTestCase {
     public void testRejectsDouble() {
         try (
             Driver d = new Driver(
-                new CannedSourceOperator(Iterators.single(new Page(new DoubleArrayBlock(new double[] { 1.0 }, 1)))),
+                new CannedSourceOperator(Iterators.single(new Page(new DoubleVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple(nonBreakingBigArrays()).get()),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}

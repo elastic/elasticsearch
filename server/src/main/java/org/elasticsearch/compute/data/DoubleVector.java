@@ -9,29 +9,21 @@
 package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
-import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of double values.
+ * Vector implementation that stores an array of double values.
  */
-public final class DoubleArrayBlock extends NullsAwareBlock {
+public final class DoubleVector extends AbstractVector {
 
     private final double[] values;
 
-    public DoubleArrayBlock(double[] values, int positionCount) {
+    public DoubleVector(double[] values, int positionCount) {
         super(positionCount);
-        this.values = values;
-    }
-
-    public DoubleArrayBlock(double[] values, int positionCount, BitSet nulls) {
-        super(positionCount, nulls);
         this.values = values;
     }
 
     @Override
     public double getDouble(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
         return values[position];
     }
 
@@ -41,7 +33,17 @@ public final class DoubleArrayBlock extends NullsAwareBlock {
     }
 
     @Override
+    public boolean isConstant() {
+        return false;
+    }
+
+    @Override
+    public Class<?> elementType() {
+        return double.class;
+    }
+
+    @Override
     public String toString() {
-        return "DoubleArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 }

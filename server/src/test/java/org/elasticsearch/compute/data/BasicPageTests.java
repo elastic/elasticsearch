@@ -35,7 +35,7 @@ public class BasicPageTests extends ESTestCase {
 
     public void testBasic() {
         int positions = randomInt(1024);
-        Page page = new Page(new IntArrayBlock(IntStream.range(0, positions).toArray(), positions));
+        Page page = new Page(new IntVector(IntStream.range(0, positions).toArray(), positions).asBlock());
         assertThat(1, is(page.getBlockCount()));
         assertThat(positions, is(page.getPositionCount()));
         Block block = page.getBlock(0);
@@ -43,8 +43,8 @@ public class BasicPageTests extends ESTestCase {
     }
 
     public void testAppend() {
-        Page page1 = new Page(new IntArrayBlock(IntStream.range(0, 10).toArray(), 10));
-        Page page2 = page1.appendBlock(new LongArrayBlock(LongStream.range(0, 10).toArray(), 10));
+        Page page1 = new Page(new IntVector(IntStream.range(0, 10).toArray(), 10).asBlock());
+        Page page2 = page1.appendBlock(new LongVector(LongStream.range(0, 10).toArray(), 10).asBlock());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(2, is(page2.getBlockCount()));
         Block block1 = page2.getBlock(0);
@@ -54,8 +54,8 @@ public class BasicPageTests extends ESTestCase {
     }
 
     public void testReplace() {
-        Page page1 = new Page(new IntArrayBlock(IntStream.range(0, 10).toArray(), 10));
-        Page page2 = page1.replaceBlock(0, new LongArrayBlock(LongStream.range(0, 10).toArray(), 10));
+        Page page1 = new Page(new IntVector(IntStream.range(0, 10).toArray(), 10).asBlock());
+        Page page2 = page1.replaceBlock(0, new LongVector(LongStream.range(0, 10).toArray(), 10).asBlock());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(1, is(page2.getBlockCount()));
         Block block = page2.getBlock(0);

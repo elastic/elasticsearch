@@ -15,16 +15,16 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.ConstantIntBlock;
+import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
@@ -108,15 +108,18 @@ public class OrdinalsGroupingOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        Block docs = page.getBlock(luceneDocRef.docRef());
+        Vector docs = page.getBlock(luceneDocRef.docRef()).asVector().get();
         if (docs.getPositionCount() == 0) {
             return;
         }
-        final ConstantIntBlock shardIndexBlock = (ConstantIntBlock) page.getBlock(luceneDocRef.shardRef());
-        final int shardIndex = shardIndexBlock.getInt(0);
+        assert docs.elementType() == int.class;
+        final Vector shardIndexVector = page.getBlock(luceneDocRef.shardRef()).asVector().get();
+        assert shardIndexVector.isConstant();
+        assert shardIndexVector.elementType() == int.class;
+        final int shardIndex = shardIndexVector.getInt(0);
         var source = sources.get(shardIndex);
         if (source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
-            final ConstantIntBlock segmentIndexBlock = (ConstantIntBlock) page.getBlock(luceneDocRef.segmentRef());
+            final ConstantIntVector segmentIndexBlock = (ConstantIntVector) page.getBlock(luceneDocRef.segmentRef()).asVector().get();
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
                 new SegmentID(shardIndex, segmentIndexBlock.getInt(0)),
                 k -> {
@@ -210,7 +213,6 @@ public class OrdinalsGroupingOperator implements Operator {
             }
         };
         final List<GroupingAggregator> aggregators = createGroupingAggregators();
-        BytesRefArray keys = null;
         try {
             for (OrdinalSegmentAggregator agg : ordinalAggregators.values()) {
                 final AggregatedResultIterator it = agg.getResultIterator();
@@ -221,13 +223,14 @@ public class OrdinalsGroupingOperator implements Operator {
             int position = -1;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
             // Use NON_RECYCLING_INSTANCE as we don't have a lifecycle for pages/block yet
-            keys = new BytesRefArray(1, BigArrays.NON_RECYCLING_INSTANCE);
+            // keys = new BytesRefArray(1, BigArrays.NON_RECYCLING_INSTANCE);
+            BlockBuilder blockBuilder = BlockBuilder.newBytesRefBlockBuilder(1);
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
                 if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {
                     position++;
                     lastTerm.copyBytes(top.currentTerm);
-                    keys.append(top.currentTerm);
+                    blockBuilder.appendBytesRef(top.currentTerm);
                 }
                 for (int i = 0; i < top.aggregators.size(); i++) {
                     aggregators.get(i).addIntermediateRow(position, top.aggregators.get(i), top.currentPosition());
@@ -239,14 +242,14 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
             }
             final Block[] blocks = new Block[aggregators.size() + 1];
-            blocks[0] = new BytesRefArrayBlock(position + 1, keys);
-            keys = null;
+            blocks[0] = blockBuilder.build();
+            blockBuilder = null;
             for (int i = 0; i < aggregators.size(); i++) {
                 blocks[i + 1] = aggregators.get(i).evaluate();
             }
             return new Page(blocks);
         } finally {
-            Releasables.close(keys, () -> Releasables.close(aggregators));
+            Releasables.close(() -> Releasables.close(aggregators));
         }
     }
 
@@ -296,12 +299,12 @@ public class OrdinalsGroupingOperator implements Operator {
             this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
         }
 
-        void addInput(Block docs, Page page) {
+        void addInput(Vector docs, Page page) {
             try {
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
-                final Block ordinals = currentReader.readOrdinals(docs);
+                final Vector ordinals = currentReader.readOrdinals(docs);
                 for (int i = 0; i < ordinals.getPositionCount(); i++) {
                     long ord = ordinals.getLong(i);
                     visitedOrds.set(ord);

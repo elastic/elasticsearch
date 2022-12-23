@@ -33,13 +33,15 @@ abstract class AbstractDocumentAndFieldLevelSecurityTests extends SecurityIntegT
     );
 
     protected static void assertOnlyDlsTracked() {
-        assertThat(DOCUMENT_LEVEL_SECURITY_FEATURE.getName(), is(in(fetchFeatureUsageFromAllNodes())));
-        assertThat(FIELD_LEVEL_SECURITY_FEATURE.getName(), not(is(in(fetchFeatureUsageFromAllNodes()))));
+        Set<String> features = fetchFeatureUsageFromAllNodes();
+        assertThat(DOCUMENT_LEVEL_SECURITY_FEATURE.getName(), is(in(features)));
+        assertThat(FIELD_LEVEL_SECURITY_FEATURE.getName(), not(is(in(features))));
     }
 
     protected static void assertOnlyFlsTracked() {
-        assertThat(FIELD_LEVEL_SECURITY_FEATURE.getName(), is(in(fetchFeatureUsageFromAllNodes())));
-        assertThat(DOCUMENT_LEVEL_SECURITY_FEATURE.getName(), not(is(in(fetchFeatureUsageFromAllNodes()))));
+        Set<String> features = fetchFeatureUsageFromAllNodes();
+        assertThat(FIELD_LEVEL_SECURITY_FEATURE.getName(), is(in(features)));
+        assertThat(DOCUMENT_LEVEL_SECURITY_FEATURE.getName(), not(is(in(features))));
     }
 
     protected static void assertDlsFlsTracked() {

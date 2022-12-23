@@ -1587,11 +1587,11 @@ public class IndexNameExpressionResolver {
             }
 
             public boolean isWildcard() {
-                return idx >= ExpressionIterable.this.indexOfFirstWildcard && IndexNameExpressionResolver.isWildcard(toString());
+                return idx >= ExpressionIterable.this.indexOfFirstWildcard && IndexNameExpressionResolver.isWildcard(get());
             }
 
             public boolean isExclusion() {
-                return idx > ExpressionIterable.this.indexOfFirstWildcard && toString().startsWith("-");
+                return idx > ExpressionIterable.this.indexOfFirstWildcard && get().startsWith("-");
             }
 
             private String get() {

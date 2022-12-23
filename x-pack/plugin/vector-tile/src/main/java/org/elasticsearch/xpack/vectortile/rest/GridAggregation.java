@@ -19,6 +19,7 @@ import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
@@ -118,6 +119,7 @@ enum GridAggregation {
             2,
             3,
             3,
+            3,
             4,
             4,
             5,
@@ -125,16 +127,15 @@ enum GridAggregation {
             6,
             7,
             8,
-            8,
+            9,
             9,
             10,
             11,
             11,
             12,
             13,
-            13,
             14,
-            15,
+            14,
             15,
             15,
             15,
@@ -188,19 +189,7 @@ enum GridAggregation {
 
         @Override
         public Rectangle toRectangle(String bucketKey) {
-            final CellBoundary boundary = H3.h3ToGeoBoundary(bucketKey);
-            double minLat = Double.POSITIVE_INFINITY;
-            double minLon = Double.POSITIVE_INFINITY;
-            double maxLat = Double.NEGATIVE_INFINITY;
-            double maxLon = Double.NEGATIVE_INFINITY;
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                final LatLng latLng = boundary.getLatLon(i);
-                minLat = Math.min(minLat, latLng.getLatDeg());
-                minLon = Math.min(minLon, latLng.getLonDeg());
-                maxLat = Math.max(maxLat, latLng.getLatDeg());
-                maxLon = Math.max(maxLon, latLng.getLonDeg());
-            }
-            return new Rectangle(minLon, maxLon, maxLat, minLat);
+            return H3CartesianUtil.toBoundingBox(H3.stringToH3(bucketKey));
         }
     };
 

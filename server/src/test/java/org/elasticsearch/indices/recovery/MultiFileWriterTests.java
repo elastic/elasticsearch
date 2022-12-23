@@ -42,7 +42,7 @@ public class MultiFileWriterTests extends IndexShardTestCase {
     public void setUp() throws Exception {
         super.setUp();
         indexShard = newShard(true);
-        directory = newFSDirectory(indexShard.shardPath().resolveIndex());
+        directory = newMockFSDirectory(indexShard.shardPath().resolveIndex());
         directorySpy = spy(directory);
         store = createStore(indexShard.shardId(), indexShard.indexSettings(), directorySpy);
     }

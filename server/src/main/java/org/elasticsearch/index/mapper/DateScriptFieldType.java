@@ -87,23 +87,29 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Collections.unmodifiableList(parameters);
         }
 
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            Version supportedVersion,
+            OnScriptError onScriptError
+        ) {
+            String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
+            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
+        }
+
         @Override
         AbstractScriptFieldType<?> createFieldType(
             String name,
             DateFieldScript.Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion
+            OnScriptError onScriptError
         ) {
-            String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
-            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta);
-        }
-
-        @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return createFieldType(name, factory, script, meta, Version.CURRENT);
+            return createFieldType(name, factory, script, meta, Version.CURRENT, onScriptError);
         }
 
         @Override
@@ -131,11 +137,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta

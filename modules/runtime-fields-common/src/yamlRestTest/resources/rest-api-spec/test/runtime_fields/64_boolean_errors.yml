@@ -1,0 +1,184 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              rtf:
+                type: boolean
+                script: |
+                  if(doc['age'].value < 0) throw new Exception("invalid age");
+                  emit(doc['age'].value >= 18);
+                on_script_error: continue
+              rtf_strict_error:
+                type: boolean
+                script: |
+                  if(doc['age'].value <= 0) throw new Exception("invalid age");
+                  emit(doc['age'].value >=18);
+                on_script_error: fail
+            properties:
+              age:
+                type: integer
+
+  - do:
+      bulk:
+        index: testindex
+        refresh: true
+        body: |
+          {"index":{}}
+          {"age": 14}
+          {"index":{}}
+          {"age": 20}
+          {"index":{}}
+          {"age": -1}
+
+---
+"Query rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf:
+                true
+          fields: [ age, rtf ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.age: [ 20 ] }
+  - match: { hits.hits.0.fields.rtf: [ true ] }
+
+---
+"Query rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_strict_error: true
+          fields: [ age, rtf_strict_error ]
+
+---
+"Aggregate on rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          aggs:
+            rtf:
+              terms:
+                field: rtf
+                order: { "_key": "asc" }
+  - length: { aggregations.rtf.buckets: 2 }
+  - match: { aggregations.rtf.buckets.0.key_as_string: "false" }
+  - match: { aggregations.rtf.buckets.1.key_as_string: "true" }
+---
+"Aggregate on rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          aggs:
+            rtf:
+              terms:
+                field: rtf_strict_error
+
+---
+"Fields retrieval with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ age, rtf ]
+          sort: { "age": "desc" }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0.fields.age: [ 20 ] }
+  - match: { hits.hits.0.fields.rtf: [ true ] }
+  - match: { hits.hits.1.fields.age: [ 14 ] }
+  - match: { hits.hits.1.fields.rtf: [ false ] }
+  - match: { hits.hits.2.fields.age: [ -1 ] }
+  - is_false: hits.hits.2.fields.rtf
+
+---
+"Fields retrieval with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ age, rtf_strict_error ]
+
+---
+"Sorting with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ age ]
+          sort: rtf
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0.fields.age: [ 14 ] }
+  - match: { hits.hits.1.fields.age: [ 20 ] }
+  - match: { hits.hits.2.fields.age: [ -1 ] }
+
+---
+"Sorting with with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ age ]
+          sort: rtf_strict_error
+
+---
+"Query search time rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_search: true
+          fields: [ age, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: boolean
+              script: |
+                if(doc['age'].value < 0) throw new Exception("invalid age");
+                emit(doc['age'].value >= 18);
+              on_script_error: continue
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.age: [ 20 ] }
+  - match: { hits.hits.0.fields.rtf_search: [ true ] }
+
+---
+"Query search time rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_search: true
+          fields: [ age, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: boolean
+              script: |
+                if(doc['age'].value < 0) throw new Exception("invalid age");
+                emit(doc['age'].value >= 18);
+              on_script_error: fail

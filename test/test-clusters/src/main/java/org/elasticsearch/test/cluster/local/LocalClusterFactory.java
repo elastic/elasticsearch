@@ -273,9 +273,9 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         private void addKeystoreSettings() {
-            spec.getKeystoreSettings()
-                .forEach(
-                    (key, value) -> ProcessUtils.exec(
+            spec.getKeystoreSettings().forEach((key, value) -> {
+                try {
+                    ProcessUtils.exec(
                         value,
                         workingDir,
                         OS.conditional(
@@ -286,8 +286,11 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                         false,
                         "add",
                         key
-                    )
-                );
+                    ).waitFor();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         private void configureSecurity() {

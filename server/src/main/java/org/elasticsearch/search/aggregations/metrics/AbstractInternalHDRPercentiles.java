@@ -60,7 +60,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             } else {
                 state = null;
             }
-        }  else {
+        } else {
             state = decode(in);
         }
         keyed = in.readBoolean();

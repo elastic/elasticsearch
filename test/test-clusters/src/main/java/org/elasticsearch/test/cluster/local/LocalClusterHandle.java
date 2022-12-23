@@ -103,6 +103,22 @@ public class LocalClusterHandle implements ClusterHandle {
         return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
     }
 
+    @Override
+    public String getHttpAddress(int index) {
+        return getHttpAddresses().split(",")[index];
+    }
+
+    @Override
+    public String getTransportEndpoints() {
+        start();
+        return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
+    }
+
+    @Override
+    public String getTransportEndpoint(int index) {
+        return getTransportEndpoints().split(",")[index];
+    }
+
     private void waitUntilReady() {
         writeUnicastHostsFile();
         try {

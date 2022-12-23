@@ -8,8 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,8 +35,6 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  * Contains the settings and some associated logic for the settings related to the Remote Access port, used by Remote Cluster Security 2.0.
  */
 public class RemoteClusterPortSettings {
-    private static final Logger logger = LogManager.getLogger(RemoteClusterPortSettings.class);
-
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
     public static final String REMOTE_CLUSTER_SSL_PREFIX = REMOTE_CLUSTER_PREFIX + "ssl.";
@@ -68,7 +64,7 @@ public class RemoteClusterPortSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> PORT = intSetting(REMOTE_CLUSTER_PREFIX + "port", 9900, 0, 65535, Setting.Property.NodeScope);
+    public static final Setting<Integer> PORT = intSetting(REMOTE_CLUSTER_PREFIX + "port", 9443, 0, 65535, Setting.Property.NodeScope);
 
     public static final Setting<Integer> PUBLISH_PORT = intSetting(
         REMOTE_CLUSTER_PREFIX + "publish_port",

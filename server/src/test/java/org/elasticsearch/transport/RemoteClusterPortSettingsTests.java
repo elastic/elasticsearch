@@ -49,7 +49,7 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
                 // We can just stick a random value in, even if it doesn't match the type - that validation happens at a different layer
                 .put(profileSetting.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), randomAlphaOfLength(5))
                 .build();
-            expectThrows(IllegalArgumentException.class, () -> RemoteClusterPortSettings.validateRemoteAccessSettings(testSettings));
+            expectThrows(IllegalArgumentException.class, () -> RemoteClusterPortSettings.buildRemoteAccessProfileSettings(testSettings));
         }
     }
 

@@ -24,7 +24,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new BooleanFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new BooleanFieldScript(field, params, lookup, OnScriptError.CONTINUE, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();

@@ -247,7 +247,10 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
-    private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(REMOTE_CLUSTER_SSL_PREFIX, false);
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_SSL_PREFIX,
+        false
+    );
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {

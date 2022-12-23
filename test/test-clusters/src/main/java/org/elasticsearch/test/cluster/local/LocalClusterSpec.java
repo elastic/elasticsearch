@@ -147,8 +147,8 @@ public class LocalClusterSpec implements ClusterSpec {
             );
         }
 
-        public boolean isSettingTrue(String setting) {
-            return Boolean.parseBoolean(resolveSettings().getOrDefault(setting, "false"));
+        public String getSetting(String setting, String defaultValue) {
+            return resolveSettings().getOrDefault(setting, defaultValue);
         }
 
         /**

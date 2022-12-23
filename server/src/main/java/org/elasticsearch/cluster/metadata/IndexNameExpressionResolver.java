@@ -1595,7 +1595,12 @@ public class IndexNameExpressionResolver {
 
             @Override
             public String toString() {
-                return ExpressionIterable.this.expressions.get(this.idx);
+                if (isExclusion()) {
+                    // drop the leading "-" if exclusion
+                    return get().substring(1);
+                } else {
+                    return get();
+                }
             }
 
             public boolean isWildcard() {
@@ -1604,6 +1609,10 @@ public class IndexNameExpressionResolver {
 
             public boolean isExclusion() {
                 return idx > ExpressionIterable.this.indexOfFirstWildcard && toString().startsWith("-");
+            }
+
+            private String get() {
+                return ExpressionIterable.this.expressions.get(this.idx);
             }
         }
 

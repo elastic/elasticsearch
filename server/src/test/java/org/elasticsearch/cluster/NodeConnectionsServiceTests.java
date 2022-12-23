@@ -131,7 +131,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             ensureConnections(service);
         }
 
-        assertConnectedExactlyToNodes(nodes);
+        assertConnected(transportService, nodes);
+        assertBusy(() -> assertConnectedExactlyToNodes(nodes));
     }
 
     public void testConcurrentConnectAndDisconnect() throws Exception {

@@ -83,8 +83,9 @@ List projects = [
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
   'test:logger-usage',
-  'test:yaml-rest-runner',
-  'test:x-content'
+  'test:test-clusters',
+  'test:x-content',
+  'test:yaml-rest-runner'
 ]
 
 /**

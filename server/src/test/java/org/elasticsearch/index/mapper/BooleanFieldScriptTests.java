@@ -24,10 +24,11 @@ import java.util.List;
 import java.util.Map;
 
 public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScript.Factory> {
-    public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
+    public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new BooleanFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -59,6 +60,7 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override

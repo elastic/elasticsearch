@@ -163,7 +163,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
                             } else {
                                 field = null;
                             }
-                            final long maxOrd = source.globalMaxOrd(context.searcher());
+                            final long maxOrd = source.globalMaxOrd(context.searcher().getIndexReader());
                             return new GlobalOrdCardinalityAggregator(
                                 name,
                                 source,

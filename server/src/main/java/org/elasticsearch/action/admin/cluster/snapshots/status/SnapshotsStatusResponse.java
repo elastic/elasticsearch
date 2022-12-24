@@ -22,9 +22,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -90,13 +87,9 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            Iterators.single((ToXContent) (b, p) -> b.startObject().startArray("snapshots")),
-            snapshots.stream()
-                .flatMap(
-                    s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(params), Spliterator.ORDERED), false)
-                )
-                .iterator(),
+        return Iterators.<ToXContent>concat(
+            Iterators.single((b, p) -> b.startObject().startArray("snapshots")),
+            Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
             Iterators.single((b, p) -> b.endArray().endObject())
         );
     }

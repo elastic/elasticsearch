@@ -280,7 +280,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             assertConnectedExactlyToNodes(nodes1);
 
             // can also disconnect from node0 without blocking
-            connectToNodes(service, nodes01);
+            connectToNodes(service, nodes1);
             service.disconnectFromNodesExcept(nodes1);
             assertConnectedExactlyToNodes(nodes1);
 

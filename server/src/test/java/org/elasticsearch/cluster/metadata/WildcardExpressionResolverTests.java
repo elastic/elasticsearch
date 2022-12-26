@@ -184,7 +184,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             IndicesOptions.fromOptions(true, true, false, false),
             SystemIndexAccessLevel.NONE
         );
-        assertThat(IndexNameExpressionResolver.resolveExpressions(context, "testX*"), containsInAnyOrder("testX*"));
+        assertThat(IndexNameExpressionResolver.resolveExpressions(context, "testX*").size(), equalTo(0));
         context = new IndexNameExpressionResolver.Context(
             state,
             IndicesOptions.fromOptions(false, true, false, false),

@@ -74,6 +74,7 @@ public abstract class TransportBroadcastReplicationAction<
         final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList<>();
         if (shards.size() == 0) {
             finishAndNotifyListener(listener, shardsResponses);
+            return;
         }
         final CountDown responsesCountDown = new CountDown(shards.size());
         for (final ShardId shardId : shards) {

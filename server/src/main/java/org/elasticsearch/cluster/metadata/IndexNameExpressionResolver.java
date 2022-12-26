@@ -338,14 +338,7 @@ public class IndexNameExpressionResolver {
         final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
         for (String expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
-            if (indexAbstraction == null) {
-                continue;
-            } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                continue;
-            } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                continue;
-            }
-
+            assert indexAbstraction != null;
             if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex == null) {
@@ -469,24 +462,6 @@ public class IndexNameExpressionResolver {
             infe.setResources("index_expression", indexExpressions);
         }
         return infe;
-    }
-
-    @Nullable
-    private static void ensureAliasOrIndexExists(Context context, String expression) {
-        IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
-        if (indexAbstraction == null) {
-            throw notFoundException(expression);
-        }
-        // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-        if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-            throw aliasesNotSupportedException(expression);
-        }
-        if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-            IndexNotFoundException infe = notFoundException(expression);
-            // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
-            infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
-            throw infe;
-        }
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
@@ -1537,29 +1512,62 @@ public class IndexNameExpressionResolver {
         }
 
         public static List<String> filter(Context context, List<String> expressions) {
+            List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionIterable.Expression expression : new ExpressionIterable(context, expressions)) {
-                validateAliasOrIndex(expression.toString());
-                if (context.getOptions().ignoreUnavailable() == false
-                    && expression.isExclusion() == false
-                    && expression.isWildcard() == false) {
-                    ensureAliasOrIndexExists(context, expression.toString());
+                validateAliasOrIndex(expression);
+                if (expression.isWildcard() || expression.isExclusion() || ensureAliasOrIndexExists(context, expression.toString())) {
+                    result.add(expression.isExclusion() ? "-" + expression : expression.toString());
                 }
             }
-            return expressions;
+            return result;
         }
 
-        private static String validateAliasOrIndex(String expression) {
-            if (Strings.isEmpty(expression)) {
-                throw notFoundException(expression);
+        @Nullable
+        private static boolean ensureAliasOrIndexExists(Context context, String expression) {
+            boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
+            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
+            if (indexAbstraction == null) {
+                if (ignoreUnavailable) {
+                    return false;
+                } else {
+                    throw notFoundException(expression);
+                }
+            }
+            // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
+            if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
+                if (ignoreUnavailable) {
+                    return false;
+                } else {
+                    throw aliasesNotSupportedException(expression);
+                }
+            }
+            if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
+                if (ignoreUnavailable) {
+                    return false;
+                } else {
+                    IndexNotFoundException infe = notFoundException(expression);
+                    // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+                    infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+                    throw infe;
+                }
+            }
+            return true;
+        }
+
+        private static void validateAliasOrIndex(ExpressionIterable.Expression expression) {
+            if (expression.isExclusion()) {
+                return;
+            }
+            if (Strings.isEmpty(expression.toString())) {
+                throw notFoundException(expression.toString());
             }
             // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
             // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
             // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
             // if the expression can't be found.
-            if (expression.charAt(0) == '_') {
-                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+            if (expression.toString().charAt(0) == '_') {
+                throw new InvalidIndexNameException(expression.toString(), "must not start with '_'.");
             }
-            return expression;
         }
     }
 

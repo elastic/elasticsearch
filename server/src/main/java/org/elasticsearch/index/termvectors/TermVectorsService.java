@@ -290,7 +290,13 @@ public class TermVectorsService {
         MemoryIndex index = new MemoryIndex(withOffsets);
         for (Map.Entry<String, Collection<Object>> entry : values.entrySet()) {
             String field = entry.getKey();
-            Analyzer analyzer = getAnalyzerAtField(indexShard, field, perFieldAnalyzer);
+            final Analyzer analyzer;
+            try {
+                analyzer = getAnalyzerAtField(indexShard, field, perFieldAnalyzer);
+            } catch (IllegalArgumentException e) {
+                // failed to get the analyzer for the given field, it could be a metadata field
+                continue;
+            }
             if (entry.getValue() instanceof List) {
                 for (Object text : entry.getValue()) {
                     index.addField(field, text.toString(), analyzer);
@@ -309,24 +315,25 @@ public class TermVectorsService {
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
         // select the right fields and generate term vectors
-        LuceneDocument doc = parsedDocument.rootDoc();
-        Set<String> seenFields = new HashSet<>();
-        Collection<DocumentField> documentFields = new HashSet<>();
-        for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
-            if (isValidField(fieldType) == false) {
-                continue;
+        final Set<String> seenFields = new HashSet<>();
+        final Collection<DocumentField> documentFields = new HashSet<>();
+        for (LuceneDocument doc : parsedDocument.docs()) {
+            for (IndexableField field : doc.getFields()) {
+                MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
+                if (isValidField(fieldType) == false) {
+                    continue;
+                }
+                if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {
+                    continue;
+                }
+                if (seenFields.contains(field.name())) {
+                    continue;
+                } else {
+                    seenFields.add(field.name());
+                }
+                String[] values = getValues(doc.getFields(field.name()));
+                documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
             }
-            if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {
-                continue;
-            }
-            if (seenFields.contains(field.name())) {
-                continue;
-            } else {
-                seenFields.add(field.name());
-            }
-            String[] values = getValues(doc.getFields(field.name()));
-            documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(
             indexShard,

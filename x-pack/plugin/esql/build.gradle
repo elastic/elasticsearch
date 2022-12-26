@@ -18,8 +18,9 @@ archivesBaseName = 'x-pack-esql'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly(project(':modules:lang-painless:spi'))
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ql'))
+  implementation project('compute')
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

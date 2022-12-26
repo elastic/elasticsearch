@@ -1345,18 +1345,22 @@ public class IndexNameExpressionResolver {
         public static List<String> resolve(Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionIterable.Expression expression : new ExpressionIterable(context, expressions)) {
-                // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
-                if (expression.isExclusion()) {
-                    result.add("-" + resolveExpression(expression.toString(), context::getStartTime));
-                } else {
-                    result.add(resolveExpression(expression.toString(), context::getStartTime));
-                }
+                result.add(resolveExpression(expression, context::getStartTime));
             }
             return result;
         }
 
         static String resolveExpression(String expression) {
             return resolveExpression(expression, System::currentTimeMillis);
+        }
+
+        static String resolveExpression(ExpressionIterable.Expression expression, LongSupplier getTime) {
+            // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
+            if (expression.isExclusion()) {
+                return "-" + resolveExpression(expression.toString(), getTime);
+            } else {
+                return resolveExpression(expression.toString(), getTime);
+            }
         }
 
         @SuppressWarnings("fallthrough")

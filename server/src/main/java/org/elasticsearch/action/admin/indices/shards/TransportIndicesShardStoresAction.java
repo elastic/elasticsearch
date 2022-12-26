@@ -121,12 +121,16 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
         }
 
-        // async fetch store infos from all the nodes
-        // NOTE: instead of fetching shard store info one by one from every node (nShards * nNodes requests)
-        // we could fetch all shard store info from every node once (nNodes requests)
-        // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
-        // for fetching shard stores info, that operates on a list of shards instead of a single shard
-        new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, shardsToFetch, listener).start();
+        if (shardsToFetch.isEmpty()) {
+            listener.onResponse(new IndicesShardStoresResponse(Map.of(), List.of()));
+        } else {
+            // async fetch store infos from all the nodes
+            // NOTE: instead of fetching shard store info one by one from every node (nShards * nNodes requests)
+            // we could fetch all shard store info from every node once (nNodes requests)
+            // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
+            // for fetching shard stores info, that operates on a list of shards instead of a single shard
+            new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, shardsToFetch, listener).start();
+        }
     }
 
     @Override
@@ -140,7 +144,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         private final RoutingNodes routingNodes;
         private final Set<Tuple<ShardId, String>> shards;
         private final ActionListener<IndicesShardStoresResponse> listener;
-        private CountDown expectedOps;
+        private final CountDown expectedOps;
         private final Queue<InternalAsyncFetch.Response> fetchResponses;
 
         AsyncShardStoresInfoFetches(
@@ -158,15 +162,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         }
 
         void start() {
-            if (shards.isEmpty()) {
-                listener.onResponse(new IndicesShardStoresResponse());
-            } else {
-                // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-                Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
-                for (Tuple<ShardId, String> shard : shards) {
-                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), lister);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
-                }
+            // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+            Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
+            for (Tuple<ShardId, String> shard : shards) {
+                InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), lister);
+                fetch.fetchData(nodes, Collections.<String>emptySet());
             }
         }
 

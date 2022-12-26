@@ -88,6 +88,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92551")
     public void testGeoShapeGeoHex() throws IOException {
         doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
     }

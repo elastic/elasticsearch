@@ -68,8 +68,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList("_all"));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener, nodes, logger, searchTransportService);
-        controller.run();
+        ClearScrollController.handleClearScrollRequest(clearScrollRequest, listener, nodes, logger, searchTransportService);
         latch.await();
         assertEquals(3, nodesInvoked.size());
         Collections.sort(nodesInvoked, Comparator.comparing(DiscoveryNode::getId));
@@ -140,8 +139,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener, nodes, logger, searchTransportService);
-        controller.run();
+        ClearScrollController.handleClearScrollRequest(clearScrollRequest, listener, nodes, logger, searchTransportService);
         latch.await();
         assertEquals(3, nodesInvoked.size());
         Collections.sort(nodesInvoked, Comparator.comparing(DiscoveryNode::getId));
@@ -232,8 +230,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener, nodes, logger, searchTransportService);
-        controller.run();
+        ClearScrollController.handleClearScrollRequest(clearScrollRequest, listener, nodes, logger, searchTransportService);
         latch.await();
         assertEquals(3 - numConnectionFailures.get(), nodesInvoked.size());
     }

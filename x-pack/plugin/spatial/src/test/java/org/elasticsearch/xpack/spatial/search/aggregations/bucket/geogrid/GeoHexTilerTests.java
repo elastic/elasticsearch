@@ -59,6 +59,11 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         return UnboundedGeoHexGridTiler.calcMaxAddresses(precisionDiff);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92541")
+    public void testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
+        super.testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues();
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92562")
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
         super.testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues();

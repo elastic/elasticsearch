@@ -59,6 +59,11 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         return UnboundedGeoHexGridTiler.calcMaxAddresses(precisionDiff);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92562")
+    public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
+        super.testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues();
+    }
+
     public void testLargeShape() throws Exception {
         // We have a shape and a tile both covering all mercator space, so we expect all level0 H3 cells to match
         Rectangle shapeRectangle = new Rectangle(-180, 180, 90, -90);

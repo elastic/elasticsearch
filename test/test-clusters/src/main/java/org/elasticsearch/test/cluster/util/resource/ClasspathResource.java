@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.cluster.util.resource;
 
-import org.elasticsearch.test.cluster.util.IOUtils;
-
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;

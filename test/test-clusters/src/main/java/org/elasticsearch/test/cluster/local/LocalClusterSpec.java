@@ -94,7 +94,8 @@ public class LocalClusterSpec implements ClusterSpec {
             DistributionType distributionType,
             Set<FeatureFlag> features,
             Map<String, String> keystoreSettings,
-            Map<String, Resource> extraConfigFiles) {
+            Map<String, Resource> extraConfigFiles
+        ) {
             this.cluster = cluster;
             this.name = name;
             this.version = version;

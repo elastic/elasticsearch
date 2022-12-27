@@ -134,7 +134,7 @@ public class PipelineAggregationHelperTests extends ESTestCase {
         return 0.0;
     }
 
-    static AggregationBuilder getRandomSequentiallyOrderedParentAgg() throws IOException {
+    public static AggregationBuilder getRandomSequentiallyOrderedParentAgg() throws IOException {
         @SuppressWarnings("unchecked")
         Function<String, AggregationBuilder> builder = randomFrom(
             HistogramAggregationBuilder::new,

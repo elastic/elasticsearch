@@ -73,7 +73,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         copyDatabaseFiles(geoIpConfigDir, configDatabases);
         geoipTmpDir = createTempDir();
         databaseNodeService = new DatabaseNodeService(geoipTmpDir, client, cache, configDatabases, Runnable::run);
-        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
+        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class), mock(ClusterService.class));
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
     }
@@ -361,7 +361,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Client client = mock(Client.class);
         GeoIpCache cache = new GeoIpCache(1000);
         DatabaseNodeService databaseNodeService = new DatabaseNodeService(createTempDir(), client, cache, configDatabases, Runnable::run);
-        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
+        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class), mock(ClusterService.class));
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService, clusterService);
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.getConfigDatabases().values()) {
             assertNull(lazyLoader.databaseReader.get());

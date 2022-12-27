@@ -729,7 +729,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected StringFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -737,7 +743,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
             @Override
             protected StringFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit("foo");
@@ -767,5 +779,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
         assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSource() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createMapperService(
+            syntheticSourceFieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
+        );
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 }

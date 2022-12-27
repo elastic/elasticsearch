@@ -49,9 +49,14 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -82,30 +87,39 @@ public class JobResultsPersister {
     private final OriginSettingClient client;
     private final ResultsPersisterService resultsPersisterService;
 
+    /**
+     * The possible types of data that may be committed.
+     */
+    public enum CommitType {
+        RESULTS,
+        STATE,
+        ANNOTATIONS
+    };
+
     public JobResultsPersister(OriginSettingClient client, ResultsPersisterService resultsPersisterService) {
         this.client = client;
         this.resultsPersisterService = resultsPersisterService;
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
-        return new Builder(jobId);
+        return new Builder(jobId, () -> true);
+    }
+
+    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
+        return new Builder(jobId, shouldRetry);
     }
 
     public class Builder {
-        private BulkRequest bulkRequest;
+        private final Map<String, IndexRequest> items;
         private final String jobId;
         private final String indexName;
-        private Supplier<Boolean> shouldRetry = () -> true;
+        private final Supplier<Boolean> shouldRetry;
 
-        private Builder(String jobId) {
-            this.bulkRequest = new BulkRequest();
+        private Builder(String jobId, Supplier<Boolean> shouldRetry) {
+            this.items = new LinkedHashMap<>();
             this.jobId = Objects.requireNonNull(jobId);
             this.indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-        }
-
-        public Builder shouldRetry(Supplier<Boolean> shouldRetry) {
-            this.shouldRetry = Objects.requireNonNull(shouldRetry);
-            return this;
+            this.shouldRetry = shouldRetry;
         }
 
         /**
@@ -115,7 +129,7 @@ public class JobResultsPersister {
          * @param bucket The bucket to persist
          * @return this
          */
-        public Builder persistBucket(Bucket bucket) {
+        public synchronized Builder persistBucket(Bucket bucket) {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
@@ -132,7 +146,7 @@ public class JobResultsPersister {
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(
+        private synchronized void persistBucketInfluencersStandalone(
             @SuppressWarnings("HiddenField") String jobId,
             List<BucketInfluencer> bucketInfluencers
         ) {
@@ -151,7 +165,7 @@ public class JobResultsPersister {
          * @param timingStats timing stats to persist
          * @return this
          */
-        public Builder persistTimingStats(TimingStats timingStats) {
+        public synchronized Builder persistTimingStats(TimingStats timingStats) {
             indexResult(
                 TimingStats.documentId(timingStats.getJobId()),
                 timingStats,
@@ -167,7 +181,7 @@ public class JobResultsPersister {
          * @param records the records to persist
          * @return this
          */
-        public Builder persistRecords(List<AnomalyRecord> records) {
+        public synchronized Builder persistRecords(List<AnomalyRecord> records) {
             for (AnomalyRecord record : records) {
                 logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
                 indexResult(record.getId(), record, "record");
@@ -183,7 +197,7 @@ public class JobResultsPersister {
          * @param influencers the influencers to persist
          * @return this
          */
-        public Builder persistInfluencers(List<Influencer> influencers) {
+        public synchronized Builder persistInfluencers(List<Influencer> influencers) {
             for (Influencer influencer : influencers) {
                 logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, influencer.getId());
                 indexResult(influencer.getId(), influencer, "influencer");
@@ -192,13 +206,13 @@ public class JobResultsPersister {
             return this;
         }
 
-        public Builder persistModelPlot(ModelPlot modelPlot) {
+        public synchronized Builder persistModelPlot(ModelPlot modelPlot) {
             logger.trace("[{}] ES BULK ACTION: index model plot to index [{}] with ID [{}]", jobId, indexName, modelPlot.getId());
             indexResult(modelPlot.getId(), modelPlot, "model plot");
             return this;
         }
 
-        public Builder persistCategorizerStats(CategorizerStats categorizerStats) {
+        public synchronized Builder persistCategorizerStats(CategorizerStats categorizerStats) {
             logger.trace(
                 "[{}] ES BULK ACTION: index categorizer stats to index [{}] with ID [{}]",
                 jobId,
@@ -209,20 +223,42 @@ public class JobResultsPersister {
             return this;
         }
 
-        public Builder persistForecast(Forecast forecast) {
+        public synchronized Builder persistCategoryDefinition(CategoryDefinition categoryDefinition) {
+            logger.trace(
+                "[{}] ES BULK ACTION: index category definition to index [{}] with ID [{}]",
+                jobId,
+                indexName,
+                categoryDefinition.getId()
+            );
+            indexResult(categoryDefinition.getId(), categoryDefinition, "category definition");
+            return this;
+        }
+
+        public synchronized Builder persistModelSizeStats(ModelSizeStats modelSizeStats) {
+            logger.trace(
+                "[{}] ES BULK ACTION: index model size stats to index [{}] with ID [{}]",
+                jobId,
+                indexName,
+                modelSizeStats.getId()
+            );
+            indexResult(modelSizeStats.getId(), modelSizeStats, "model size stats");
+            return this;
+        }
+
+        public synchronized Builder persistForecast(Forecast forecast) {
             logger.trace("[{}] ES BULK ACTION: index forecast to index [{}] with ID [{}]", jobId, indexName, forecast.getId());
             indexResult(forecast.getId(), forecast, Forecast.RESULT_TYPE_VALUE);
             return this;
         }
 
-        public Builder persistForecastRequestStats(ForecastRequestStats forecastRequestStats) {
+        public synchronized Builder persistForecastRequestStats(ForecastRequestStats forecastRequestStats) {
             logger.trace(
                 "[{}] ES BULK ACTION: index forecast request stats to index [{}] with ID [{}]",
                 jobId,
                 indexName,
                 forecastRequestStats.getId()
             );
-            indexResult(forecastRequestStats.getId(), forecastRequestStats, Forecast.RESULT_TYPE_VALUE);
+            indexResult(forecastRequestStats.getId(), forecastRequestStats, "forecast request stats");
             return this;
         }
 
@@ -232,12 +268,12 @@ public class JobResultsPersister {
 
         private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
-                bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
+                items.put(id, new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(() -> format("[%s] Error serialising %s", jobId, resultType), e);
             }
 
-            if (bulkRequest.numberOfActions() >= JobRenormalizedResultsPersister.BULK_LIMIT) {
+            if (items.size() >= JobRenormalizedResultsPersister.BULK_LIMIT) {
                 executeRequest();
             }
         }
@@ -245,45 +281,36 @@ public class JobResultsPersister {
         /**
          * Execute the bulk action
          */
-        public void executeRequest() {
-            if (bulkRequest.numberOfActions() == 0) {
+        public synchronized void executeRequest() {
+            if (items.isEmpty()) {
                 return;
             }
-            logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
+            logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, items.size());
             resultsPersisterService.bulkIndexWithRetry(
-                bulkRequest,
+                buildBulkRequest(),
                 jobId,
                 shouldRetry,
                 retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
             );
-            bulkRequest = new BulkRequest();
+            clear();
         }
 
-        public void clearBulkRequest() {
-            bulkRequest = new BulkRequest();
+        private BulkRequest buildBulkRequest() {
+            BulkRequest bulkRequest = new BulkRequest();
+            for (IndexRequest item : items.values()) {
+                bulkRequest.add(item);
+            }
+            return bulkRequest;
+        }
+
+        public synchronized void clear() {
+            items.clear();
         }
 
         // for testing
-        BulkRequest getBulkRequest() {
-            return bulkRequest;
+        synchronized BulkRequest getBulkRequest() {
+            return buildBulkRequest();
         }
-    }
-
-    /**
-     * Persist the category definition
-     *
-     * @param category The category to be persisted
-     */
-    public void persistCategoryDefinition(CategoryDefinition category, Supplier<Boolean> shouldRetry) {
-        Persistable persistable = new Persistable(
-            AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId()),
-            category.getJobId(),
-            category,
-            category.getId()
-        );
-        persistable.persist(shouldRetry, true);
-        // Don't commit as we expect masses of these updates and they're not
-        // read again by this process
     }
 
     /**
@@ -411,52 +438,47 @@ public class JobResultsPersister {
      * Once all the job data has been written this function will be
      * called to commit the writes to the datastore.
      *
-     * @param jobId The job Id
+     * @param jobId The job ID.
+     * @param commitType Which type of data will be committed?
      */
-    public void commitResultWrites(String jobId) {
-        // We refresh using the read alias in order to ensure all indices will
-        // be refreshed even if a rollover occurs in between.
-        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-
-        // Refresh should wait for Lucene to make the data searchable
-        logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
-        RefreshRequest refreshRequest = new RefreshRequest(indexName);
-        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            client.admin().indices().refresh(refreshRequest).actionGet();
-        }
+    public void commitWrites(String jobId, CommitType commitType) {
+        commitWrites(jobId, EnumSet.of(commitType));
     }
 
     /**
-     * Makes annotations searchable as they are considered part of a job's results
-     * to fulfil the contract that job results are searchable immediately after a
-     * close or flush.
-     */
-    public void commitAnnotationWrites() {
-        // We refresh using the read alias in order to ensure all indices will
-        // be refreshed even if a rollover occurs in between.
-        RefreshRequest refreshRequest = new RefreshRequest(AnnotationIndex.READ_ALIAS_NAME);
-        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            client.admin().indices().refresh(refreshRequest).actionGet();
-        }
-    }
-
-    /**
-     * Once the job state has been written calling this function makes it
-     * immediately searchable.
+     * Once all the job data has been written this function will be
+     * called to commit the writes to the datastore.
      *
-     * @param jobId The job Id
-     * */
-    public void commitStateWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
+     * @param jobId The job ID.
+     * @param commitTypes Which type(s) of data will be committed?
+     */
+    public void commitWrites(String jobId, Set<CommitType> commitTypes) {
+        if (commitTypes.isEmpty()) {
+            return;
+        }
+        List<String> indexNames = new ArrayList<>();
+        if (commitTypes.contains(CommitType.RESULTS)) {
+            // We refresh using the read alias in order to ensure all indices will
+            // be refreshed even if a rollover occurs in between.
+            indexNames.add(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
+        }
+        if (commitTypes.contains(CommitType.STATE)) {
+            indexNames.add(AnomalyDetectorsIndex.jobStateIndexPattern());
+        }
+        if (commitTypes.contains(CommitType.ANNOTATIONS)) {
+            // We refresh using the read alias in order to ensure all indices will
+            // be refreshed even if a rollover occurs in between.
+            indexNames.add(AnnotationIndex.READ_ALIAS_NAME);
+        }
+
         // Refresh should wait for Lucene to make the data searchable
-        logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
-        RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        logger.trace("[{}] ES API CALL: refresh indices {}", jobId, indexNames);
+        RefreshRequest refreshRequest = new RefreshRequest(indexNames.toArray(String[]::new));
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
         }
+        logger.trace("[{}] ES API CALL: finished refresh indices {}", jobId, indexNames);
     }
 
     /**

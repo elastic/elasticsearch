@@ -1387,6 +1387,10 @@ public class TransportService extends AbstractLifecycleComponent
             this.handler = timeoutHandler;
         }
 
+        // for tests
+        TransportResponseHandler<T> unwrap() {
+            return delegate;
+        }
     }
 
     static class DirectResponseChannel implements TransportChannel {
@@ -1411,33 +1415,43 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            service.onResponseSent(requestId, action, response);
-            try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
-                if (shutdownBlock == null) {
-                    // already shutting down, the handler will be completed by sendRequestInternal or doStop
-                    return;
-                }
-                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-                if (handler == null) {
-                    // handler already completed, likely by a timeout which is logged elsewhere
-                    return;
-                }
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
-                    processResponse(handler, response);
-                } else {
-                    threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
-                        @Override
-                        protected void doRun() {
-                            processResponse(handler, response);
-                        }
+            try {
+                service.onResponseSent(requestId, action, response);
+                try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
+                    if (shutdownBlock == null) {
+                        // already shutting down, the handler will be completed by sendRequestInternal or doStop
+                        return;
+                    }
+                    final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                    if (handler == null) {
+                        // handler already completed, likely by a timeout which is logged elsewhere
+                        return;
+                    }
+                    final String executor = handler.executor();
+                    if (ThreadPool.Names.SAME.equals(executor)) {
+                        processResponse(handler, response);
+                    } else {
+                        response.incRef();
+                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                            @Override
+                            protected void doRun() {
+                                processResponse(handler, response);
+                            }
 
-                        @Override
-                        public String toString() {
-                            return "delivery of response to [" + requestId + "][" + action + "]: " + response;
-                        }
-                    });
+                            @Override
+                            public void onAfter() {
+                                response.decRef();
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "delivery of response to [" + requestId + "][" + action + "]: " + response;
+                            }
+                        });
+                    }
                 }
+            } finally {
+                response.decRef();
             }
         }
 

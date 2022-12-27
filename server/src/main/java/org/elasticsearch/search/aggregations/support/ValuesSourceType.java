@@ -55,11 +55,10 @@ public interface ValuesSourceType {
      * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
      *
      * @param fieldContext - The field being wrapped
-     * @param script - Optional script that might be applied over the field
-     * @param context context for the aggregation fetching the field
+     * @param script       - Optional script that might be applied over the field
      * @return - Field specialization of the base {@link ValuesSource}
      */
-    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context);
+    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 
     /**
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw

@@ -178,7 +178,7 @@ public class CollectionUtils {
             throw new NullPointerException("elements");
         }
         if (elements instanceof Collection) {
-            return new ArrayList<>((Collection) elements);
+            return new ArrayList<>((Collection<E>) elements);
         } else {
             ArrayList<E> list = new ArrayList<>();
             for (E element : elements) {
@@ -277,7 +277,7 @@ public class CollectionUtils {
         return result;
     }
 
-    public static <E> List<E> concatLists(List<E> listA, List<E> listB) {
+    public static <E> List<E> concatLists(List<E> listA, Collection<E> listB) {
         List<E> concatList = new ArrayList<>(listA.size() + listB.size());
         concatList.addAll(listA);
         concatList.addAll(listB);

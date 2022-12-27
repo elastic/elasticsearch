@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -46,6 +45,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -119,7 +119,6 @@ public class MetadataIndexStateService {
     private final ShardLimitValidator shardLimitValidator;
     private final NodeClient client;
     private final ThreadPool threadPool;
-    private final ActiveShardsObserver activeShardsObserver;
     private final ClusterStateTaskExecutor<OpenIndicesTask> opensExecutor;
     private final ClusterStateTaskExecutor<AddBlocksToCloseTask> addBlocksToCloseExecutor;
     private final ClusterStateTaskExecutor<CloseIndicesTask> closesExecutor;
@@ -143,7 +142,6 @@ public class MetadataIndexStateService {
         this.shardLimitValidator = shardLimitValidator;
         this.client = client;
         this.threadPool = threadPool;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.opensExecutor = new OpenIndicesExecutor();
         this.addBlocksToCloseExecutor = new AddBlocksToCloseExecutor();
         this.closesExecutor = new CloseIndicesExecutor();
@@ -217,8 +215,9 @@ public class MetadataIndexStateService {
 
         @Override
         @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-        public ClusterState execute(BatchExecutionContext<CloseIndicesTask> batchExecutionContext) throws Exception {
-            ClusterState state = batchExecutionContext.initialState();
+        public ClusterState execute(BatchExecutionContext<CloseIndicesTask> batchExecutionContext) {
+            var listener = new AllocationActionMultiListener<CloseIndexResponse>(threadPool.getThreadContext());
+            var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 try {
@@ -240,28 +239,30 @@ public class MetadataIndexStateService {
                             .toArray(String[]::new);
 
                         if (waitForIndices.length > 0) {
-                            activeShardsObserver.waitForActiveShards(
+                            ActiveShardsObserver.waitForActiveShards(
+                                clusterService,
                                 waitForIndices,
                                 task.request.waitForActiveShards(),
                                 task.request.ackTimeout(),
-                                shardsAcknowledged -> {
+                                listener.delay(task.listener()).map(shardsAcknowledged -> {
                                     if (shardsAcknowledged == false) {
                                         logger.debug(
-                                            "[{}] indices closed, but the operation timed out while "
-                                                + "waiting for enough shards to be started.",
-                                            Arrays.toString(waitForIndices)
+                                            () -> format(
+                                                "[%s] indices closed, but the operation timed out while "
+                                                    + "waiting for enough shards to be started.",
+                                                Arrays.toString(waitForIndices)
+                                            )
                                         );
                                     }
                                     // acknowledged maybe be false but some indices may have been correctly closed,
                                     // so we maintain a kind of coherency by overriding the shardsAcknowledged value
                                     // (see ShardsAcknowledgedResponse constructor)
                                     boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                    task.listener().onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
-                                },
-                                task.listener()::onFailure
+                                    return new CloseIndexResponse(acknowledged, shardsAcked, indices);
+                                })
                             );
                         } else {
-                            task.listener().onResponse(new CloseIndexResponse(acknowledged, false, indices));
+                            listener.delay(task.listener()).onResponse(new CloseIndexResponse(acknowledged, false, indices));
                         }
                     });
                 } catch (Exception e) {
@@ -271,7 +272,7 @@ public class MetadataIndexStateService {
 
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // reroute may encounter deprecated features but the resulting warnings are not associated with any particular task
-                return allocationService.reroute(state, "indices closed");
+                return allocationService.reroute(state, "indices closed", listener.reroute());
             }
         }
     }
@@ -617,9 +618,9 @@ public class MetadataIndexStateService {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
-                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
+                    public void onResponse(ReplicationResponse replicationResponse) {
                         ShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new ShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
                             .toArray(ShardResult.Failure[]::new);
@@ -628,7 +629,7 @@ public class MetadataIndexStateService {
                     }
 
                     @Override
-                    public void innerOnFailure(final Exception e) {
+                    public void onFailure(Exception e) {
                         ShardResult.Failure failure = new ShardResult.Failure(index.getName(), shardId, e);
                         results.setOnce(shardId, new ShardResult(shardId, new ShardResult.Failure[] { failure }));
                         processIfFinished();
@@ -639,7 +640,7 @@ public class MetadataIndexStateService {
                             onResponse.accept(new IndexResult(index, results.toArray(new ShardResult[results.length()])));
                         }
                     }
-                });
+                }));
             }
         }
 
@@ -747,9 +748,9 @@ public class MetadataIndexStateService {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<>() {
+                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
-                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
+                    public void onResponse(ReplicationResponse replicationResponse) {
                         AddBlockShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new AddBlockShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
                             .toArray(AddBlockShardResult.Failure[]::new);
@@ -758,7 +759,7 @@ public class MetadataIndexStateService {
                     }
 
                     @Override
-                    public void innerOnFailure(final Exception e) {
+                    public void onFailure(Exception e) {
                         AddBlockShardResult.Failure failure = new AddBlockShardResult.Failure(index.getName(), shardId, e);
                         results.setOnce(shardId, new AddBlockShardResult(shardId, new AddBlockShardResult.Failure[] { failure }));
                         processIfFinished();
@@ -771,7 +772,7 @@ public class MetadataIndexStateService {
                             onResponse.accept(result);
                         }
                     }
-                });
+                }));
             }
         }
 
@@ -905,20 +906,22 @@ public class MetadataIndexStateService {
         onlyOpenIndices(request, listener.delegateFailure((delegate, response) -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     indexNames,
                     request.waitForActiveShards(),
                     request.ackTimeout(),
-                    shardsAcknowledged -> {
+                    delegate.map(shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] indices opened, but the operation timed out while waiting for enough shards to be started.",
-                                Arrays.toString(indexNames)
+                                () -> format(
+                                    "[%s] indices opened, but the operation timed out while waiting for enough shards to be started.",
+                                    Arrays.toString(indexNames)
+                                )
                             );
                         }
-                        delegate.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
-                    },
-                    listener::onFailure
+                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                    })
                 );
             } else {
                 delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
@@ -1051,7 +1054,8 @@ public class MetadataIndexStateService {
 
         @Override
         public ClusterState execute(BatchExecutionContext<OpenIndicesTask> batchExecutionContext) {
-            ClusterState state = batchExecutionContext.initialState();
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
+            var state = batchExecutionContext.initialState();
 
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // we may encounter deprecated settings but they are not directly related to opening the indices, nor are they really
@@ -1068,11 +1072,11 @@ public class MetadataIndexStateService {
                 state = openIndices(indices, state);
 
                 // do a final reroute
-                state = allocationService.reroute(state, "indices opened");
+                state = allocationService.reroute(state, "indices opened", listener.reroute());
 
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
-                    taskContext.success(task);
+                    taskContext.success(task.getAckListener(listener));
                 }
             } catch (Exception e) {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -1158,37 +1162,40 @@ public class MetadataIndexStateService {
 
     private record OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
         implements
-            ClusterStateTaskListener,
-            ClusterStateAckListener {
+            ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
-        }
+        public ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.of(true));
-        }
+                @Override
+                public void onAllNodesAcked() {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(true));
+                }
 
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(false));
-        }
+                @Override
+                public void onAckFailure(Exception e) {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(false));
+                }
 
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
+                @Override
+                public void onAckTimeout() {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.FALSE);
+                }
 
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
     }
 }

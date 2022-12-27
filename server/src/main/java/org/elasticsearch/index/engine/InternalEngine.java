@@ -105,6 +105,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -226,7 +227,8 @@ public class InternalEngine extends Engine {
                     logger,
                     translogDeletionPolicy,
                     softDeletesPolicy,
-                    translog::getLastSyncedGlobalCheckpoint
+                    translog::getLastSyncedGlobalCheckpoint,
+                    newCommitsListener()
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
@@ -265,7 +267,10 @@ public class InternalEngine extends Engine {
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
-                    restoreVersionMapAndCheckpointTracker(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+                    restoreVersionMapAndCheckpointTracker(
+                        Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
+                        engineConfig.getIndexSettings().getIndexVersionCreated()
+                    );
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(
                         config().getShardId(),
@@ -317,6 +322,28 @@ public class InternalEngine extends Engine {
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
             engineConfig.retentionLeasesSupplier()
         );
+    }
+
+    @Nullable
+    private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
+        final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
+        if (listener != null) {
+            var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
+            return new CombinedDeletionPolicy.CommitsListener() {
+                @Override
+                public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
+                    final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
+                    assert indexCommitRef.getIndexCommit() == commit;
+                    listener.onNewCommit(shardId, primaryTerm, indexCommitRef, additionalFiles);
+                }
+
+                @Override
+                public void onDeletedCommit(IndexCommit commit) {
+                    listener.onIndexCommitDelete(shardId, commit);
+                }
+            };
+        }
+        return null;
     }
 
     @Override
@@ -1925,10 +1952,9 @@ public class InternalEngine extends Engine {
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-                boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (hasUncommittedChanges
                     || force
-                    || shouldPeriodicallyFlush
+                    || shouldPeriodicallyFlush()
                     || getProcessedLocalCheckpoint() > Long.parseLong(
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {
@@ -1938,15 +1964,6 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-
-                        // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                        logger.debug(
-                            "new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
-                            hasUncommittedChanges,
-                            force,
-                            shouldPeriodicallyFlush
-                        );
-
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
@@ -2155,22 +2172,14 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Override
-    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
-        // we have to flush outside of the readlock otherwise we might have a problem upgrading
-        // the to a write lock when we fail the engine in this operation
-        if (flushFirst) {
-            logger.trace("start flush for snapshot");
-            flush(false, true);
-            logger.trace("finish flush for snapshot");
-        }
+    private IndexCommitRef acquireIndexCommitRef(final Supplier<IndexCommit> indexCommitSupplier) {
         store.incRef();
         boolean success = false;
         try {
-            final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+            final IndexCommit indexCommit = indexCommitSupplier.get();
             final IndexCommitRef commitRef = new IndexCommitRef(
-                lastCommit,
-                () -> IOUtils.close(() -> releaseIndexCommit(lastCommit), store::decRef)
+                indexCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(indexCommit), store::decRef)
             );
             success = true;
             return commitRef;
@@ -2182,22 +2191,20 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        store.incRef();
-        boolean success = false;
-        try {
-            final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-            final IndexCommitRef commitRef = new IndexCommitRef(
-                safeCommit,
-                () -> IOUtils.close(() -> releaseIndexCommit(safeCommit), store::decRef)
-            );
-            success = true;
-            return commitRef;
-        } finally {
-            if (success == false) {
-                store.decRef();
-            }
+    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
+        // we have to flush outside of the readlock otherwise we might have a problem upgrading
+        // the to a write lock when we fail the engine in this operation
+        if (flushFirst) {
+            logger.trace("start flush for snapshot");
+            flush(false, true);
+            logger.trace("finish flush for snapshot");
         }
+        return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(false));
+    }
+
+    @Override
+    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(true));
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
@@ -2769,7 +2776,12 @@ public class InternalEngine extends Engine {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
-            return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
+            return LuceneChangesSnapshot.countOperations(
+                searcher,
+                fromSeqNo,
+                toSeqNo,
+                config().getIndexSettings().getIndexVersionCreated()
+            );
         } catch (Exception e) {
             try {
                 maybeFailEngine("count changes", e);
@@ -2800,7 +2812,8 @@ public class InternalEngine extends Engine {
                 toSeqNo,
                 requiredFullRange,
                 singleConsumer,
-                accessStats
+                accessStats,
+                config().getIndexSettings().getIndexVersionCreated()
             );
             searcher = null;
             return snapshot;
@@ -2905,7 +2918,7 @@ public class InternalEngine extends Engine {
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
-            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+            refreshedCheckpoint.accumulateAndGet(checkpoint, Math::max);
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
         }
     }
@@ -2922,9 +2935,9 @@ public class InternalEngine extends Engine {
 
     private void updateAutoIdTimestamp(long newTimestamp, boolean unsafe) {
         assert newTimestamp >= -1 : "invalid timestamp [" + newTimestamp + "]";
-        maxSeenAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
+        maxSeenAutoIdTimestamp.accumulateAndGet(newTimestamp, Math::max);
         if (unsafe) {
-            maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
+            maxUnsafeAutoIdTimestamp.accumulateAndGet(newTimestamp, Math::max);
         }
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
@@ -2940,7 +2953,7 @@ public class InternalEngine extends Engine {
             assert false : "max_seq_no_of_updates on primary is unassigned";
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }
-        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
+        this.maxSeqNoOfUpdatesOrDeletes.accumulateAndGet(maxSeqNoOfUpdatesOnPrimary, Math::max);
     }
 
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
@@ -2967,14 +2980,14 @@ public class InternalEngine extends Engine {
      * after the local checkpoint in the safe commit. This step ensures the live version map and checkpoint tracker
      * are in sync with the Lucene commit.
      */
-    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader) throws IOException {
+    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, Version indexVersionCreated) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
             LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
             BooleanClause.Occur.MUST
         )
-            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
+            .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         for (LeafReaderContext leaf : directoryReader.leaves()) {

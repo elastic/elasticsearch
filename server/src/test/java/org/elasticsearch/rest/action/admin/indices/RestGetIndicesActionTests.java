@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +36,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withMethod(RestRequest.Method.GET).withPath("/some_index").withParams(params).build();
 
-        RestGetIndicesAction handler = new RestGetIndicesAction(new DeterministicTaskQueue().getThreadPool());
+        RestGetIndicesAction handler = new RestGetIndicesAction();
         handler.prepareRequest(request, mock(NodeClient.class));
         assertCriticalWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
 
@@ -58,7 +57,7 @@ public class RestGetIndicesActionTests extends ESTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withMethod(RestRequest.Method.HEAD).withPath("/some_index").withParams(params).build();
 
-        RestGetIndicesAction handler = new RestGetIndicesAction(new DeterministicTaskQueue().getThreadPool());
+        RestGetIndicesAction handler = new RestGetIndicesAction();
         handler.prepareRequest(request, mock(NodeClient.class));
     }
 }

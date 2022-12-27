@@ -135,7 +135,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     primariesInRecovery++;
                 }
             }
-            if (primariesInRecovery >= primariesInitialRecoveries) {
+            if (allocation.isSimulating()) {
+                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
+            } else if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
                 return allocation.decision(
                     THROTTLE,

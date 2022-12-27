@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -24,11 +20,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
@@ -59,7 +53,7 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
-    private static final String FIELD_NAME = "location";
+    protected static final String FIELD_NAME = "location";
 
     /**
      * Generate a random precision according to the rules of the given aggregation.
@@ -82,12 +76,12 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     protected abstract GeoBoundingBox randomBBox();
 
     /**
-     * Return the bounding tile as a {@link Rectangle} for a given point
+     * Return true if the point intersects the given shape value
      */
     protected abstract boolean intersects(double lng, double lat, int precision, GeoShapeValues.GeoShapeValue value) throws IOException;
 
     /**
-     * Return true if the points intersects the bounds
+     * Return true if the point intersects the given bounding box
      */
     protected abstract boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box);
 
@@ -177,7 +171,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         }
 
         final long numDocsInBucket = numDocsWithin;
-
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
             for (BinaryShapeDocValuesField docField : docs) {
                 iw.addDocument(Collections.singletonList(docField));
@@ -253,7 +246,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     }
 
     @SuppressWarnings("unchecked")
-    private void testCase(
+    protected void testCase(
         Query query,
         int precision,
         GeoBoundingBox geoBoundingBox,
@@ -261,14 +254,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         Consumer<InternalGeoGrid<T>> verify,
         GeoGridAggregationBuilder aggregationBuilder
     ) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
         aggregationBuilder.precision(precision);
         if (geoBoundingBox != null) {
             aggregationBuilder.setGeoBoundingBox(geoBoundingBox);
@@ -284,15 +269,10 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             null,
             Collections.emptyMap()
         );
-
-        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator.asCollector());
-        aggregator.postCollection();
-
-        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
-
-        indexReader.close();
-        directory.close();
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalGeoGrid<T>) agg),
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+        );
     }
 }

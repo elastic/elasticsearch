@@ -157,8 +157,8 @@ public class RolloverAction implements LifecycleAction {
     }
 
     public RolloverAction(StreamInput in) throws IOException {
-        maxSize = in.readOptionalWriteable(ByteSizeValue::new);
-        maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        maxSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+        maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
         if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
@@ -167,8 +167,8 @@ public class RolloverAction implements LifecycleAction {
             maxPrimaryShardDocs = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            minSize = in.readOptionalWriteable(ByteSizeValue::new);
-            minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+            minSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             minAge = in.readOptionalTimeValue();
             minDocs = in.readOptionalVLong();
             minPrimaryShardDocs = in.readOptionalVLong();

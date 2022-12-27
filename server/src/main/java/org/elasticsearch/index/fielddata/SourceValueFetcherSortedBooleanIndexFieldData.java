@@ -81,7 +81,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         }
     }
 
-    private static class SourceValueFetcherSortedBooleanDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
+    static class SourceValueFetcherSortedBooleanDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
 
         private final LeafReaderContext leafReaderContext;
 
@@ -92,7 +92,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         private int falseCount;
         private int iteratorIndex;
 
-        private SourceValueFetcherSortedBooleanDocValues(
+        SourceValueFetcherSortedBooleanDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup
@@ -105,6 +105,9 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         @Override
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
+
+            trueCount = 0;
+            falseCount = 0;
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
                 assert value instanceof Boolean;

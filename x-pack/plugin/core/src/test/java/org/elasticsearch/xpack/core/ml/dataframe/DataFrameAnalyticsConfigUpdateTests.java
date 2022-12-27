@@ -46,7 +46,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
             builder.setDescription(randomAlphaOfLength(20));
         }
         if (randomBoolean()) {
-            builder.setModelMemoryLimit(new ByteSizeValue(randomNonNegativeLong()));
+            builder.setModelMemoryLimit(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
@@ -70,13 +70,14 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
     public void testMergeWithConfig_UpdatedModelMemoryLimit() {
         String id = randomValidId();
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .build();
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048))
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(
+            ByteSizeValue.ofBytes(2048)
+        ).build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setModelMemoryLimit(new ByteSizeValue(2048)).build()))
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setModelMemoryLimit(ByteSizeValue.ofBytes(2048)).build()))
         );
     }
 
@@ -104,12 +105,12 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
         String id = randomValidId();
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
             .setDescription("old description")
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .setAllowLazyStart(false)
             .setMaxNumThreads(1)
             .build();
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description")
-            .setModelMemoryLimit(new ByteSizeValue(2048))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
             .setAllowLazyStart(true)
             .setMaxNumThreads(4)
             .build();
@@ -118,7 +119,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
             is(
                 equalTo(
                     new DataFrameAnalyticsConfig.Builder(config).setDescription("new description")
-                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                         .setAllowLazyStart(true)
                         .setMaxNumThreads(4)
                         .build()
@@ -168,10 +169,11 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
     public void testRequiresRestart_ModelMemoryLimitUpdateRequiresRestart() {
         String id = randomValidId();
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .build();
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048))
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(
+            ByteSizeValue.ofBytes(2048)
+        ).build();
 
         assertThat(update.requiresRestart(config), is(true));
     }
@@ -206,7 +208,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
 
     public void testGetUpdatedFields_GivenAll() {
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setDescription("new description")
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .setAllowLazyStart(true)
             .setMaxNumThreads(8)
             .build();
@@ -235,7 +237,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
 
     public void testGetUpdatedFields_GivenModelMemoryLimit() {
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setModelMemoryLimit(
-            new ByteSizeValue(1024)
+            ByteSizeValue.ofBytes(1024)
         ).build();
 
         assertThat(update.getUpdatedFields(), contains("model_memory_limit"));

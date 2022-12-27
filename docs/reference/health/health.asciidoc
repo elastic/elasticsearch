@@ -4,18 +4,14 @@
 <titleabbrev>Health</titleabbrev>
 ++++
 
-An experimental API that returns the health status of an {es} cluster.
-
-This API is currently experimental for internal use by Elastic software only.
-
-NOTE: {cloud-only}
+An API that returns the health status of an {es} cluster.
 
 [[health-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/_health` +
+`GET /_health` +
 
-`GET /_internal/_health/<indicator>` +
+`GET /_health/<indicator>` +
 
 [[health-api-prereqs]]
 ==== {api-prereq-title}
@@ -45,6 +41,10 @@ steps are encapsulated in a `diagnosis`.
 A diagnosis contains a cause detailing a root cause analysis, an action containing a brief description
 of the steps to take to fix the problem, the list of affected resources (if applicable), and a detailed
 step by step troubleshooting guide to fix the diagnosed problem.
+
+NOTE: The health indicators perform root cause analysis of non-green health statuses. This can
+be computationally expensive when called frequently. When setting up automated polling of the API
+for health status set `verbose` to `false` to disable the more expensive analysis logic.
 
 [[health-api-path-params]]
 ==== {api-path-parms-title}
@@ -83,14 +83,16 @@ step by step troubleshooting guide to fix the diagnosed problem.
 [[health-api-query-params]]
 ==== {api-query-parms-title}
 
-`explain`::
+`verbose`::
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
     These details include additional troubleshooting metrics and sometimes a root cause analysis of a health status.
     Defaults to `true`.
 
-NOTE: Some health indicators perform root cause analysis of non-green health statuses. This can
-be computationally expensive when called frequently. When setting up automated polling of the API
-for health status set `explain` to `false` to disable the more expensive analysis logic.
+`size`::
+    (Optional, integer) The maximum number of affected resources to return.
+    As a diagnosis can return multiple types of affected resources this parameter will limit the number of resources returned for each type to the configured value (e.g. a diagnosis could return
+    `1000` affected indices and `1000` affected nodes).
+    Defaults to `1000`.
 
 [role="child_attributes"]
 [[health-api-response-body]]
@@ -152,7 +154,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
     (Optional, object) An object that contains additional information about the cluster that
     has lead to the current health status result. This data is unstructured, and each
     indicator returns <<health-api-response-details, a unique set of details>>. Details will not be calculated if the
-    `explain` property is set to false.
+    `verbose` property is set to false.
 
 `impacts`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
@@ -184,7 +186,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 `diagnosis`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
     diagnosis that encapsulate the cause of the health issue and an action to take in order to remediate the problem.
-    The diagnosis will not be calculated if the `explain` property is false.
+    The diagnosis will not be calculated if the `verbose` property is false.
 +
 .Properties of `diagnosis`
 [%collapsible%open]
@@ -380,7 +382,7 @@ watermark threshold>>.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health
+GET _health
 --------------------------------------------------
 
 The API returns a response with all the indicators regardless
@@ -388,14 +390,14 @@ of current status.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/shards_availability
+GET _health/shards_availability
 --------------------------------------------------
 
 The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health?explain=false
+GET _health?verbose=false
 --------------------------------------------------
 
 The API returns a response with all health indicators but will

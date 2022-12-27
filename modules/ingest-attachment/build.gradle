@@ -7,8 +7,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
   description 'Ingest processor that uses Apache Tika to extract contents'
@@ -16,8 +16,8 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '2.4.0',
-  'pdfbox': '2.0.26',
+  'tika'  : '2.6.0',
+  'pdfbox': '2.0.27',
   'poi'   : '5.2.2',
   'mime4j': '0.8.5'
 ]
@@ -49,7 +49,7 @@ dependencies {
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:1.8.16"
+  api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"

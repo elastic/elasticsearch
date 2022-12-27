@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -19,7 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnrichMetadataTests extends AbstractXContentSerializingTestCase<EnrichMetadata> {
+public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<EnrichMetadata> {
 
     @Override
     protected EnrichMetadata doParseInstance(XContentParser parser) throws IOException {
@@ -60,5 +60,10 @@ public class EnrichMetadataTests extends AbstractXContentSerializingTestCase<Enr
             EnrichPolicy expected = expectedInstance.getPolicies().get(entry.getKey());
             EnrichPolicyTests.assertEqualPolicies(expected, actual);
         }
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

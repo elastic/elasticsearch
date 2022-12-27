@@ -60,6 +60,8 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -121,16 +123,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(MapperBuilderContext.ROOT);
+        wildcardFieldType = builder.build(MapperBuilderContext.root(false));
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
-        wildcardFieldType79 = builder79.build(MapperBuilderContext.ROOT);
+        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
             Version.CURRENT
         );
-        keywordFieldType = kwBuilder.build(MapperBuilderContext.ROOT);
+        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false));
 
         rewriteDir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -1086,6 +1088,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
         return new SearchExecutionContext(
             0,
             0,
@@ -1093,7 +1096,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             bitsetFilterCache,
             indexFieldDataLookup,
             null,
-            null,
+            lookup,
             null,
             null,
             parserConfig(),

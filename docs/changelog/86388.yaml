@@ -1,5 +1,0 @@
-pr: 86388
-summary: Do not use recovery from snapshots in searchable snapshots
-area: Recovery
-type: enhancement
-issues: []

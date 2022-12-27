@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -435,14 +434,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         @Override
         public String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.prettyPrint();
-                toXContent(builder, EMPTY_PARAMS);
-                return Strings.toString(builder);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return Strings.toString(this, true, true);
         }
 
         @Override

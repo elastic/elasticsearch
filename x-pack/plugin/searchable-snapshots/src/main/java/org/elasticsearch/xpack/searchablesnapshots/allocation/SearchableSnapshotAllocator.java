@@ -201,14 +201,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    DiskThresholdDecider.getExpectedShardSize(
-                        shardRouting,
-                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                        allocation.clusterInfo(),
-                        allocation.snapshotShardSizeInfo(),
-                        allocation.metadata(),
-                        allocation.routingTable()
-                    ),
+                    DiskThresholdDecider.getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                     allocation.changes()
                 );
             } else {
@@ -519,7 +512,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     "{}: node [{}] has [{}/{}] bytes of re-usable cache data",
                     shard,
                     discoNode.getName(),
-                    new ByteSizeValue(matchingBytes),
+                    ByteSizeValue.ofBytes(matchingBytes),
                     matchingBytes
                 );
             }

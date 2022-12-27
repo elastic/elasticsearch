@@ -57,8 +57,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testReroutesWhenRequested() throws InterruptedException {
         final AtomicLong rerouteCount = new AtomicLong();
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             rerouteCount.incrementAndGet();
+            l.onResponse(null);
             return s;
         });
 
@@ -98,8 +99,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         cyclicBarrier.await(); // wait for master thread to be blocked
 
         final AtomicBoolean rerouteExecuted = new AtomicBoolean();
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             assertTrue(rerouteExecuted.compareAndSet(false, true)); // only called once
+            l.onResponse(null);
             return s;
         });
 
@@ -188,27 +190,26 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testNotifiesOnFailure() throws InterruptedException {
 
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             if (rarely()) {
                 throw new ElasticsearchException("simulated");
             }
+            l.onResponse(null);
             return randomBoolean() ? s : ClusterState.builder(s).build();
         });
 
         final int iterations = between(1, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
-            batchedRerouteService.reroute("iteration " + i, randomFrom(EnumSet.allOf(Priority.class)), ActionListener.wrap(r -> {
-                countDownLatch.countDown();
-                if (rarely()) {
-                    throw new ElasticsearchException("failure during notification");
-                }
-            }, e -> {
-                countDownLatch.countDown();
-                if (randomBoolean()) {
-                    throw new ElasticsearchException("failure during failure notification", e);
-                }
-            }));
+            batchedRerouteService.reroute(
+                "iteration " + i,
+                randomFrom(EnumSet.allOf(Priority.class)),
+                ActionListener.runAfter(ActionListener.wrap(r -> {
+                    if (rarely()) {
+                        throw new ElasticsearchException("failure during notification");
+                    }
+                }, e -> {}), countDownLatch::countDown)
+            );
             if (rarely()) {
                 clusterService.getMasterService()
                     .setClusterStatePublisher(

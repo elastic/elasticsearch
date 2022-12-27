@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,7 +36,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -213,14 +213,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray("snapshots");
-        final Iterator<Entry> iterator = asStream().iterator();
-        while (iterator.hasNext()) {
-            iterator.next().toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.<ToXContent>concat(
+            Iterators.single((builder, params) -> builder.startArray("snapshots")),
+            asStream().iterator(),
+            Iterators.single((builder, params) -> builder.endArray())
+        );
     }
 
     @Override
@@ -827,25 +825,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final boolean includeGlobalState = in.readBoolean();
             final boolean partial = in.readBoolean();
             final State state = State.fromValue(in.readByte());
-            final int indexCount = in.readVInt();
-            final Map<String, IndexId> indices;
-            if (indexCount == 0) {
-                indices = Collections.emptyMap();
-            } else {
-                final Map<String, IndexId> idx = Maps.newMapWithExpectedSize(indexCount);
-                for (int i = 0; i < indexCount; i++) {
-                    final IndexId indexId = new IndexId(in);
-                    idx.put(indexId.getName(), indexId);
-                }
-                indices = Collections.unmodifiableMap(idx);
-            }
+            final Map<String, IndexId> indices = in.readMapValues(IndexId::new, IndexId::getName);
             final long startTime = in.readLong();
             final Map<ShardId, ShardSnapshotStatus> shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::readFrom);
             final long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final Version version = Version.readVersion(in);
-            final List<String> dataStreams = in.readStringList();
+            final List<String> dataStreams = in.readImmutableStringList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
             final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
                 RepositoryShardId::readFrom,

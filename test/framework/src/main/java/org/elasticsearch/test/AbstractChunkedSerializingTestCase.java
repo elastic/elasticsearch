@@ -11,7 +11,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -28,13 +27,6 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
 
     @Override
     protected ToXContent asXContent(T instance) {
-        if (instance.isFragment()) {
-            return (ToXContentObject) ((builder, params) -> {
-                builder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(instance).toXContent(builder, params);
-                return builder.endObject();
-            });
-        }
         return ChunkedToXContent.wrapAsXContentObject(instance);
     }
 

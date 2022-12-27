@@ -12,10 +12,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -797,14 +795,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        final ChunkedToXContent wrapped = chunkedToXContent.isFragment()
-            ? params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                chunkedToXContent.toXContentChunked(params),
-                ChunkedToXContentHelper.endObject()
-            )
-            : chunkedToXContent;
-        return toString(ChunkedToXContent.wrapAsXContentObject(wrapped), pretty, human);
+        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent), pretty, human);
     }
 
     /**

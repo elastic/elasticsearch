@@ -41,7 +41,10 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -49,6 +52,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -310,10 +314,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                     return Optional.empty();
                 }
-                if (User.isInternal(effectiveSubject.getUser())) {
-                    logger.trace("Effective subject of request to remote cluster [{}] is an internal user", remoteClusterAlias);
-                    return Optional.empty();
-                }
 
                 return Optional.of(new RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
             }
@@ -349,17 +349,36 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                    remoteClusterAlias,
-                    authentication.getEffectiveSubject(),
-                    ActionListener.wrap(roleDescriptorsIntersection -> {
-                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                            remoteAccessCredentials.writeToContext(threadContext);
-                            new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
-                            sender.sendRequest(connection, action, request, options, contextRestoreHandler);
-                        }
-                    }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
-                );
+                if (User.isInternal(authentication.getEffectiveSubject().getUser())) {
+                    assertInternalUserUsedCrossCluster(authentication.getEffectiveSubject().getUser());
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        remoteAccessCredentials.writeToContext(threadContext);
+                        // Access control is handled differently for internal users. Privileges are defined by the fulfilling cluster,
+                        // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
+                        // authentication instance
+                        new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
+                        sender.sendRequest(connection, action, request, options, contextRestoreHandler);
+                    } catch (IOException e) {
+                        contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                    }
+                } else {
+                    authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                        remoteClusterAlias,
+                        authentication.getEffectiveSubject(),
+                        ActionListener.wrap(roleDescriptorsIntersection -> {
+                            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                                remoteAccessCredentials.writeToContext(threadContext);
+                                new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
+                                sender.sendRequest(connection, action, request, options, contextRestoreHandler);
+                            }
+                        }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
+                    );
+                }
+            }
+
+            private void assertInternalUserUsedCrossCluster(final User user) {
+                assert SystemUser.is(user) || AsyncSearchUser.is(user)
+                    : "internal user [" + user.principal() + "] should not be used for cross cluster requests";
             }
 
             record RemoteAccessCredentials(String clusterAlias, String credentials) {

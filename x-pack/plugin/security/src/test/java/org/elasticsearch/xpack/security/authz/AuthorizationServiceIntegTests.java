@@ -16,13 +16,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
@@ -44,7 +42,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         return false; // need real http
     }
 
-    public void testRetrieveRemoteAccessRoleDescriptorsIntersectionForNonInternalUser() throws IOException, InterruptedException {
+    public void testRetrieveRemoteAccessRoleDescriptorsIntersection() throws IOException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
@@ -121,43 +119,6 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 )
             )
         );
-    }
-
-    public void testRetrieveRemoteAccessRoleDescriptorsIntersectionForInternalUser() throws InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
-        final String nodeName = internalCluster().getRandomNodeName();
-        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .internal(randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser))
-            .build();
-        final String concreteClusterAlias = randomAlphaOfLength(10);
-
-        // For internal users, we support the situation where there is no authorization information populated in thread context
-        // We test both scenarios, one where we don't authorize and don't have authorization info in thread context, and one where we do
-        if (randomBoolean()) {
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
-            final CountDownLatch latch = new CountDownLatch(1);
-            final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
-            authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-                concreteClusterAlias,
-                authentication.getEffectiveSubject(),
-                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                    assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
-                    actual.set(newValue);
-                }), latch)
-            );
-            latch.await();
-            assertThat(actual.get(), equalTo(RoleDescriptorsIntersection.EMPTY));
-            // Validate original authz info is restored to null after call complete
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
-        } else {
-            assertThat(
-                authorizeThenRetrieveRemoteAccessDescriptors(threadContext, authzService, authentication, concreteClusterAlias),
-                equalTo(RoleDescriptorsIntersection.EMPTY)
-            );
-        }
     }
 
     private RoleDescriptorsIntersection authorizeThenRetrieveRemoteAccessDescriptors(

@@ -145,7 +145,8 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
                 getModules(),
                 getPlugins(),
                 Optional.ofNullable(getDistributionType()).orElse(DistributionType.INTEG_TEST),
-                getFeatures()
+                getFeatures(),
+                getKeystoreSettings()
             );
         }
     }

@@ -85,4 +85,9 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
             builder
         );
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92563")
+    public void testGeoShapeBounds() throws IOException {
+        super.testGeoShapeBounds();
+    }
 }

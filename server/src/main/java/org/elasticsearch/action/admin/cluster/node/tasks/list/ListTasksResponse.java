@@ -257,7 +257,7 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(ChunkedToXContent.wrapAsXContentObject(groupedByNone()), true, true);
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(groupedByNone()), true, true);
     }
 
 }

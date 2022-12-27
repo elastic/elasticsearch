@@ -27,7 +27,7 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
 
     @Override
     protected ToXContent asXContent(T instance) {
-        return ChunkedToXContent.wrapAsXContentObject(instance);
+        return ChunkedToXContent.wrapAsToXContent(instance);
     }
 
     @Override

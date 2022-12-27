@@ -34,7 +34,7 @@ public interface ChunkedToXContent {
      * @param chunkedToXContent instance to wrap
      * @return x-content instance
      */
-    static ToXContent wrapAsXContentObject(ChunkedToXContent chunkedToXContent) {
+    static ToXContent wrapAsToXContent(ChunkedToXContent chunkedToXContent) {
         return new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

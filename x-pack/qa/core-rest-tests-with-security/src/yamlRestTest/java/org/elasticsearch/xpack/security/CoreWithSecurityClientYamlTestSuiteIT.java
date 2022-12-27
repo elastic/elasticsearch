@@ -30,10 +30,11 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("constant-keyword")
         .module("mapper-extras")
         .module("rank-eval")
+        .module("x-pack-ilm")
         .module("x-pack-stack")
-        .module("constant-keyword")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

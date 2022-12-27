@@ -54,10 +54,10 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
-            ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
+            /*ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
-            test.addTestListener(listener);
+            test.addTestListener(listener);*/
 
             /*
              * We use lazy-evaluated strings in order to configure system properties whose value will not be known until

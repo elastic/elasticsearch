@@ -10,15 +10,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
-import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -76,35 +72,40 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
         usageStats = in.readMap();
     }
 
-    public HealthApiFeatureSetUsage(
-        boolean available,
-        boolean enabled,
-        Counters stats,
-        Set<HealthStatus> statuses,
-        Map<HealthStatus, Set<String>> indicators,
-        Map<HealthStatus, Set<String>> diagnoses
-    ) {
+    public HealthApiFeatureSetUsage(boolean available, boolean enabled, Counters stats) {
         super(XPackField.HEALTH_API, available, enabled);
-        usageStats = stats.toNestedMap();
-        addValues(usageStats, List.of("statuses"), statuses.stream().map(HealthStatus::xContentValue).collect(Collectors.toSet()));
-        for (HealthStatus status : indicators.keySet()) {
-            addValues(usageStats, List.of("indicators", status.xContentValue()), indicators.get(status));
-        }
-        for (HealthStatus status : diagnoses.keySet()) {
-            addValues(usageStats, List.of("diagnoses", status.xContentValue()), diagnoses.get(status));
-        }
+        usageStats = stats.toMutableNestedMap();
+        enrichUsageStatsWithValues(usageStats);
     }
 
+    // This method enriches the stats map with a list of encountered values for the statuses, the indicators and the diagnoses stats.
+    // Visible for testing
     @SuppressWarnings("unchecked")
-    private static void addValues(Map<String, Object> map, List<String> path, Set<String> values) {
-        if (values.isEmpty()) {
-            return;
+    static void enrichUsageStatsWithValues(Map<String, Object> usageStats) {
+        if (usageStats.containsKey("statuses")) {
+            Map<String, Object> statuses = (Map<String, Object>) usageStats.get("statuses");
+            if (statuses.isEmpty() == false) {
+                statuses.put("values", statuses.keySet().stream().sorted().collect(Collectors.toList()));
+            }
         }
-        Map<String, Object> currentMap = map;
-        for (String field : path) {
-            currentMap = (Map<String, Object>) currentMap.computeIfAbsent(field, k -> new HashMap<>());
+        if (usageStats.containsKey("indicators")) {
+            Map<String, Map<String, Object>> indicatorsByStatus = (Map<String, Map<String, Object>>) usageStats.get("indicators");
+            for (String status : indicatorsByStatus.keySet()) {
+                Map<String, Object> indicators = indicatorsByStatus.get(status);
+                if (indicators.isEmpty() == false) {
+                    indicators.put("values", indicators.keySet().stream().sorted().collect(Collectors.toList()));
+                }
+            }
         }
-        currentMap.put("values", values.stream().sorted().toList());
+        if (usageStats.containsKey("diagnoses")) {
+            Map<String, Map<String, Object>> diagnosesByStatus = (Map<String, Map<String, Object>>) usageStats.get("diagnoses");
+            for (String status : diagnosesByStatus.keySet()) {
+                Map<String, Object> diagnoses = diagnosesByStatus.get(status);
+                if (diagnoses.isEmpty() == false) {
+                    diagnoses.put("values", diagnoses.keySet().stream().sorted().collect(Collectors.toList()));
+                }
+            }
+        }
     }
 
     @Override

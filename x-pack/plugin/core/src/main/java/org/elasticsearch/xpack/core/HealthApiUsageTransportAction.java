@@ -65,14 +65,7 @@ public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAct
         HealthApiStatsAction.Request statsRequest = new HealthApiStatsAction.Request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(HealthApiStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r -> {
-            HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(
-                true,
-                true,
-                r.getStats(),
-                r.getStatuses(),
-                r.getIndicators(),
-                r.getDiagnoses()
-            );
+            HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(true, true, r.getStats());
             preservingListener.onResponse(new XPackUsageFeatureResponse(usage));
         }, preservingListener::onFailure));
     }

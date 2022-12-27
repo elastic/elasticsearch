@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -26,14 +27,16 @@ public abstract class GrokCaptureExtracter {
      * is mutable and should be discarded after collecting a single result.
      */
     static class MapExtracter extends GrokCaptureExtracter {
-        private final Map<String, Object> result;
+        private final Map<String, List<Object>> result;
         private final List<GrokCaptureExtracter> fieldExtracters;
 
         MapExtracter(List<GrokCaptureConfig> captureConfig) {
             result = captureConfig.isEmpty() ? emptyMap() : new HashMap<>();
             fieldExtracters = new ArrayList<>(captureConfig.size());
             for (GrokCaptureConfig config : captureConfig) {
-                fieldExtracters.add(config.objectExtracter(v -> result.put(config.name(), v)));
+                fieldExtracters.add(
+                    config.objectExtracter(value -> result.computeIfAbsent(config.name(), __ -> new ArrayList<>()).add(value))
+                );
             }
         }
 
@@ -45,7 +48,10 @@ public abstract class GrokCaptureExtracter {
         }
 
         Map<String, Object> result() {
-            return result;
+            return result.entrySet().stream().map(e -> {
+                // In case there's only 1 element, let's extract it from the list to be backward-compatible
+                return (e.getValue().size() == 1) ? Map.entry(e.getKey(), e.getValue().get(0)) : e;
+            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
     }
 

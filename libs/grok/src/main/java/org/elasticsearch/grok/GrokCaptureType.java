@@ -78,7 +78,6 @@ enum GrokCaptureType {
                         int matchOffset = offset + region.beg[number];
                         int matchLength = region.end[number] - region.beg[number];
                         emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
-                        return; // Capture only the first value.
                     }
                 }
             }

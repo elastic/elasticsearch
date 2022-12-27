@@ -302,26 +302,17 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             InetAddress value = InetAddresses.forString("::1");
             byte[] encodedValue = InetAddressPoint.encode(value);
             iw.addDocument(
-                Arrays.asList(
-                    new InetAddressPoint("ip_value", value),
-                    new SortedDocValuesField("ip_value", new BytesRef(encodedValue))
-                )
+                Arrays.asList(new InetAddressPoint("ip_value", value), new SortedDocValuesField("ip_value", new BytesRef(encodedValue)))
             );
             value = InetAddresses.forString("192.168.0.1");
             encodedValue = InetAddressPoint.encode(value);
             iw.addDocument(
-                Arrays.asList(
-                    new InetAddressPoint("ip_value", value),
-                    new SortedDocValuesField("ip_value", new BytesRef(encodedValue))
-                )
+                Arrays.asList(new InetAddressPoint("ip_value", value), new SortedDocValuesField("ip_value", new BytesRef(encodedValue)))
             );
             value = InetAddresses.forString("::1");
             encodedValue = InetAddressPoint.encode(value);
             iw.addDocument(
-                Arrays.asList(
-                    new InetAddressPoint("ip_value", value),
-                    new SortedDocValuesField("ip_value", new BytesRef(encodedValue))
-                )
+                Arrays.asList(new InetAddressPoint("ip_value", value), new SortedDocValuesField("ip_value", new BytesRef(encodedValue)))
             );
         };
 

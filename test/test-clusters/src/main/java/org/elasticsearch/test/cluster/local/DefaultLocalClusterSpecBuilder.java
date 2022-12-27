@@ -13,7 +13,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.test.cluster.util.resource.TextResource;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,13 +24,13 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
     private String name = "test-cluster";
     private final List<DefaultLocalNodeSpecBuilder> nodeBuilders = new ArrayList<>();
     private final List<User> users = new ArrayList<>();
-    private final List<TextResource> roleFiles = new ArrayList<>();
+    private final List<Resource> roleFiles = new ArrayList<>();
 
     public DefaultLocalClusterSpecBuilder() {
         super(null);
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());
-        this.rolesFile(TextResource.fromClasspath("default_test_roles.yml"));
+        this.rolesFile(Resource.fromClasspath("default_test_roles.yml"));
     }
 
     @Override
@@ -95,7 +95,7 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
     }
 
     @Override
-    public DefaultLocalClusterSpecBuilder rolesFile(TextResource rolesFile) {
+    public DefaultLocalClusterSpecBuilder rolesFile(Resource rolesFile) {
         this.roleFiles.add(rolesFile);
         return this;
     }
@@ -146,7 +146,8 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
                 getPlugins(),
                 Optional.ofNullable(getDistributionType()).orElse(DistributionType.INTEG_TEST),
                 getFeatures(),
-                getKeystoreSettings()
+                getKeystoreSettings(),
+                getExtraConfigFiles()
             );
         }
     }

@@ -377,8 +377,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private void assertInternalUserUsedCrossCluster(final User user) {
-                assert SystemUser.is(user) || AsyncSearchUser.is(user)
-                    : "internal user [" + user.principal() + "] should not be used for cross cluster requests";
+                if (false == (SystemUser.is(user) || AsyncSearchUser.is(user))) {
+                    final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
+                    assert false : message;
+                    throw new IllegalStateException(message);
+                }
             }
 
             record RemoteAccessCredentials(String clusterAlias, String credentials) {

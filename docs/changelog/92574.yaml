@@ -1,0 +1,5 @@
+pr: 92574
+summary: cleanup some code NoriTokenizerFactory and KuromojiTokenizerFactory
+area: Search
+type: enhancement
+issues: []

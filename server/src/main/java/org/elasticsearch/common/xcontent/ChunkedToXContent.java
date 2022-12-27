@@ -43,6 +43,9 @@ public interface ChunkedToXContent {
         };
     }
 
+    /**
+     * @return true if this instances serializes as an x-content fragment. See {@link ToXContentObject} for additional details.
+     */
     default boolean isFragment() {
         return true;
     }

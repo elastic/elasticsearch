@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.common.xcontent;
 
+/**
+ * Chunked equivalent of {@link org.elasticsearch.xcontent.ToXContentObject} that serializes as a full object.
+ */
 public interface ChunkedToXContentObject extends ChunkedToXContent {
 
     @Override

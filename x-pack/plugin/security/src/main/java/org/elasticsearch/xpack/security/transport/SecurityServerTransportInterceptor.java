@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -73,6 +74,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     static {
         final Stream<String> actions = Stream.of(
             SearchAction.NAME,
+            ClusterStateAction.NAME,
             ClusterSearchShardsAction.NAME,
             SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
             SearchTransportService.FREE_CONTEXT_ACTION_NAME,

@@ -143,7 +143,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
             final String clusterCredential = randomBase64UUID(random());
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
-            final boolean useProxyMode = randomBoolean();
+            final boolean useProxyMode = false;
             setupClusterSettings(CLUSTER_A, clusterCredential, remoteNode, useProxyMode);
             final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();

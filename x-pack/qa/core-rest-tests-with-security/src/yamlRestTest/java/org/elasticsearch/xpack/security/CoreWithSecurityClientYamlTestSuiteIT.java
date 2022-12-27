@@ -33,6 +33,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("mapper-extras")
         .module("rank-eval")
         .module("x-pack-stack")
+        .module("constant-keyword")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

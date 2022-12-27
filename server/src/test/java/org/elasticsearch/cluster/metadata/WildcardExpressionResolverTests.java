@@ -28,6 +28,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
 
@@ -178,6 +179,26 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Collections.singletonList("testX*"))),
             equalTo(newHashSet("testXXX", "testXXY"))
         );
+        context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(true, true, false, false),
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(
+            IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, List.of("testX*")),
+            containsInAnyOrder("testX*")
+        );
+        context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(false, true, false, false),
+            SystemIndexAccessLevel.NONE
+        );
+        IndexNameExpressionResolver.Context finalContext = context;
+        IndexNotFoundException infe = expectThrows(
+            IndexNotFoundException.class,
+            () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(finalContext, List.of("testX*"))
+        );
+        assertThat(infe.getIndex().getName(), is("testX*"));
     }
 
     // issue #13334
@@ -426,7 +447,48 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 )
             );
             assertEquals(
-                "The provided expression [foo_alias] matches an alias, " + "specify the corresponding concrete indices instead.",
+                "The provided expression [foo_alias] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage()
+            );
+        }
+        IndicesOptions noExpandNoAliasesIndicesOptions = IndicesOptions.fromOptions(true, false, false, false, true, false, true, false);
+        IndexNameExpressionResolver.Context noExpandNoAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            noExpandNoAliasesIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
+        {
+            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(
+                noExpandNoAliasesContext,
+                List.of("foo_alias")
+            );
+            assertThat(indices, containsInAnyOrder("foo_alias"));
+        }
+        IndicesOptions strictNoExpandNoAliasesIndicesOptions = IndicesOptions.fromOptions(
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            true,
+            false
+        );
+        IndexNameExpressionResolver.Context strictNoExpandNoAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            strictNoExpandNoAliasesIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
+        {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(
+                    strictNoExpandNoAliasesContext,
+                    Collections.singletonList("foo_alias")
+                )
+            );
+            assertEquals(
+                "The provided expression [foo_alias] matches an alias, specify the corresponding concrete indices instead.",
                 iae.getMessage()
             );
         }

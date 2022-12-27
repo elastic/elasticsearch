@@ -50,6 +50,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -527,7 +528,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         assertFalse(service.getPeriodicRechecker().isScheduled());
     }
 
-    public void testUnassignTask() {
+    public void testUnassignTask() throws InterruptedException {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
@@ -545,14 +546,18 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         clusterState = builder.metadata(metadata).nodes(nodes).build();
         setState(clusterService, clusterState);
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
+        final var countDownLatch = new CountDownLatch(1);
         service.unassignPersistentTask(unassignedId, tasks.getLastAllocationId(), "unassignment test", ActionListener.wrap(task -> {
             assertThat(task.getAssignment().getExecutorNode(), is(nullValue()));
             assertThat(task.getId(), equalTo(unassignedId));
             assertThat(task.getAssignment().getExplanation(), equalTo("unassignment test"));
+            countDownLatch.countDown();
         }, e -> fail()));
+
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testUnassignNonExistentTask() {
+    public void testUnassignNonExistentTask() throws InterruptedException {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
@@ -568,12 +573,18 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         clusterState = builder.metadata(metadata).nodes(nodes).build();
         setState(clusterService, clusterState);
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
+        final var countDownLatch = new CountDownLatch(1);
         service.unassignPersistentTask(
             "missing-task",
             tasks.getLastAllocationId(),
             "unassignment test",
-            ActionListener.wrap(task -> fail(), e -> assertThat(e, instanceOf(ResourceNotFoundException.class)))
+            ActionListener.wrap(task -> fail(), e -> {
+                assertThat(e, instanceOf(ResourceNotFoundException.class));
+                countDownLatch.countDown();
+            })
         );
+
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
     public void testTasksNotAssignedToShuttingDownNodes() {

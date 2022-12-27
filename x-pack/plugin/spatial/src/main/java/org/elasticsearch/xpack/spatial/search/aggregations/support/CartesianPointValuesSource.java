@@ -17,6 +17,7 @@ import org.elasticsearch.index.fielddata.MultiPointValues;
 import org.elasticsearch.index.fielddata.PointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +50,7 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
     }
 
     @Override
-    public final Function<Rounding, Rounding.Prepared> roundingPreparer() {
+    public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) {
         throw new AggregationExecutionException("can't round a [POINT]");
     }
 

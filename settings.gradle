@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.11.3"
+  id "com.gradle.enterprise" version "3.11.4"
 }
 
 includeBuild "build-conventions"
@@ -83,8 +83,9 @@ List projects = [
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
   'test:logger-usage',
-  'test:yaml-rest-runner',
-  'test:x-content'
+  'test:test-clusters',
+  'test:x-content',
+  'test:yaml-rest-runner'
 ]
 
 /**

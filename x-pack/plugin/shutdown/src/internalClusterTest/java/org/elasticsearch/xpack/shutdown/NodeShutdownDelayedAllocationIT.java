@@ -24,7 +24,6 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -230,8 +229,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     private String findIdOfNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        Collections.shuffle(startedShards, random());
-        return startedShards.get(0).currentNodeId();
+        return randomFrom(startedShards).currentNodeId();
     }
 
     private String findNodeNameFromId(String id) {

@@ -4,8 +4,6 @@
 <titleabbrev>Categorize text</titleabbrev>
 ++++
 
-experimental::[]
-
 A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed
 using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted
 text values. This aggregation works best with machine generated text like system logs. Only the first 100 analyzed

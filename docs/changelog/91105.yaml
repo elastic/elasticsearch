@@ -1,6 +1,0 @@
-pr: 91105
-summary: Fix handling indexed envelopes crossing the dateline in mvt API
-area: Geo
-type: bug
-issues:
- - 91060

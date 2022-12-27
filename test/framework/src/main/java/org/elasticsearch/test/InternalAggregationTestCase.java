@@ -137,8 +137,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.search.aggregations.timeseries.ParsedTimeSeries;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -293,7 +291,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
-        map.put(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) c));
 
         namedXContents = map.entrySet()
             .stream()
@@ -404,6 +401,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public record BuilderAndToReduce<T> (AggregationBuilder builder, List<T> toReduce) {}
 
+    /**
+     * Does this aggregation support reductions when the internal buckets are not in-order
+     */
+    protected boolean supportsOutOfOrderReduce() {
+        return true;
+    }
+
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
@@ -415,7 +419,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
             // sometimes do a partial reduce
-            Collections.shuffle(toReduce, random());
+            if (supportsOutOfOrderReduce()) {
+                Collections.shuffle(toReduce, random());
+            }
             int r = randomIntBetween(1, toReduce.size());
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
             // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()

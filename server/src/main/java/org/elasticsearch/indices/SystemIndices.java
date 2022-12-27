@@ -922,6 +922,7 @@ public class SystemIndices {
             }
 
             GroupedActionListener<ResetFeatureStateStatus> groupedListener = new GroupedActionListener<>(
+                taskCount,
                 ActionListener.wrap(listenerResults -> {
                     List<ResetFeatureStateStatus> errors = listenerResults.stream()
                         .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
@@ -936,8 +937,7 @@ public class SystemIndices {
                         errors.forEach(e -> logger.warn(() -> "error while resetting feature [" + name + "]", e.getException()));
                         listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
                     }
-                }, listener::onFailure),
-                taskCount
+                }, listener::onFailure)
             );
 
             // Send cleanup for the associated indices, they don't need special origin since they are not protected

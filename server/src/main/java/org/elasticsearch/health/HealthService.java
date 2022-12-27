@@ -8,14 +8,15 @@
 
 package org.elasticsearch.health;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -44,10 +45,10 @@ public class HealthService {
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */
     private static final String REASON = "reasons";
-    private static final Logger logger = LogManager.getLogger(HealthService.class);
 
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
+    private final ThreadPool threadPool;
 
     /**
      * Creates a new HealthService.
@@ -62,10 +63,12 @@ public class HealthService {
      */
     public HealthService(
         List<HealthIndicatorService> preflightHealthIndicatorServices,
-        List<HealthIndicatorService> healthIndicatorServices
+        List<HealthIndicatorService> healthIndicatorServices,
+        ThreadPool threadPool
     ) {
         this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -73,20 +76,25 @@ public class HealthService {
      *
      * @param client        A client to be used to fetch the health data from the health node
      * @param indicatorName If not null, the returned results will only have this indicator
-     * @param explain       Whether to compute the details portion of the results
+     * @param verbose       Whether to compute the details portion of the results
      * @param listener      A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
      *                      HealthIndicatorResult if indicatorName is not null
+     * @param maxAffectedResourcesCount The maximum number of affected resources to return per each type.
      * @throws ResourceNotFoundException if an indicator name is given and the indicator is not found
      */
     public void getHealth(
         Client client,
         @Nullable String indicatorName,
-        boolean explain,
+        boolean verbose,
+        int maxAffectedResourcesCount,
         ActionListener<List<HealthIndicatorResult>> listener
     ) {
+        if (maxAffectedResourcesCount < 0) {
+            throw new IllegalArgumentException("The max number of resources must be a positive integer");
+        }
         // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
-            .map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
+            .map(service -> service.calculate(verbose, maxAffectedResourcesCount, HealthInfo.EMPTY_HEALTH_INFO))
             .toList();
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
@@ -105,30 +113,59 @@ public class HealthService {
                 @Override
                 public void onResponse(FetchHealthInfoCacheAction.Response response) {
                     HealthInfo healthInfo = response.getHealthInfo();
-                    validateResultsAndNotifyListener(
+                    // fork off to the management pool as calculating the indicators can run for longer than is acceptable
+                    // on a transport thread in case of large numbers of indices
+                    ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable = calculateFilteredIndicatorsRunnable(
                         indicatorName,
-                        Stream.concat(filteredPreflightResults, filteredIndicators.map(service -> service.calculate(explain, healthInfo)))
-                            .toList(),
+                        healthInfo,
+                        verbose,
                         listener
                     );
+
+                    try {
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(calculateFilteredIndicatorsRunnable);
+                    } catch (EsRejectedExecutionException e) {
+                        calculateFilteredIndicatorsRunnable.onRejection(e);
+                    }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    validateResultsAndNotifyListener(
+                    // fork off to the management pool as calculating the indicators can run for longer than is acceptable
+                    // on a transport thread in case of large numbers of indices
+                    ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable = calculateFilteredIndicatorsRunnable(
                         indicatorName,
-                        Stream.concat(
-                            filteredPreflightResults,
-                            filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
-                        ).toList(),
+                        HealthInfo.EMPTY_HEALTH_INFO,
+                        verbose,
                         listener
                     );
+                    try {
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(calculateFilteredIndicatorsRunnable);
+                    } catch (EsRejectedExecutionException esRejectedExecutionException) {
+                        calculateFilteredIndicatorsRunnable.onRejection(esRejectedExecutionException);
+                    }
+                }
+
+                private ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable(
+                    String indicatorName,
+                    HealthInfo healthInfo,
+                    boolean explain,
+                    ActionListener<List<HealthIndicatorResult>> listener
+                ) {
+                    return ActionRunnable.wrap(listener, l -> {
+                        List<HealthIndicatorResult> results = Stream.concat(
+                            filteredPreflightResults,
+                            filteredIndicators.map(service -> service.calculate(explain, maxAffectedResourcesCount, healthInfo))
+                        ).toList();
+
+                        validateResultsAndNotifyListener(indicatorName, results, l);
+                    });
                 }
             });
 
         } else {
             // Mark remaining indicators as UNKNOWN
-            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, explain);
+            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, verbose);
             Stream<HealthIndicatorResult> filteredIndicatorResults = filteredIndicators.map(
                 service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, unknownDetails)
             );

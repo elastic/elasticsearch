@@ -31,7 +31,7 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             if (script != null) {
                 throw new IllegalArgumentException("Cannot use scripts for time-series counters");
             }

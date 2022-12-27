@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
@@ -39,9 +40,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch fold = new Batch("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
-        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var fold = new Batch<>("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
+        var finish = new Batch<>("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
 
         return Arrays.asList(fold, finish);
     }
@@ -110,6 +111,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             }
             if (child instanceof SequenceExec exec) {
                 plan = exec.with(limit.limit());
+            } else if (child instanceof SampleExec exec) {
+                plan = exec.with(limit.limit());
             }
             return plan;
         }
@@ -136,7 +139,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan.transformUp(typeToken(), this::rule);
         }
 
-        @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
     }
 

@@ -20,7 +20,7 @@ public interface Renormalizer {
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records
      */
-    void renormalize(Quantiles quantiles);
+    void renormalize(Quantiles quantiles, Runnable setupStep);
 
     /**
      * Blocks until the renormalizer is idle and no further quantiles updates are pending.

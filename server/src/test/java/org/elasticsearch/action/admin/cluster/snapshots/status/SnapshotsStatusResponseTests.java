@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
 public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTestCase<SnapshotsStatusResponse> {
 
     @Override
@@ -58,7 +60,7 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
             // open and close chunk + one chunk per index
             chunksExpected += 2 + snapshot.getIndices().size();
         }
-        final var iterator = instance.toXContentChunked();
+        final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
         int chunksSeen = 0;
         while (iterator.hasNext()) {
             iterator.next();

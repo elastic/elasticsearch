@@ -8,12 +8,19 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class AvgDoubleAggregatorTests extends AggregatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(int end) {
+        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, end).asDoubleStream());
+    }
+
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
         return AggregatorFunction.AVG_DOUBLES;

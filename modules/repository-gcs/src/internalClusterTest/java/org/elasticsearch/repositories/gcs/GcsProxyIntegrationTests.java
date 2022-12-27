@@ -61,7 +61,8 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             @Override
             @SuppressForbidden(reason = "Proxy makes requests to the upstream HTTP server")
             public void handle(InputStream is, OutputStream os) throws IOException {
-                // We can't make a com.sun.net.httpserver work as an HTTP proxy, so we have to do to low-level HTTP parsing ourselves
+                // We can't make a com.sun.net.httpserver act as an HTTP proxy, so we have to do work with
+                // raw sockets and do HTTP parsing ourselves
                 try (var bis = new BufferedInputStream(is); var bos = new BufferedOutputStream(os)) {
                     String requestLine = readLine(bis);
                     String[] requestLineParts = requestLine.split(" ");
@@ -71,7 +72,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                     var upstreamHttpConnection = (HttpURLConnection) new URL(url).openConnection();
                     upstreamHttpConnection.setRequestMethod(requestMethod);
                     int requestContentLength = -1;
-                    boolean requestChunked = false;
+                    boolean chunkedRequest = false;
                     while (true) {
                         String requestHeader = readLine(bis);
                         if (requestHeader.isEmpty()) {
@@ -84,18 +85,20 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                         if (headerName.equalsIgnoreCase("Content-Length")) {
                             requestContentLength = Integer.parseInt(headerValue);
                         } else if (headerName.equalsIgnoreCase("Transfer-Encoding") && headerValue.equalsIgnoreCase("chunked")) {
-                            requestChunked = true;
+                            chunkedRequest = true;
                         }
                     }
                     if (requestContentLength > 0) {
                         upstreamHttpConnection.setDoOutput(true);
                         byte[] bb = new byte[requestContentLength];
                         int len = bis.readNBytes(bb, 0, requestContentLength);
-                        try (var hos = upstreamHttpConnection.getOutputStream()) {
-                            hos.write(bb, 0, len);
+                        assert len == requestContentLength;
+                        try (var uos = upstreamHttpConnection.getOutputStream()) {
+                            uos.write(bb);
                         }
-                    } else if (requestChunked) {
+                    } else if (chunkedRequest) {
                         upstreamHttpConnection.setDoOutput(true);
+                        upstreamHttpConnection.setChunkedStreamingMode(0);
                         try (var uos = upstreamHttpConnection.getOutputStream()) {
                             while (true) {
                                 String line = readLine(bis);
@@ -104,20 +107,14 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                                 }
                                 int chunkSize = Integer.parseInt(line, 16);
                                 if (chunkSize == 0) {
-                                    if (bis.read() != '\r' || bis.read() != '\n') {
-                                        throw new IllegalStateException("Not CRLF");
-                                    }
+                                    readCrlf(bis);
                                     break;
                                 }
                                 byte[] bb = new byte[chunkSize];
                                 int len = bis.readNBytes(bb, 0, chunkSize);
-                                if (len == -1) {
-                                    break;
-                                }
-                                uos.write(bb, 0, len);
-                                if (bis.read() != '\r' || bis.read() != '\n') {
-                                    throw new IllegalStateException("Not CRLF");
-                                }
+                                assert len == chunkSize;
+                                uos.write(bb);
+                                readCrlf(bis);
                             }
                         }
                     }
@@ -150,7 +147,8 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                         if (upstreamContentLength > 0) {
                             byte[] bb = new byte[upstreamContentLength];
                             int len = uis.readNBytes(bb, 0, upstreamContentLength);
-                            bos.write(bb, 0, len);
+                            assert len == upstreamContentLength;
+                            bos.write(bb);
                         }
                     }
                 }
@@ -173,6 +171,12 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                     sb.append((char) r);
                 }
                 return sb.toString();
+            }
+
+            private static void readCrlf(InputStream bis) throws IOException {
+                if (bis.read() != '\r' || bis.read() != '\n') {
+                    throw new IllegalStateException("Not CRLF");
+                }
             }
 
         }).await();

@@ -284,8 +284,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
     }
 
-    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in the telemetry index
-    // they need to be declared in the mapping, any changes or additions that we want to track need to be added to the base-xph.json.
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
     public void testMappedFieldsForTelemetry() {
         assertThat(SlmHealthIndicatorService.NAME, equalTo("slm"));
         assertThat(

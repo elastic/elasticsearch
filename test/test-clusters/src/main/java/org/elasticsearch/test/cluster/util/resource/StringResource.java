@@ -8,15 +8,19 @@
 
 package org.elasticsearch.test.cluster.util.resource;
 
-class StringTextResource implements TextResource {
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
+class StringResource implements Resource {
     private final String text;
 
-    StringTextResource(String text) {
+    StringResource(String text) {
         this.text = text;
     }
 
     @Override
-    public String getText() {
-        return text;
+    public InputStream asStream() {
+        return new ByteArrayInputStream(text.getBytes());
     }
+
 }

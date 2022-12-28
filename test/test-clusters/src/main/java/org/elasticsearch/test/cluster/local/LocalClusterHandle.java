@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.util.Retry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -75,10 +76,17 @@ public class LocalClusterHandle implements ClusterHandle {
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
             execute(() -> nodes.forEach(n -> n.stop(forcibly)));
+            deletePortFiles();
         } else {
             // Make sure the process is stopped, otherwise wait
             execute(() -> nodes.forEach(n -> n.waitForExit()));
         }
+    }
+
+    @Override
+    public void restart(boolean forcibly) {
+        stop(forcibly);
+        start();
     }
 
     @Override
@@ -124,18 +132,7 @@ public class LocalClusterHandle implements ClusterHandle {
         writeUnicastHostsFile();
         try {
             Retry.retryUntilTrue(CLUSTER_UP_TIMEOUT, Duration.ZERO, () -> {
-                Node node = nodes.get(0);
-                boolean securityEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.enabled", "true"));
-                boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
-                boolean securityAutoConfigured = isSecurityAutoConfigured(node);
-                String scheme = securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
-                WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
-                User credentials = node.getSpec().getUsers().get(0);
-                wait.setUsername(credentials.getUsername());
-                wait.setPassword(credentials.getPassword());
-                if (securityAutoConfigured) {
-                    wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
-                }
+                WaitForHttpResource wait = configureWaitForReady();
                 return wait.wait(500);
             });
         } catch (TimeoutException e) {
@@ -143,6 +140,23 @@ public class LocalClusterHandle implements ClusterHandle {
         } catch (ExecutionException e) {
             throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
         }
+    }
+
+    private WaitForHttpResource configureWaitForReady() throws MalformedURLException {
+        Node node = nodes.get(0);
+        boolean securityEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.enabled", "true"));
+        boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
+        boolean securityAutoConfigured = isSecurityAutoConfigured(node);
+        String scheme = securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
+        WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
+        User credentials = node.getSpec().getUsers().get(0);
+        wait.setUsername(credentials.getUsername());
+        wait.setPassword(credentials.getPassword());
+        if (securityAutoConfigured) {
+            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
+        }
+
+        return wait;
     }
 
     private boolean isSecurityAutoConfigured(Node node) {
@@ -162,6 +176,22 @@ public class LocalClusterHandle implements ClusterHandle {
                 if (Files.notExists(hostsFile)) {
                     Files.writeString(hostsFile, transportUris);
                 }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
+            }
+        });
+    }
+
+    private void deletePortFiles() {
+        nodes.forEach(node -> {
+            try {
+                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
+                Path httpPortsFile = node.getWorkingDir().resolve("logs").resolve("http.ports");
+                Path tranportPortsFile = node.getWorkingDir().resolve("logs").resolve("transport.ports");
+
+                Files.deleteIfExists(hostsFile);
+                Files.deleteIfExists(httpPortsFile);
+                Files.deleteIfExists(tranportPortsFile);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
             }

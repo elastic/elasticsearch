@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -63,6 +64,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
     @Override
     public void preview(
         Client client,
+        TimeValue timeout,
         Map<String, String> headers,
         SourceConfig sourceConfig,
         Map<String, String> fieldTypeMap,
@@ -75,7 +77,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            buildSearchRequest(sourceConfig, null, numberOfBuckets),
+            buildSearchRequest(sourceConfig, timeout, numberOfBuckets),
             ActionListener.wrap(r -> {
                 try {
                     final Aggregations aggregations = r.getAggregations();
@@ -102,8 +104,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
     }
 
     @Override
-    public void validateQuery(Client client, SourceConfig sourceConfig, ActionListener<Boolean> listener) {
-        SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
+    public void validateQuery(Client client, SourceConfig sourceConfig, TimeValue timeout, ActionListener<Boolean> listener) {
+        SearchRequest searchRequest = buildSearchRequest(sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
                 listener.onFailure(new ValidationException().addValidationError("Unexpected null response from test query"));
@@ -173,9 +175,10 @@ public abstract class AbstractCompositeAggFunction implements Function {
         TransformProgress progress
     );
 
-    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
+    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, TimeValue timeout, int pageSize) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery())
-            .runtimeMappings(sourceConfig.getRuntimeMappings());
+            .runtimeMappings(sourceConfig.getRuntimeMappings())
+            .timeout(timeout);
         buildSearchQuery(sourceBuilder, null, pageSize);
         return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
     }

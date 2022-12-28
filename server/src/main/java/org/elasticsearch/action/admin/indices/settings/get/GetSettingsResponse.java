@@ -14,10 +14,9 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -29,7 +28,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetSettingsResponse extends ActionResponse implements ToXContentObject, ChunkedToXContent {
+public class GetSettingsResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final Map<String, Settings> indexToSettings;
     private final Map<String, Settings> indexToDefaultSettings;
@@ -155,7 +154,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final boolean omitEmptySettings = indexToDefaultSettings.isEmpty();
         return toXContentChunked(omitEmptySettings);
     }

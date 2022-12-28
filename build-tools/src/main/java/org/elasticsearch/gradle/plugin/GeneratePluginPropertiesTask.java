@@ -20,6 +20,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -39,12 +40,13 @@ import javax.inject.Inject;
 
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
-    private static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
+    private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
-        setDescription("Generate " + PROPERTIES_FILENAME);
-        getOutputFile().convention(projectLayout.getBuildDirectory().file("generated-descriptor/" + PROPERTIES_FILENAME));
+        setDescription(DESCRIPTION);
     }
 
     @Input
@@ -63,6 +65,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<String> getJavaVersion();
 
     @Input
+    @Optional
     public abstract Property<String> getClassname();
 
     @Input
@@ -83,11 +86,18 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
+    @Input
+    public abstract Property<Boolean> getIsStable();
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
         String classname = getClassname().getOrElse("");
-        if (classname.isEmpty()) {
+        boolean stablePlugin = getIsStable().getOrElse(false);
+        if (stablePlugin == false && classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
+        }
+        if (stablePlugin && classname.isEmpty() == false) {
+            throw new InvalidUserDataException("classname is a forbidden for stable esplugin");
         }
 
         Map<String, Object> props = new HashMap<>();
@@ -129,4 +139,5 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         }
         return visitor.module.name;
     }
+
 }

@@ -52,6 +52,9 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -936,7 +939,18 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             });
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
-        ensureGreen("test");
+
+        var allocator = internalCluster().getInstance(ShardsAllocator.class);
+        if (allocator instanceof BalancedShardsAllocator) {
+            // BalancedShardsAllocator will try other node once retries are exhausted
+            ensureGreen("test");
+        } else if (allocator instanceof DesiredBalanceShardsAllocator) {
+            // DesiredBalanceShardsAllocator will keep shard in the error state if it could not be allocated on the desired node
+            ensureYellow("test");
+        } else {
+            fail("Unknown allocator used");
+        }
+
         client().admin().indices().prepareRefresh("test").get();
         assertHitCount(client().prepareSearch().get(), numDocs);
     }
@@ -1842,7 +1856,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             final Query query = new BooleanQuery.Builder().add(
                 LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
                 BooleanClause.Occur.MUST
-            ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST).build();
+            ).add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST).build();
             final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             for (LeafReaderContext leaf : directoryReader.leaves()) {
                 final Scorer scorer = weight.scorer(leaf);

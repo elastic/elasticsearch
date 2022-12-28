@@ -303,9 +303,13 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, buildFormatter())
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(
+                    name,
+                    script.get().getParams(),
+                    lookup,
+                    buildFormatter(),
+                    OnScriptError.FAIL
+                ).newInstance(ctx).runForDoc(doc, consumer::accept);
         }
 
         @Override
@@ -926,7 +930,8 @@ public final class DateFieldMapper extends FieldMapper {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(documentParserContext, v));
     }
 
-    public boolean getIgnoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed;
     }
 
@@ -954,7 +959,7 @@ public final class DateFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(fieldType().format(value, fieldType().dateTimeFormatter()));

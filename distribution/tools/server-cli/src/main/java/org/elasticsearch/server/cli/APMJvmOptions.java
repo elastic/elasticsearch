@@ -12,7 +12,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.StringJoiner;
 
 /**
  * This class is responsible for working out if APM tracing is configured and if so, preparing
@@ -131,11 +133,10 @@ class APMJvmOptions {
      * because it will be deleted once Elasticsearch starts.
      *
      * @param settings the Elasticsearch settings to consider
-     * @param keystore a wrapper to access the keystore, or null if there is no keystore
+     * @param secrets a wrapper to access the secrets, or null if there is no secrets
      * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
      */
-    static List<String> apmJvmOptions(Settings settings, @Nullable KeyStoreWrapper keystore, Path tmpdir) throws UserException,
-        IOException {
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path tmpdir) throws UserException, IOException {
         final Path agentJar = findAgentJar();
 
         if (agentJar == null) {
@@ -156,8 +157,8 @@ class APMJvmOptions {
             }
         }
 
-        if (keystore != null) {
-            extractSecureSettings(keystore, propertiesMap);
+        if (secrets != null) {
+            extractSecureSettings(secrets, propertiesMap);
         }
         final Map<String, String> dynamicSettings = extractDynamicSettings(propertiesMap);
 
@@ -166,18 +167,23 @@ class APMJvmOptions {
         final List<String> options = new ArrayList<>();
         // Use an agent argument to specify the config file instead of e.g. `-Delastic.apm.config_file=...`
         // because then the agent won't try to reload the file, and we can remove it after startup.
-        options.add("-javaagent:" + agentJar + "=c=" + tmpProperties);
+        options.add(agentCommandLineOption(agentJar, tmpProperties));
 
         dynamicSettings.forEach((key, value) -> options.add("-Delastic.apm." + key + "=" + value));
 
         return options;
     }
 
-    private static void extractSecureSettings(KeyStoreWrapper keystore, Map<String, String> propertiesMap) {
-        final Set<String> settingNames = keystore.getSettingNames();
+    // package private for testing
+    static String agentCommandLineOption(Path agentJar, Path tmpPropertiesFile) {
+        return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
+    }
+
+    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+        final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
             if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = keystore.getString("tracing.apm." + key)) {
+                try (SecureString token = secrets.getString("tracing.apm." + key)) {
                     propertiesMap.put(key, token.toString());
                 }
             }
@@ -203,11 +209,33 @@ class APMJvmOptions {
         return cliOptionsMap;
     }
 
-    private static Map<String, String> extractApmSettings(Settings settings) throws UserException {
+    // package private for testing
+    static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
         final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
         agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+
+        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
+        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
+        final StringJoiner globalLabels = new StringJoiner(",");
+
+        for (var globalLabel : globalLabelsSettings.keySet()) {
+            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
+            // something to the agent it doesn't understand.
+            propertiesMap.remove("global_labels." + globalLabel);
+            var globalLabelValue = globalLabelsSettings.get(globalLabel);
+            if (Strings.isNullOrBlank(globalLabelValue) == false) {
+                // sanitize for the agent labels separators in case the global labels passed in have , or =
+                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
+                // append to the global labels string
+                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+            }
+        }
+
+        if (globalLabels.length() > 0) {
+            propertiesMap.put("global_labels", globalLabels.toString());
+        }
 
         // These settings must not be changed
         for (String key : STATIC_CONFIG.keySet()) {
@@ -225,9 +253,18 @@ class APMJvmOptions {
         return propertiesMap;
     }
 
+    // package private for testing
+    static Path createTemporaryPropertiesFile(Path tmpdir) throws IOException {
+        return Files.createTempFile(tmpdir, ".elstcapm.", ".tmp");
+    }
+
     /**
      * Writes a Java properties file with data from supplied map to a temporary config, and returns
      * the file that was created.
+     * <p>
+     * We expect that the deleteTemporaryApmConfig function in Node will delete this temporary
+     * configuration file, however if we fail to launch the node (because of an error) we might leave the
+     * file behind. Therefore, we register a CLI shutdown hook that will also attempt to delete the file.
      *
      * @param tmpdir        the directory for the file
      * @param propertiesMap the data to write
@@ -238,10 +275,18 @@ class APMJvmOptions {
         final Properties p = new Properties();
         p.putAll(propertiesMap);
 
-        final Path tmpFile = Files.createTempFile(tmpdir, ".elstcapm.", ".tmp");
+        final Path tmpFile = createTemporaryPropertiesFile(tmpdir);
         try (OutputStream os = Files.newOutputStream(tmpFile)) {
             p.store(os, " Automatically generated by Elasticsearch, do not edit!");
         }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                Files.deleteIfExists(tmpFile);
+            } catch (IOException e) {
+                // ignore
+            }
+        }, "elasticsearch[apmagent-cleanup]"));
+
         return tmpFile;
     }
 
@@ -253,7 +298,12 @@ class APMJvmOptions {
      */
     @Nullable
     private static Path findAgentJar() throws IOException, UserException {
-        final Path apmModule = Path.of(System.getProperty("user.dir")).resolve("modules/apm");
+        return findAgentJar(System.getProperty("user.dir"));
+    }
+
+    // package private for testing
+    static Path findAgentJar(String installDir) throws IOException, UserException {
+        final Path apmModule = Path.of(installDir).resolve("modules").resolve("apm");
 
         if (Files.notExists(apmModule)) {
             if (Build.CURRENT.isProductionRelease()) {

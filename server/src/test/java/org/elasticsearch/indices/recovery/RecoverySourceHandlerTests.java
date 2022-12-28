@@ -94,7 +94,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -486,7 +485,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 -1,
                 false,
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                System.nanoTime()
             );
         }
     }
@@ -506,7 +506,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         @Override
         public Engine.Index createIndexOp(int docIdent) {
-            SourceToParse source = new SourceToParse(null, new BytesArray(String.format(Locale.ROOT, """
+            SourceToParse source = new SourceToParse(null, new BytesArray(formatted("""
                 {
                     "@timestamp": %s,
                     "dim": "dim"
@@ -522,7 +522,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 -1,
                 false,
                 UNASSIGNED_SEQ_NO,
-                0
+                0,
+                System.nanoTime()
             );
         }
     }
@@ -1955,13 +1956,21 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
-        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
+                op = new Translog.Index(
+                    "id",
+                    seqNo,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    source,
+                    randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
+                    randomNonNegativeLong()
+                );
             } else if (randomBoolean()) {
                 op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {

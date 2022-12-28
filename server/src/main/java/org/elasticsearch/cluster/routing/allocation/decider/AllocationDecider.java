@@ -15,6 +15,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 
+import java.util.Optional;
+import java.util.Set;
+
 /**
  * {@link AllocationDecider} is an abstract base class that allows to make
  * dynamic cluster- or index-wide shard allocation decisions on a per-node
@@ -138,5 +141,15 @@ public abstract class AllocationDecider {
      */
     public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, node, allocation);
+    }
+
+    /**
+     * Returns a {@code empty()} if shard could be initially allocated anywhere or {@code Optional.of(Set.of(nodeIds))} if shard could be
+     * initially allocated only on subset of a nodes.
+     *
+     * This might be required for splitting or shrinking index as resulting shards have to be on the same node as a source shard.
+     */
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return Optional.empty();
     }
 }

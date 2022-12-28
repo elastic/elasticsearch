@@ -228,6 +228,6 @@ public abstract class GradleUtils {
      * @return true if the project is an included build
      */
     public static boolean isIncludedBuild(Project project) {
-        return project.getGradle().getParent() == null;
+        return project.getGradle().getParent() != null;
     }
 }

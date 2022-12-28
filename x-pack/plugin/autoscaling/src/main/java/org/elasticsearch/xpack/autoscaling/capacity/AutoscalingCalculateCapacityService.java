@@ -38,6 +38,8 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
+
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
     private final Map<String, AutoscalingDeciderService> deciderByName;
 
@@ -254,7 +256,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.currentNodes = state.nodes()
                 .stream()
                 .filter(this::rolesFilter)
-                .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
+                .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
             this.ensureNotCancelled = ensureNotCancelled;
@@ -328,8 +330,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
             Optional<AutoscalingNodeInfo> memoryAndProcessors = autoscalingNodesInfo.get(node);
             return new AutoscalingCapacity.AutoscalingResources(
-                storage == -1 ? ByteSizeValue.ZERO : new ByteSizeValue(storage),
-                memoryAndProcessors.map(AutoscalingNodeInfo::memory).map(ByteSizeValue::new).orElse(ByteSizeValue.ZERO),
+                storage == -1 ? ByteSizeValue.ZERO : ByteSizeValue.ofBytes(storage),
+                memoryAndProcessors.map(AutoscalingNodeInfo::memory).map(ByteSizeValue::ofBytes).orElse(ByteSizeValue.ZERO),
                 memoryAndProcessors.map(AutoscalingNodeInfo::processors).orElse(null)
             );
         }

@@ -1,0 +1,29 @@
+all_data:
+  cluster:
+    # This is always required because the REST client uses it to find the version of
+    # Elasticsearch it's talking to
+    - cluster:monitor/main
+  indices:
+    # User
+    - names: [ 'embedded_text', 'unrelated' ]
+      privileges:
+        - create_index
+        - indices:admin/refresh
+        - read
+        - write
+        - view_index_metadata
+
+unrelated_index_only:
+  cluster:
+    # This is always required because the REST client uses it to find the version of
+    # Elasticsearch it's talking to
+    - cluster:monitor/main
+  indices:
+    #
+    - names: [ 'unrelated' ]
+      privileges:
+        - create_index
+        - indices:admin/refresh
+        - read
+        - write
+        - view_index_metadata

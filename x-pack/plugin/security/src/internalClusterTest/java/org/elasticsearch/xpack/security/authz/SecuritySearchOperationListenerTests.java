@@ -85,7 +85,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 .build(false);
             authentication.writeToContext(threadContext);
             IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
-            threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            when(indicesAccessControl.isGranted()).thenReturn(true);
+            new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             listener.onNewScrollContext(readerContext);
@@ -164,7 +165,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(
                     AUTHORIZATION_INFO_KEY,
-                    (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles())
+                    (AuthorizationInfo) () -> Collections.singletonMap(
+                        PRINCIPAL_ROLES_FIELD_NAME,
+                        authentication.getEffectiveSubject().getUser().roles()
+                    )
                 );
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(
@@ -178,7 +182,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     eq(authentication),
                     eq("action"),
                     eq(request),
-                    authzInfoRoles(authentication.getUser().roles())
+                    authzInfoRoles(authentication.getEffectiveSubject().getUser().roles())
                 );
             }
 
@@ -215,7 +219,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(
                     AUTHORIZATION_INFO_KEY,
-                    (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles())
+                    (AuthorizationInfo) () -> Collections.singletonMap(
+                        PRINCIPAL_ROLES_FIELD_NAME,
+                        authentication.getEffectiveSubject().getUser().roles()
+                    )
                 );
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(
@@ -229,7 +236,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     eq(authentication),
                     eq("action"),
                     eq(request),
-                    authzInfoRoles(authentication.getUser().roles())
+                    authzInfoRoles(authentication.getEffectiveSubject().getUser().roles())
                 );
             }
         }

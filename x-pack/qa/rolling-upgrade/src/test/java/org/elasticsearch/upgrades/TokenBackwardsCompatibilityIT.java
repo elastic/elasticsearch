@@ -299,12 +299,12 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private void assertRefreshTokenInvalidated(String refreshToken) throws IOException {
         for (RestClient client : twoClients) {
             Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-            refreshTokenRequest.setJsonEntity("""
+            refreshTokenRequest.setJsonEntity(formatted("""
                 {
                   "refresh_token": "%s",
                   "grant_type": "refresh_token"
                 }
-                """.formatted(refreshToken));
+                """, refreshToken));
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
@@ -336,12 +336,12 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Map<String, Object> createTokens(RestClient client, String username, String password) throws IOException {
         final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest.setJsonEntity("""
+        createTokenRequest.setJsonEntity(formatted("""
             {
               "username": "%s",
               "password": "%s",
               "grant_type": "password"
-            }""".formatted(username, password));
+            }""", username, password));
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
@@ -349,11 +349,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
         final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
-        indexRequest.setJsonEntity("""
+        indexRequest.setJsonEntity(formatted("""
             {
               "token": "%s",
               "refresh_token": "%s"
-            }""".formatted(accessToken, refreshToken));
+            }""", accessToken, refreshToken));
         Response indexResponse1 = client.performRequest(indexRequest);
         assertOK(indexResponse1);
     }
@@ -368,11 +368,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Map<String, Object> refreshToken(RestClient client, String refreshToken) throws IOException {
         final Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity("""
+        refreshTokenRequest.setJsonEntity(formatted("""
             {
               "refresh_token": "%s",
               "grant_type": "refresh_token"
-            }""".formatted(refreshToken));
+            }""", refreshToken));
         Response refreshResponse = client.performRequest(refreshTokenRequest);
         assertOK(refreshResponse);
         return entityAsMap(refreshResponse);
@@ -408,10 +408,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
         bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
-        bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> """
+        bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> formatted("""
             {"update": {"_id": "%s"}}
             {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
-            """.formatted(tokenId, newExpirationTime)).collect(Collectors.joining("\n")));
+            """, tokenId, newExpirationTime)).collect(Collectors.joining("\n")));
         final Response bulkResponse = client().performRequest(bulkRequest);
         assertOK(bulkResponse);
         final Map<String, Object> bulkResponseMap = entityAsMap(bulkResponse);

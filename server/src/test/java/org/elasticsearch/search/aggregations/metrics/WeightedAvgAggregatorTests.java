@@ -11,13 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
@@ -518,25 +514,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         Consumer<InternalWeightedAvg> verify,
         NumberFieldMapper.NumberType fieldNumberType
     ) throws IOException {
-
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        try {
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value_field", fieldNumberType);
-            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("weight_field", fieldNumberType);
-            WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator.asCollector());
-            aggregator.postCollection();
-            verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
-        } finally {
-            indexReader.close();
-            directory.close();
-        }
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value_field", fieldNumberType);
+        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("weight_field", fieldNumberType);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType, fieldType2).withQuery(query));
     }
 }

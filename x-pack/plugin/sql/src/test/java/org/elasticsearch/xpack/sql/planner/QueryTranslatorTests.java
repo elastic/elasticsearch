@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
@@ -75,7 +74,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.hamcrest.Matcher;
@@ -102,6 +100,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
@@ -130,7 +129,7 @@ public class QueryTranslatorTests extends ESTestCase {
             Map<String, EsField> mapping = SqlTypesTests.loadMapping(mappingFile);
             EsIndex test = new EsIndex("test", mapping);
             IndexResolution getIndexResult = IndexResolution.valid(test);
-            analyzer = new Analyzer(TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
+            analyzer = analyzer(getIndexResult);
             optimizer = new Optimizer();
             planner = new Planner();
         }
@@ -770,7 +769,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + randomFunction.name()
                 + "(date + INTERVAL 1 YEAR)"
         );
-        assertESQuery(p, containsString("""
+        assertESQuery(p, containsString(formatted("""
             {
               "terms": {
                 "script": {
@@ -791,7 +790,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 "order": "asc"
               }
             }}]}}}}
-            """.formatted(randomFunction.name()).replaceAll("\\s", "")));
+            """, randomFunction.name()).replaceAll("\\s", "")));
     }
 
     public void testDateTimeFunctionsWithMathIntervalAndGroupBy() {
@@ -803,7 +802,7 @@ public class QueryTranslatorTests extends ESTestCase {
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("""
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(formatted("""
             {
               "terms": {
                 "script": {
@@ -818,7 +817,7 @@ public class QueryTranslatorTests extends ESTestCase {
                     "v3": "Z"
                   }
                 },
-                "missing_bucket": true,""".formatted(scriptMethods[pos]).replaceAll("\\s", "")));
+                "missing_bucket": true,""", scriptMethods[pos]).replaceAll("\\s", "")));
     }
 
     // Like/RLike/StartsWith
@@ -1131,41 +1130,42 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith(
-                """
-                    {
-                      "buckets_path": {
-                        "a0": "%s",
-                        "a1": "%s._count",
-                        "a2": "%s",
-                        "a3": "%s._count",
-                        "a4": "_count",
-                        "a5": "%s"
-                      },
-                      "script": {
-                        "source": "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))",
-                        "lang": "painless",
-                        "params": {
-                          "v0": 3,
-                          "v1": 32,
-                          "v2": 1,
-                          "v3": 2,
-                          "v4": 5,
-                          "v5": 50000
-                        }
-                      },
-                      "gap_policy": "skip"
-                    }}}}}
-                    """.formatted(
+                formatted(
+                    """
+                        {
+                          "buckets_path": {
+                            "a0": "%s",
+                            "a1": "%s._count",
+                            "a2": "%s",
+                            "a3": "%s._count",
+                            "a4": "_count",
+                            "a5": "%s"
+                          },
+                          "script": {
+                            "source": "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))",
+                            "lang": "painless",
+                            "params": {
+                              "v0": 3,
+                              "v1": 32,
+                              "v2": 1,
+                              "v3": 2,
+                              "v4": 5,
+                              "v5": 50000
+                            }
+                          },
+                          "gap_policy": "skip"
+                        }}}}}
+                        """,
                     cardinalityKeyword.getName(),
                     existsKeyword.getName(),
                     cardinalityDottedField.getName(),
@@ -1203,9 +1203,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(p, endsWith("""
+            assertESQuery(p, endsWith(formatted("""
                 "aggregations":{"%s":{"extended_stats":{"field":"int","sigma":2.0}}}}}}\
-                """.formatted(aggName)));
+                """, aggName)));
         }
 
     }

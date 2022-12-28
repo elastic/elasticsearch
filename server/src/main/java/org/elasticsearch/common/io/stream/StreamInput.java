@@ -1175,6 +1175,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Same as {@link #readStringList()} but always returns an immutable list.
+     *
+     * @return immutable list of strings
+     * @throws IOException on failure
+     */
+    public List<String> readImmutableStringList() throws IOException {
+        return readImmutableList(StreamInput::readString);
+    }
+
+    /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
      * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *

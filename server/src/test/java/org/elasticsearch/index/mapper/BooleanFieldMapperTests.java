@@ -203,7 +203,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 
@@ -252,7 +258,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected BooleanFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -260,7 +272,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
             @Override
             protected BooleanFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit(true);

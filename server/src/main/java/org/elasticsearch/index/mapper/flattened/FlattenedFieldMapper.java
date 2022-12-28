@@ -703,7 +703,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         XContentParser xContentParser = context.parser();
-        context.doc().addAll(fieldParser.parse(xContentParser));
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            context.doc().addAll(fieldParser.parse(xContentParser));
+        } finally {
+            context.path().setWithinLeafObject(false);
+        }
 
         if (mappedFieldType.hasDocValues() == false) {
             context.addToFieldNames(fieldType().name());

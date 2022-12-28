@@ -123,6 +123,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return delegate.storedFieldsSpec();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 Timer timer = breakdown.getTimer(FetchSubPhaseTiming.PROCESS);
                 timer.start();

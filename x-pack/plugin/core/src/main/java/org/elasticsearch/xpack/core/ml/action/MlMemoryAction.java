@@ -153,16 +153,16 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
             public MlMemoryStats(StreamInput in) throws IOException {
                 super(in);
-                memTotal = new ByteSizeValue(in);
-                memAdjustedTotal = new ByteSizeValue(in);
-                mlMax = new ByteSizeValue(in);
-                mlNativeCodeOverhead = new ByteSizeValue(in);
-                mlAnomalyDetectors = new ByteSizeValue(in);
-                mlDataFrameAnalytics = new ByteSizeValue(in);
-                mlNativeInference = new ByteSizeValue(in);
-                jvmHeapMax = new ByteSizeValue(in);
-                jvmInferenceMax = new ByteSizeValue(in);
-                jvmInference = new ByteSizeValue(in);
+                memTotal = ByteSizeValue.readFrom(in);
+                memAdjustedTotal = ByteSizeValue.readFrom(in);
+                mlMax = ByteSizeValue.readFrom(in);
+                mlNativeCodeOverhead = ByteSizeValue.readFrom(in);
+                mlAnomalyDetectors = ByteSizeValue.readFrom(in);
+                mlDataFrameAnalytics = ByteSizeValue.readFrom(in);
+                mlNativeInference = ByteSizeValue.readFrom(in);
+                jvmHeapMax = ByteSizeValue.readFrom(in);
+                jvmInferenceMax = ByteSizeValue.readFrom(in);
+                jvmInference = ByteSizeValue.readFrom(in);
             }
 
             public ByteSizeValue getMemTotal() {

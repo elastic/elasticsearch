@@ -25,6 +25,7 @@ public class JavaModulePrecommitPlugin extends PrecommitPlugin {
         TaskProvider<JavaModulePrecommitTask> task = project.getTasks().register(TASK_NAME, JavaModulePrecommitTask.class);
         task.configure(t -> {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            t.dependsOn(mainSourceSet.getClassesTaskName());
             t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
             t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             t.setClassesDirs(mainSourceSet.getOutput().getClassesDirs());

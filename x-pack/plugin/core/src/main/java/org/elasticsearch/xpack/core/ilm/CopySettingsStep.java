@@ -66,7 +66,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
         IndexMetadata sourceIndexMetadata = clusterState.metadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), sourceIndexName);
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), sourceIndexName);
             return clusterState;
         }
 
@@ -81,8 +81,8 @@ public class CopySettingsStep extends ClusterStateActionStep {
                 Locale.ROOT,
                 "index [%s] is being referenced by ILM action [%s] on step [%s] but " + "it doesn't exist",
                 targetIndexName,
-                getKey().getAction(),
-                getKey().getName()
+                getKey().action(),
+                getKey().name()
             );
             logger.debug(errorMessage);
             throw new IllegalStateException(errorMessage);

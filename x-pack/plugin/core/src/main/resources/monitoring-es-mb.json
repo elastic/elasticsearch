@@ -154,13 +154,6 @@
                         "data": {
                           "type": "long"
                         },
-                        "stats": {
-                          "properties": {
-                            "data": {
-                              "type": "long"
-                            }
-                          }
-                        },
                         "count": {
                           "type": "long"
                         },

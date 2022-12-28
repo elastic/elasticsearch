@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 final class CartesianPointDVLeafFieldData extends LeafCartesianPointFieldData {
     private final LeafReader reader;
@@ -35,11 +32,6 @@ final class CartesianPointDVLeafFieldData extends LeafCartesianPointFieldData {
     @Override
     public long ramBytesUsed() {
         return 0; // not exposed by lucene
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
     }
 
     @Override

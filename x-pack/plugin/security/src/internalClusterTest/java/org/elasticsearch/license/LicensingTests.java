@@ -71,7 +71,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = """
+    private static final String ROLES = formatted("""
         %s:
           cluster: [ all ]
           indices:
@@ -96,7 +96,7 @@ public class LicensingTests extends SecurityIntegTestCase {
           indices:
             - names: 'b'
               privileges: [all]
-        """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+        """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private static final String USERS_ROLES = """
         superuser:test_superuser

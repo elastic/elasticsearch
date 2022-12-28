@@ -68,7 +68,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (randomBoolean()) {
             return new ShrinkAction(randomIntBetween(1, 100), null);
         } else {
-            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
     }
 
@@ -77,7 +77,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (action.getNumberOfShards() != null) {
             return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null);
         } else {
-            return new ShrinkAction(null, new ByteSizeValue(action.getMaxPrimaryShardSize().getBytes() + 1));
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(action.getMaxPrimaryShardSize().getBytes() + 1));
         }
     }
 
@@ -92,11 +92,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     public void testMaxPrimaryShardSize() {
-        ByteSizeValue maxPrimaryShardSize1 = new ByteSizeValue(10);
+        ByteSizeValue maxPrimaryShardSize1 = ByteSizeValue.ofBytes(10);
         Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1));
         assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
 
-        ByteSizeValue maxPrimaryShardSize2 = new ByteSizeValue(0);
+        ByteSizeValue maxPrimaryShardSize2 = ByteSizeValue.ZERO;
         Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxPrimaryShardSize2));
         assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
@@ -211,11 +211,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         indexMetadataBuilder.putCustom(
                             LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                             LifecycleExecutionState.builder()
-                                .setPhase(step.getKey().getPhase())
+                                .setPhase(step.getKey().phase())
                                 .setPhaseTime(0L)
-                                .setAction(step.getKey().getAction())
+                                .setAction(step.getKey().action())
                                 .setActionTime(0L)
-                                .setStep(step.getKey().getName())
+                                .setStep(step.getKey().name())
                                 .setStepTime(0L)
                                 .build()
                                 .asMap()

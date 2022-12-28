@@ -288,8 +288,15 @@ public class FeatureFactory {
             final double yMin = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMinY());
             final double xMax = SphericalMercatorUtils.lonToSphericalMercator(rectangle.getMaxX());
             final double yMax = SphericalMercatorUtils.latToSphericalMercator(rectangle.getMaxY());
-            final Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
-            return geomFactory.toGeometry(envelope);
+            if (rectangle.getMinX() > rectangle.getMaxX()) {
+                // crosses dateline
+                final Envelope westEnvelope = new Envelope(-SphericalMercatorUtils.MERCATOR_BOUNDS, xMax, yMin, yMax);
+                final Envelope eastEnvelope = new Envelope(xMin, SphericalMercatorUtils.MERCATOR_BOUNDS, yMin, yMax);
+                return geomFactory.buildGeometry(List.of(geomFactory.toGeometry(westEnvelope), geomFactory.toGeometry(eastEnvelope)));
+            } else {
+                final Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
+                return geomFactory.toGeometry(envelope);
+            }
         }
     }
 

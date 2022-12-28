@@ -87,7 +87,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue size() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
     public ByteSizeValue getSize() {
@@ -95,7 +95,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue totalDataSetSize() {
-        return new ByteSizeValue(totalDataSetSizeInBytes);
+        return ByteSizeValue.ofBytes(totalDataSetSizeInBytes);
     }
 
     public ByteSizeValue getTotalDataSetSize() {
@@ -112,7 +112,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
      * the reserved size is unknown.
      */
     public ByteSizeValue getReservedSize() {
-        return new ByteSizeValue(reservedSize);
+        return ByteSizeValue.ofBytes(reservedSize);
     }
 
     @Override

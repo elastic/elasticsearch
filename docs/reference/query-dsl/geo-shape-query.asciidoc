@@ -4,16 +4,14 @@
 <titleabbrev>Geoshape</titleabbrev>
 ++++
 
-Filter documents indexed using the `geo_shape` or `geo_point` type.
+Filter documents indexed using either the <<geo-shape,`geo_shape`>> or the
+<<geo-point,`geo_point`>> type.
 
-Requires the <<geo-shape,`geo_shape` mapping>> or the
-<<geo-point,`geo_point` mapping>>.
-
-The `geo_shape` query uses the same grid square representation as the
-`geo_shape` mapping to find documents that have a shape that is related
-to the query shape, using a specified spatial relationship: either intersects,
+The `geo_shape` query uses the same <<geoshape-indexing-approach, index>> as
+the `geo_shape` or `geo_point` mapping to find documents that have a shape that
+is related to the query shape, using a specified
+<<geo-shape-spatial-relations, spatial relationship>>: either intersects,
 contained, within or disjoint.
-It will also use the same Prefix Tree configuration as defined for the field mapping.
 
 The query supports two ways of defining the query shape, either by
 providing a whole shape definition, or by referencing the name of a shape
@@ -229,6 +227,7 @@ GET /example/_search
 --------------------------------------------------
 
 
+[[geo-shape-spatial-relations]]
 ==== Spatial relations
 
 The following is a complete list of spatial relation operators available when

@@ -52,13 +52,13 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
-        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong()));
         conditionSuppliers.add(() -> new MinAgeCondition(new TimeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MinDocsCondition(randomNonNegativeLong()));
-        conditionSuppliers.add(() -> new MinSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MinPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MinPrimaryShardDocsCondition(randomNonNegativeLong()));
     }
 

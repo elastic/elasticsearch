@@ -1575,6 +1575,9 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    /**
+     * Used to iterate the expression list and work out which expression item is a wildcard or an exclusion.
+     */
     public static final class ExpressionIterable implements Iterable<ExpressionIterable.Expression> {
         private final List<String> expressions;
         private final int indexOfFirstWildcard;
@@ -1611,6 +1614,10 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        /**
+         * Creates the expression iterable that can be used to easily check which expression item is a wildcard or an exclusion (or both).
+         * The {@param context} is used to check if wildcards ought to be considered or not.
+         */
         public ExpressionIterable(Context context, List<String> expressions) {
             this.expressions = expressions;
             if (context.getOptions().expandWildcardExpressions()) {
@@ -1620,6 +1627,9 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        /**
+         * Returns {@code true} if the expression contains any wildcard and the options allow wildcard expansion
+         */
         public boolean hasWildcard() {
             return this.indexOfFirstWildcard < this.expressions.size();
         }

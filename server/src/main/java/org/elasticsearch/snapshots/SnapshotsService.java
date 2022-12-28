@@ -429,7 +429,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            void clusterStateProcessed(ClusterState newState) {
+            public void clusterStateProcessed(ClusterState newState) {
                 final SnapshotsInProgress.Entry newEntry = newState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                     .snapshot(snapshot);
                 try {
@@ -3524,9 +3524,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         DELETE
     }
 
-    private abstract static class ConsistentSnapshotClusterStateUpdateTask extends SnapshotClusterStateUpdateTask {
+    public abstract static class ConsistentSnapshotClusterStateUpdateTask extends SnapshotClusterStateUpdateTask {
 
-        abstract void clusterStateProcessed(ClusterState newState);
+        public abstract void clusterStateProcessed(ClusterState newState);
 
         abstract ClusterState execute(ClusterState clusterState) throws Exception;
 

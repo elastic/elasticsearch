@@ -15,6 +15,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -41,6 +44,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -452,6 +456,25 @@ public final class BlobStoreTestUtil {
             task.clusterStateProcessed(current, next);
             return null;
         }).when(clusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        doAnswer(invocation -> {
+            final ClusterState current = currentState.get();
+            final ClusterStateTaskListener listener = invocation.getArgument(1);
+            final ClusterState next = ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(
+                currentState.get(),
+                invocation.getArgument(3),
+                List.of(listener)
+            );
+            currentState.set(next);
+            appliers.forEach(
+                applier -> applier.applyClusterState(new ClusterChangedEvent((String) invocation.getArguments()[0], next, current))
+            );
+            if (listener instanceof SnapshotsService.ConsistentSnapshotClusterStateUpdateTask consistentSnapshotClusterStateUpdateTask) {
+                consistentSnapshotClusterStateUpdateTask.clusterStateProcessed(next);
+            } else if (listener instanceof BlobStoreRepository.RepoGenerationUpdateTask repoGenerationUpdateTask) {
+                repoGenerationUpdateTask.done();
+            }
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(ClusterStateTaskConfig.class), any());
         doAnswer(invocation -> {
             appliers.add((ClusterStateApplier) invocation.getArguments()[0]);
             return null;

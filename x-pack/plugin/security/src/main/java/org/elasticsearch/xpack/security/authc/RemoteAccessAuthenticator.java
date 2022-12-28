@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -73,16 +75,32 @@ public class RemoteAccessAuthenticator implements Authenticator {
             remoteAccessCredentials.apiKeyCredentials(),
             ActionListener.wrap(authResult -> {
                 if (authResult.isAuthenticated()) {
-                    final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
-                    authMetadata.put(
-                        AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
-                        remoteAccessCredentials.remoteAccessAuthentication().getRoleDescriptorsBytesList()
-                    );
-                    final Authentication authentication = Authentication.newRemoteAccessAuthentication(
-                        AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),
-                        nodeName
-                    );
-                    listener.onResponse(AuthenticationResult.success(authentication));
+                    final Authentication receivedAuthentication = remoteAccessCredentials.remoteAccessAuthentication().getAuthentication();
+                    if (User.isInternal(receivedAuthentication.getEffectiveSubject().getUser())) {
+                        listener.onResponse(
+                            AuthenticationResult.success(
+                                Authentication.newInternalAuthentication(
+                                    receivedAuthentication.getEffectiveSubject().getUser(),
+                                    Version.CURRENT,
+                                    nodeName
+                                )
+                            )
+                        );
+                    } else {
+                        final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
+                        authMetadata.put(
+                            AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+                            remoteAccessCredentials.remoteAccessAuthentication().getRoleDescriptorsBytesList()
+                        );
+                        listener.onResponse(
+                            AuthenticationResult.success(
+                                Authentication.newRemoteAccessAuthentication(
+                                    AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),
+                                    nodeName
+                                )
+                            )
+                        );
+                    }
                 } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                     listener.onFailure(
                         (authResult.getException() != null)

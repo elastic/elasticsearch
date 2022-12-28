@@ -212,7 +212,7 @@ public class AuthorizationService {
         if (isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()
-                + "] is in internal user and we should never try to retrieve its remote access roles descriptors";
+                + "] is an internal user and we should never try to retrieve its remote access roles descriptors";
             assert false : message;
             listener.onFailure(new IllegalArgumentException(message));
             return;

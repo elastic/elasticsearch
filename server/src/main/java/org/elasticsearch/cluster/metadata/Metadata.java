@@ -2687,7 +2687,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
-            ChunkedToXContent.wrapAsXContentObject(state).toXContent(builder, FORMAT_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(state).toXContent(builder, FORMAT_PARAMS);
         }
 
         @Override

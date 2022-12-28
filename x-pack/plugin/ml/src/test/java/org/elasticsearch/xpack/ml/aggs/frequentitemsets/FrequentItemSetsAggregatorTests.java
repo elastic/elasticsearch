@@ -231,6 +231,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(builder, keywordType).withQuery(query));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92578")
     public void testMixedSingleValues() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 

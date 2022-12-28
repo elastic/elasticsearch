@@ -273,9 +273,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 this::cancelReadsCleanUpAndReturnFailure
             );
 
-            task.addListener(() -> {
-                cancellableThreads.cancel(task.getReasonCancelled());
-            });
+            task.addListener(() -> { cancellableThreads.cancel(task.getReasonCancelled()); });
         }
 
         void run() {

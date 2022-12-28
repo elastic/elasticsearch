@@ -26,6 +26,10 @@
             "type": "keyword",
             "index": false
           },
+          "sha2": {
+            "type": "keyword",
+            "index": false
+          },
           "last": {
             "type": "boolean",
             "index": false

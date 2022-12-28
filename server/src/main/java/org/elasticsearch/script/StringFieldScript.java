@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
@@ -28,8 +29,8 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public static final StringFieldScript.Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
-            return ctx -> new StringFieldScript(field, params, lookup, ctx) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
+            return ctx -> new StringFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -44,11 +45,11 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup) -> {
+        return (leafFieldName, params, searchLookup, onScriptError) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new StringFieldScript(leafFieldName, params, searchLookup, ctx) {
+                return new StringFieldScript(leafFieldName, params, searchLookup, onScriptError, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -67,7 +68,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, OnScriptError onScriptError);
     }
 
     public interface LeafFactory {
@@ -77,26 +78,32 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     private final List<String> results = new ArrayList<>();
     private long chars;
 
-    public StringFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+    public StringFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        OnScriptError onScriptError,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, onScriptError);
     }
 
-    /**
-     * Execute the script for the provided {@code docId}.
-     *
-     * @return a mutable {@link List} that contains the results of the script
-     * and will be modified the next time you call {@linkplain #resultsForDoc}.
-     */
-    public final List<String> resultsForDoc(int docId) {
+    @Override
+    protected void prepareExecute() {
         results.clear();
         chars = 0;
-        setDocument(docId);
-        execute();
-        return results;
     }
 
     public final void runForDoc(int docId, Consumer<String> consumer) {
-        resultsForDoc(docId).forEach(consumer);
+        runForDoc(docId);
+        results.forEach(consumer);
+    }
+
+    /**
+     * Values from the last time runForDoc(int) was called. This list is mutable and will change with the next call of runForDoc(int).
+     */
+    public List<String> getValues() {
+        return results;
     }
 
     @Override

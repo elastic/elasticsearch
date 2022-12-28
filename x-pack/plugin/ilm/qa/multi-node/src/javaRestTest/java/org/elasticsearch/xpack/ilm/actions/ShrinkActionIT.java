@@ -219,7 +219,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity("""
+        createTemplateRequest.setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -228,7 +228,7 @@ public class ShrinkActionIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, numShards, policy, alias));
+            }""", index, numShards, policy, alias));
         createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createTemplateRequest);
 

@@ -91,7 +91,7 @@ asynchronously in the background.
 
 [source,console]
 ----
-POST _cluster/reroute
+POST _cluster/reroute?metric=none
 ----
 
 **Fix allocation settings**
@@ -218,7 +218,7 @@ unassigned primary shard to another data node in the same tier. Set
 
 [source,console]
 ----
-POST _cluster/reroute
+POST _cluster/reroute?metric=none
 {
   "commands": [
     {

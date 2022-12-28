@@ -87,7 +87,7 @@ public class Subject {
         return metadata;
     }
 
-    Version getVersion() {
+    public Version getVersion() {
         return version;
     }
 

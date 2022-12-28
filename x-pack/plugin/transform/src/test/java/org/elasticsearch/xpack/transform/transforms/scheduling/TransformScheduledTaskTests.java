@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.transform.transforms.scheduling;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler.Listener;
 
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class TransformScheduledTaskTests extends ESTestCase {
@@ -62,10 +64,10 @@ public class TransformScheduledTaskTests extends ESTestCase {
         }
     }
 
-    public void testCalculateNextScheduledTimeAfterFailure() {
+    public void testCalculateNextScheduledTimeExponentialBackoff() {
         long lastTriggeredTimeMillis = Instant.now().toEpochMilli();
         long[] expectedDelayMillis = {
-            5000,    // 5s
+            Transform.DEFAULT_TRANSFORM_FREQUENCY.millis(),    // normal schedule
             5000,    // 5s
             5000,    // 5s
             8000,    // 8s
@@ -85,9 +87,25 @@ public class TransformScheduledTaskTests extends ESTestCase {
         for (int failureCount = 0; failureCount < 1000; ++failureCount) {
             assertThat(
                 "failureCount = " + failureCount,
-                TransformScheduledTask.calculateNextScheduledTimeAfterFailure(lastTriggeredTimeMillis, failureCount),
+                TransformScheduledTask.calculateNextScheduledTime(lastTriggeredTimeMillis, null, failureCount),
                 is(equalTo(lastTriggeredTimeMillis + expectedDelayMillis[Math.min(failureCount, expectedDelayMillis.length - 1)]))
             );
         }
+    }
+
+    public void testCalculateNextScheduledTime() {
+        long now = Instant.now().toEpochMilli();
+        assertThat(
+            TransformScheduledTask.calculateNextScheduledTime(null, TimeValue.timeValueSeconds(10), 0),
+            is(greaterThanOrEqualTo(now + 10_000))
+        );
+        assertThat(
+            TransformScheduledTask.calculateNextScheduledTime(now, null, 0),
+            is(equalTo(now + Transform.DEFAULT_TRANSFORM_FREQUENCY.millis()))
+        );
+        assertThat(
+            TransformScheduledTask.calculateNextScheduledTime(null, null, 0),
+            is(greaterThanOrEqualTo(now + Transform.DEFAULT_TRANSFORM_FREQUENCY.millis()))
+        );
     }
 }

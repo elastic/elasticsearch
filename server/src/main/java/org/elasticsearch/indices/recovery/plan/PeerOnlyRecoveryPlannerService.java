@@ -35,6 +35,7 @@ public class PeerOnlyRecoveryPlannerService implements RecoveryPlannerService {
         int translogOps,
         Version targetVersion,
         boolean useSnapshots,
+        boolean primaryRelocation,
         ActionListener<ShardRecoveryPlan> listener
     ) {
         ActionListener.completeWith(listener, () -> {

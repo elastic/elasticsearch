@@ -30,6 +30,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -78,6 +80,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -167,6 +170,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
         }
         return indexRequest;
+    }
+
+    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
+        final ActionListener<Response> listener
+    ) {
+        return ActionListener.wrap(bulkItemResponses -> {
+            assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
+            final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
+            if (bulkItemResponse.isFailed() == false) {
+                @SuppressWarnings("unchecked")
+                final Response response = (Response) bulkItemResponse.getResponse();
+                listener.onResponse(response);
+            } else {
+                listener.onFailure(bulkItemResponse.getFailure().getCause());
+            }
+        }, listener::onFailure);
     }
 
     @Override
@@ -736,10 +755,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
-            return indexAbstractions.computeIfAbsent(
-                request.index(),
-                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
-            );
+            try {
+                return indexAbstractions.computeIfAbsent(
+                    request.index(),
+                    key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+                );
+            } catch (IndexNotFoundException e) {
+                if (e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                    throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams", e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         IndexRouting routing(Index index) {
@@ -762,6 +789,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ingestService.executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
+            bulkRequestModifier::markItemAsDropped,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -805,7 +833,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 }
             },
-            bulkRequestModifier::markItemAsDropped,
             executorName
         );
     }

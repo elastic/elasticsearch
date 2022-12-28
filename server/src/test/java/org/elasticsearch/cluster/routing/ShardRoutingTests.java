@@ -136,6 +136,7 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting.state(),
                         otherRouting.recoverySource(),
                         otherRouting.unassignedInfo(),
+                        otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize()
                     );
@@ -150,6 +151,7 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting.state(),
                         otherRouting.recoverySource(),
                         otherRouting.unassignedInfo(),
+                        otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize()
                     );
@@ -167,6 +169,7 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.state(),
                             otherRouting.recoverySource(),
                             otherRouting.unassignedInfo(),
+                            otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize()
                         );
@@ -185,6 +188,7 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.state(),
                             otherRouting.recoverySource(),
                             otherRouting.unassignedInfo(),
+                            otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize()
                         );
@@ -208,6 +212,7 @@ public class ShardRoutingTests extends ESTestCase {
                                 new IndexId("test", UUIDs.randomBase64UUID(random()))
                             ),
                             otherRouting.unassignedInfo(),
+                            otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize()
                         );

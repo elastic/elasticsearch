@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -97,11 +96,7 @@ public final class Pipeline {
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
-        CompoundProcessor compoundProcessor = new CompoundProcessor(
-            false,
-            Collections.unmodifiableList(processors),
-            Collections.unmodifiableList(onFailureProcessors)
-        );
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
         return new Pipeline(id, description, version, metadata, compoundProcessor);
     }
 
@@ -113,6 +108,12 @@ public final class Pipeline {
      */
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        /*
+         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
+         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
+         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
+         * is only executed once.
+         */
         metrics.preIngest();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;

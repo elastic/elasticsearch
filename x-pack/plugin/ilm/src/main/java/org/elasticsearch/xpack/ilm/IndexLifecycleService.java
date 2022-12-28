@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
@@ -167,7 +168,7 @@ public class IndexLifecycleService
 
         final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
-            OperationMode currentMode = currentMetadata.getOperationMode();
+            OperationMode currentMode = currentILMMode(clusterState);
             if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
             }
@@ -184,12 +185,12 @@ public class IndexLifecycleService
 
                     try {
                         if (OperationMode.STOPPING == currentMode) {
-                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
                                 logger.info(
                                     "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
-                                    stepKey.getName()
+                                    stepKey.name()
                                 );
                                 lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                                 // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
@@ -197,7 +198,7 @@ public class IndexLifecycleService
                             } else {
                                 logger.info(
                                     "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
-                                    stepKey == null ? "n/a" : stepKey.getName(),
+                                    stepKey == null ? "n/a" : stepKey.name(),
                                     idxMeta.getIndex().getName(),
                                     policyName
                                 );
@@ -238,9 +239,13 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+                stopILM();
             }
         }
+    }
+
+    private void stopILM() {
+        submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
     }
 
     @Override
@@ -318,10 +323,7 @@ public class IndexLifecycleService
                 });
             }
 
-            final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-            if (lifecycleMetadata != null) {
-                triggerPolicies(event.state(), true);
-            }
+            triggerPolicies(event.state(), true);
         }
     }
 
@@ -370,11 +372,14 @@ public class IndexLifecycleService
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
+        OperationMode currentMode = currentILMMode(clusterState);
         if (currentMetadata == null) {
+            if (currentMode == OperationMode.STOPPING) {
+                // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
+                stopILM();
+            }
             return;
         }
-
-        OperationMode currentMode = currentMetadata.getOperationMode();
 
         if (OperationMode.STOPPED.equals(currentMode)) {
             return;
@@ -393,12 +398,12 @@ public class IndexLifecycleService
 
                 try {
                     if (OperationMode.STOPPING == currentMode) {
-                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
                             logger.info(
                                 "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
-                                stepKey.getName()
+                                stepKey.name()
                             );
                             if (fromClusterStateChange) {
                                 lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
@@ -410,7 +415,7 @@ public class IndexLifecycleService
                         } else {
                             logger.info(
                                 "skipping policy execution of step [{}] for index [{}] with policy [{}] because ILM is stopping",
-                                stepKey == null ? "n/a" : stepKey.getName(),
+                                stepKey == null ? "n/a" : stepKey.name(),
                                 idxMeta.getIndex().getName(),
                                 policyName
                             );
@@ -454,7 +459,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+            stopILM();
         }
     }
 

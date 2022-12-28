@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -193,6 +194,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertNoResizeSourceIndexSettings("first_split");
 
         for (int i = 0; i < numDocs; i++) { // now update
             IndexRequestBuilder builder = indexFunc.apply("first_split", i);
@@ -232,6 +234,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertNoResizeSourceIndexSettings("second_split");
+
         // let it be allocated anywhere and bump replicas
         client().admin()
             .indices()
@@ -363,6 +367,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
             assertThat(aftersplitIndexMetadata.primaryTerm(shardId), equalTo(beforeSplitPrimaryTerm + 1));
         }
+        assertNoResizeSourceIndexSettings("target");
     }
 
     private static IndexMetadata indexMetadata(final Client client, final String index) {
@@ -417,6 +422,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                     .get()
             );
             ensureGreen();
+            assertNoResizeSourceIndexSettings("target");
 
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
             DiscoveryNode mergeNode = state.nodes().get(state.getRoutingTable().index("target").shard(0).primaryShard().currentNodeId());
@@ -563,5 +569,6 @@ public class SplitIndexIT extends ESIntegTestCase {
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
+        assertNoResizeSourceIndexSettings("target");
     }
 }

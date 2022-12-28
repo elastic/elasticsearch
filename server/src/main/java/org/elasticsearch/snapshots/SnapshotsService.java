@@ -65,6 +65,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
@@ -292,8 +293,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } else {
             featureStatesSet = Collections.emptySet();
         }
-
-        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         executeConsistentStateUpdate(repository, repositoryData -> new ConsistentSnapshotClusterStateUpdateTask() {
 
             @Override
@@ -371,11 +370,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     indices = List.copyOf(indexNames);
                 }
 
-                final List<String> dataStreams = new ArrayList<>(
-                    indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices())
-                );
-                dataStreams.addAll(systemDataStreamNames);
-
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
                 final Map<String, IndexId> allIndices = new HashMap<>();
@@ -409,11 +403,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     request.includeGlobalState(),
                     request.partial(),
                     indexIds,
-                    dataStreams,
+                    CollectionUtils.concatLists(
+                        indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
+                        systemDataStreamNames
+                    ),
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
                     shards,
-                    userMeta,
+                    request.userMetadata(),
                     version,
                     List.copyOf(featureStates)
                 );
@@ -623,8 +620,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         final StepListener<Collection<Tuple<IndexId, Integer>>> allShardCountsListener = new StepListener<>();
         final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener = new GroupedActionListener<>(
-            allShardCountsListener,
-            indices.size()
+            indices.size(),
+            allShardCountsListener
         );
         snapshotInfoListener.whenComplete(snapshotInfo -> {
             for (IndexId indexId : indices) {
@@ -1594,7 +1591,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         } else {
                             return new SnapshotInfo.IndexSnapshotDetails(
                                 current.getShardCount() + 1,
-                                new ByteSizeValue(current.getSize().getBytes() + result.getSize().getBytes()),
+                                ByteSizeValue.ofBytes(current.getSize().getBytes() + result.getSize().getBytes()),
                                 Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
                             );
                         }

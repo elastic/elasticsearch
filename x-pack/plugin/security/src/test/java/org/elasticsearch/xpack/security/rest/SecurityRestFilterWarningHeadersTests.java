@@ -89,14 +89,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
     private Map<String, List<String>> testProcessRestHandlingFailed(RestStatus restStatus, MapBuilder<String, List<String>> headers)
         throws Exception {
         RestChannel channel = mock(RestChannel.class);
-        SecurityRestFilter filter = new SecurityRestFilter(
-            Settings.EMPTY,
-            threadContext,
-            authcService,
-            secondaryAuthenticator,
-            restHandler,
-            false
-        );
+        SecurityRestFilter filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
@@ -128,14 +121,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
     private Map<String, List<String>> testProcessAuthenticationFailed(RestStatus restStatus, MapBuilder<String, List<String>> headers)
         throws Exception {
         RestChannel channel = mock(RestChannel.class);
-        SecurityRestFilter filter = new SecurityRestFilter(
-            Settings.EMPTY,
-            threadContext,
-            authcService,
-            secondaryAuthenticator,
-            restHandler,
-            false
-        );
+        SecurityRestFilter filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         doAnswer((i) -> {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];

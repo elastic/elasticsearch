@@ -163,6 +163,7 @@ public class Constants {
         "cluster:admin/xpack/ml/trained_models/deployment/clear_cache",
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
+        "cluster:admin/xpack/ml/trained_models/deployment/update",
         "cluster:admin/xpack/ml/trained_models/part/put",
         "cluster:admin/xpack/ml/trained_models/vocabulary/put",
         "cluster:admin/xpack/ml/upgrade_mode",
@@ -256,6 +257,7 @@ public class Constants {
         "cluster:monitor/fetch/health/info",
         "cluster:monitor/health",
         "cluster:monitor/health_api",
+        "cluster:monitor/health_api/stats",
         "cluster:monitor/update/health/info",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
@@ -435,11 +437,13 @@ public class Constants {
         "indices:data/read/mtv",
         "indices:data/read/mtv[shard]",
         "indices:data/read/open_point_in_time",
+        "indices:data/read/profiling",
         "indices:data/read/rank_eval",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",
         "indices:data/read/search",
         "indices:data/read/search/template",
+        "indices:data/read/semantic_search",
         "indices:data/read/shard_multi_search",
         "indices:data/read/sql",
         "indices:data/read/sql/close_cursor",
@@ -485,6 +489,7 @@ public class Constants {
         "internal:cluster/master_history/get",
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
-        "internal:gateway/local/started_shards"
+        "internal:gateway/local/started_shards",
+        "internal:admin/indices/prevalidate_shard_path"
     );
 }

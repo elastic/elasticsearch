@@ -227,23 +227,27 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.startObject("indexing_pressure");
         builder.startObject("memory");
         builder.startObject("current");
-        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(currentCombinedCoordinatingAndPrimaryBytes));
-        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(currentCoordinatingBytes));
-        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(currentPrimaryBytes));
-        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(currentReplicaBytes));
-        builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(currentReplicaBytes + currentCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, ByteSizeValue.ofBytes(currentCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, ByteSizeValue.ofBytes(currentCoordinatingBytes));
+        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, ByteSizeValue.ofBytes(currentPrimaryBytes));
+        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, ByteSizeValue.ofBytes(currentReplicaBytes));
+        builder.humanReadableField(
+            ALL_IN_BYTES,
+            ALL,
+            ByteSizeValue.ofBytes(currentReplicaBytes + currentCombinedCoordinatingAndPrimaryBytes)
+        );
         builder.endObject();
         builder.startObject("total");
-        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(totalCombinedCoordinatingAndPrimaryBytes));
-        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(totalCoordinatingBytes));
-        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(totalPrimaryBytes));
-        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(totalReplicaBytes));
-        builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, ByteSizeValue.ofBytes(totalCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, ByteSizeValue.ofBytes(totalCoordinatingBytes));
+        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, ByteSizeValue.ofBytes(totalPrimaryBytes));
+        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, ByteSizeValue.ofBytes(totalReplicaBytes));
+        builder.humanReadableField(ALL_IN_BYTES, ALL, ByteSizeValue.ofBytes(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
         builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
-        builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, new ByteSizeValue(memoryLimit));
+        builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();
         return builder.endObject();
     }

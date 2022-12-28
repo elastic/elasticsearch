@@ -22,6 +22,7 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -436,7 +437,7 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, KeyStoreWrapper keystore) {
+            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, SecureSettings secrets) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }

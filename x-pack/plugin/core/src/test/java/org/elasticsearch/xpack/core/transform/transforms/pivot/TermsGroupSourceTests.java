@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGroupSource> {
+public class TermsGroupSourceTests extends AbstractXContentSerializingTestCase<TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
         return randomTermsGroupSource(Version.CURRENT);

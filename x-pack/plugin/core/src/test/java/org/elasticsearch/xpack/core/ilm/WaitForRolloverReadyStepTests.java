@@ -111,8 +111,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Long minPrimaryShardDocs = instance.getMinPrimaryShardDocs();
 
         switch (between(0, 11)) {
-            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
@@ -366,7 +366,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putRolloverInfo(
                 new RolloverInfo(
                     rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )
@@ -400,7 +400,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putRolloverInfo(
                 new RolloverInfo(
                     randomAlphaOfLength(5),
-                    Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )

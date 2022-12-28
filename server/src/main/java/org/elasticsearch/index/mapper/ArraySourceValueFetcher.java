@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,10 +53,10 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();
             }

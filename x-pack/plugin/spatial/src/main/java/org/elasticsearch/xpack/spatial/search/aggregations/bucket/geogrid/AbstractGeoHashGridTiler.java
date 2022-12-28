@@ -110,14 +110,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (String s : hashes) {
             GeoRelation relation = relateTile(geoValue, s);
-            if (relation == GeoRelation.QUERY_CROSSES) {
-                if (s.length() == precision) {
-                    values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(s));
-                } else {
-                    valuesIndex = setValuesByRasterization(s, values, valuesIndex, geoValue);
-                }
-            } else if (relation == GeoRelation.QUERY_INSIDE) {
+            if (relation == GeoRelation.QUERY_INSIDE) {
                 if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
                     values.add(valuesIndex++, Geohash.longEncode(s));
@@ -125,6 +118,13 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
                     int numTilesAtPrecision = getNumTilesAtPrecision(precision, hash.length());
                     values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
                     valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, precision);
+                }
+            } else if (relation != GeoRelation.QUERY_DISJOINT) {
+                if (s.length() == precision) {
+                    values.resizeCell(valuesIndex + 1);
+                    values.add(valuesIndex++, Geohash.longEncode(s));
+                } else {
+                    valuesIndex = setValuesByRasterization(s, values, valuesIndex, geoValue);
                 }
             }
         }

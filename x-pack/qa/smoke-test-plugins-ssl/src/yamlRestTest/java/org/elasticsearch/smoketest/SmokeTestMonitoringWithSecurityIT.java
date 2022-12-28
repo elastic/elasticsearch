@@ -7,18 +7,15 @@
 package org.elasticsearch.smoketest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
@@ -31,10 +28,10 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -52,14 +49,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * then uses a rest client to check that the data have been correctly received and
  * indexed in the cluster.
  */
-@SuppressWarnings("removal")
 public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
-
-    public class TestRestHighLevelClient extends RestHighLevelClient {
-        TestRestHighLevelClient() {
-            super(client(), RestClient::close, Collections.emptyList());
-        }
-    }
 
     private static final String USER = "test_user";
     private static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
@@ -83,10 +73,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
     @AfterClass
     public static void clearKeyStore() {
         keyStore = null;
-    }
-
-    RestHighLevelClient newHighLevelClient() {
-        return new TestRestHighLevelClient();
     }
 
     @Override
@@ -118,7 +104,16 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
             .setSecureSettings(secureSettings)
             .build();
-        updateClusterSettings(exporterSettings);
+        updateClusterSettingsIgnoringWarnings(client(), exporterSettings);
+    }
+
+    public static void updateClusterSettingsIgnoringWarnings(RestClient client, Settings settings) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+        assertOK(response);
     }
 
     @After
@@ -132,7 +127,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
-        updateClusterSettings(exporterSettings);
+        updateClusterSettingsIgnoringWarnings(client(), exporterSettings);
     }
 
     @SuppressWarnings("unchecked")
@@ -150,12 +145,11 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         // Ensures that the exporter is actually on
         assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));
 
-        RestHighLevelClient client = newHighLevelClient();
         // Checks that the monitoring index templates have been installed
         Request templateRequest = new Request("GET", "/_index_template/" + MONITORING_PATTERN);
         assertBusy(() -> {
             try {
-                var response = responseAsMap(client.getLowLevelClient().performRequest(templateRequest));
+                var response = responseAsMap(client().performRequest(templateRequest));
                 List<?> templates = ObjectPath.evaluate(response, "index_templates");
                 assertThat(templates.size(), greaterThanOrEqualTo(2));
             } catch (Exception e) {
@@ -167,7 +161,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         // Waits for monitoring indices to be created
         assertBusy(() -> {
             try {
-                Response response = client.getLowLevelClient().performRequest(indexRequest);
+                Response response = client().performRequest(indexRequest);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             } catch (Exception e) {
                 fail("monitoring index not created yet: " + e.getMessage());
@@ -183,10 +177,16 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         });
 
         // Checks that the HTTP exporter has successfully exported some data
-        SearchRequest searchRequest = new SearchRequest(new String[] { MONITORING_PATTERN }, new SearchSourceBuilder().size(0));
+        final Request searchRequest = new Request("POST", "/" + MONITORING_PATTERN + "/_search");
+        searchRequest.setJsonEntity("""
+            {"size":0}
+            """);
+
         assertBusy(() -> {
             try {
-                assertThat(client.search(searchRequest, RequestOptions.DEFAULT).getHits().getTotalHits().value, greaterThan(0L));
+                final Response searchResponse = client().performRequest(searchRequest);
+                final ObjectPath path = ObjectPath.createFromResponse(searchResponse);
+                assertThat(path.evaluate("hits.total.value"), greaterThan(0));
             } catch (Exception e) {
                 fail("monitoring date not exported yet: " + e.getMessage());
             }

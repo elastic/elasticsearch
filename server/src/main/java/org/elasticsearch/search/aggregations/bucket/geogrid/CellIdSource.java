@@ -99,7 +99,7 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
      *
      * This method maybe faster than having to compute the bounding box for each point grid.
      * */
-    protected boolean validPoint(double lon, double lat) {
+    protected boolean pointInBounds(double lon, double lat) {
         if (geoBoundingBox.top() > lat && geoBoundingBox.bottom() < lat) {
             if (crossesDateline) {
                 return geoBoundingBox.left() < lon || geoBoundingBox.right() > lon;

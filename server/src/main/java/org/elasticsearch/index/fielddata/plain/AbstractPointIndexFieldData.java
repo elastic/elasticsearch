@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-abstract class AbstractPointIndexFieldData<T extends MultiPointValues<? extends SpatialPoint>> implements IndexPointFieldData<T> {
+public abstract class AbstractPointIndexFieldData<T extends MultiPointValues<? extends SpatialPoint>> implements IndexPointFieldData<T> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;

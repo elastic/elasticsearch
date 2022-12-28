@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -190,16 +191,16 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testEvaluateWithoutStats() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
-            new ByteSizeValue(randomNonNegativeLong())
+            ByteSizeValue.ofBytes(randomNonNegativeLong())
         );
         MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
         MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MinDocsCondition minDocsCondition = new MinDocsCondition(randomNonNegativeLong());
-        MinSizeCondition minSizeCondition = new MinSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        MinSizeCondition minSizeCondition = new MinSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
-            new ByteSizeValue(randomNonNegativeLong())
+            ByteSizeValue.ofBytes(randomNonNegativeLong())
         );
         MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(randomNonNegativeLong());
         final Set<Condition<?>> conditions = Set.of(
@@ -347,13 +348,14 @@ public class TransportRolloverActionTests extends ESTestCase {
             .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
             .build();
 
-        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
         MetadataRolloverService rolloverService = new MetadataRolloverService(
             mockThreadPool,
             mockCreateIndexService,
             mdIndexAliasesService,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
         );
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mockTransportService,

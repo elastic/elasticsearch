@@ -53,7 +53,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
@@ -72,11 +71,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport;
-import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.DisruptableMockTransport;
+import org.elasticsearch.transport.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -208,15 +207,17 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return setting.get(Settings.EMPTY);
     }
 
-    // Updating the cluster state involves up to 7 delays:
+    // Updating the cluster state involves up to the following number of delays:
     // 1. submit the task to the master service
-    // 2. send PublishRequest
-    // 3. receive PublishResponse
-    // 4. send ApplyCommitRequest
-    // 5. apply committed cluster state
-    // 6. receive ApplyCommitResponse
-    // 7. apply committed state on master (last one to apply cluster state)
-    public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = 7 * DEFAULT_DELAY_VARIABILITY;
+    // 2. state publisher task on master
+    // 3. master sends out PublishRequests to nodes
+    // 4. master receives PublishResponses from nodes
+    // 5. master sends ApplyCommitRequests to nodes
+    // 6. nodes apply committed cluster state
+    // 7. master receives ApplyCommitResponses
+    // 8. apply committed state on master (last one to apply cluster state)
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 8;
+    public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
 
@@ -269,6 +270,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
+        private final CountingPageCacheRecycler countingPageCacheRecycler;
         private final Recycler<BytesRef> recycler;
         private final NodeHealthService nodeHealthService;
 
@@ -287,9 +289,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            this.recycler = usually()
-                ? BytesRefRecycler.NON_RECYCLING_INSTANCE
-                : new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+            this.countingPageCacheRecycler = new CountingPageCacheRecycler();
+            this.recycler = new BytesRefRecycler(countingPageCacheRecycler);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -874,6 +875,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             clusterNodes.forEach(ClusterNode::close);
+
+            // Closing nodes may spawn some other background cleanup tasks that must also be run
+            runFor(DEFAULT_DELAY_VARIABILITY, "accumulate close-time tasks");
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            countingPageCacheRecycler.assertAllPagesReleased();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
@@ -1133,7 +1140,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private void setUp() {
                 final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
                 clearableRecycler = new ClearableRecycler(recycler);
-                mockTransport = new DisruptableMockTransport(localNode, logger, deterministicTaskQueue) {
+                mockTransport = new DisruptableMockTransport(localNode, deterministicTaskQueue) {
                     @Override
                     protected void execute(Runnable runnable) {
                         deterministicTaskQueue.scheduleNow(onNode(runnable));
@@ -1388,13 +1395,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     public void run() {
                         if (clusterNodes.contains(ClusterNode.this)) {
                             wrapped.run();
-                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable) {
+                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable rebootSensitiveRunnable) {
                             logger.trace(
                                 "completing reboot-sensitive runnable {} from node {} as node has been removed from cluster",
                                 runnable,
                                 localNode
                             );
-                            ((DisruptableMockTransport.RebootSensitiveRunnable) runnable).ifRebooted();
+                            rebootSensitiveRunnable.ifRebooted();
                         } else {
                             logger.trace("ignoring runnable {} from node {} as node has been removed from cluster", runnable, localNode);
                         }

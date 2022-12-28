@@ -57,7 +57,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             // Index must have been since deleted
@@ -145,7 +145,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             Locale.ROOT,
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
-            key.getAction()
+            key.action()
         );
 
         // Index must have been since deleted

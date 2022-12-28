@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -198,7 +199,7 @@ public class Docker {
 
         if (isElasticsearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("""
+            fail(String.format(Locale.ROOT, """
                 Elasticsearch container did not start successfully.
 
                 ps output:
@@ -209,7 +210,7 @@ public class Docker {
 
                 Stderr:
                 %s\
-                """.formatted(psOutput, dockerLogs.stdout(), dockerLogs.stderr()));
+                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr()));
         }
     }
 
@@ -236,7 +237,7 @@ public class Docker {
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("""
+            fail(String.format(Locale.ROOT, """
                 Elasticsearch container didn't exit.
 
                 stdout():
@@ -244,7 +245,7 @@ public class Docker {
 
                 Stderr:
                 %s\
-                """.formatted(dockerLogs.stdout(), dockerLogs.stderr()));
+                """, dockerLogs.stdout(), dockerLogs.stderr()));
         }
     }
 

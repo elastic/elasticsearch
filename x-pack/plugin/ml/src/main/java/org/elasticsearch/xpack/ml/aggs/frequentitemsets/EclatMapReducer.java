@@ -90,6 +90,10 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             return frequentItemSets;
         }
 
+        Map<String, Object> getProfilingInfo() {
+            return profilingInfo;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeArray(frequentItemSets);
@@ -189,6 +193,12 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     }
 
     @Override
+    public HashBasedTransactionStore mapFiltered(HashBasedTransactionStore transactionStore) {
+        transactionStore.addFilteredTransaction();
+        return transactionStore;
+    }
+
+    @Override
     protected ImmutableTransactionStore mapFinalize(HashBasedTransactionStore transactionStore) {
 
         // reported by shard in collectDebugInfo
@@ -197,6 +207,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoMap.put("ram_bytes_transactionstore_after_map", transactionStore.ramBytesUsed());
             profilingInfoMap.put("total_items_after_map", transactionStore.getTotalItemCount());
             profilingInfoMap.put("total_transactions_after_map", transactionStore.getTotalTransactionCount());
+            profilingInfoMap.put("filtered_transactions_after_map", transactionStore.getFilteredTransactionCount());
             profilingInfoMap.put("unique_items_after_map", transactionStore.getUniqueItemsCount());
             profilingInfoMap.put("unique_transactions_after_map", transactionStore.getUniqueTransactionCount());
         }
@@ -283,6 +294,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoReduce.put("ram_bytes_transactionstore_after_reduce", transactionStore.ramBytesUsed());
             profilingInfoReduce.put("total_items_after_reduce", transactionStore.getTotalItemCount());
             profilingInfoReduce.put("total_transactions_after_reduce", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("filtered_transactions_after_reduce", transactionStore.getFilteredTransactionCount());
             profilingInfoReduce.put("unique_items_after_reduce", transactionStore.getUniqueItemsCount());
             profilingInfoReduce.put("unique_transactions_after_reduce", transactionStore.getUniqueTransactionCount());
         }
@@ -293,6 +305,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoReduce.put("ram_bytes_transactionstore_after_prune", transactionStore.ramBytesUsed());
             profilingInfoReduce.put("total_items_after_prune", transactionStore.getTotalItemCount());
             profilingInfoReduce.put("total_transactions_after_prune", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("filtered_transactions_after_prune", transactionStore.getFilteredTransactionCount());
             profilingInfoReduce.put("unique_items_after_prune", transactionStore.getUniqueItemsCount());
             profilingInfoReduce.put("unique_transactions_after_prune", transactionStore.getUniqueTransactionCount());
         }
@@ -411,6 +424,22 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                         // no need to set visited, as we are on a leaf
                     }
 
+                    /**
+                     * Optimization
+                     *
+                     * a - b - c - d
+                     * |   |    \- h
+                     * |   |\- e - f
+                     * |    \- h - j
+                     *  \- x - y
+                     *
+                     * assume we pruned at d above, if c has the same count as d, we don't need the sub-branches, but go up
+                     * until we find a branch that has a higher count than the pruned one. This allows us to skip over subtrees.
+                     */
+                    if (setTraverser.atLeaf()) {
+                        setTraverser.pruneToNextMainBranch();
+                    }
+
                     continue;
                 }
 
@@ -459,6 +488,16 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                 if (previousMinCount != minCount) {
                     previousMinCount = minCount;
                     logger.debug("adjusting min count to {}", minCount);
+                }
+
+                /**
+                 * Optimization:
+                 *
+                 * If we reached a leaf, go up the branch until the new branch has a higher count than our current leaf.
+                 */
+                if (setTraverser.atLeaf()) {
+                    setTraverser.prune();
+                    setTraverser.pruneToNextMainBranch();
                 }
             }
             FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);

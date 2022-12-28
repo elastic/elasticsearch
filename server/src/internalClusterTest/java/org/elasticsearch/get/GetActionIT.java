@@ -789,7 +789,7 @@ public class GetActionIT extends ESIntegTestCase {
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
         String storedString = stored ? "true" : "false";
-        String createIndexSource = """
+        String createIndexSource = formatted("""
             {
               "settings": {
                 "index.translog.flush_threshold_size": "1pb",
@@ -812,7 +812,7 @@ public class GetActionIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""".formatted(sourceEnabled, storedString, storedString);
+            }""", sourceEnabled, storedString, storedString);
 
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();

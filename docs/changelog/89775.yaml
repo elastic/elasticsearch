@@ -1,6 +1,0 @@
-pr: 89775
-summary: Return 408 instead of 500 when open/start APIs time out
-area: Machine Learning
-type: bug
-issues:
- - 89585

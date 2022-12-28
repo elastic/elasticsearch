@@ -997,7 +997,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Arrays.asList(
             "metrics-endpoint.metadata_current_default",
             ".metrics-endpoint.metadata_current_default",
-            ".metrics-endpoint.metadata_united_default"
+            ".metrics-endpoint.metadata_united_default",
+            "metrics-endpoint.metadata_current_default-" + Version.CURRENT,
+            ".metrics-endpoint.metadata_current_default-" + Version.CURRENT,
+            ".metrics-endpoint.metadata_united_default-" + Version.CURRENT
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -1079,33 +1082,35 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        Arrays.asList("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
-            .forEach(indexName -> {
-                logger.info("index name [{}]", indexName);
-                final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-                // Allow indexing
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
-                // Allow create and delete index, modifying aliases, and updating index settings
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesAliasesAction.NAME).test(indexAbstraction), is(true));
-                assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+        Arrays.asList(
+            "logs-cloud_security_posture.findings_latest-default",
+            "logs-cloud_security_posture.scores-default",
+            "logs-cloud_security_posture.findings_latest-default-" + Version.CURRENT,
+            "logs-cloud_security_posture.scores-default-" + Version.CURRENT
+        ).forEach(indexName -> {
+            logger.info("index name [{}]", indexName);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            // Allow indexing
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
+            // Allow create and delete index, modifying aliases, and updating index settings
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
 
-                // Implied by the overall view_index_metadata and monitor privilege
-                assertViewIndexMetadata(kibanaRole, indexName);
-                assertThat(
-                    kibanaRole.indices()
-                        .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8))
-                        .test(indexAbstraction),
-                    is(true)
-                );
-            });
+            // Implied by the overall view_index_metadata and monitor privilege
+            assertViewIndexMetadata(kibanaRole, indexName);
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
+                is(true)
+            );
+        });
 
         // Ensure privileges necessary for ILM policies in APM & Endpoint packages
         Arrays.asList(

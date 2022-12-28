@@ -106,7 +106,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
 
         Map<String, Object> json = createParser(
-            ChunkedToXContent.wrapAsXContentObject(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
         assertEquals(Set.of("stats", "routing_table"), json.keySet());
 

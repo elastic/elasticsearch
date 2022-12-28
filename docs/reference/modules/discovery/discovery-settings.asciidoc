@@ -201,7 +201,7 @@ Sets how long the master node waits for each cluster state update to be
 completely published to all nodes, unless `discovery.type` is set to
 `single-node`. The default value is `30s`. See <<cluster-state-publishing>>.
 
-`cluster.discovery_configuration_check.interval `::
+`cluster.discovery_configuration_check.interval`::
 (<<static-cluster-setting,Static>>)
 Sets the interval of some checks that will log warnings about an
 incorrect discovery configuration. The default value is `30s`.

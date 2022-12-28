@@ -292,8 +292,16 @@ public class TaskManager implements ClusterStateApplier {
         if (childRequestId > 0) {
             List<CancellableTaskHolder> children = cancellableTasks.getChildrenByRequestId(parentTaskId, childRequestId).toList();
             if (children.isEmpty() == false) {
-                logger.trace("cancelling children of task [{}] and request ID [{}] with reason [{}]", parentTaskId, childRequestId, reason);
                 for (CancellableTaskHolder child : children) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "cancelling child task [{}] of parent task [{}] and request ID [{}] with reason [{}]",
+                            child.getTask(),
+                            parentTaskId,
+                            childRequestId,
+                            reason
+                        );
+                    }
                     child.cancel(reason);
                 }
             }

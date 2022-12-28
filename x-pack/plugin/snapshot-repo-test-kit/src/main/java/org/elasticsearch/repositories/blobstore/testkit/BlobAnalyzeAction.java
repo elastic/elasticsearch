@@ -216,6 +216,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         private final GroupedActionListener<NodeResponse> readNodesListener;
         private final StepListener<WriteDetails> write1Step = new StepListener<>();
         private final StepListener<WriteDetails> write2Step = new StepListener<>();
+        private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         BlobAnalysis(
             TransportService transportService,
@@ -271,22 +272,18 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 ),
                 this::cancelReadsCleanUpAndReturnFailure
             );
+
+            task.addListener(() -> {
+                cancellableThreads.cancel(task.getReasonCancelled());
+            });
         }
 
         void run() {
-            final CancellableThreads cancellableThreads = new CancellableThreads();
-            task.addListener(() -> {
-                // This interrupts the blob writing thread in case it stuck in a sleep() due to rate limiting.
-                cancellableThreads.cancel(task.getReasonCancelled());
-            });
-
-            cancellableThreads.execute(
-                () -> writeRandomBlob(
-                    request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
-                    true,
-                    this::onLastReadForInitialWrite,
-                    write1Step
-                )
+            writeRandomBlob(
+                request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
+                true,
+                this::onLastReadForInitialWrite,
+                write1Step
             );
 
             if (request.writeAndOverwrite) {
@@ -340,15 +337,21 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                         blobContainer.writeBlob(request.blobName, bytesReference, failIfExists);
                     }
                 } else {
-                    blobContainer.writeBlob(
-                        request.blobName,
-                        repository.maybeRateLimitSnapshots(
-                            new RandomBlobContentStream(content, request.getTargetLength()),
-                            throttledNanos::addAndGet
-                        ),
-                        request.targetLength,
-                        failIfExists
-                    );
+                    cancellableThreads.execute(() -> {
+                        try {
+                            blobContainer.writeBlob(
+                                request.blobName,
+                                repository.maybeRateLimitSnapshots(
+                                    new RandomBlobContentStream(content, request.getTargetLength()),
+                                    throttledNanos::addAndGet
+                                ),
+                                request.targetLength,
+                                failIfExists
+                            );
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
                 }
                 final long elapsedNanos = System.nanoTime() - startNanos;
                 final long checksum = content.getChecksum(checksumStart, checksumEnd);

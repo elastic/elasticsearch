@@ -3402,13 +3402,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<String> blobsToDelete
     ) {}
 
-    public abstract static class RepoGenerationUpdateTask extends SnapshotsService.SnapshotClusterStateUpdateTask {
-        public abstract ClusterState execute(ClusterState currentState);
-
-        public abstract void done();
-    }
-
-    private final class SetPendingGenerationTask extends RepoGenerationUpdateTask {
+    private final class SetPendingGenerationTask implements SnapshotsService.SnapshotOperationClusterStateUpdateTask {
 
         private final long expectedGen;
         private final ActionListener<RepositoryData> listener;
@@ -3477,6 +3471,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
+        public SnapshotsService.TaskType type() {
+            return SnapshotsService.TaskType.REPO;
+        }
+
+        @Override
         public void onFailure(Exception e) {
             listener.onFailure(
                 new RepositoryException(metadata.name(), "Failed to execute cluster state update [" + setPendingGenerationSource + "]", e)
@@ -3484,13 +3483,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public void done() {
+        public void clusterStateProcessed(ClusterState newState) {
             logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
             setPendingStep.onResponse(newGen);
         }
     }
 
-    private final class SetSafeGenerationTask extends RepoGenerationUpdateTask {
+    private final class SetSafeGenerationTask implements SnapshotsService.SnapshotOperationClusterStateUpdateTask {
         private final long expectedGen;
         private final long newGen;
         private final RepositoryData newRepositoryData;
@@ -3548,6 +3547,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
+        public SnapshotsService.TaskType type() {
+            return SnapshotsService.TaskType.REPO;
+        }
+
+        @Override
         public void onFailure(Exception e) {
             listener.onFailure(
                 new RepositoryException(metadata.name(), "Failed to execute cluster state update [" + setSafeGenerationSource + "]", e)
@@ -3555,7 +3559,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public void done() {
+        public void clusterStateProcessed(ClusterState newState) {
             logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
             cacheRepositoryData(newRepositoryData, version);
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {

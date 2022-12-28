@@ -468,10 +468,8 @@ public final class BlobStoreTestUtil {
             appliers.forEach(
                 applier -> applier.applyClusterState(new ClusterChangedEvent((String) invocation.getArguments()[0], next, current))
             );
-            if (listener instanceof SnapshotsService.ConsistentSnapshotClusterStateUpdateTask consistentSnapshotClusterStateUpdateTask) {
-                consistentSnapshotClusterStateUpdateTask.clusterStateProcessed(next);
-            } else if (listener instanceof BlobStoreRepository.RepoGenerationUpdateTask repoGenerationUpdateTask) {
-                repoGenerationUpdateTask.done();
+            if (listener instanceof SnapshotsService.SnapshotClusterStateUpdateTask snapshotClusterStateUpdateTask) {
+                snapshotClusterStateUpdateTask.clusterStateProcessed(next);
             }
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(ClusterStateTaskConfig.class), any());

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -1056,6 +1057,8 @@ public final class Authentication implements ToXContentObject {
                 output.writeString(SecurityProfileUser.NAME);
             } else if (AsyncSearchUser.is(user)) {
                 output.writeString(AsyncSearchUser.NAME);
+            } else if (CrossClusterSearchUser.is(user)) {
+                output.writeString(CrossClusterSearchUser.NAME);
             } else {
                 assert false;
                 throw new IllegalStateException("user [" + user + "] is not internal");

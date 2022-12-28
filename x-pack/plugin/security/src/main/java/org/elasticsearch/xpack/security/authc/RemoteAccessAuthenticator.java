@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterSearchUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -76,14 +79,12 @@ public class RemoteAccessAuthenticator implements Authenticator {
             ActionListener.wrap(authResult -> {
                 if (authResult.isAuthenticated()) {
                     final Authentication receivedAuthentication = remoteAccessCredentials.remoteAccessAuthentication().getAuthentication();
-                    if (User.isInternal(receivedAuthentication.getEffectiveSubject().getUser())) {
+                    final User user = receivedAuthentication.getEffectiveSubject().getUser();
+                    if (User.isInternal(user)) {
+                        assert SystemUser.is(user) || AsyncSearchUser.is(user);
                         listener.onResponse(
                             AuthenticationResult.success(
-                                Authentication.newInternalAuthentication(
-                                    receivedAuthentication.getEffectiveSubject().getUser(),
-                                    Version.CURRENT,
-                                    nodeName
-                                )
+                                Authentication.newInternalAuthentication(CrossClusterSearchUser.INSTANCE, Version.CURRENT, nodeName)
                             )
                         );
                     } else {

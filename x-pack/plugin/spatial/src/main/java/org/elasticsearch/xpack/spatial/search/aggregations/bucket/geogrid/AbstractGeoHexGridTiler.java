@@ -19,6 +19,11 @@ import java.io.IOException;
 abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     private static final long[] RES0CELLS = H3.getLongRes0Cells();
+    private static final long SOUTH_POLE = H3.geoToH3(-90, 0, 0);
+    private static final long NORTH_POLE = H3.geoToH3(90, 0, 0);
+    // The hexRing neighbours optimization is insufficient at the Poles, so we add in one more neighbour explicitly
+    private static final long SOUTH_POLE_EXTRA_NEIGHBOUR = 580542139465727999L;
+    private static final long NORTH_POLE_EXTRA_NEIGHBOUR = 576707042908045311L;
 
     AbstractGeoHexGridTiler(int precision) {
         super(precision);
@@ -74,7 +79,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         // Point resolution is done using H3 library which uses spherical geometry. It might happen that in cartesian, the
         // actual point value is in a neighbour cell as well.
         {
-            for (long n : H3.hexRing(h3)) {
+            for (long n : hexRing(h3)) {
                 final GeoRelation relation = relateTile(geoValue, n);
                 valueIndex = maybeAdd(n, relation, values, valueIndex);
                 if (relation == GeoRelation.QUERY_CONTAINS) {
@@ -83,6 +88,26 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             }
         }
         return valueIndex;
+    }
+
+    private static long[] hexRing(long h3) {
+        long[] neighbours = H3.hexRing(h3);
+        if (h3 == NORTH_POLE) {
+            // Due to equi-rectangular distortion, the hexRing neighbours of the South Pole are insufficient
+            return addNeighbour(neighbours, NORTH_POLE_EXTRA_NEIGHBOUR);
+        } else if (h3 == SOUTH_POLE) {
+            // Due to equi-rectangular distortion, the hexRing neighbours of the South Pole are insufficient
+            return addNeighbour(neighbours, SOUTH_POLE_EXTRA_NEIGHBOUR);
+        } else {
+            return neighbours;
+        }
+    }
+
+    private static long[] addNeighbour(long[] neighbours, long extraNeighbour) {
+        long[] extended = new long[neighbours.length + 1];
+        System.arraycopy(neighbours, 0, extended, 0, neighbours.length);
+        extended[neighbours.length] = extraNeighbour;
+        return extended;
     }
 
     /**
@@ -110,8 +135,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), 0);
             final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), 0);
             if (minH3 == maxH3) {
+                // When the level 0 bounds are within a single cell, we can search that cell and its immediate neighbours
                 valueIndex = setValuesByRecursion(values, geoValue, minH3, 0, valueIndex);
-                for (long n : H3.hexRing(minH3)) {
+                for (long n : hexRing(minH3)) {
                     valueIndex = setValuesByRecursion(values, geoValue, n, 0, valueIndex);
                 }
                 return valueIndex;

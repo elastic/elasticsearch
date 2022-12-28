@@ -231,7 +231,6 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(builder, keywordType).withQuery(query));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92578")
     public void testMixedSingleValues() throws IOException {
         List<MultiValuesSourceFieldConfig> fields = new ArrayList<>();
 
@@ -326,9 +325,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                 0.2
             ),
             new FrequentItemSet(Map.of(IP_FIELD, List.of("192.168.0.1"), FLOAT_FIELD, List.of(4.1f), INT_FIELD, List.of(2)), 2, 0.2),
-            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5), KEYWORD_FIELD1, List.of("host-2")), 2, 0.2),
+            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5.0f), KEYWORD_FIELD1, List.of("host-2")), 2, 0.2),
             new FrequentItemSet(Map.of(INT_FIELD, List.of(5), KEYWORD_FIELD1, List.of("host-2")), 2, 0.2),
-            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5), KEYWORD_FIELD2, List.of("client-2")), 2, 0.2),
+            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5.0f), KEYWORD_FIELD2, List.of("client-2")), 2, 0.2),
             new FrequentItemSet(Map.of(IP_FIELD, List.of("192.168.0.5"), KEYWORD_FIELD2, List.of("client-2")), 2, 0.2)
         );
 
@@ -792,7 +791,12 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             + " minimum_set_size: "
             + minimumSetSize
             + " size: "
-            + size;
+            + size
+            + " string exclude: ["
+            + stringExclude
+            + "] int exclude: ["
+            + intExclude
+            + "]";
 
         assertEquals(
             "number of results do not match, " + setsAssertMessage,

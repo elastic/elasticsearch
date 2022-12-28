@@ -158,14 +158,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     private void registerConfigurationInputs(Task task, Configuration configuration) {
         task.getInputs()
-            .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
-            .withPropertyName(configuration.getName() + "-classpath")
-            .withNormalizer(ClasspathNormalizer.class);
-
-        task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false)))
             .withPropertyName(configuration.getName() + "-files")
             .withPathSensitivity(PathSensitivity.RELATIVE);
+
+        task.getInputs()
+            .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
+            .withPropertyName(configuration.getName() + "-classpath")
+            .withNormalizer(ClasspathNormalizer.class);
     }
 
     private void registerDistributionInputs(Task task, ElasticsearchDistribution distribution) {

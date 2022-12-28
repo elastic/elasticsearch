@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Set<String> plugins = new HashSet<>();
     private final Set<FeatureFlag> features = new HashSet<>();
     private final Map<String, String> keystoreSettings = new HashMap<>();
+    private final Map<String, Resource> extraConfigFiles = new HashMap<>();
     private DistributionType distributionType;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
@@ -132,6 +134,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public Map<String, String> getKeystoreSettings() {
         return inherit(() -> parent.getKeystoreSettings(), keystoreSettings);
+    }
+
+    @Override
+    public T configFile(String fileName, Resource configFile) {
+        this.extraConfigFiles.put(fileName, configFile);
+        return cast(this);
+    }
+
+    public Map<String, Resource> getExtraConfigFiles() {
+        return inherit(() -> parent.getExtraConfigFiles(), extraConfigFiles);
     }
 
     private <T> List<T> inherit(Supplier<List<T>> parent, List<T> child) {

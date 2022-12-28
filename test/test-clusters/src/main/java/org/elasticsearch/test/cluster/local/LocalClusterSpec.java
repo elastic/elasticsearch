@@ -15,7 +15,7 @@ import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.test.cluster.util.resource.TextResource;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.HashMap;
 import java.util.List;
@@ -26,10 +26,10 @@ import java.util.stream.Collectors;
 public class LocalClusterSpec implements ClusterSpec {
     private final String name;
     private final List<User> users;
-    private final List<TextResource> roleFiles;
+    private final List<Resource> roleFiles;
     private List<LocalNodeSpec> nodes;
 
-    public LocalClusterSpec(String name, List<User> users, List<TextResource> roleFiles) {
+    public LocalClusterSpec(String name, List<User> users, List<Resource> roleFiles) {
         this.name = name;
         this.users = users;
         this.roleFiles = roleFiles;
@@ -43,7 +43,7 @@ public class LocalClusterSpec implements ClusterSpec {
         return users;
     }
 
-    public List<TextResource> getRoleFiles() {
+    public List<Resource> getRoleFiles() {
         return roleFiles;
     }
 
@@ -79,6 +79,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
         private final Map<String, String> keystoreSettings;
+        private final Map<String, Resource> extraConfigFiles;
 
         public LocalNodeSpec(
             LocalClusterSpec cluster,
@@ -92,7 +93,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Set<String> plugins,
             DistributionType distributionType,
             Set<FeatureFlag> features,
-            Map<String, String> keystoreSettings
+            Map<String, String> keystoreSettings,
+            Map<String, Resource> extraConfigFiles
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -106,6 +108,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.distributionType = distributionType;
             this.features = features;
             this.keystoreSettings = keystoreSettings;
+            this.extraConfigFiles = extraConfigFiles;
         }
 
         public LocalClusterSpec getCluster() {
@@ -124,7 +127,7 @@ public class LocalClusterSpec implements ClusterSpec {
             return cluster.getUsers();
         }
 
-        public List<TextResource> getRolesFiles() {
+        public List<Resource> getRolesFiles() {
             return cluster.getRoleFiles();
         }
 
@@ -146,6 +149,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public Map<String, String> getKeystoreSettings() {
             return keystoreSettings;
+        }
+
+        public Map<String, Resource> getExtraConfigFiles() {
+            return extraConfigFiles;
         }
 
         public boolean isSecurityEnabled() {

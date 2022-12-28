@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.function.Supplier;
 
@@ -66,4 +67,9 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a secure setting to the node keystore.
      */
     T keystore(String key, String value);
+
+    /**
+     * Adds a file to the node config directory
+     */
+    T configFile(String fileName, Resource configFile);
 }

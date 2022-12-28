@@ -275,7 +275,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         "metadata",
         METADATA_NAME_FORMAT,
         (repoName, parser) -> Metadata.fromXContent(parser),
-        ChunkedToXContent::wrapAsXContentObject
+        ChunkedToXContent::wrapAsToXContent
     );
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(

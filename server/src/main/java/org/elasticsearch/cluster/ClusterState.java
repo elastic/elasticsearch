@@ -573,7 +573,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         // meta data
         if (metrics.contains(Metric.METADATA)) {
-            ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, params);
         }
 
         // routing table
@@ -622,7 +622,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.CUSTOMS)) {
             for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
                 builder.startObject(cursor.getKey());
-                ChunkedToXContent.wrapAsXContentObject(cursor.getValue()).toXContent(builder, params);
+                ChunkedToXContent.wrapAsToXContent(cursor.getValue()).toXContent(builder, params);
                 builder.endObject();
             }
         }

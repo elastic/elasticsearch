@@ -10,21 +10,30 @@ package org.elasticsearch.test.cluster.util.resource;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
-public class FileTextResource implements TextResource {
-    private final Path file;
+public interface Resource {
+    InputStream asStream();
 
-    FileTextResource(File file) {
-        this.file = file.toPath();
+    static Resource fromString(String text) {
+        return new StringResource(text);
     }
 
-    @Override
-    public String getText() {
-        try {
-            return Files.readString(file);
+    static Resource fromClasspath(String path) {
+        return new ClasspathResource(path);
+    }
+
+    static Resource fromFile(File file) {
+        return new FileResource(file);
+    }
+
+    default void writeTo(Path path) {
+        try (InputStream is = asStream()) {
+            Files.copy(is, path, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

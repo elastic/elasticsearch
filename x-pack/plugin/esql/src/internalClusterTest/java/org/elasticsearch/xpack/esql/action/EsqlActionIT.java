@@ -480,6 +480,30 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(0, results.values().size());
     }
 
+    public void testMultiConditionalWhere() {
+        EsqlQueryResponse results = run(
+            "from test | eval abc = 1+2 | where (abc + count >= 44 or data_d == 2) and data == 1 | project color, abc"
+        );
+        logger.info(results);
+        Assert.assertEquals(10, results.values().size());
+        Assert.assertEquals(2, results.columns().size());
+        for (List<Object> values : results.values()) {
+            assertThat((String) values.get(0), equalTo("green"));
+            assertThat((Long) values.get(1), equalTo(3L));
+        }
+    }
+
+    public void testWhereNegatedCondition() {
+        EsqlQueryResponse results = run("from test | eval abc=1+2 | where abc + count > 45 and data != 1 | project color, data");
+        logger.info(results);
+        Assert.assertEquals(10, results.values().size());
+        Assert.assertEquals(2, results.columns().size());
+        for (List<Object> values : results.values()) {
+            assertThat((String) values.get(0), equalTo("red"));
+            assertThat((Long) values.get(1), equalTo(2L));
+        }
+    }
+
     public void testEvalOverride() {
         EsqlQueryResponse results = run("from test | eval count = count + 1 | eval count = count + 1");
         logger.info(results);

@@ -317,6 +317,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
+                // TODO remove me
+                if (User.isInternal(effectiveSubject.getUser())) {
+                    assertInternalUserUsedCrossCluster(authentication.getEffectiveSubject().getUser());
+                }
+
                 return Optional.of(new RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
             }
 

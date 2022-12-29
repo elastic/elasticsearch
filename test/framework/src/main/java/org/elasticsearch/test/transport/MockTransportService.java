@@ -32,7 +32,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -266,7 +265,6 @@ public final class MockTransportService extends TransportService {
             Tracer.NOOP
         );
         this.original = transport.getDelegate();
-        taskManager.setTaskCancellationService(new TaskCancellationService(this));
     }
 
     private static TransportAddress[] extractTransportAddresses(TransportService transportService) {

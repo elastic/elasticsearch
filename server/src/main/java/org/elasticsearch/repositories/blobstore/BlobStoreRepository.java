@@ -2180,7 +2180,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             setPendingGenerationSource,
             new SetPendingGenerationTask(expectedGen, listener, setPendingGenerationSource, setPendingStep),
             ClusterStateTaskConfig.build(Priority.NORMAL),
-            SnapshotsService.SHARD_STATE_EXECUTOR
+            SnapshotsService.SNAPSHOT_STATE_EXECUTOR
         );
         final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
 
@@ -2259,7 +2259,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 setSafeGenerationSource,
                 new SetSafeGenerationTask(expectedGen, newGen, newRepositoryData, stateFilter, listener, setSafeGenerationSource, version),
                 ClusterStateTaskConfig.build(Priority.NORMAL),
-                SnapshotsService.SHARD_STATE_EXECUTOR
+                SnapshotsService.SNAPSHOT_STATE_EXECUTOR
             );
         }, listener::onFailure);
     }

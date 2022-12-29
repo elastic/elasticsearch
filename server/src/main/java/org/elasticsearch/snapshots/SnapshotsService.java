@@ -2502,7 +2502,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         executeConsistentStateUpdate(repository, createUpdateTask, source, config, onFailure);
                     }
                 }
-            }, config, SHARD_STATE_EXECUTOR);
+            }, config, SNAPSHOT_STATE_EXECUTOR);
         }, onFailure));
     }
 
@@ -3142,12 +3142,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Executor that applies {@link ShardSnapshotUpdate}s to the current cluster state. The algorithm implemented below works as described
-     * below:
+     * Executor that applies {@link SnapshotClusterStateUpdateTask} to the current cluster state.
+     * <br/>
+     * For {@link ShardSnapshotUpdate}s the algorithm implemented below works as described below:
      * Every shard snapshot or clone state update can result in multiple snapshots being updated. In order to determine whether or not a
      * shard update has an effect we use an outer loop over all current executing snapshot operations that iterates over them in the order
      * they were started in and an inner loop over the list of shard update tasks.
-     *
+     * <br/>
      * If the inner loop finds that a shard update task applies to a given snapshot and either a shard-snapshot or shard-clone operation in
      * it then it will update the state of the snapshot entry accordingly. If that update was a noop, then the task is removed from the
      * iteration as it was already applied before and likely just arrived on the master node again due to retries upstream.
@@ -3157,11 +3158,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * a task in the executed tasks collection applied to a shard it was waiting for to become available, then the shard snapshot operation
      * will be started for that snapshot entry and the task removed from the collection of tasks that need to be applied to snapshot
      * entries since it can not have any further effects.
-     *
-     * Package private to allow for tests.
+     * <br/>
+     * Public to allow for tests.
      */
-    public static final ClusterStateTaskExecutor<SnapshotClusterStateUpdateTask> SHARD_STATE_EXECUTOR =
-        batchExecutionContext -> new SnapshotShardsUpdateContext(batchExecutionContext).computeUpdatedState();
+    public static final ClusterStateTaskExecutor<SnapshotClusterStateUpdateTask> SNAPSHOT_STATE_EXECUTOR =
+        batchExecutionContext -> new SnapshotStateUpdateContext(batchExecutionContext).computeUpdatedState();
 
     private static boolean isQueued(@Nullable ShardSnapshotStatus status) {
         return status != null && status.state() == ShardState.QUEUED;
@@ -3169,9 +3170,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * State machine for updating existing {@link SnapshotsInProgress.Entry} by applying a given list of {@link ShardSnapshotUpdate} to
-     * them.
+     * them as well as applying all other {@link SnapshotClusterStateUpdateTask}.
      */
-    private static final class SnapshotShardsUpdateContext {
+    private static final class SnapshotStateUpdateContext {
 
         // number of updated shard snapshot states as a result of applying updates to the snapshot entries seen so far
         private int changedCount = 0;
@@ -3191,9 +3192,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // updates that were used to update an existing in-progress shard snapshot
         private final Set<ShardSnapshotUpdate> executedUpdates = new HashSet<>();
 
-        private final List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> setGenerationTasks = new ArrayList<>();
-
-        SnapshotShardsUpdateContext(ClusterStateTaskExecutor.BatchExecutionContext<SnapshotClusterStateUpdateTask> batchExecutionContext) {
+        SnapshotStateUpdateContext(ClusterStateTaskExecutor.BatchExecutionContext<SnapshotClusterStateUpdateTask> batchExecutionContext) {
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
             this.updatesByRepo = new HashMap<>();
@@ -3201,19 +3200,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (taskContext.getTask()instanceof ShardSnapshotUpdate shardSnapshotUpdate) {
                     updatesByRepo.computeIfAbsent(shardSnapshotUpdate.snapshot.getRepository(), r -> new ArrayList<>())
                         .add(shardSnapshotUpdate);
-                } else if (taskContext.getTask()instanceof SnapshotOperationClusterStateUpdateTask snapshotOperationClusterStateUpdateTask
-                    && snapshotOperationClusterStateUpdateTask.type() == TaskType.REPO) {
-                        setGenerationTasks.add(taskContext);
-                    }
+                }
             }
         }
 
         ClusterState computeUpdatedState() {
             ClusterState newState = initialState;
-            // run all repository generation related tasks first
-            for (var setGenerationTask : setGenerationTasks) {
-                newState = ((SnapshotOperationClusterStateUpdateTask) setGenerationTask.getTask()).execute(newState);
-            }
 
             // then execute updates to shard snapshots
             final SnapshotsInProgress existing = newState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
@@ -3230,7 +3222,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 updated = updated.withUpdatedEntriesForRepo(repoName, newEntries);
             }
-            if (changedCount > 0 || setGenerationTasks.isEmpty() == false) {
+            if (changedCount > 0) {
                 logger.trace(
                     "changed cluster state triggered by [{}] snapshot state updates and resulted in starting " + "[{}] shard snapshots",
                     changedCount,
@@ -3239,7 +3231,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 newState = ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, updated).build();
             }
 
-            // run all snapshot create,clone and delete operations, execute deletes before snapshots+clones
+            // run all snapshot create,clone and delete operations, execute snapshots and clones last to avoid having to deal with starting
+            // and subsequently deleting a snapshot or clone in the same batch
             final var snapshots = new ArrayList<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>>();
             // list of successfully executed operations
             final List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> successes = new ArrayList<>();
@@ -3247,7 +3240,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (taskContext.getTask()instanceof SnapshotOperationClusterStateUpdateTask task) {
                     if (task.type() == TaskType.SNAPSHOT) {
                         snapshots.add(taskContext);
-                    } else if (task.type() == TaskType.DELETE) {
+                    } else {
                         newState = applyOperation(newState, successes, taskContext);
                     }
                 }
@@ -3265,9 +3258,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             for (var success : successes) {
                 setSuccess(finalNewState, success);
-            }
-            for (var setGenerationTask : setGenerationTasks) {
-                setSuccess(finalNewState, setGenerationTask);
             }
             return newState;
         }
@@ -3522,6 +3512,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    /**
+     * A cluster state update that executes as part of a snapshot operation. Executed by {@link #SNAPSHOT_STATE_EXECUTOR}.
+     */
     public interface SnapshotClusterStateUpdateTask extends ClusterStateTaskListener {
         void clusterStateProcessed(ClusterState newState);
     }
@@ -3532,6 +3525,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         REPO
     }
 
+    /**
+     * A cluster state update related to snapshots that computes a new cluster state in full.
+     * TODO: all of these probably don't need to actually set up new cluster states optimize these away so that the executor only has to
+     *       build a single cluster state
+     */
     public interface SnapshotOperationClusterStateUpdateTask extends SnapshotClusterStateUpdateTask {
         ClusterState execute(ClusterState clusterState);
 
@@ -3644,7 +3642,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             "update snapshot state",
             update,
             ClusterStateTaskConfig.build(Priority.NORMAL),
-            SHARD_STATE_EXECUTOR
+            SNAPSHOT_STATE_EXECUTOR
         );
     }
 

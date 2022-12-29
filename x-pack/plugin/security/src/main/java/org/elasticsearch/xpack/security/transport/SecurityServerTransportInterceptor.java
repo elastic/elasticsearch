@@ -381,7 +381,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 throws IOException {
                 final User user = authentication.getEffectiveSubject().getUser();
                 assert User.isInternal(user) : "internal user is required";
-                if (SystemUser.is(user) || AsyncSearchUser.is(user)) {
+                if (SystemUser.is(user)) {
                     return new RemoteAccessAuthentication(
                         Authentication.newInternalAuthentication(
                             CrossClusterSearchUser.INSTANCE,

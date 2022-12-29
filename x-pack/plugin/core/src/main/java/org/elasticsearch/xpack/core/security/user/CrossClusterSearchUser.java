@@ -18,7 +18,7 @@ public class CrossClusterSearchUser extends User {
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_SEARCH_ROLE,
         new String[] { ClusterStateAction.NAME },
-        new RoleDescriptor.IndicesPrivileges[] {},
+        null,
         null,
         null,
         null,

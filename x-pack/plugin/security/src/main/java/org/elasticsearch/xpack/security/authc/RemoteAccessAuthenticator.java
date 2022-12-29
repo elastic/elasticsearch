@@ -51,7 +51,6 @@ public class RemoteAccessAuthenticator implements Authenticator {
         if (apiKeyCredentials == null) {
             return null;
         }
-
         // TODO once we've read the headers, we should clear them from the context
         assert threadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) != null;
         try {
@@ -80,14 +79,13 @@ public class RemoteAccessAuthenticator implements Authenticator {
                 if (authResult.isAuthenticated()) {
                     final Authentication receivedAuthentication = remoteAccessCredentials.remoteAccessAuthentication().getAuthentication();
                     final User user = receivedAuthentication.getEffectiveSubject().getUser();
-                    if (User.isInternal(user)) {
-                        assert SystemUser.is(user) || AsyncSearchUser.is(user);
+                    if (CrossClusterSearchUser.is(user)) {
                         listener.onResponse(
-                            AuthenticationResult.success(
-                                Authentication.newInternalAuthentication(CrossClusterSearchUser.INSTANCE, Version.CURRENT, nodeName)
-                            )
+                            AuthenticationResult.success(Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName))
                         );
                     } else {
+                        assert false == User.isInternal(user)
+                            : "received cross cluster request from an unexpected internal user [" + user.principal() + "]";
                         final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
                         authMetadata.put(
                             AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,

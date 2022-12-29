@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -354,13 +355,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
                 if (User.isInternal(authentication.getEffectiveSubject().getUser())) {
-                    assertInternalUserUsedCrossCluster(authentication.getEffectiveSubject().getUser());
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         remoteAccessCredentials.writeToContext(threadContext);
-                        // Access control is handled differently for internal users. Privileges are defined by the fulfilling cluster,
-                        // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
-                        // authentication instance
-                        new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
+                        getRemoteAccessAuthenticationForInternalUser(authentication).writeToContext(threadContext);
                         sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                     } catch (IOException e) {
                         contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
@@ -380,8 +377,20 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
 
-            private void assertInternalUserUsedCrossCluster(final User user) {
-                if (false == (SystemUser.is(user) || AsyncSearchUser.is(user))) {
+            private RemoteAccessAuthentication getRemoteAccessAuthenticationForInternalUser(final Authentication authentication)
+                throws IOException {
+                final User user = authentication.getEffectiveSubject().getUser();
+                assert User.isInternal(user) : "internal user is required";
+                if (SystemUser.is(user) || AsyncSearchUser.is(user)) {
+                    return new RemoteAccessAuthentication(
+                        Authentication.newInternalAuthentication(
+                            CrossClusterSearchUser.INSTANCE,
+                            authentication.getEffectiveSubject().getVersion(),
+                            authentication.getEffectiveSubject().getRealm().getNodeName()
+                        ),
+                        RoleDescriptorsIntersection.EMPTY
+                    );
+                } else {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
                     throw new IllegalStateException(message);

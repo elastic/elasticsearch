@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -17,15 +17,8 @@ public class CrossClusterSearchUser extends User {
     public static final CrossClusterSearchUser INSTANCE = new CrossClusterSearchUser();
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_SEARCH_ROLE,
-        // monitor is required for cluster state retrieval
-        new String[] { "monitor", "cancel_task" },
-        // async search related
-        new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
-                .privileges("all")
-                .allowRestrictedIndices(true)
-                .build(), },
+        new String[] { ClusterStateAction.NAME },
+        new RoleDescriptor.IndicesPrivileges[] {},
         null,
         null,
         null,

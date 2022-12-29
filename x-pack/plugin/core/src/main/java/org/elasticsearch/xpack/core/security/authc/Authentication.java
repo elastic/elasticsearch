@@ -1033,6 +1033,8 @@ public final class Authentication implements ToXContentObject {
                     return SecurityProfileUser.INSTANCE;
                 } else if (AsyncSearchUser.NAME.equals(username)) {
                     return AsyncSearchUser.INSTANCE;
+                } else if (CrossClusterSearchUser.NAME.equals(username)) {
+                    return CrossClusterSearchUser.INSTANCE;
                 }
                 throw new IllegalStateException("username [" + username + "] does not match any internal user");
             }

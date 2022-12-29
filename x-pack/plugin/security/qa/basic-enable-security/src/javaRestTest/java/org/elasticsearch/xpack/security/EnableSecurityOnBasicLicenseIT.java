@@ -61,9 +61,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
             securityExplicitlySet = randomBoolean();
         }
 
-        return securityExplicitlySet
-            ? Collections.singletonMap("xpack.security.enabled", "false")
-            : Collections.emptyMap();
+        return securityExplicitlySet ? Collections.singletonMap("xpack.security.enabled", "false") : Collections.emptyMap();
     };
 
     @ClassRule

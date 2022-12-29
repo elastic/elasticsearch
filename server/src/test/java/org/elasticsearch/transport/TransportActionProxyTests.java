@@ -19,6 +19,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -56,10 +57,13 @@ public class TransportActionProxyTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         serviceA = buildService(version0); // this one supports dynamic tracer updates
+        serviceA.taskManager.setTaskCancellationService(new TaskCancellationService(serviceA));
         nodeA = serviceA.getLocalDiscoNode();
         serviceB = buildService(version1); // this one doesn't support dynamic tracer updates
+        serviceB.taskManager.setTaskCancellationService(new TaskCancellationService(serviceB));
         nodeB = serviceB.getLocalDiscoNode();
         serviceC = buildService(version1); // this one doesn't support dynamic tracer updates
+        serviceC.taskManager.setTaskCancellationService(new TaskCancellationService(serviceC));
         nodeC = serviceC.getLocalDiscoNode();
     }
 

@@ -30,7 +30,10 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.hamcrest.Matchers;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,7 +49,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
-    private static boolean securityExplicitlySet = randomBoolean();
+    private static Boolean securityExplicitlySet = null;
 
     private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
         {
@@ -55,9 +58,16 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         }
     };
 
-    private static SettingsProvider explicitSecurity = s -> securityExplicitlySet
-        ? Collections.singletonMap("xpack.security.enabled", "false")
-        : Collections.emptyMap();
+    private static SettingsProvider explicitSecurity = s -> {
+        // We have to initialize this field this way since we cannot access randomized runner context in static initializers
+        if (securityExplicitlySet == null) {
+            securityExplicitlySet = randomBoolean();
+        }
+
+        return securityExplicitlySet
+            ? Collections.singletonMap("xpack.security.enabled", "false")
+            : Collections.emptyMap();
+    };
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

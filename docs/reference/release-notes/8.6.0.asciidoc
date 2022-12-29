@@ -29,6 +29,7 @@ Authorization::
 Cluster Coordination::
 * Fix `TransportMasterNodeAction` holding a CS reference needlessly {es-pull}90724[#90724] (issue: {es-issue}89220[#89220])
 * Include last-committed data in publication {es-pull}92259[#92259] (issue: {es-issue}90158[#90158])
+* Unsafe bootstrap memory optimization {es-pull}92493[#92493]
 
 EQL::
 * EQL sequences: support join on multi-values {es-pull}89965[#89965]
@@ -76,6 +77,7 @@ Monitoring::
 
 Network::
 * Clean up on exception while chunking XContent {es-pull}92024[#92024]
+* Reject connection attempts while closing {es-pull}92465[#92465]
 
 SQL::
 * Fix NPE on logging when not tracking total hits {es-pull}92425[#92425]
@@ -252,5 +254,8 @@ Infra/Logging::
 Network::
 * Upgrade to Netty 4.1.82.Final {es-pull}90604[#90604]
 * Upgrade to Netty 4.1.84 {es-pull}91271[#91271]
+
+Snapshot/Restore::
+* Upgrade GCS SDK to 2.13.1 {es-pull}92327[#92327]
 
 

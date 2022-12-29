@@ -293,6 +293,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
+                // TODO remove
+                final Subject effectiveSubject = securityContext.getAuthentication().getEffectiveSubject();
+                assert false == User.isInternal(effectiveSubject.getUser()) || SystemUser.is(effectiveSubject.getUser())
+                    : "unexpected internal user [" + effectiveSubject.getUser().principal() + "]";
+
                 final String remoteClusterAlias = optionalRemoteClusterAlias.get();
                 final String remoteClusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
                 if (remoteClusterCredential == null) {
@@ -307,7 +312,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
-                final Subject effectiveSubject = authentication.getEffectiveSubject();
                 if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
@@ -316,10 +320,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                     return Optional.empty();
                 }
-
-                // TODO remove
-                assert false == User.isInternal(effectiveSubject.getUser()) || SystemUser.is(effectiveSubject.getUser())
-                    : "unexpected internal user [" + effectiveSubject.getUser().principal() + "]";
 
                 return Optional.of(new RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
             }

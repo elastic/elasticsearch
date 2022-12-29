@@ -559,7 +559,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         final boolean internalUser = randomBoolean();
         final Authentication authentication = internalUser
-            ? randomFrom(AuthenticationTestHelper.builder().internal(randomFrom(SystemUser.INSTANCE, AsyncSearchUser.INSTANCE))).build()
+            ? AuthenticationTestHelper.builder().internal(randomFrom(SystemUser.INSTANCE)).build()
             : AuthenticationTestHelper.builder().user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);

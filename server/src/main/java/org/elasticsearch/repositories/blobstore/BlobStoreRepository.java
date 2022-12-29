@@ -3471,8 +3471,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public SnapshotsService.TaskType type() {
-            return SnapshotsService.TaskType.REPO;
+        public boolean createOperation() {
+            return false;
         }
 
         @Override
@@ -3547,8 +3547,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public SnapshotsService.TaskType type() {
-            return SnapshotsService.TaskType.REPO;
+        public boolean createOperation() {
+            return false;
         }
 
         @Override

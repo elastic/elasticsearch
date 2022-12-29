@@ -417,8 +417,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public TaskType type() {
-                return TaskType.SNAPSHOT;
+            public boolean createOperation() {
+                return true;
             }
 
             @Override
@@ -532,8 +532,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public TaskType type() {
-                return TaskType.SNAPSHOT;
+            public boolean createOperation() {
+                return true;
             }
 
             @Override
@@ -711,8 +711,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 @Override
-                public TaskType type() {
-                    return TaskType.SNAPSHOT;
+                public boolean createOperation() {
+                    return true;
                 }
 
                 @Override
@@ -2264,8 +2264,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public TaskType type() {
-                return TaskType.DELETE;
+            public boolean createOperation() {
+                return false;
             }
 
             @Override
@@ -2481,8 +2481,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 @Override
-                public TaskType type() {
-                    return updateTask.type();
+                public boolean createOperation() {
+                    return updateTask.createOperation();
                 }
 
                 @Override
@@ -3238,7 +3238,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> successes = new ArrayList<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask()instanceof SnapshotOperationClusterStateUpdateTask task) {
-                    if (task.type() == TaskType.SNAPSHOT) {
+                    if (task.createOperation()) {
                         snapshots.add(taskContext);
                     } else {
                         newState = applyOperation(newState, successes, taskContext);
@@ -3519,12 +3519,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         void clusterStateProcessed(ClusterState newState);
     }
 
-    public enum TaskType {
-        SNAPSHOT,
-        DELETE,
-        REPO
-    }
-
     /**
      * A cluster state update related to snapshots that computes a new cluster state in full.
      * TODO: all of these probably don't need to actually set up new cluster states optimize these away so that the executor only has to
@@ -3533,7 +3527,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public interface SnapshotOperationClusterStateUpdateTask extends SnapshotClusterStateUpdateTask {
         ClusterState execute(ClusterState clusterState);
 
-        TaskType type();
+        boolean createOperation();
     }
 
     /**

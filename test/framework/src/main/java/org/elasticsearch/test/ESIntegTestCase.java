@@ -1105,7 +1105,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState, true);
+            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
             int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
             String masterId = masterClusterState.nodes().getMasterNodeId();
             for (Client client : cluster().getClients()) {
@@ -1113,7 +1113,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
-                final Map<String, Object> localStateMap = convertToMap(localClusterState, true);
+                final Map<String, Object> localStateMap = convertToMap(localClusterState);
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
@@ -1162,13 +1162,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(metadataWithoutIndices).toXContent(builder, serializationFormatParams);
+                ChunkedToXContent.wrapAsToXContent(metadataWithoutIndices).toXContent(builder, serializationFormatParams);
                 builder.endObject();
                 final BytesReference originalBytes = BytesReference.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(metadataWithoutIndices).toXContent(compareBuilder, compareFormatParams);
+                ChunkedToXContent.wrapAsToXContent(metadataWithoutIndices).toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
@@ -1184,7 +1184,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
                 builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(loadedMetadata).toXContent(builder, compareFormatParams);
+                ChunkedToXContent.wrapAsToXContent(loadedMetadata).toXContent(builder, compareFormatParams);
                 builder.endObject();
                 final BytesReference parsedBytes = BytesReference.bytes(builder);
 

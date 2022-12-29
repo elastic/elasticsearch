@@ -123,7 +123,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, false);
+        return Strings.toString(this);
     }
 
     static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {

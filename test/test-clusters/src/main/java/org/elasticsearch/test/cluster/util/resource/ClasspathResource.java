@@ -8,26 +8,24 @@
 
 package org.elasticsearch.test.cluster.util.resource;
 
-import org.elasticsearch.test.cluster.util.IOUtils;
-
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
 
-class ClasspathTextResource implements TextResource {
+class ClasspathResource implements Resource {
     private final String resourcePath;
 
-    ClasspathTextResource(String resourcePath) {
+    ClasspathResource(String resourcePath) {
         this.resourcePath = resourcePath;
     }
 
     @Override
-    public String getText() {
+    public InputStream asStream() {
         final Set<ClassLoader> classLoadersToSearch = new HashSet<>();
         // try context and system classloaders as well
         classLoadersToSearch.add(Thread.currentThread().getContextClassLoader());
         classLoadersToSearch.add(ClassLoader.getSystemClassLoader());
-        classLoadersToSearch.add(ClasspathTextResource.class.getClassLoader());
+        classLoadersToSearch.add(ClasspathResource.class.getClassLoader());
 
         for (final ClassLoader classLoader : classLoadersToSearch) {
             if (classLoader == null) {
@@ -36,14 +34,14 @@ class ClasspathTextResource implements TextResource {
 
             InputStream resource = classLoader.getResourceAsStream(resourcePath);
             if (resource != null) {
-                return IOUtils.readStringFromStream(resource);
+                return resource;
             }
 
             // Be lenient if an absolute path was given
             if (resourcePath.startsWith("/")) {
                 resource = classLoader.getResourceAsStream(resourcePath.replaceFirst("/", ""));
                 if (resource != null) {
-                    return IOUtils.readStringFromStream(resource);
+                    return resource;
                 }
             }
         }

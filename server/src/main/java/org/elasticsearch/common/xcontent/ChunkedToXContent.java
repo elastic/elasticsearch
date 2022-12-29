@@ -30,26 +30,11 @@ public interface ChunkedToXContent {
     Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
 
     /**
-     * Wraps the given instance in a {@link ToXContentObject} that will fully serialize the instance when serialized.
-     * @param chunkedToXContent instance to wrap
-     * @return x-content object
-     */
-    static ToXContentObject wrapAsXContentObject(ChunkedToXContent chunkedToXContent) {
-        return (builder, params) -> {
-            Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
-            while (serialization.hasNext()) {
-                serialization.next().toXContent(builder, params);
-            }
-            return builder;
-        };
-    }
-
-    /**
      * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized.
      * @param chunkedToXContent instance to wrap
-     * @param isFragment        whether the wrapped instance is a fragment or a well-formed XContent object
+     * @return x-content instance
      */
-    static ToXContent wrapAsXContent(ChunkedToXContent chunkedToXContent, boolean isFragment) {
+    static ToXContent wrapAsToXContent(ChunkedToXContent chunkedToXContent) {
         return new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -62,8 +47,15 @@ public interface ChunkedToXContent {
 
             @Override
             public boolean isFragment() {
-                return isFragment;
+                return chunkedToXContent.isFragment();
             }
         };
+    }
+
+    /**
+     * @return true if this instances serializes as an x-content fragment. See {@link ToXContentObject} for additional details.
+     */
+    default boolean isFragment() {
+        return true;
     }
 }

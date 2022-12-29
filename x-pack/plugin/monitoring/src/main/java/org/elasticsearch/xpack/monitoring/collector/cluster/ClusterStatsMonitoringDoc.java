@@ -165,7 +165,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                 builder.field("status", status.name().toLowerCase(Locale.ROOT));
                 // we need the whole doc in memory anyway so no need to preserve chunking here; moreover CLUSTER_STATS_PARAMS doesn't
                 // include anything heavy so this should be fine.
-                ChunkedToXContent.wrapAsXContentObject(clusterState).toXContent(builder, CLUSTER_STATS_PARAMS);
+                ChunkedToXContent.wrapAsToXContent(clusterState).toXContent(builder, CLUSTER_STATS_PARAMS);
             }
             builder.endObject();
         }

@@ -25,11 +25,15 @@ import org.elasticsearch.test.cluster.util.Retry;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -100,15 +104,24 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
                 initializeWorkingDirectory();
-                writeConfiguration();
-                createKeystore();
-                configureSecurity();
                 installPlugins();
                 if (spec.getDistributionType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
                 initialized = true;
             }
+
+            try {
+                IOUtils.deleteWithRetry(configDir);
+                Files.createDirectories(configDir);
+            } catch (IOException e) {
+                throw new UncheckedIOException("An error occurred creating config directory", e);
+            }
+            writeConfiguration();
+            createKeystore();
+            addKeystoreSettings();
+            configureSecurity();
+            copyExtraConfigFiles();
 
             startElasticsearch();
         }
@@ -191,7 +204,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     IOUtils.deleteWithRetry(distributionDir);
                     IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
-                Files.createDirectories(configDir);
                 Files.createDirectories(snapshotsDir);
                 Files.createDirectories(dataDir);
                 Files.createDirectories(logsDir);
@@ -253,6 +265,10 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
+        private void copyExtraConfigFiles() {
+            spec.getExtraConfigFiles().forEach((fileName, resource) -> resource.writeTo(configDir.resolve(fileName)));
+        }
+
         private void createKeystore() {
             try {
                 ProcessUtils.exec(
@@ -271,6 +287,27 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
+        private void addKeystoreSettings() {
+            spec.getKeystoreSettings().forEach((key, value) -> {
+                try {
+                    ProcessUtils.exec(
+                        value,
+                        workingDir,
+                        OS.conditional(
+                            c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
+                                .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
+                        ),
+                        getEnvironmentVariables(),
+                        false,
+                        "add",
+                        key
+                    ).waitFor();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
         private void configureSecurity() {
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
@@ -278,13 +315,11 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
                     Path destination = workingDir.resolve("config").resolve("roles.yml");
                     spec.getRolesFiles().forEach(rolesFile -> {
-                        try {
-                            Files.writeString(
-                                destination,
-                                rolesFile.getText() + System.lineSeparator(),
-                                StandardCharsets.UTF_8,
-                                StandardOpenOption.APPEND
-                            );
+                        try (
+                            Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.APPEND);
+                            Reader reader = new BufferedReader(new InputStreamReader(rolesFile.asStream()))
+                        ) {
+                            reader.transferTo(writer);
                         } catch (IOException e) {
                             throw new UncheckedIOException("Failed to append roles file " + rolesFile + " to " + destination, e);
                         }
@@ -341,7 +376,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                                         + project
                                         + "':\n\n"
                                         + "dependencies {\n"
-                                        + "  clusterModules "
+                                        + "  clusterPlugins "
                                         + "project(':plugins:"
                                         + pluginName
                                         + "')"

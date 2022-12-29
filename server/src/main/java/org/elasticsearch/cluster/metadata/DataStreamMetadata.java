@@ -253,7 +253,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, false);
+        return Strings.toString(this);
     }
 
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {

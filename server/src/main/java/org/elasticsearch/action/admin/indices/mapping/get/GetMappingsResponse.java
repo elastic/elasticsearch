@@ -95,7 +95,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public String toString() {
-        return Strings.toString(this, false);
+        return Strings.toString(this);
     }
 
     @Override

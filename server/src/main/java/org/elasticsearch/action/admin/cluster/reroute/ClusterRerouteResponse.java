@@ -77,7 +77,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
             }
             builder.startObject("state");
             // TODO this should be chunked, see #89838
-            ChunkedToXContent.wrapAsXContentObject(state).toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(state).toXContent(builder, params);
             builder.endObject();
         }
 

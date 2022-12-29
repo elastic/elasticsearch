@@ -153,7 +153,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, false);
+        return Strings.toString(this);
     }
 
     @Override

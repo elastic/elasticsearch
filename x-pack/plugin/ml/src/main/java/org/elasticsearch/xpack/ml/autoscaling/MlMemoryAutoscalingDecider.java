@@ -236,7 +236,7 @@ class MlMemoryAutoscalingDecider {
             logger.debug(
                 () -> format(
                     "persistent tasks that caused unexpected scaling situation: [%s]",
-                    (mlContext.persistentTasks == null) ? "null" : Strings.toString(mlContext.persistentTasks, false)
+                    (mlContext.persistentTasks == null) ? "null" : Strings.toString(mlContext.persistentTasks)
                 )
             );
             return refreshMemoryTrackerAndBuildEmptyDecision(

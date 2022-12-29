@@ -42,8 +42,8 @@ public final class XContentTestUtils {
 
     }
 
-    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent, boolean isFragment) throws IOException {
-        return convertToMap(ChunkedToXContent.wrapAsXContent(chunkedToXContent, isFragment));
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {

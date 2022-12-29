@@ -295,7 +295,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    logger.info("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
+                    logger.trace("Action [{}] towards remote cluster [{}] is not allow-listed", action, remoteClusterAlias);
                     return Optional.empty();
                 }
 

@@ -30,10 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.util.Arrays;

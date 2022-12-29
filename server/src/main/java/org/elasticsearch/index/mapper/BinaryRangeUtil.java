@@ -43,7 +43,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) throws IOException {
-        return decodeRanges(encodedRanges, RangeType.IP, BinaryRangeUtil::decodeIP);
+        return decodeRanges(encodedRanges, CoreRangeType.IP, BinaryRangeUtil::decodeIP);
     }
 
     private static InetAddress decodeIP(byte[] bytes, int offset, int length) {
@@ -70,7 +70,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) throws IOException {
-        return decodeRanges(encodedRanges, RangeType.LONG, BinaryRangeUtil::decodeLong);
+        return decodeRanges(encodedRanges, CoreRangeType.LONG, BinaryRangeUtil::decodeLong);
     }
 
     static BytesRef encodeDoubleRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
@@ -91,20 +91,20 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) throws IOException {
-        return decodeRanges(encodedRanges, RangeType.DOUBLE, BinaryRangeUtil::decodeDouble);
+        return decodeRanges(encodedRanges, CoreRangeType.DOUBLE, BinaryRangeUtil::decodeDouble);
     }
 
     static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) throws IOException {
-        return decodeRanges(encodedRanges, RangeType.FLOAT, BinaryRangeUtil::decodeFloat);
+        return decodeRanges(encodedRanges, CoreRangeType.FLOAT, BinaryRangeUtil::decodeFloat);
     }
 
     static List<RangeFieldMapper.Range> decodeRanges(
         BytesRef encodedRanges,
-        RangeType rangeType,
+        CoreRangeType rangeType,
         TriFunction<byte[], Integer, Integer, Object> decodeBytes
     ) throws IOException {
 
-        RangeType.LengthType lengthType = rangeType.lengthType;
+        CoreRangeType.LengthType lengthType = rangeType.getLengthType();
         ByteArrayStreamInput in = new ByteArrayStreamInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
 
@@ -116,11 +116,11 @@ enum BinaryRangeUtil {
         for (int i = 0; i < numRanges; i++) {
             int length = lengthType.readLength(bytes, offset);
             Object from = decodeBytes.apply(bytes, offset, length);
-            offset += length;
+            offset += length + lengthType.advanceBy();
 
             length = lengthType.readLength(bytes, offset);
             Object to = decodeBytes.apply(bytes, offset, length);
-            offset += length;
+            offset += length + lengthType.advanceBy();
             // TODO: Support for exclusive ranges, pending resolution of #40601
             RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
             ranges.add(decodedRange);

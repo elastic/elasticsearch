@@ -21,10 +21,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -36,6 +36,7 @@ import java.time.ZonedDateTime;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.index.mapper.CoreRangeType.DATE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
@@ -44,7 +45,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testBasics() throws Exception {
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-01T12:14:36"),
             asLong("2019-08-01T15:07:22"),
             true,
@@ -53,7 +54,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         testCase(
             new MatchAllDocsQuery(),
             builder -> builder.calendarInterval(DateHistogramInterval.DAY),
-            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
+            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range))))),
             histo -> {
                 assertEquals(1, histo.getBuckets().size());
                 assertTrue(AggregationInspectionHelper.hasValue(histo));
@@ -63,7 +64,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testKeys() throws Exception {
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-01T14:35:00"),
             asLong("2019-08-05T15:33:21"),
             true,
@@ -78,7 +79,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         testCase(
             new MatchAllDocsQuery(),
             builder -> builder.calendarInterval(DateHistogramInterval.DAY),
-            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
+            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range))))),
             histo -> {
                 assertEquals(5, histo.getBuckets().size());
                 assertArrayEquals(
@@ -92,7 +93,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testFormat() throws Exception {
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-01T12:14:36"),
             asLong("2019-08-01T15:07:22"),
             true,
@@ -101,7 +102,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         testCase(
             new MatchAllDocsQuery(),
             builder -> builder.calendarInterval(DateHistogramInterval.DAY).format("yyyy-MM-dd"),
-            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
+            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range))))),
             histo -> {
                 assertEquals(1, histo.getBuckets().size());
                 assertTrue(AggregationInspectionHelper.hasValue(histo));
@@ -112,7 +113,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnsupportedRangeType() throws Exception {
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         final String fieldName = "field";
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -138,21 +139,21 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
      */
     public void testLongMonthsCalendarInterval() throws Exception {
         RangeFieldMapper.Range julyRange = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T00:00:00"),
             asLong("2019-07-31T23:59:59"),
             true,
             true
         );
         RangeFieldMapper.Range augustRange = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-01T00:00:00"),
             asLong("2019-08-31T23:59:59"),
             true,
             true
         );
         RangeFieldMapper.Range septemberRange = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-09-01T00:00:00"),
             asLong("2019-09-30T23:59:59"),
             true,
@@ -161,9 +162,9 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // Calendar interval case - three months, three bucketLong.MIN_VALUE;s
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.MONTH), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(julyRange)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(augustRange)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(septemberRange)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(julyRange)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(augustRange)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(septemberRange)))));
         }, histo -> {
             assertEquals(3, histo.getBuckets().size());
 
@@ -185,21 +186,21 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
      */
     public void testLongMonthsFixedInterval() throws Exception {
         RangeFieldMapper.Range julyRange = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T00:00:00"),
             asLong("2019-07-31T23:59:59"),
             true,
             true
         );
         RangeFieldMapper.Range augustRange = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-01T00:00:00"),
             asLong("2019-08-31T23:59:59"),
             true,
             true
         );
         RangeFieldMapper.Range septemberRange = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-09-01T00:00:00"),
             asLong("2019-09-30T23:59:59"),
             true,
@@ -208,9 +209,9 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // Fixed interval case - 4 periods of 30 days
         testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("30d")), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(julyRange)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(augustRange)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(septemberRange)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(julyRange)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(augustRange)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(septemberRange)))));
         }, histo -> {
             assertEquals(4, histo.getBuckets().size());
 
@@ -233,35 +234,35 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
     public void testOffsetCalendarInterval() throws Exception {
 
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:15:00"),
             asLong("2019-07-01T03:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:45:00"),
             asLong("2019-07-01T03:50:00"),
             true,
             true
         );
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:55:00"),
             asLong("2019-07-01T04:05:00"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T04:17:00"),
             asLong("2019-07-01T04:19:00"),
             true,
             true
         );
         RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T04:55:00"),
             asLong("2019-07-01T05:05:00"),
             true,
@@ -270,11 +271,11 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // No offset, just to make sure the ranges line up as expected
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.HOUR), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
         }, histo -> {
             assertEquals(3, histo.getBuckets().size());
 
@@ -292,11 +293,11 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // 10 minute offset should shift all data into one bucket
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.HOUR).offset("10m"), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
         }, histo -> {
             assertEquals(2, histo.getBuckets().size());
 
@@ -313,35 +314,35 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
     public void testOffsetFixedInterval() throws Exception {
 
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:15:00"),
             asLong("2019-07-01T03:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:45:00"),
             asLong("2019-07-01T03:50:00"),
             true,
             true
         );
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:55:00"),
             asLong("2019-07-01T04:05:00"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T04:17:00"),
             asLong("2019-07-01T04:19:00"),
             true,
             true
         );
         RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T04:55:00"),
             asLong("2019-07-01T05:05:00"),
             true,
@@ -350,11 +351,11 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // No offset, just to make sure the ranges line up as expected
         testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1h")), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
         }, histo -> {
             assertEquals(3, histo.getBuckets().size());
 
@@ -372,11 +373,11 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // 10 minute offset should shift all data into one bucket
         testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1h")).offset("10m"), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
         }, histo -> {
             assertEquals(2, histo.getBuckets().size());
 
@@ -395,42 +396,42 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
      */
     public void testNextRoundingValueOffsetHours() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:15:00"),
             asLong("2019-07-01T03:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T04:15:00"),
             asLong("2019-07-01T04:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T05:15:00"),
             asLong("2019-07-01T05:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T06:15:00"),
             asLong("2019-07-01T06:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T07:15:00"),
             asLong("2019-07-01T07:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range6 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T08:15:00"),
             asLong("2019-07-01T08:20:00"),
             true,
@@ -438,12 +439,12 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1h")).offset("13m"), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range6)))));
         }, histo -> {
             assertEquals(6, histo.getBuckets().size());
 
@@ -469,12 +470,12 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         });
 
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.HOUR).offset("13m"), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range6)))));
         }, histo -> {
             assertEquals(6, histo.getBuckets().size());
 
@@ -506,42 +507,42 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
      */
     public void testNextRoundingValueOffsetDays() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-01T03:15:00"),
             asLong("2019-07-01T03:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-02T04:15:00"),
             asLong("2019-07-02T04:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-03T05:15:00"),
             asLong("2019-07-03T05:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-04T06:15:00"),
             asLong("2019-07-04T06:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-05T07:15:00"),
             asLong("2019-07-05T07:20:00"),
             true,
             true
         );
         RangeFieldMapper.Range range6 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-07-06T08:15:00"),
             asLong("2019-07-06T08:20:00"),
             true,
@@ -549,12 +550,12 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1d")).offset("36h"), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range6)))));
         }, histo -> {
             assertEquals(6, histo.getBuckets().size());
 
@@ -580,12 +581,12 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         });
 
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.DAY).offset("12h"), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range6)))));
         }, histo -> {
             assertEquals(6, histo.getBuckets().size());
 
@@ -613,28 +614,28 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testMinDocCount() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-01T12:14:36"),
             asLong("2019-08-01T15:07:22"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T12:14:36"),
             asLong("2019-08-02T15:07:22"),
             true,
             true
         );
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T12:14:36"),
             asLong("2019-08-02T15:07:22"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T12:14:36"),
             asLong("2019-08-03T15:07:22"),
             true,
@@ -643,10 +644,10 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         // Guard case, make sure the agg buckets as expected without min doc count
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.DAY), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
         }, histo -> {
             assertEquals(3, histo.getBuckets().size());
 
@@ -663,10 +664,10 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         });
 
         testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.DAY).minDocCount(2), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
         }, histo -> {
             assertEquals(1, histo.getBuckets().size());
 
@@ -679,14 +680,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testIntersectQuery() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T02:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T05:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
@@ -694,21 +695,21 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T03:15:00"),
             asLong("2019-08-02T03:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T04:15:00"),
             asLong("2019-08-02T04:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T03:30:00"),
             asLong("2019-08-02T04:30:00"),
             true,
@@ -716,28 +717,28 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         RangeFieldMapper.Range range6 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T03:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range7 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T04:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range8 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:30:00"),
             asLong("2019-08-02T05:30:00"),
             true,
             true
         );
 
-        Query query = RangeType.DATE.dvRangeQuery(
+        Query query = DATE.dvRangeQuery(
             FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             asLong("2019-08-02T03:00:00"),
@@ -747,14 +748,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(query, builder -> builder.calendarInterval(DateHistogramInterval.HOUR).minDocCount(2), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range7)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range8)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range6)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range7)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range8)))));
         }, histo -> {
             assertEquals(4, histo.getBuckets().size());
 
@@ -776,14 +777,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testWithinQuery() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T02:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T05:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
@@ -791,21 +792,21 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T03:15:00"),
             asLong("2019-08-02T03:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T04:15:00"),
             asLong("2019-08-02T04:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T03:30:00"),
             asLong("2019-08-02T04:30:00"),
             true,
@@ -813,28 +814,28 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         RangeFieldMapper.Range range6 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T03:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range7 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T04:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range8 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:30:00"),
             asLong("2019-08-02T05:30:00"),
             true,
             true
         );
 
-        Query query = RangeType.DATE.dvRangeQuery(
+        Query query = DATE.dvRangeQuery(
             FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.WITHIN,
             asLong("2019-08-02T03:00:00"),
@@ -844,14 +845,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(query, builder -> builder.calendarInterval(DateHistogramInterval.HOUR).minDocCount(2), writer -> {
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range7)))));
-            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range8)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range3)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range4)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range5)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range6)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range7)))));
+            writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range8)))));
         }, histo -> {
             assertEquals(2, histo.getBuckets().size());
 
@@ -867,14 +868,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testHardBounds() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T05:15:00"),
             asLong("2019-08-02T17:45:00"),
             true,
@@ -886,8 +887,8 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                 .hardBounds(new LongBounds("2019-08-02T03:00:00", "2019-08-02T10:00:00")),
             writer -> {
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
             },
             histo -> {
                 assertEquals(8, histo.getBuckets().size());
@@ -907,28 +908,16 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHardBoundsWithOpenRanges() throws Exception {
-        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
-            Long.MIN_VALUE,
-            asLong("2019-08-02T05:45:00"),
-            true,
-            true
-        );
-        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
-            asLong("2019-08-02T05:15:00"),
-            Long.MAX_VALUE,
-            true,
-            true
-        );
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(DATE, Long.MIN_VALUE, asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(DATE, asLong("2019-08-02T05:15:00"), Long.MAX_VALUE, true, true);
 
         testCase(
             Queries.newMatchAllQuery(),
             builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                 .hardBounds(new LongBounds("2019-08-02T03:00:00", "2019-08-02T10:00:00")),
             writer -> {
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
             },
             histo -> {
                 assertEquals(8, histo.getBuckets().size());
@@ -949,14 +938,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testBothBounds() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T05:15:00"),
             asLong("2019-08-02T17:45:00"),
             true,
@@ -969,8 +958,8 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
                 .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
                 .extendedBounds(new LongBounds("2019-08-02T01:00:00", "2019-08-02T08:00:00")),
             writer -> {
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
             },
             histo -> {
                 assertEquals(10, histo.getBuckets().size());
@@ -1016,14 +1005,14 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testEqualBounds() throws Exception {
         RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T02:15:00"),
             asLong("2019-08-02T05:45:00"),
             true,
             true
         );
         RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(
-            RangeType.DATE,
+            DATE,
             asLong("2019-08-02T05:15:00"),
             asLong("2019-08-02T17:45:00"),
             true,
@@ -1036,8 +1025,8 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
                 .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
                 .extendedBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00")),
             writer -> {
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
-                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, DATE.encodeRanges(singleton(range2)))));
             },
             histo -> {
                 assertEquals(11, histo.getBuckets().size());

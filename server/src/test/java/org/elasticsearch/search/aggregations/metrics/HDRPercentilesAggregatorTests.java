@@ -19,11 +19,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -81,9 +81,9 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     public void testRangeField() throws IOException {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
-        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, RangeType.DOUBLE);
-        RangeFieldMapper.Range range = new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
-        BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, CoreRangeType.DOUBLE);
+        RangeFieldMapper.Range range = new RangeFieldMapper.Range(CoreRangeType.DOUBLE, 1.0D, 5.0D, true, true);
+        BytesRef encodedRange = CoreRangeType.DOUBLE.encodeRanges(Collections.singleton(range));
         expectThrows(
             IllegalArgumentException.class,
             () -> testCase(

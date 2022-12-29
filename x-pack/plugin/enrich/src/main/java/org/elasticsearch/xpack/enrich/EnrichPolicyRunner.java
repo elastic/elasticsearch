@@ -281,6 +281,7 @@ public class EnrichPolicyRunner implements Runnable {
                 case "long_range":
                 case "double_range":
                 case "ip_range":
+                case "version_range":
                     return createEnrichMappingBuilder((builder) -> builder.field("type", type).field("doc_values", false));
 
                 // date_range types mappings allow for the format to be specified, should be preserved in the created index

@@ -48,18 +48,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
-    RangeType type;
+    CoreRangeType type;
     protected static int DISTANCE = 10;
     private static long nowInMillis;
 
     @Before
     public void setupProperties() {
-        type = randomFrom(RangeType.values());
+        type = randomFrom(CoreRangeType.values());
         nowInMillis = randomNonNegativeLong();
     }
 
     private RangeFieldType createDefaultFieldType() {
-        if (type == RangeType.DATE) {
+        if (type == CoreRangeType.DATE) {
             return new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         }
         return new RangeFieldType("field", type);
@@ -342,7 +342,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DATE.dvRangeQuery(
+        Query dvQuery = CoreRangeType.DATE.dvRangeQuery(
             "field",
             queryType,
             from.toInstant().toEpochMilli(),
@@ -368,7 +368,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = IntRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.INTEGER.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
+        Query dvQuery = CoreRangeType.INTEGER.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
@@ -387,7 +387,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.LONG.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
+        Query dvQuery = CoreRangeType.LONG.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
@@ -406,7 +406,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = FloatRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.FLOAT.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
+        Query dvQuery = CoreRangeType.FLOAT.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
@@ -425,7 +425,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = DoubleRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DOUBLE.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
+        Query dvQuery = CoreRangeType.DOUBLE.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
@@ -450,7 +450,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = InetAddressRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.IP.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
+        Query dvQuery = CoreRangeType.IP.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
@@ -477,9 +477,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseIp() {
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue(InetAddresses.forString("::1"), randomBoolean(), null));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue("::1", randomBoolean(), null));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue(new BytesRef("::1"), randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), CoreRangeType.IP.parseValue(InetAddresses.forString("::1"), randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), CoreRangeType.IP.parseValue("::1", randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), CoreRangeType.IP.parseValue(new BytesRef("::1"), randomBoolean(), null));
     }
 
     public void testTermQuery() throws Exception {
@@ -504,12 +504,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.root(false))
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", CoreRangeType.LONG, true).build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("yyyy/MM/dd||epoch_millis")
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", CoreRangeType.DATE, true).format("yyyy/MM/dd||epoch_millis")
             .build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
@@ -517,12 +517,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.root(false))
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", CoreRangeType.LONG, true).build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("strict_date_time")
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", CoreRangeType.DATE, true).format("strict_date_time")
             .build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");

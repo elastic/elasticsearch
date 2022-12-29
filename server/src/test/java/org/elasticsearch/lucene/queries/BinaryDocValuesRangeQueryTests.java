@@ -15,8 +15,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ public class BinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "long_field";
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 // intersects (within)
@@ -116,7 +116,7 @@ public class BinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testNoField() throws IOException {
         String fieldName = "long_field";
-        RangeType rangeType = RangeType.LONG;
+        CoreRangeType rangeType = CoreRangeType.LONG;
 
         // no field in index
         try (Directory dir = newDirectory()) {

@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -95,7 +96,7 @@ public class RangeFieldMapper extends FieldMapper {
             super(name);
             this.type = type;
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            if (this.type != RangeType.DATE) {
+            if (this.type != CoreRangeType.DATE) {
                 format.neverSerialize();
                 locale.neverSerialize();
             }
@@ -118,13 +119,13 @@ public class RangeFieldMapper extends FieldMapper {
         protected RangeFieldType setupFieldType(MapperBuilderContext context) {
             String fullName = context.buildFullName(name);
             if (format.isConfigured()) {
-                if (type != RangeType.DATE) {
+                if (type != CoreRangeType.DATE) {
                     throw new IllegalArgumentException(
                         "field ["
                             + name()
                             + "] of type [range]"
                             + " should not define a dateTimeFormatter unless it is a "
-                            + RangeType.DATE
+                            + CoreRangeType.DATE
                             + " type"
                     );
                 }
@@ -138,7 +139,7 @@ public class RangeFieldMapper extends FieldMapper {
                     meta.getValue()
                 );
             }
-            if (type == RangeType.DATE) {
+            if (type == CoreRangeType.DATE) {
                 return new RangeFieldType(
                     fullName,
                     index.getValue(),
@@ -183,7 +184,7 @@ public class RangeFieldMapper extends FieldMapper {
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
-            assert type != RangeType.DATE;
+            assert type != CoreRangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
@@ -204,7 +205,7 @@ public class RangeFieldMapper extends FieldMapper {
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
-            this.rangeType = RangeType.DATE;
+            this.rangeType = CoreRangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.coerce = coerce;
@@ -243,7 +244,7 @@ public class RangeFieldMapper extends FieldMapper {
                 protected Object parseSourceValue(Object value) {
                     RangeType rangeType = rangeType();
                     if ((value instanceof Map) == false) {
-                        assert rangeType == RangeType.IP;
+                        assert rangeType == CoreRangeType.IP;
                         Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
                         return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
                     }
@@ -262,7 +263,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public String typeName() {
-            return rangeType.name;
+            return rangeType.getName();
         }
 
         public DateFormatter dateTimeFormatter() {
@@ -275,7 +276,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (rangeType == RangeType.DATE) {
+            if (rangeType == CoreRangeType.DATE) {
                 DateFormatter dateTimeFormatter = this.dateTimeFormatter;
                 if (format != null) {
                     dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
@@ -396,22 +397,22 @@ public class RangeFieldMapper extends FieldMapper {
                     if (fieldName.equals(GT_FIELD.getPreferredName())) {
                         includeFrom = false;
                         if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                            from = rangeType.parseValue(fieldType, parser, coerce.value(), rangeType::nextUp);
                         }
                     } else if (fieldName.equals(GTE_FIELD.getPreferredName())) {
                         includeFrom = true;
                         if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            from = rangeType.parseFrom(fieldType, parser, coerce.value(), includeFrom);
+                            from = rangeType.parseValue(fieldType, parser, coerce.value(), Function.identity());
                         }
                     } else if (fieldName.equals(LT_FIELD.getPreferredName())) {
                         includeTo = false;
                         if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                            to = rangeType.parseValue(fieldType, parser, coerce.value(), rangeType::nextDown);
                         }
                     } else if (fieldName.equals(LTE_FIELD.getPreferredName())) {
                         includeTo = true;
                         if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
+                            to = rangeType.parseValue(fieldType, parser, coerce.value(), Function.identity());
                         }
                     } else {
                         throw new MapperParsingException(
@@ -421,7 +422,7 @@ public class RangeFieldMapper extends FieldMapper {
                 }
             }
             range = new Range(rangeType, from, to, includeFrom, includeTo);
-        } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
+        } else if (fieldType().rangeType == CoreRangeType.IP && start == XContentParser.Token.VALUE_STRING) {
             range = parseIpRangeFromCidr(parser);
         } else {
             throw new MapperParsingException("error parsing field [" + name() + "], expected an object but got " + parser.currentName());
@@ -444,7 +445,7 @@ public class RangeFieldMapper extends FieldMapper {
             upper[i >> 3] |= m;
         }
         try {
-            return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
+            return new Range(CoreRangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
         } catch (UnknownHostException bogus) {
             throw new AssertionError(bogus);
         }
@@ -493,9 +494,10 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(includeFrom ? '[' : '(');
             Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
             Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
-            sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) f) : f.toString());
+            // TODO also handle new VERSION range type, maybe move "toString" to RangeType?
+            sb.append(type == CoreRangeType.IP ? InetAddresses.toAddrString((InetAddress) f) : f.toString());
             sb.append(" : ");
-            sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) t) : t.toString());
+            sb.append(type == CoreRangeType.IP ? InetAddresses.toAddrString((InetAddress) t) : t.toString());
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
         }
@@ -509,19 +511,19 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
-    static class BinaryRangesDocValuesField extends CustomDocValuesField {
+    public static class BinaryRangesDocValuesField extends CustomDocValuesField {
 
         private final Set<Range> ranges;
         private final RangeType rangeType;
 
-        BinaryRangesDocValuesField(String name, Range range, RangeType rangeType) {
+        public BinaryRangesDocValuesField(String name, Range range, RangeType rangeType) {
             super(name);
             this.rangeType = rangeType;
             ranges = new HashSet<>();
             add(range);
         }
 
-        void add(Range range) {
+        public void add(Range range) {
             ranges.add(range);
         }
 

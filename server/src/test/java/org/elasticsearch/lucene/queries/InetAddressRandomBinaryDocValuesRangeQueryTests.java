@@ -8,7 +8,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.InetAddressPoint;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.CoreRangeType;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -22,8 +22,8 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
     }
 
     @Override
-    protected RangeType rangeType() {
-        return RangeType.IP;
+    protected CoreRangeType rangeType() {
+        return CoreRangeType.IP;
     }
 
     @Override

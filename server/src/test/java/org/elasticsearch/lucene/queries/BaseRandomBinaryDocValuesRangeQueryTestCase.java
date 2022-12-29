@@ -12,8 +12,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.CoreRangeType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -74,7 +74,7 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
 
     protected abstract String fieldName();
 
-    protected abstract RangeType rangeType();
+    protected abstract CoreRangeType rangeType();
 
     protected abstract static class AbstractRange<T> extends Range {
 

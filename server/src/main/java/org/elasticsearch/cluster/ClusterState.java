@@ -537,16 +537,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         return Iterators.concat(
             // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
-            ChunkedToXContentHelper.field("cluster_uuid", metadata().clusterUUID()),
+            Iterators.single(((builder, params) -> builder.field("cluster_uuid", metadata().clusterUUID()))),
 
             // state version info
             metrics.contains(Metric.VERSION)
-                ? Iterators.single((builder2, params2) -> builder2.field("version", version).field("state_uuid", stateUUID))
+                ? Iterators.single((builder, params) -> builder.field("version", version).field("state_uuid", stateUUID))
                 : Collections.emptyIterator(),
 
             // master node
             metrics.contains(Metric.MASTER_NODE)
-                ? Iterators.single((builder1, params1) -> builder1.field("master_node", nodes().getMasterNodeId()))
+                ? Iterators.single((builder, params) -> builder.field("master_node", nodes().getMasterNodeId()))
                 : Collections.emptyIterator(),
 
             // blocks

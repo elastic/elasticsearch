@@ -70,7 +70,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(
                 PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
-                ByteSizeValue.ofBytes(randomIntBetween(1000, randomFrom(10000, 100000, 1000000)))
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.get(Settings.EMPTY)
             )
             .build();
     }

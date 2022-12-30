@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -78,6 +79,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -186,6 +188,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final FileSettingsService fileSettingsService;
 
+    private final ThreadPool threadPool;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -198,7 +202,8 @@ public class RestoreService implements ClusterStateApplier {
         ShardLimitValidator shardLimitValidator,
         SystemIndices systemIndices,
         IndicesService indicesService,
-        FileSettingsService fileSettingsService
+        FileSettingsService fileSettingsService,
+        ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -214,6 +219,7 @@ public class RestoreService implements ClusterStateApplier {
         this.systemIndices = systemIndices;
         this.indicesService = indicesService;
         this.fileSettingsService = fileSettingsService;
+        this.threadPool = threadPool;
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
@@ -519,22 +525,25 @@ public class RestoreService implements ClusterStateApplier {
             "refreshing repository UUIDs for repositories [{}]",
             repositories.stream().map(repository -> repository.getMetadata().name()).collect(Collectors.joining(","))
         );
-        final ActionListener<RepositoryData> groupListener = new GroupedActionListener<>(new ActionListener<Collection<Void>>() {
-            @Override
-            public void onResponse(Collection<Void> ignored) {
-                logger.debug("repository UUID refresh completed");
-                refreshListener.onResponse(null);
-            }
+        final ActionListener<RepositoryData> countDownListener = new CountDownActionListener(
+            repositories.size(),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void ignored) {
+                    logger.debug("repository UUID refresh completed");
+                    refreshListener.onResponse(null);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug("repository UUID refresh failed", e);
-                refreshListener.onResponse(null); // this refresh is best-effort, the restore should proceed either way
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("repository UUID refresh failed", e);
+                    refreshListener.onResponse(null); // this refresh is best-effort, the restore should proceed either way
+                }
             }
-        }, repositories.size()).map(repositoryData -> null /* don't collect the RepositoryData */);
+        ).map(repositoryData -> null /* don't collect the RepositoryData */);
 
         for (Repository repository : repositories) {
-            repository.getRepositoryData(groupListener);
+            repository.getRepositoryData(countDownListener);
         }
 
     }
@@ -1228,7 +1237,7 @@ public class RestoreService implements ClusterStateApplier {
 
         private final BiConsumer<ClusterState, Metadata.Builder> updater;
 
-        private final ActionListener<RestoreCompletionResponse> listener;
+        private final AllocationActionListener<RestoreCompletionResponse> listener;
 
         @Nullable
         private RestoreInfo restoreInfo;
@@ -1253,7 +1262,7 @@ public class RestoreService implements ClusterStateApplier {
             this.metadata = metadata;
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
-            this.listener = listener;
+            this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         }
 
         @Override
@@ -1412,7 +1421,7 @@ public class RestoreService implements ClusterStateApplier {
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
-            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]");
+            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 
         private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder) {
@@ -1574,7 +1583,7 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public void onFailure(Exception e) {
             logger.warn(() -> "[" + snapshot + "] failed to restore snapshot", e);
-            listener.onFailure(e);
+            listener.clusterStateUpdate().onFailure(e);
         }
 
         @Override
@@ -1585,7 +1594,7 @@ public class RestoreService implements ClusterStateApplier {
                 snapshot,
                 snapshotInfo.indices()
             );
-            listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
+            listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
     }
 

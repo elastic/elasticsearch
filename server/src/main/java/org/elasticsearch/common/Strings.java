@@ -137,7 +137,13 @@ public class Strings {
         if (hasLength(str) == false) {
             return false;
         }
-        return str.chars().anyMatch(c -> Character.isWhitespace(c) == false);
+        int strLen = str.length();
+        for (int i = 0; i < strLen; i++) {
+            if (Character.isWhitespace(str.charAt(i)) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -151,7 +157,7 @@ public class Strings {
      * @see #hasText(CharSequence)
      */
     public static boolean hasText(String str) {
-        return hasText((CharSequence) str);
+        return isNullOrBlank(str) == false;
     }
 
     /**
@@ -286,11 +292,22 @@ public class Strings {
         .collect(Collectors.joining(",", "[", "]"));
 
     public static boolean validFileName(String fileName) {
-        return fileName.chars().noneMatch(c -> isInvalidFileNameCharacter((char) c));
+        for (int i = 0; i < fileName.length(); i++) {
+            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static boolean validFileNameExcludingAstrix(String fileName) {
-        return fileName.chars().noneMatch(c -> c != '*' && isInvalidFileNameCharacter((char) c));
+        for (int i = 0; i < fileName.length(); i++) {
+            char c = fileName.charAt(i);
+            if (c != '*' && isInvalidFileNameCharacter(c)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean isInvalidFileNameCharacter(char c) {
@@ -739,7 +756,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent));
+        return toString(chunkedToXContent, false, false);
     }
 
     /**
@@ -778,7 +795,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent), pretty, human);
+        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
     }
 
     /**

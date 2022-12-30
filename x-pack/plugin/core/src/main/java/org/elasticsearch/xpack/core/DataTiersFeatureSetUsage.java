@@ -159,19 +159,23 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("total_shard_count", totalShardCount);
             builder.field("primary_shard_count", primaryShardCount);
             builder.field("doc_count", docCount);
-            builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(totalByteCount));
-            builder.humanReadableField("primary_size_bytes", "primary_size", new ByteSizeValue(primaryByteCount));
+            builder.humanReadableField("total_size_bytes", "total_size", ByteSizeValue.ofBytes(totalByteCount));
+            builder.humanReadableField("primary_size_bytes", "primary_size", ByteSizeValue.ofBytes(primaryByteCount));
             builder.humanReadableField(
                 "primary_shard_size_avg_bytes",
                 "primary_shard_size_avg",
-                new ByteSizeValue(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount))
+                ByteSizeValue.ofBytes(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount))
             );
             builder.humanReadableField(
                 "primary_shard_size_median_bytes",
                 "primary_shard_size_median",
-                new ByteSizeValue(primaryByteCountMedian)
+                ByteSizeValue.ofBytes(primaryByteCountMedian)
             );
-            builder.humanReadableField("primary_shard_size_mad_bytes", "primary_shard_size_mad", new ByteSizeValue(primaryShardBytesMAD));
+            builder.humanReadableField(
+                "primary_shard_size_mad_bytes",
+                "primary_shard_size_mad",
+                ByteSizeValue.ofBytes(primaryShardBytesMAD)
+            );
             builder.endObject();
             return builder;
         }

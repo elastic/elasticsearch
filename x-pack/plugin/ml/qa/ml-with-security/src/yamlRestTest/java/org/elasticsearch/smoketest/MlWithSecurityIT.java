@@ -43,6 +43,7 @@ public class MlWithSecurityIT extends AbstractXPackRestTest {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Override
     protected Map<String, String> getApiCallHeaders() {
         return Collections.singletonMap(
             "Authorization",

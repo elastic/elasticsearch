@@ -35,6 +35,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -201,7 +203,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final Client client = mock(Client.class);
-        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(Version.CURRENT);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
@@ -209,7 +211,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         systemIndices.init(client, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
-        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
+        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
                 if (methodCalled.compareAndSet(false, true)) {
@@ -276,6 +278,61 @@ public class NativeRolesStoreTests extends ESTestCase {
         future = new PlainActionFuture<>();
         rolesStore.putRole(putRoleRequest, noFlsDlsRole, future);
         assertTrue(future.actionGet());
+    }
+
+    public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
+        final Client client = mock(Client.class);
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(version);
+
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices();
+        systemIndices.init(client, clusterService);
+        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+
+        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
+            @Override
+            void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+                if (methodCalled.compareAndSet(false, true)) {
+                    listener.onResponse(true);
+                } else {
+                    fail("method called more than once!");
+                }
+            }
+        };
+        // setup the roles store so the security index exists
+        securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
+
+        PutRoleRequest putRoleRequest = new PutRoleRequest();
+        RoleDescriptor remoteIndicesRole = new RoleDescriptor(
+            "remote",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() }
+        );
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
+        IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("all nodes must have version [8.6.0] or higher to support remote indices privileges"));
+    }
+
+    private ClusterService mockClusterServiceWithMinNodeVersion(Version version) {
+        final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
+        when(clusterService.state().nodes().getMinNodeVersion()).thenReturn(version);
+        return clusterService;
     }
 
     private ClusterState getClusterStateWithSecurityIndex() {

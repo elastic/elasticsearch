@@ -10,10 +10,9 @@ package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -23,7 +22,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +40,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
-public class SerialDiffIT extends ESIntegTestCase {
+public class SerialDiffIT extends AggregationIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
     private static final String VALUE_FIELD = "v_value";
 
@@ -69,12 +67,6 @@ public class SerialDiffIT extends ESIntegTestCase {
         public String toString() {
             return name;
         }
-    }
-
-    // TODO: maybe add base class that overwrites nodePlugins(...) for all tests that will be added to this module.
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AggregationsPlugin.class);
     }
 
     private ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {

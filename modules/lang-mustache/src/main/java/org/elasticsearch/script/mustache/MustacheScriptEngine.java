@@ -13,7 +13,6 @@ import com.github.mustachejava.MustacheFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -24,8 +23,6 @@ import org.elasticsearch.script.TemplateScript;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -108,12 +105,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
         public String execute() {
             final StringWriter writer = new StringWriter();
             try {
-                // crazy reflection here
-                SpecialPermission.check();
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    template.execute(writer, params);
-                    return null;
-                });
+                template.execute(writer, params);
             } catch (Exception e) {
                 logger.error(() -> format("Error running %s", template), e);
                 throw new GeneralScriptException("Error running " + template, e);

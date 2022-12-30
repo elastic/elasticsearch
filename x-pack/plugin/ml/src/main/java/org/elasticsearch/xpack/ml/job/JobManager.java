@@ -416,7 +416,7 @@ public class JobManager {
 
         // Step 2. Delete the physical storage
         ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
-            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+            r -> new JobDataDeleter(clientToUse, jobId, request.getDeleteUserAnnotations()).deleteJobDocuments(
                 jobConfigProvider,
                 indexNameExpressionResolver,
                 state,

@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -44,7 +43,6 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,7 +52,6 @@ public class RankEvalResponseTests extends ESTestCase {
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
         new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
         new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
-        new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
         new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
         new SearchPhaseExecutionException(
             "search",
@@ -197,7 +194,7 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "", Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(docId, docId + "");
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

@@ -1,5 +1,0 @@
-pr: 90795
-summary: Fix quadratic complexity in `SnapshotStatus` serialization
-area: Snapshot/Restore
-type: bug
-issues: []

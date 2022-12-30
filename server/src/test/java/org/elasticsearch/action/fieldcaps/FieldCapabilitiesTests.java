@@ -8,19 +8,20 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -48,9 +49,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, false, false, null, Collections.emptyMap());
-        builder.add("index2", false, true, false, false, null, Collections.emptyMap());
-        builder.add("index3", false, true, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, true, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index3" }, false, true, false, false, null, Collections.emptyMap());
 
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -78,9 +79,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, false, true, true, null, Collections.emptyMap());
-        builder.add("index2", false, true, false, false, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add("index3", false, false, false, false, null, Collections.emptyMap());
+        builder.add(new String[] { "index1" }, false, false, true, true, null, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
+        builder.add(new String[] { "index3" }, false, false, false, false, null, Collections.emptyMap());
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
@@ -107,9 +108,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add("index2", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "bar"));
-        builder.add("index3", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -136,9 +137,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add("index2", false, true, true, true, TimeSeriesParams.MetricType.gauge, Map.of("foo", "bar"));
-        builder.add("index3", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.gauge, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -166,64 +167,73 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testRandomBuilder() {
-        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toList();
-        Set<String> searchableIndices = new HashSet<>(randomSubsetOf(indices));
-        Set<String> aggregatableIndices = new HashSet<>(randomSubsetOf(indices));
-        Set<String> dimensionIndices = new HashSet<>(randomSubsetOf(indices));
+        String[] indices = IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
+            .toArray(String[]::new);
+
+        List<String> nonSearchableIndices = new ArrayList<>();
+        List<String> nonAggregatableIndices = new ArrayList<>();
+        List<String> nonDimensionIndices = new ArrayList<>();
+
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        for (String index : indices) {
-            builder.add(
-                index,
-                randomBoolean(),
-                searchableIndices.contains(index),
-                aggregatableIndices.contains(index),
-                dimensionIndices.contains(index),
-                null,
-                Map.of()
-            );
+        for (int i = 0; i < indices.length;) {
+            int bulkSize = randomIntBetween(1, indices.length - i);
+            String[] groupIndices = ArrayUtil.copyOfSubArray(indices, i, i + bulkSize);
+            final boolean searchable = randomBoolean();
+            if (searchable == false) {
+                nonSearchableIndices.addAll(Arrays.asList(groupIndices));
+            }
+            final boolean aggregatable = randomBoolean();
+            if (aggregatable == false) {
+                nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
+            }
+            final boolean isDimension = randomBoolean();
+            if (isDimension == false) {
+                nonDimensionIndices.addAll(Arrays.asList(groupIndices));
+            }
+            builder.add(groupIndices, false, searchable, aggregatable, isDimension, null, Map.of());
+            i += bulkSize;
         }
-        FieldCapabilities fieldCaps = builder.build(randomBoolean());
+        boolean withIndices = randomBoolean();
+        FieldCapabilities fieldCaps = builder.build(withIndices);
+        if (withIndices) {
+            assertThat(fieldCaps.indices(), equalTo(indices));
+        }
         // search
-        if (searchableIndices.isEmpty()) {
-            assertFalse(fieldCaps.isSearchable());
-            assertNull(fieldCaps.nonSearchableIndices());
-        } else if (searchableIndices.size() == indices.size()) {
+        if (nonSearchableIndices.isEmpty()) {
             assertTrue(fieldCaps.isSearchable());
             assertNull(fieldCaps.nonSearchableIndices());
         } else {
             assertFalse(fieldCaps.isSearchable());
-            assertThat(
-                Sets.newHashSet(fieldCaps.nonSearchableIndices()),
-                equalTo(Sets.difference(Sets.newHashSet(indices), searchableIndices))
-            );
+            if (nonSearchableIndices.size() == indices.length) {
+                assertThat(fieldCaps.nonSearchableIndices(), equalTo(null));
+            } else {
+                assertThat(fieldCaps.nonSearchableIndices(), equalTo(nonSearchableIndices.toArray(String[]::new)));
+            }
         }
         // aggregate
-        if (aggregatableIndices.isEmpty()) {
-            assertFalse(fieldCaps.isAggregatable());
-            assertNull(fieldCaps.nonAggregatableIndices());
-        } else if (aggregatableIndices.size() == indices.size()) {
+        if (nonAggregatableIndices.isEmpty()) {
             assertTrue(fieldCaps.isAggregatable());
             assertNull(fieldCaps.nonAggregatableIndices());
         } else {
             assertFalse(fieldCaps.isAggregatable());
-            assertThat(
-                Sets.newHashSet(fieldCaps.nonAggregatableIndices()),
-                equalTo(Sets.difference(Sets.newHashSet(indices), aggregatableIndices))
-            );
+            if (nonAggregatableIndices.size() == indices.length) {
+                assertThat(fieldCaps.nonAggregatableIndices(), equalTo(null));
+            } else {
+                assertThat(fieldCaps.nonAggregatableIndices(), equalTo(nonAggregatableIndices.toArray(String[]::new)));
+            }
         }
         // dimension
-        if (dimensionIndices.isEmpty()) {
-            assertFalse(fieldCaps.isDimension());
-            assertNull(fieldCaps.nonDimensionIndices());
-        } else if (dimensionIndices.size() == indices.size()) {
+        if (nonDimensionIndices.isEmpty()) {
             assertTrue(fieldCaps.isDimension());
             assertNull(fieldCaps.nonDimensionIndices());
         } else {
             assertFalse(fieldCaps.isDimension());
-            assertThat(
-                Sets.newHashSet(fieldCaps.nonDimensionIndices()),
-                equalTo(Sets.difference(Sets.newHashSet(indices), dimensionIndices))
-            );
+            if (nonDimensionIndices.size() == indices.length) {
+                assertThat(fieldCaps.nonDimensionIndices(), equalTo(null));
+            } else {
+                assertThat(fieldCaps.nonDimensionIndices(), equalTo(nonDimensionIndices.toArray(String[]::new)));
+            }
         }
     }
 
@@ -232,7 +242,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
-            builder.add(index, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metric, Map.of());
+            builder.add(new String[] { index }, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metric, Map.of());
         }
         FieldCapabilities fieldCaps = builder.build(randomBoolean());
         assertThat(fieldCaps.getMetricType(), equalTo(metric));
@@ -249,7 +259,15 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
-            builder.add(index, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metricTypes.get(index), Map.of());
+            builder.add(
+                new String[] { index },
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                metricTypes.get(index),
+                Map.of()
+            );
         }
         FieldCapabilities fieldCaps = builder.build(randomBoolean());
         if (metricTypes.isEmpty()) {
@@ -269,7 +287,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         int numIndex = randomIntBetween(1, 5);
         for (int i = 1; i <= numIndex; i++) {
             builder.add(
-                "index-" + i,
+                new String[] { "index-" + i },
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
@@ -281,7 +299,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         final String outOfOrderIndex = randomBoolean() ? "abc" : "index-" + randomIntBetween(1, numIndex);
         AssertionError error = expectThrows(AssertionError.class, () -> {
             builder.add(
-                outOfOrderIndex,
+                new String[] { outOfOrderIndex },
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),

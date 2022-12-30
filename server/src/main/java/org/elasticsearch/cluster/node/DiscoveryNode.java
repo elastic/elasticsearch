@@ -39,6 +39,29 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
  */
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
+    /**
+     * Name of the setting used to enable stateless.
+     */
+    public static final String STATELESS_ENABLED_SETTING_NAME = "stateless.enabled";
+
+    /**
+     * Check if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set to {@code true}, indicating that the node is
+     * part of a stateless deployment. When no settings are provided this method falls back to the value of the stateless feature flag;
+     * this is convenient for testing purpose as well as all behaviors that rely on node roles to be enabled/disabled by default when no
+     * settings are provided.
+     *
+     * @param settings the node settings
+     * @return true if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set
+     */
+    public static boolean isStateless(final Settings settings) {
+        if (settings.isEmpty() == false) {
+            return settings.getAsBoolean(STATELESS_ENABLED_SETTING_NAME, false);
+        } else {
+            // Fallback on stateless feature flag when no settings are provided
+            return DiscoveryNodeRole.hasStatelessFeatureFlag();
+        }
+    }
+
     static final String COORDINATING_ONLY = "coordinating_only";
     public static final Version EXTERNAL_ID_VERSION = Version.V_8_3_0;
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)

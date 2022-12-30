@@ -13,9 +13,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
@@ -26,14 +27,15 @@ public interface FetchSubPhase {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private SourceLookup sourceLookup;
+        private final Source source;
+        private final Map<String, List<Object>> loadedFields;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Map<String, List<Object>> loadedFields, Source source) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            sourceLookup.setSegmentAndDocument(context, docId);
+            this.source = source;
+            this.loadedFields = loadedFields;
         }
 
         public SearchHit hit() {
@@ -63,11 +65,11 @@ public interface FetchSubPhase {
          * {@link FetchPhase}. This lookup will contain the preloaded source.
          */
         public Source source() {
-            return sourceLookup;
+            return source;
         }
 
-        public void setSourceLookup(SourceLookup source) {
-            this.sourceLookup = source;
+        public Map<String, List<Object>> loadedFields() {
+            return loadedFields;
         }
 
         public IndexReader topLevelReader() {
@@ -82,4 +84,5 @@ public interface FetchSubPhase {
      * implementation should return {@code null}
      */
     FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException;
+
 }

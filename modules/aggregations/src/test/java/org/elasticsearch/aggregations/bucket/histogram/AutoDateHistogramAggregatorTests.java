@@ -26,6 +26,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.network.InetAddresses;
@@ -56,7 +57,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
@@ -105,7 +105,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
 
-    // TODO: maybe add base class that overwrites getSearchPlugins(...) for all tests that will be added to this module.
+    // TODO: remove when moving DateHistogramAggregatorTestCase to aggregations module
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return List.of(new AggregationsPlugin());

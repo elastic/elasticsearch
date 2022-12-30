@@ -1,6 +1,0 @@
-pr: 89318
-summary: Check circuit breaker before sending join request
-area: Cluster Coordination
-type: bug
-issues:
- - 85003

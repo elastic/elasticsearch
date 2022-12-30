@@ -217,7 +217,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final int size,
         final ActionListener<Table> listener
     ) {
-        return new GroupedActionListener<>(new ActionListener.Delegating<>(listener) {
+        return new GroupedActionListener<>(size, new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
@@ -242,7 +242,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     onFailure(e);
                 }
             }
-        }, size);
+        });
     }
 
     @Override
@@ -826,8 +826,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 
-            table.addCell(totalStats.getSegments() == null ? null : new ByteSizeValue(0));
-            table.addCell(primaryStats.getSegments() == null ? null : new ByteSizeValue(0));
+            table.addCell(totalStats.getSegments() == null ? null : ByteSizeValue.ZERO);
+            table.addCell(primaryStats.getSegments() == null ? null : ByteSizeValue.ZERO);
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());

@@ -15,6 +15,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -31,7 +32,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestMultiSearchAction(Settings.EMPTY);
+        action = new RestMultiSearchAction(Settings.EMPTY, new UsageService().getSearchUsageHolder());
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));

@@ -155,6 +155,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
+
     /**
      * Decode the {@code _tsid} into a human readable map.
      */
@@ -234,7 +239,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addString(String fieldName, String value) {
+        public void addString(String fieldName, BytesRef utf8Value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 's');
                 /*
@@ -242,17 +247,16 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                  * so it's easier for folks to reason about the space taken up. Mostly
                  * it'll be smaller too.
                  */
-                BytesRef bytes = new BytesRef(value);
-                if (bytes.length > DIMENSION_VALUE_LIMIT) {
+                if (utf8Value.length > DIMENSION_VALUE_LIMIT) {
                     throw new IllegalArgumentException(
-                        "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + bytes.length + "]."
+                        "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + utf8Value.length + "]."
                     );
                 }
-                out.writeBytesRef(bytes);
+                out.writeBytesRef(utf8Value);
                 add(fieldName, out.bytes());
 
                 if (routingBuilder != null) {
-                    routingBuilder.addMatching(fieldName, bytes);
+                    routingBuilder.addMatching(fieldName, utf8Value);
                 }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);

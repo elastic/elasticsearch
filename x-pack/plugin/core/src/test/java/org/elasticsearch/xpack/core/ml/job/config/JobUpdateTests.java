@@ -305,7 +305,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         jobBuilder.setCreateTime(new Date());
         Job job = jobBuilder.build();
 
-        Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+        Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ZERO);
 
         assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
@@ -342,7 +342,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
                 update = createRandom(job.getId(), job);
             } while (update.isNoop(job));
 
-            Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+            Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ZERO);
             assertThat(job, not(equalTo(updatedJob)));
         }
     }
@@ -395,7 +395,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         jobBuilder.validateAnalysisLimitsAndSetDefaults(null);
 
         JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, 5L)).build();
-        Job updated = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
+        Job updated = update.mergeWithJob(jobBuilder.build(), ByteSizeValue.ZERO);
         assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
         assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
 

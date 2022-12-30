@@ -690,12 +690,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             List.of(new AliasAction.Remove(index, "test", true))
         );
 
-        final var latch = new CountDownLatch(4);
-        final var listener = new ActionListener<AcknowledgedResponse>() {
+        AtomicInteger counter = new AtomicInteger();
+        ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertTrue(acknowledgedResponse.isAcknowledged());
-                latch.countDown();
+                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
+                counter.incrementAndGet();
             }
 
             @Override
@@ -703,6 +703,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 fail("Unexpected failure " + e.getMessage());
             }
         };
+
         ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             before,
             executor,
@@ -714,7 +715,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener)
             )
         );
-        assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+        waitUntil(() -> counter.get() == 4);
 
         IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
         assertNotNull(alias);

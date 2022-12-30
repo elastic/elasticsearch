@@ -690,48 +690,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             List.of(new AliasAction.Remove(index, "test", true))
         );
 
-        AtomicInteger counter = new AtomicInteger();
-        ActionListener<AcknowledgedResponse> listener1 = new ActionListener<>() {
+        final var latch = new CountDownLatch(4);
+        final var listener = new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
-                counter.incrementAndGet();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Unexpected failure " + e.getMessage());
-            }
-        };
-        ActionListener<AcknowledgedResponse> listener2 = new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
-                counter.incrementAndGet();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Unexpected failure " + e.getMessage());
-            }
-        };
-        ActionListener<AcknowledgedResponse> listener3 = new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
-                counter.incrementAndGet();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Unexpected failure " + e.getMessage());
-            }
-        };
-        ActionListener<AcknowledgedResponse> listener4 = new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
-                counter.incrementAndGet();
+                assertTrue(acknowledgedResponse.isAcknowledged());
+                latch.countDown();
             }
 
             @Override
@@ -743,15 +707,14 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             executor,
             List.of(
-                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener1),
+                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener),
                 // Repeat the same change to ensure that the cluster state version won't increase
-                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener2),
-                new MetadataIndexAliasesService.ApplyAliasActions(service, removeAliasRequest, listener3),
-                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener4)
+                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener),
+                new MetadataIndexAliasesService.ApplyAliasActions(service, removeAliasRequest, listener),
+                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener)
             )
         );
-
-        waitUntil(() -> counter.get() == 4);
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
 
         IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
         assertNotNull(alias);

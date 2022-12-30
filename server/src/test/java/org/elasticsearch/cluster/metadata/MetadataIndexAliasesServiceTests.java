@@ -689,11 +689,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             service.getExecutor(),
             List.of(
-                new MetadataIndexAliasesService.ApplyAliasesTask(addAliasRequest, null),
+                new MetadataIndexAliasesService.ApplyAliasesTask(service, addAliasRequest, null),
                 // Repeat the same change to ensure that the clte version won't increase
-                new MetadataIndexAliasesService.ApplyAliasesTask(addAliasRequest, null),
-                new MetadataIndexAliasesService.ApplyAliasesTask(removeAliasRequest, null),
-                new MetadataIndexAliasesService.ApplyAliasesTask(addAliasRequest, null)
+                new MetadataIndexAliasesService.ApplyAliasesTask(service, addAliasRequest, null),
+                new MetadataIndexAliasesService.ApplyAliasesTask(service, removeAliasRequest, null),
+                new MetadataIndexAliasesService.ApplyAliasesTask(service, addAliasRequest, null)
             )
         );
 

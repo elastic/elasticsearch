@@ -12,19 +12,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -76,15 +74,17 @@ public class MetadataIndexAliasesService {
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState) {
-                return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState)
+                throws Exception {
+                return new Tuple<>(applyAliasesTask.execute(clusterState), applyAliasesTask);
             }
         };
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasesTask(request, listener);
-        var config = ClusterStateTaskConfig.build(Priority.URGENT);
+        Priority priority = Priority.URGENT;
+        var task = new ApplyAliasesTask(this, priority, request, listener);
+        var config = ClusterStateTaskConfig.build(priority);
         clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
 
@@ -257,41 +257,41 @@ public class MetadataIndexAliasesService {
     }
 
     /**
-     * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
+     * A cluster state update task that applies the alias actions to the given cluster state.
      */
-    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
-        implements
-            ClusterStateTaskListener,
-            ClusterStateAckListener {
+    static class ApplyAliasesTask extends AckedClusterStateUpdateTask {
 
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
+        private final MetadataIndexAliasesService service;
+        private final List<AliasAction> actions;
+
+        ApplyAliasesTask(
+            MetadataIndexAliasesService service,
+            IndicesAliasesClusterStateUpdateRequest request,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(request, listener);
+            this.service = service;
+            this.actions = request.actions();
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
+        ApplyAliasesTask(
+            MetadataIndexAliasesService service,
+            Priority priority,
+            IndicesAliasesClusterStateUpdateRequest request,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(priority, request, listener);
+            this.service = service;
+            this.actions = request.actions();
         }
 
+        /**
+         * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s by calling
+         * the {@link MetadataIndexAliasesService#applyAliasActions(ClusterState, Iterable)}.
+         */
         @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }
-
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
-
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
-
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            return service.applyAliasActions(currentState, actions);
         }
     }
 }

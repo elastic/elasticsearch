@@ -114,7 +114,7 @@ matches by the `hire_date` field. Full-text queries find all documents that
 match the query string and return them sorted by _relevance_&mdash;how good a
 match they are for your search terms.
 
-In addition to searching for individual terms, you can perform phrase searches,
+In addition to search for individual terms, you can perform phrase searches,
 similarity searches, and prefix searches, and get autocomplete suggestions.
 
 Have geospatial or other numerical data that you want to search? {es} indexes

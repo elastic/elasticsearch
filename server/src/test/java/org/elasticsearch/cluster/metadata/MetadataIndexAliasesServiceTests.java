@@ -10,9 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
@@ -31,7 +29,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -52,8 +49,6 @@ import static org.mockito.Mockito.when;
 public class MetadataIndexAliasesServiceTests extends ESTestCase {
     private final MetadataDeleteIndexService deleteIndexService = mock(MetadataDeleteIndexService.class);
     private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(null, null, deleteIndexService, xContentRegistry());
-    private final MetadataIndexAliasesService.ApplyAliasActions.Executor executor =
-        new MetadataIndexAliasesService.ApplyAliasActions.Executor();
 
     public MetadataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetadataDeleteIndexService does its job
@@ -690,33 +685,17 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             List.of(new AliasAction.Remove(index, "test", true))
         );
 
-        AtomicInteger counter = new AtomicInteger();
-        ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertThat(acknowledgedResponse.isAcknowledged(), equalTo(true));
-                counter.incrementAndGet();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Unexpected failure " + e.getMessage());
-            }
-        };
-
         ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             before,
-            executor,
+            service.getExecutor(),
             List.of(
-                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener),
-                // Repeat the same change to ensure that the cluster state version won't increase
-                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener),
-                new MetadataIndexAliasesService.ApplyAliasActions(service, removeAliasRequest, listener),
-                new MetadataIndexAliasesService.ApplyAliasActions(service, addAliasRequest, listener)
+                new MetadataIndexAliasesService.ApplyAliasTask(addAliasRequest, null),
+                // Repeat the same change to ensure that the clte version won't increase
+                new MetadataIndexAliasesService.ApplyAliasTask(addAliasRequest, null),
+                new MetadataIndexAliasesService.ApplyAliasTask(removeAliasRequest, null),
+                new MetadataIndexAliasesService.ApplyAliasTask(addAliasRequest, null)
             )
         );
-
-        waitUntil(() -> counter.get() == 4);
 
         IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
         assertNotNull(alias);
@@ -729,7 +708,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
         String index = randomAlphaOfLength(5);
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
-        ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(before, executor, List.of());
+        ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(before, service.getExecutor(), List.of());
         assertSame(before, after);
     }
 

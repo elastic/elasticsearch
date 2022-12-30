@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -58,7 +60,7 @@ public class MetadataIndexAliasesService {
 
     private final NamedXContentRegistry xContentRegistry;
 
-    private final ClusterStateTaskExecutor<ApplyAliasActions> executor = new ApplyAliasActions.Executor();
+    private final ClusterStateTaskExecutor<ApplyAliasTask> executor;
 
     @Inject
     public MetadataIndexAliasesService(
@@ -71,10 +73,17 @@ public class MetadataIndexAliasesService {
         this.indicesService = indicesService;
         this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
+        this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasTask applyAliasTask, ClusterState clusterState) {
+                return new Tuple<>(applyAliasActions(clusterState, applyAliasTask.request().actions()), applyAliasTask);
+            }
+        };
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasActions(this, request, listener);
+        var task = new ApplyAliasTask(request, listener);
         var config = ClusterStateTaskConfig.build(Priority.URGENT);
         clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
@@ -195,6 +204,11 @@ public class MetadataIndexAliasesService {
         }
     }
 
+    // Visible for testing purposes
+    ClusterStateTaskExecutor<ApplyAliasTask> getExecutor() {
+        return executor;
+    }
+
     private void validateFilter(
         List<Index> indicesToClose,
         Map<String, IndexService> indices,
@@ -243,71 +257,41 @@ public class MetadataIndexAliasesService {
     }
 
     /**
-     * A cluster state update task that applies the alias actions to the given cluster state.
+     * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    record ApplyAliasActions(
-        MetadataIndexAliasesService aliasesService,
-        IndicesAliasesClusterStateUpdateRequest request,
-        ActionListener<AcknowledgedResponse> listener
-    ) implements ClusterStateTaskListener {
+    record ApplyAliasTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
 
-        ClusterStateAckListener getAckListener() {
-            return new ClusterStateAckListener() {
-                @Override
-                public boolean mustAck(DiscoveryNode discoveryNode) {
-                    return true;
-                }
-
-                @Override
-                public void onAllNodesAcked() {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
-
-                @Override
-                public void onAckFailure(Exception e) {
-                    listener.onResponse(AcknowledgedResponse.FALSE);
-                }
-
-                @Override
-                public void onAckTimeout() {
-                    listener.onResponse(AcknowledgedResponse.FALSE);
-                }
-
-                @Override
-                public TimeValue ackTimeout() {
-                    return request.ackTimeout();
-                }
-            };
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
         }
 
-        /**
-         * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s by calling
-         * the {@link MetadataIndexAliasesService#applyAliasActions(ClusterState, Iterable)}.
-         */
-        public ClusterState execute(ClusterState currentState) {
-            return aliasesService.applyAliasActions(currentState, request.actions());
+        @Override
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.TRUE);
         }
 
-        static class Executor implements ClusterStateTaskExecutor<ApplyAliasActions> {
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
 
-            @Override
-            public ClusterState execute(BatchExecutionContext<ApplyAliasActions> batchExecutionContext) throws Exception {
-                ClusterState updatedState = batchExecutionContext.initialState();
-                for (TaskContext<ApplyAliasActions> taskContext : batchExecutionContext.taskContexts()) {
-                    try (var ignored = taskContext.captureResponseHeaders()) {
-                        updatedState = taskContext.getTask().execute(updatedState);
-                        taskContext.success(taskContext.getTask().getAckListener());
-                    } catch (Exception e) {
-                        taskContext.onFailure(e);
-                    }
-                }
-                return updatedState;
-            }
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return request.ackTimeout();
         }
     }
 }

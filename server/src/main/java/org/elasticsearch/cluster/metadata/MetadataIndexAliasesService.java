@@ -60,7 +60,7 @@ public class MetadataIndexAliasesService {
 
     private final NamedXContentRegistry xContentRegistry;
 
-    private final ClusterStateTaskExecutor<ApplyAliasTask> executor;
+    private final ClusterStateTaskExecutor<ApplyAliasesTask> executor;
 
     @Inject
     public MetadataIndexAliasesService(
@@ -76,14 +76,14 @@ public class MetadataIndexAliasesService {
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasTask applyAliasTask, ClusterState clusterState) {
-                return new Tuple<>(applyAliasActions(clusterState, applyAliasTask.request().actions()), applyAliasTask);
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState) {
+                return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
             }
         };
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasTask(request, listener);
+        var task = new ApplyAliasesTask(request, listener);
         var config = ClusterStateTaskConfig.build(Priority.URGENT);
         clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
@@ -205,7 +205,7 @@ public class MetadataIndexAliasesService {
     }
 
     // Visible for testing purposes
-    ClusterStateTaskExecutor<ApplyAliasTask> getExecutor() {
+    ClusterStateTaskExecutor<ApplyAliasesTask> getExecutor() {
         return executor;
     }
 
@@ -259,7 +259,7 @@ public class MetadataIndexAliasesService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    record ApplyAliasTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
         implements
             ClusterStateTaskListener,
             ClusterStateAckListener {

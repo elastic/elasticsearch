@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.sun.net.httpserver.HttpServer;
-
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
+
+import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -24,8 +24,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,84 +62,82 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             public void handle(InputStream is, OutputStream os) throws IOException {
                 // We can't make a com.sun.net.httpserver act as an HTTP proxy, so we have to do work with
                 // raw sockets and do HTTP parsing ourselves
-                try (var bis = new BufferedInputStream(is); var bos = new BufferedOutputStream(os)) {
-                    String requestLine = readLine(bis);
-                    String[] requestLineParts = requestLine.split(" ");
-                    String requestMethod = requestLineParts[0];
-                    String url = requestLineParts[1];
+                String requestLine = readLine(is);
+                String[] requestLineParts = requestLine.split(" ");
+                String requestMethod = requestLineParts[0];
+                String url = requestLineParts[1];
 
-                    var upstreamHttpConnection = (HttpURLConnection) new URL(url).openConnection();
-                    upstreamHttpConnection.setRequestMethod(requestMethod);
-                    int requestContentLength = -1;
-                    boolean chunkedRequest = false;
-                    while (true) {
-                        String requestHeader = readLine(bis);
-                        if (requestHeader.isEmpty()) {
-                            break;
-                        }
-                        String[] headerParts = requestHeader.split(":");
-                        String headerName = headerParts[0].trim();
-                        String headerValue = headerParts[1].trim();
-                        upstreamHttpConnection.setRequestProperty(headerName, headerValue);
-                        if (headerName.equalsIgnoreCase("Content-Length")) {
-                            requestContentLength = Integer.parseInt(headerValue);
-                        } else if (headerName.equalsIgnoreCase("Transfer-Encoding") && headerValue.equalsIgnoreCase("chunked")) {
-                            chunkedRequest = true;
+                var upstreamHttpConnection = (HttpURLConnection) new URL(url).openConnection();
+                upstreamHttpConnection.setRequestMethod(requestMethod);
+                int requestContentLength = -1;
+                boolean chunkedRequest = false;
+                while (true) {
+                    String requestHeader = readLine(is);
+                    if (requestHeader.isEmpty()) {
+                        break;
+                    }
+                    String[] headerParts = requestHeader.split(":");
+                    String headerName = headerParts[0].trim();
+                    String headerValue = headerParts[1].trim();
+                    upstreamHttpConnection.setRequestProperty(headerName, headerValue);
+                    if (headerName.equalsIgnoreCase("Content-Length")) {
+                        requestContentLength = Integer.parseInt(headerValue);
+                    } else if (headerName.equalsIgnoreCase("Transfer-Encoding") && headerValue.equalsIgnoreCase("chunked")) {
+                        chunkedRequest = true;
+                    }
+                }
+                if (requestContentLength > 0) {
+                    upstreamHttpConnection.setDoOutput(true);
+                    try (var uos = upstreamHttpConnection.getOutputStream()) {
+                        uos.write(is.readNBytes(requestContentLength));
+                    }
+                } else if (chunkedRequest) {
+                    upstreamHttpConnection.setDoOutput(true);
+                    upstreamHttpConnection.setChunkedStreamingMode(0);
+                    try (var uos = upstreamHttpConnection.getOutputStream()) {
+                        while (true) {
+                            String line = readLine(is);
+                            if (line.isEmpty()) {
+                                break;
+                            }
+                            int chunkSize = Integer.parseInt(line, 16);
+                            if (chunkSize == 0) {
+                                readCrlf(is);
+                                break;
+                            }
+                            uos.write(is.readNBytes(chunkSize));
+                            readCrlf(is);
                         }
                     }
-                    if (requestContentLength > 0) {
-                        upstreamHttpConnection.setDoOutput(true);
-                        try (var uos = upstreamHttpConnection.getOutputStream()) {
-                            uos.write(bis.readNBytes(requestContentLength));
-                        }
-                    } else if (chunkedRequest) {
-                        upstreamHttpConnection.setDoOutput(true);
-                        upstreamHttpConnection.setChunkedStreamingMode(0);
-                        try (var uos = upstreamHttpConnection.getOutputStream()) {
-                            while (true) {
-                                String line = readLine(bis);
-                                if (line.isEmpty()) {
-                                    break;
-                                }
-                                int chunkSize = Integer.parseInt(line, 16);
-                                if (chunkSize == 0) {
-                                    readCrlf(bis);
-                                    break;
-                                }
-                                uos.write(bis.readNBytes(chunkSize));
-                                readCrlf(bis);
-                            }
-                        }
-                    }
-                    upstreamHttpConnection.connect();
+                }
+                upstreamHttpConnection.connect();
 
-                    String upstreamStatusLine = formatted(
-                        "HTTP/1.1 %s %s\r\n",
-                        upstreamHttpConnection.getResponseCode(),
-                        upstreamHttpConnection.getResponseMessage()
-                    );
-                    bos.write(upstreamStatusLine.getBytes(ISO_8859_1));
-                    StringBuilder responseHeaders = new StringBuilder();
-                    for (var upstreamHeader : upstreamHttpConnection.getHeaderFields().entrySet()) {
-                        if (upstreamHeader.getKey() == null) {
-                            continue;
+                String upstreamStatusLine = formatted(
+                    "HTTP/1.1 %s %s\r\n",
+                    upstreamHttpConnection.getResponseCode(),
+                    upstreamHttpConnection.getResponseMessage()
+                );
+                os.write(upstreamStatusLine.getBytes(ISO_8859_1));
+                StringBuilder responseHeaders = new StringBuilder();
+                for (var upstreamHeader : upstreamHttpConnection.getHeaderFields().entrySet()) {
+                    if (upstreamHeader.getKey() == null) {
+                        continue;
+                    }
+                    responseHeaders.append(upstreamHeader.getKey()).append(": ");
+                    for (int i = 0; i < upstreamHeader.getValue().size(); i++) {
+                        responseHeaders.append(upstreamHeader.getValue().get(i));
+                        if (i < upstreamHeader.getValue().size() - 1) {
+                            responseHeaders.append(",");
                         }
-                        responseHeaders.append(upstreamHeader.getKey()).append(": ");
-                        for (int i = 0; i < upstreamHeader.getValue().size(); i++) {
-                            responseHeaders.append(upstreamHeader.getValue().get(i));
-                            if (i < upstreamHeader.getValue().size() - 1) {
-                                responseHeaders.append(",");
-                            }
-                        }
-                        responseHeaders.append("\r\n");
                     }
                     responseHeaders.append("\r\n");
-                    bos.write(responseHeaders.toString().getBytes(ISO_8859_1));
-                    int upstreamContentLength = upstreamHttpConnection.getContentLength();
-                    if (upstreamContentLength > 0) {
-                        try (var uis = upstreamHttpConnection.getInputStream()) {
-                            bos.write(uis.readNBytes(upstreamContentLength));
-                        }
+                }
+                responseHeaders.append("\r\n");
+                os.write(responseHeaders.toString().getBytes(ISO_8859_1));
+                int upstreamContentLength = upstreamHttpConnection.getContentLength();
+                if (upstreamContentLength > 0) {
+                    try (var uis = upstreamHttpConnection.getInputStream()) {
+                        os.write(uis.readNBytes(upstreamContentLength));
                     }
                 }
             }
@@ -165,8 +161,8 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                 return os.toString(ISO_8859_1);
             }
 
-            private static void readCrlf(InputStream bis) throws IOException {
-                if (bis.read() != '\r' || bis.read() != '\n') {
+            private static void readCrlf(InputStream is) throws IOException {
+                if (is.read() != '\r' || is.read() != '\n') {
                     throw new IllegalStateException("Not CRLF");
                 }
             }

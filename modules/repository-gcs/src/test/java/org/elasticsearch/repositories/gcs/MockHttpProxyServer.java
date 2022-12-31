@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.mocksocket.MockServerSocket;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,8 +56,8 @@ class MockHttpProxyServer implements Closeable {
                 executorService.submit(() -> {
                     // tag::noformat
                     try (socket;
-                         var is = socket.getInputStream();
-                         var os = socket.getOutputStream()) {
+                         var is = new BufferedInputStream(socket.getInputStream());
+                         var os = new BufferedOutputStream(socket.getOutputStream())) {
                         // Don't handle keep-alive connections to keep things simple
                         handler.handle(is, os);
                     } catch (IOException e) {

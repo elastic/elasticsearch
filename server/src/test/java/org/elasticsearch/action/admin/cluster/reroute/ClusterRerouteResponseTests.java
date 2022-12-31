@@ -26,14 +26,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class ClusterRerouteResponseTests extends ESTestCase {
 
@@ -43,54 +42,45 @@ public class ClusterRerouteResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        var clusterState = createClusterState();
-        var clusterRerouteResponse = createClusterRerouteResponse(clusterState);
-
-        var result = toXContent(clusterRerouteResponse, new ToXContent.MapParams(Map.of("metric", "none")));
-
-        assertThat(result, equalTo(XContentHelper.stripWhitespace("""
+        assertXContent(createClusterRerouteResponse(createClusterState()), new ToXContent.MapParams(Map.of("metric", "none")), 2, """
             {
               "acknowledged": true
-            }""")));
+            }""");
     }
 
-    public void testToXContentWithExplain() throws IOException {
+    public void testToXContentWithExplain() {
         var clusterState = createClusterState();
-        var clusterRerouteResponse = createClusterRerouteResponse(clusterState);
-
-        var result = toXContent(clusterRerouteResponse, new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")));
-
-        assertThat(result, equalTo(XContentHelper.stripWhitespace(formatted("""
-            {
-              "acknowledged": true,
-              "explanations": [
+        assertXContent(
+            createClusterRerouteResponse(clusterState),
+            new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")),
+            2,
+            formatted("""
                 {
-                  "command": "allocate_replica",
-                  "parameters": {
-                    "index": "index",
-                    "shard": 0,
-                    "node": "node0"
-                  },
-                  "decisions": [
+                  "acknowledged": true,
+                  "explanations": [
                     {
-                      "decider": null,
-                      "decision": "YES",
-                      "explanation": "none"
+                      "command": "allocate_replica",
+                      "parameters": {
+                        "index": "index",
+                        "shard": 0,
+                        "node": "node0"
+                      },
+                      "decisions": [
+                        {
+                          "decider": null,
+                          "decision": "YES",
+                          "explanation": "none"
+                        }
+                      ]
                     }
                   ]
-                }
-              ]
-            }""", clusterState.stateUUID()))));
-
+                }""", clusterState.stateUUID())
+        );
     }
 
-    public void testToXContentWithDeprecatedClusterState() throws IOException {
+    public void testToXContentWithDeprecatedClusterState() {
         var clusterState = createClusterState();
-        var clusterRerouteResponse = createClusterRerouteResponse(clusterState);
-
-        var result = toXContent(clusterRerouteResponse, ToXContent.EMPTY_PARAMS);
-
-        assertThat(result, equalTo(XContentHelper.stripWhitespace(formatted("""
+        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 32, formatted("""
             {
               "acknowledged": true,
               "state": {
@@ -185,77 +175,87 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                   }
                 }
               }
-            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id))));
+            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id));
     }
 
-    public void testToXContentWithDeprecatedClusterStateAndMetadata() throws IOException {
-        var clusterState = createClusterState();
-        var clusterRerouteResponse = createClusterRerouteResponse(clusterState);
-
-        var result = toXContent(
-            clusterRerouteResponse,
-            new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created"))
-        );
-
-        assertThat(result, equalTo(XContentHelper.stripWhitespace("""
-            {
-              "acknowledged" : true,
-              "state" : {
-                "cluster_uuid" : "_na_",
-                "metadata" : {
-                  "cluster_uuid" : "_na_",
-                  "cluster_uuid_committed" : false,
-                  "cluster_coordination" : {
-                    "term" : 0,
-                    "last_committed_config" : [ ],
-                    "last_accepted_config" : [ ],
-                    "voting_config_exclusions" : [ ]
-                  },
-                  "templates" : { },
-                  "indices" : {
-                    "index" : {
-                      "version" : 1,
-                      "mapping_version" : 1,
-                      "settings_version" : 1,
-                      "aliases_version" : 1,
-                      "routing_num_shards" : 1,
-                      "state" : "open",
-                      "settings" : {
+    public void testToXContentWithDeprecatedClusterStateAndMetadata() {
+        assertXContent(
+            createClusterRerouteResponse(createClusterState()),
+            new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
+            19,
+            """
+                {
+                  "acknowledged" : true,
+                  "state" : {
+                    "cluster_uuid" : "_na_",
+                    "metadata" : {
+                      "cluster_uuid" : "_na_",
+                      "cluster_uuid_committed" : false,
+                      "cluster_coordination" : {
+                        "term" : 0,
+                        "last_committed_config" : [ ],
+                        "last_accepted_config" : [ ],
+                        "voting_config_exclusions" : [ ]
+                      },
+                      "templates" : { },
+                      "indices" : {
                         "index" : {
-                          "max_script_fields" : "10",
-                          "shard" : {
-                            "check_on_startup" : "true"
+                          "version" : 1,
+                          "mapping_version" : 1,
+                          "settings_version" : 1,
+                          "aliases_version" : 1,
+                          "routing_num_shards" : 1,
+                          "state" : "open",
+                          "settings" : {
+                            "index" : {
+                              "max_script_fields" : "10",
+                              "shard" : {
+                                "check_on_startup" : "true"
+                              }
+                            }
+                          },
+                          "mappings" : { },
+                          "aliases" : [ ],
+                          "primary_terms" : {
+                            "0" : 0
+                          },
+                          "in_sync_allocations" : {
+                            "0" : [ ]
+                          },
+                          "rollover_info" : { },
+                          "system" : false,
+                          "timestamp_range" : {
+                            "shards" : [ ]
                           }
                         }
                       },
-                      "mappings" : { },
-                      "aliases" : [ ],
-                      "primary_terms" : {
-                        "0" : 0
+                      "index-graveyard" : {
+                        "tombstones" : [ ]
                       },
-                      "in_sync_allocations" : {
-                        "0" : [ ]
-                      },
-                      "rollover_info" : { },
-                      "system" : false,
-                      "timestamp_range" : {
-                        "shards" : [ ]
-                      }
+                      "reserved_state":{}
                     }
-                  },
-                  "index-graveyard" : {
-                    "tombstones" : [ ]
-                  },
-                  "reserved_state":{}
-                }
-              }
-            }""")));
+                  }
+                }"""
+        );
     }
 
-    private static String toXContent(ClusterRerouteResponse clusterRerouteResponse, ToXContent.Params params) throws IOException {
-        var builder = JsonXContent.contentBuilder().prettyPrint();
-        clusterRerouteResponse.toXContent(builder, params);
-        return XContentHelper.stripWhitespace(Strings.toString(builder));
+    private static void assertXContent(ClusterRerouteResponse response, ToXContent.Params params, int expectedChunks, String expectedBody) {
+        try {
+            var builder = jsonBuilder();
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            int actualChunks = 0;
+            final var iterator = response.toXContentChunked(params);
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, params);
+                actualChunks += 1;
+            }
+            assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
+            assertEquals(expectedChunks, actualChunks);
+        } catch (IOException e) {
+            throw new AssertionError("unexpected", e);
+        }
     }
 
     private static ClusterRerouteResponse createClusterRerouteResponse(ClusterState clusterState) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +29,14 @@ public interface ChunkedToXContent {
      * @return iterator over chunks of {@link ToXContent}
      */
     Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
+
+    /**
+     * Similar to {@link #toXContentChunked} but for the {@link RestApiVersion#V_7} API. Note that chunked response bodies cannot send
+     * deprecation warning headers once transmission has started, so implementations must check for deprecated feature use before returning.
+     */
+    default Iterator<? extends ToXContent> toXContentChunkedV7(ToXContent.Params params) {
+        return toXContentChunked(params);
+    }
 
     /**
      * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized.

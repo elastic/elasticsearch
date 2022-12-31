@@ -91,9 +91,9 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * the provided decoder (could be geo or cartesian)
      */
     protected abstract static class ShapeValue implements ToXContentFragment {
-        protected final GeometryDocValueReader reader;
+        private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
-        protected final CoordinateEncoder encoder;
+        private final CoordinateEncoder encoder;
         private final BiFunction<Double, Double, SpatialPoint> pointMaker;
         private final Component2DRelationVisitor component2DRelationVisitor;
 
@@ -115,6 +115,13 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         public BoundingBox boundingBox() {
             return boundingBox;
+        }
+
+        /**
+         * Visit the underlying tree structure using the provided {@link TriangleTreeVisitor}
+         */
+        public void visit(TriangleTreeVisitor visitor) throws IOException {
+            reader.visit(visitor);
         }
 
         protected abstract Component2D centroidAsComponent2D() throws IOException;
@@ -139,7 +146,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
             }
             // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
             LabelPositionVisitor visitor = new LabelPositionVisitor(this.encoder, pointMaker);
-            reader.visit(visitor);
+            visit(visitor);
             return visitor.labelPosition();
         }
 
@@ -148,7 +155,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
          * simple geometries, therefore it will fail if the LatLonGeometry is a {@link org.apache.lucene.geo.Rectangle}
          * that crosses the dateline.
          */
-        protected GeoRelation relate(Component2D component2D) throws IOException {
+        public GeoRelation relate(Component2D component2D) throws IOException {
             component2DRelationVisitor.reset(component2D);
             reader.visit(component2DRelationVisitor);
             return component2DRelationVisitor.relation();

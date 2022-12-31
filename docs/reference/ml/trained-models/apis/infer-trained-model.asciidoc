@@ -12,8 +12,6 @@ by {dfanalytics} or imported.
 NOTE: For model deployments with caching enabled, results may be returned 
 directly from the {infer} cache.
 
-beta::[]
-
 [[infer-trained-model-request]]
 == {api-request-title}
 

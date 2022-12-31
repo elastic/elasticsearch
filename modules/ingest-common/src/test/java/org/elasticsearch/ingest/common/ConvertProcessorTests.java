@@ -556,7 +556,7 @@ public class ConvertProcessorTests extends ESTestCase {
             }
             default -> throw new UnsupportedOperationException();
         }
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomValue));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomValue));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -565,7 +565,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testAutoConvertStringNotMatched() throws Exception {
         String value = "notAnIntFloatOrBool";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", value));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", value));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -575,10 +575,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchBoolean() throws Exception {
         boolean randomBoolean = randomBoolean();
         String booleanString = Boolean.toString(randomBoolean);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(
-            random(),
-            Collections.singletonMap("field", booleanString)
-        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", booleanString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -588,7 +585,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchInteger() throws Exception {
         int randomInt = randomInt();
         String randomString = Integer.toString(randomInt);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -598,7 +595,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchLong() throws Exception {
         long randomLong = randomLong();
         String randomString = Long.toString(randomLong);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -609,7 +606,7 @@ public class ConvertProcessorTests extends ESTestCase {
         double randomDouble = randomDouble();
         String randomString = Double.toString(randomDouble);
         float randomFloat = Float.parseFloat(randomString);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -620,7 +617,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchFloat() throws Exception {
         float randomFloat = randomFloat();
         String randomString = Float.toString(randomFloat);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);

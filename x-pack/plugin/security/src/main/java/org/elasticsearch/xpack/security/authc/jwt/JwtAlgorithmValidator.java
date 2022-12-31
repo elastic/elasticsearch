@@ -11,11 +11,11 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class JwtAlgorithmValidator implements JwtFieldValidator {
 
@@ -28,15 +28,16 @@ public class JwtAlgorithmValidator implements JwtFieldValidator {
     public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
         final JWSAlgorithm algorithm = jwsHeader.getAlgorithm();
         if (algorithm == null) {
-            throw new ElasticsearchSecurityException("missing JWT algorithm header", RestStatus.BAD_REQUEST);
+            throw new IllegalArgumentException("missing JWT algorithm header");
         }
 
         if (false == allowedAlgorithms.contains(algorithm.getName())) {
-            throw new ElasticsearchSecurityException(
-                "invalid JWT algorithm [{}], allowed algorithms are [{}]",
-                RestStatus.BAD_REQUEST,
-                algorithm,
-                Strings.collectionToCommaDelimitedString(allowedAlgorithms)
+            throw new IllegalArgumentException(
+                format(
+                    "invalid JWT algorithm [%s], allowed algorithms are [%s]",
+                    algorithm,
+                    Strings.collectionToCommaDelimitedString(allowedAlgorithms)
+                )
             );
         }
     }

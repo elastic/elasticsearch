@@ -66,6 +66,12 @@ fields.
 If the combined cardinality of the analyzed fields are high, then the 
 aggregation might require a significant amount of system resources.
 
+It is possible to filter the values for each field. This can be done using the
+`include` and `exclude` parameters which are based on a regular expression string
+or arrays of exact terms. This functionality mirrors the features described in the
+<<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
+Filtered values are removed from the analysis and therefore reduce the runtime.
+
 [discrete]
 [[frequent-items-minimum-set-size]]
 ==== Minimum set size

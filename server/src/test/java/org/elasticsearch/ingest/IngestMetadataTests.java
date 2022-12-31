@@ -49,7 +49,7 @@ public class IngestMetadataTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {

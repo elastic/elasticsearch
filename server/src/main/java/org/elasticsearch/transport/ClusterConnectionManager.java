@@ -75,7 +75,7 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
-        if (connectingRefCounter.tryIncRef()) {
+        if (acquireConnectingRef()) {
             var success = false;
             final var release = new RunOnce(connectingRefCounter::decRef);
             try {
@@ -136,7 +136,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        if (connectingRefCounter.tryIncRef() == false) {
+        if (acquireConnectingRef() == false) {
             listener.onFailure(new ConnectTransportException(node, "connection manager is closed"));
             return;
         }
@@ -389,6 +389,10 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public ConnectionProfile getConnectionProfile() {
         return defaultProfile;
+    }
+
+    private boolean acquireConnectingRef() {
+        return closing.get() == false && connectingRefCounter.tryIncRef();
     }
 
 }

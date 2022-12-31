@@ -227,7 +227,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -315,7 +315,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .build();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -386,7 +386,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -452,7 +452,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -555,7 +555,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -690,7 +690,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""

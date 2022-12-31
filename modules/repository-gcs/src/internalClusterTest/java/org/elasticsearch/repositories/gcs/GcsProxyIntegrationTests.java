@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.sun.net.httpserver.HttpServer;
+
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
-
-import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,10 +34,10 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_HOST_SETTING;
@@ -120,7 +120,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                         upstreamHttpConnection.getResponseCode(),
                         upstreamHttpConnection.getResponseMessage()
                     );
-                    bos.write(upstreamStatusLine.getBytes(StandardCharsets.UTF_8));
+                    bos.write(upstreamStatusLine.getBytes(ISO_8859_1));
                     StringBuilder responseHeaders = new StringBuilder();
                     for (var upstreamHeader : upstreamHttpConnection.getHeaderFields().entrySet()) {
                         if (upstreamHeader.getKey() == null) {
@@ -136,7 +136,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                         responseHeaders.append("\r\n");
                     }
                     responseHeaders.append("\r\n");
-                    bos.write(responseHeaders.toString().getBytes(StandardCharsets.UTF_8));
+                    bos.write(responseHeaders.toString().getBytes(ISO_8859_1));
                     int upstreamContentLength = upstreamHttpConnection.getContentLength();
                     if (upstreamContentLength > 0) {
                         try (var uis = upstreamHttpConnection.getInputStream()) {
@@ -162,7 +162,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                     }
                     os.write(b);
                 }
-                return os.toString(StandardCharsets.ISO_8859_1);
+                return os.toString(ISO_8859_1);
             }
 
             private static void readCrlf(InputStream bis) throws IOException {

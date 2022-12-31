@@ -54,10 +54,11 @@ class MockHttpProxyServer implements Closeable {
                     break;
                 }
                 executorService.submit(() -> {
-                    // tag::noformat
-                    try (socket;
-                         var is = new BufferedInputStream(socket.getInputStream());
-                         var os = new BufferedOutputStream(socket.getOutputStream())) {
+                    try (
+                        socket;
+                        var is = new BufferedInputStream(socket.getInputStream());
+                        var os = new BufferedOutputStream(socket.getOutputStream())
+                    ) {
                         // Don't handle keep-alive connections to keep things simple
                         handler.handle(is, os);
                     } catch (IOException e) {

@@ -593,7 +593,7 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(targetField, Integer.class), equalTo(randomInt));
     }
 
-    public void testConvertSkipFailures() throws Exception {
+    public void testConvertSkipFailuresArray() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numItems = randomIntBetween(1, 10);
         List<Object> fieldValue = new ArrayList<>();
@@ -602,7 +602,7 @@ public class ConvertProcessorTests extends ESTestCase {
             Object actualValue;
             Integer expectedValue = null;
             if (randomBoolean()) {
-                String invalidInt = "Obviously an invalid integer";
+                String invalidInt = "Invalid Integer: "  + randomInt(10);
                 actualValue = invalidInt;
             } else {
                 int randomInt = randomInt();
@@ -619,5 +619,16 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.INTEGER, false, true);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
+    }
+
+    public void testConvertSkipFailuresSingleValue() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        String value = "Yet another invalid Integer: " + randomInt(10);
+        ingestDocument.setFieldValue(fieldName, value);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.INTEGER, false, true);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(null));
     }
 }

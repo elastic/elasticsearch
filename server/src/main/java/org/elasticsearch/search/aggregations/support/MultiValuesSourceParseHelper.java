@@ -65,12 +65,19 @@ public final class MultiValuesSourceParseHelper {
         boolean scriptable,
         boolean timezoneAware,
         boolean filterable,
-        boolean heterogeneous
+        boolean heterogeneous,
+        boolean supportsIncludesExcludes
     ) {
 
         objectParser.declareField(
             (o, fieldConfig) -> o.field(fieldName, fieldConfig.build()),
-            (p, c) -> MultiValuesSourceFieldConfig.parserBuilder(scriptable, timezoneAware, filterable, heterogeneous).parse(p, null),
+            (p, c) -> MultiValuesSourceFieldConfig.parserBuilder(
+                scriptable,
+                timezoneAware,
+                filterable,
+                heterogeneous,
+                supportsIncludesExcludes
+            ).parse(p, null),
             new ParseField(fieldName),
             ObjectParser.ValueType.OBJECT
         );

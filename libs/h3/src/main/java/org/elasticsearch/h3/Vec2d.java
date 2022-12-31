@@ -126,7 +126,7 @@ final class Vec2d {
             return faceCenterGeo[face];
         }
 
-        double theta = Math.atan2(y, x);
+        double theta = FastMath.atan2(y, x);
 
         // scale for current resolution length u
         for (int i = 0; i < res; i++) {
@@ -144,7 +144,7 @@ final class Vec2d {
         r *= Constants.RES0_U_GNOMONIC;
 
         // perform inverse gnomonic scaling of r
-        r = Math.atan(r);
+        r = FastMath.atan(r);
 
         // adjust theta for Class III
         // if a substrate grid, then it's already been adjusted for Class III
@@ -358,18 +358,18 @@ final class Vec2d {
                 lon = constrainLng(p1.getLonRad());
             }
         } else { // not due north or south
-            final double sinDistance = Math.sin(distance);
-            final double cosDistance = Math.cos(distance);
-            final double sinP1Lat = Math.sin(p1.getLatRad());
-            final double cosP1Lat = Math.cos(p1.getLatRad());
-            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * Math.cos(az);
+            final double sinDistance = FastMath.sin(distance);
+            final double cosDistance = FastMath.cos(distance);
+            final double sinP1Lat = FastMath.sin(p1.getLatRad());
+            final double cosP1Lat = FastMath.cos(p1.getLatRad());
+            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * FastMath.cos(az);
             if (sinlat > 1.0) {
                 sinlat = 1.0;
             }
             if (sinlat < -1.0) {
                 sinlat = -1.0;
             }
-            lat = Math.asin(sinlat);
+            lat = FastMath.asin(sinlat);
             if (Math.abs(lat - M_PI_2) < Constants.EPSILON)  // north pole
             {
                 lat = M_PI_2;
@@ -379,9 +379,9 @@ final class Vec2d {
                 lat = -M_PI_2;
                 lon = 0.0;
             } else {
-                final double cosLat = Math.cos(lat);
-                sinlng = Math.sin(az) * sinDistance / cosLat;
-                coslng = (cosDistance - sinP1Lat * Math.sin(lat)) / cosP1Lat / cosLat;
+                final double cosLat = FastMath.cos(lat);
+                sinlng = FastMath.sin(az) * sinDistance / cosLat;
+                coslng = (cosDistance - sinP1Lat * FastMath.sin(lat)) / cosP1Lat / cosLat;
                 if (sinlng > 1.0) {
                     sinlng = 1.0;
                 }
@@ -394,7 +394,7 @@ final class Vec2d {
                 if (coslng < -1.0) {
                     coslng = -1.0;
                 }
-                lon = constrainLng(p1.getLonRad() + Math.atan2(sinlng, coslng));
+                lon = constrainLng(p1.getLonRad() + FastMath.atan2(sinlng, coslng));
             }
         }
         return new LatLng(lat, lon);

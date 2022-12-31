@@ -14,13 +14,13 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUp
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -52,8 +52,6 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
  */
 public class MetadataIndexAliasesService {
 
-    private final ClusterService clusterService;
-
     private final IndicesService indicesService;
 
     private final MetadataDeleteIndexService deleteIndexService;
@@ -61,6 +59,7 @@ public class MetadataIndexAliasesService {
     private final NamedXContentRegistry xContentRegistry;
 
     private final ClusterStateTaskExecutor<ApplyAliasesTask> executor;
+    private final MasterServiceTaskQueue<ApplyAliasesTask> taskQueue;
 
     @Inject
     public MetadataIndexAliasesService(
@@ -69,7 +68,6 @@ public class MetadataIndexAliasesService {
         MetadataDeleteIndexService deleteIndexService,
         NamedXContentRegistry xContentRegistry
     ) {
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
@@ -80,12 +78,11 @@ public class MetadataIndexAliasesService {
                 return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
             }
         };
+        this.taskQueue = clusterService.createTaskQueue("index-aliases", Priority.URGENT, this.executor);
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasesTask(request, listener);
-        var config = ClusterStateTaskConfig.build(Priority.URGENT);
-        clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
+        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
     }
 
     /**

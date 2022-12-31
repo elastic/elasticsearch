@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -90,11 +91,8 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                     }
                     if (requestContentLength > 0) {
                         upstreamHttpConnection.setDoOutput(true);
-                        byte[] bb = new byte[requestContentLength];
-                        int len = bis.readNBytes(bb, 0, requestContentLength);
-                        assert len == requestContentLength;
                         try (var uos = upstreamHttpConnection.getOutputStream()) {
-                            uos.write(bb);
+                            uos.write(bis.readNBytes(requestContentLength));
                         }
                     } else if (chunkedRequest) {
                         upstreamHttpConnection.setDoOutput(true);
@@ -110,10 +108,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                                     readCrlf(bis);
                                     break;
                                 }
-                                byte[] bb = new byte[chunkSize];
-                                int len = bis.readNBytes(bb, 0, chunkSize);
-                                assert len == chunkSize;
-                                uos.write(bb);
+                                uos.write(bis.readNBytes(chunkSize));
                                 readCrlf(bis);
                             }
                         }
@@ -142,35 +137,32 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
                     }
                     responseHeaders.append("\r\n");
                     bos.write(responseHeaders.toString().getBytes(StandardCharsets.UTF_8));
-                    try (var uis = upstreamHttpConnection.getInputStream()) {
-                        int upstreamContentLength = upstreamHttpConnection.getContentLength();
-                        if (upstreamContentLength > 0) {
-                            byte[] bb = new byte[upstreamContentLength];
-                            int len = uis.readNBytes(bb, 0, upstreamContentLength);
-                            assert len == upstreamContentLength;
-                            bos.write(bb);
+                    int upstreamContentLength = upstreamHttpConnection.getContentLength();
+                    if (upstreamContentLength > 0) {
+                        try (var uis = upstreamHttpConnection.getInputStream()) {
+                            bos.write(uis.readNBytes(upstreamContentLength));
                         }
                     }
                 }
             }
 
             private static String readLine(InputStream is) throws IOException {
-                StringBuilder sb = new StringBuilder();
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
                 while (true) {
-                    int r = is.read();
-                    if (r == -1) {
+                    int b = is.read();
+                    if (b == -1) {
                         break;
                     }
-                    if (r == '\r') {
+                    if (b == '\r') {
                         int n = is.read();
                         if (n != '\n') {
                             throw new IllegalStateException("Not CRLF");
                         }
                         break;
                     }
-                    sb.append((char) r);
+                    os.write(b);
                 }
-                return sb.toString();
+                return os.toString(StandardCharsets.ISO_8859_1);
             }
 
             private static void readCrlf(InputStream bis) throws IOException {

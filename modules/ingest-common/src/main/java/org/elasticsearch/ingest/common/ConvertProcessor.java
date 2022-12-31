@@ -133,7 +133,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             return name().toLowerCase(Locale.ROOT);
         }
 
-        public abstract Object convert(Object value);
+        public abstract Object convert(Object value) throws IllegalArgumentException;
 
         public static Type fromString(String processorTag, String propertyName, String type) {
             try {
@@ -155,13 +155,23 @@ public final class ConvertProcessor extends AbstractProcessor {
     private final String targetField;
     private final Type convertType;
     private final boolean ignoreMissing;
+    private final boolean skipFailures;
 
-    ConvertProcessor(String tag, String description, String field, String targetField, Type convertType, boolean ignoreMissing) {
+    ConvertProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        Type convertType,
+        boolean ignoreMissing,
+        boolean skipFailures
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.convertType = convertType;
         this.ignoreMissing = ignoreMissing;
+        this.skipFailures = skipFailures;
     }
 
     String getField() {
@@ -180,25 +190,41 @@ public final class ConvertProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
+    boolean isSkipFailures() {
+        return skipFailures;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
         Object oldValue = document.getFieldValue(field, Object.class, ignoreMissing);
-        Object newValue;
+        Object newValue = null;
 
         if (oldValue == null && ignoreMissing) {
             return document;
-        } else if (oldValue == null) {
+        } else if (oldValue == null && skipFailures == false) {
             throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
 
         if (oldValue instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
-                newList.add(convertType.convert(value));
+                try {
+                    newList.add(convertType.convert(value));
+                } catch (IllegalArgumentException e) {
+                    if (skipFailures == false) {
+                        throw e;
+                    }
+                }
             }
             newValue = newList;
         } else {
-            newValue = convertType.convert(oldValue);
+            try {
+                newValue = convertType.convert(oldValue);
+            } catch (IllegalArgumentException e) {
+                if (skipFailures == false) {
+                    throw e;
+                }
+            }
         }
         document.setFieldValue(targetField, newValue);
         return document;
@@ -222,7 +248,8 @@ public final class ConvertProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             Type convertType = Type.fromString(processorTag, "type", typeProperty);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new ConvertProcessor(processorTag, description, field, targetField, convertType, ignoreMissing);
+            boolean skipFailures = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "skip_failures", false);
+            return new ConvertProcessor(processorTag, description, field, targetField, convertType, ignoreMissing, skipFailures);
         }
     }
 }

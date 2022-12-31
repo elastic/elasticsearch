@@ -33,6 +33,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
         assertThat(convertProcessor.isIgnoreMissing(), is(false));
+        assertThat(convertProcessor.isSkipFailures(), is(false));
     }
 
     public void testCreateUnsupportedType() throws Exception {
@@ -91,6 +92,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         assertThat(convertProcessor.getTargetField(), equalTo("field2"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
         assertThat(convertProcessor.isIgnoreMissing(), is(false));
+        assertThat(convertProcessor.isSkipFailures(), is(false));
     }
 
     public void testCreateWithIgnoreMissing() throws Exception {
@@ -107,5 +109,24 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
         assertThat(convertProcessor.isIgnoreMissing(), is(true));
+        assertThat(convertProcessor.isSkipFailures(), is(false));
+    }
+
+    public void testCreateWithSkipFailures() throws Exception {
+        ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
+        config.put("field", "field1");
+        config.put("type", type.toString());
+        config.put("ignore_missing", true);
+        config.put("skip_failures", true);
+        String processorTag = randomAlphaOfLength(10);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
+        assertThat(convertProcessor.getTag(), equalTo(processorTag));
+        assertThat(convertProcessor.getField(), equalTo("field1"));
+        assertThat(convertProcessor.getTargetField(), equalTo("field1"));
+        assertThat(convertProcessor.getConvertType(), equalTo(type));
+        assertThat(convertProcessor.isIgnoreMissing(), is(true));
+        assertThat(convertProcessor.isSkipFailures(), is(true));
     }
 }

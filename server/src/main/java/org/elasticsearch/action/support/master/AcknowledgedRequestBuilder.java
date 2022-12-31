@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
  */
 public abstract class AcknowledgedRequestBuilder<
     Request extends AcknowledgedRequest<Request>,
-    Response extends ActionResponse & IsAcknowledgeSupplier,
+    Response extends ActionResponse & IsAcknowledgedSupplier,
     RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
         Request,
         Response,

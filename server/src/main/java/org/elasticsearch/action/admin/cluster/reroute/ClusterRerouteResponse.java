@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.IsAcknowledgeSupplier;
+import org.elasticsearch.action.support.master.IsAcknowledgedSupplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.collect.Iterators;
@@ -33,7 +33,7 @@ import static org.elasticsearch.action.support.master.AcknowledgedResponse.ACKNO
 /**
  * Response returned after a cluster reroute request
  */
-public class ClusterRerouteResponse extends ActionResponse implements IsAcknowledgeSupplier, ChunkedToXContentObject {
+public class ClusterRerouteResponse extends ActionResponse implements IsAcknowledgedSupplier, ChunkedToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
     public static final String STATE_FIELD_DEPRECATION_MESSAGE = "The [state] field in the response to the reroute API is deprecated "

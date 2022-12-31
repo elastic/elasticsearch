@@ -25,7 +25,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A response that indicates that a request has been acknowledged
  */
-public class AcknowledgedResponse extends ActionResponse implements IsAcknowledgeSupplier, ToXContentObject {
+public class AcknowledgedResponse extends ActionResponse implements IsAcknowledgedSupplier, ToXContentObject {
 
     public static final AcknowledgedResponse TRUE = new AcknowledgedResponse(true);
 

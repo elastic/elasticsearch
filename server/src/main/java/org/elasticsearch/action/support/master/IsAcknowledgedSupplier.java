@@ -8,6 +8,6 @@
 
 package org.elasticsearch.action.support.master;
 
-public interface IsAcknowledgeSupplier {
+public interface IsAcknowledgedSupplier {
     boolean isAcknowledged();
 }

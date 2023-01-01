@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.sun.net.httpserver.HttpServer;
+
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
-
-import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -60,8 +60,8 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
 
     @Before
     public void setUpHttpServer() {
-        httpServer.createContext("/", new GoogleCloudStorageHttpHandler("bucket"));
-        httpServer.createContext("/token", new FakeOAuth2HttpHandler());
+        httpServer.createContext("/", new ForwardedViaProxyHandler(new GoogleCloudStorageHttpHandler("bucket")));
+        httpServer.createContext("/token", new ForwardedViaProxyHandler(new FakeOAuth2HttpHandler()));
     }
 
     @After

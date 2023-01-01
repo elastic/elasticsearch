@@ -29,6 +29,8 @@ class ForwardProxyServer extends MockHttpProxyServer {
 
                 var upstreamHttpConnection = (HttpURLConnection) new URL(url).openConnection();
                 upstreamHttpConnection.setRequestMethod(requestMethod);
+                upstreamHttpConnection.setRequestProperty("X-Via", "test-forward-proxy");
+
                 int requestContentLength = -1;
                 boolean chunkedRequest = false;
                 while (true) {

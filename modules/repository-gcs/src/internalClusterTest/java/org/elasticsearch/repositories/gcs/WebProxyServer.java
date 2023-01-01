@@ -16,6 +16,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
@@ -23,6 +27,9 @@ import static java.nio.charset.StandardCharsets.ISO_8859_1;
  * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>
  */
 class WebProxyServer extends MockHttpProxyServer {
+
+    private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
+        .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
 
     WebProxyServer() throws IOException {
         super(WebProxyServer::handle);
@@ -51,17 +58,14 @@ class WebProxyServer extends MockHttpProxyServer {
             }
             String[] headerParts = requestHeader.split(":");
             String headerName = headerParts[0].trim();
-            if (headerName.equalsIgnoreCase("Host")
-                || headerName.equalsIgnoreCase("Proxy-Connection")
-                || headerName.equalsIgnoreCase("Proxy-Authenticate")) {
-                continue;
-            }
             String headerValue = headerParts[1].trim();
-            upstreamHttpConnection.setRequestProperty(headerName, headerValue);
             if (headerName.equalsIgnoreCase("Content-Length")) {
                 requestContentLength = Integer.parseInt(headerValue);
             } else if (headerName.equalsIgnoreCase("Transfer-Encoding") && headerValue.equalsIgnoreCase("chunked")) {
                 chunkedRequest = true;
+            }
+            if (BLOCKED_HEADERS.contains(headerName) == false) {
+                upstreamHttpConnection.setRequestProperty(headerName, headerValue);
             }
         }
         if (requestContentLength > 0) {

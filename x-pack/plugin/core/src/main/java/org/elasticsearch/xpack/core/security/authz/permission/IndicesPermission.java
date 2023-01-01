@@ -165,6 +165,33 @@ public final class IndicesPermission {
                 && bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
     }
 
+    static final class IsAuthorizedPredicate {
+
+        private final StringMatcher nameMatcher;
+        private final StringMatcher additionalNameMatcher;
+
+        private IsAuthorizedPredicate(StringMatcher nameMatcher, StringMatcher additionalNameMatcher) {
+            this.nameMatcher = nameMatcher;
+            this.additionalNameMatcher = additionalNameMatcher;
+        }
+
+        public boolean test(IndexAbstraction indexAbstraction) {
+            return nameMatcher.test(indexAbstraction.getName())
+                || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(indexAbstraction.getName()));
+        }
+
+        public boolean test(String name, Map<String, IndexAbstraction> lookup) {
+            final IndexAbstraction indexAbstraction = lookup.get(name);
+            return nameMatcher.test(name) || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(name));
+        }
+
+        private boolean shouldEvaluateAdditionalNameMatcher(@Nullable IndexAbstraction indexAbstraction) {
+            return indexAbstraction != null
+                && indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                && indexAbstraction.getParentDataStream() == null;
+        }
+    }
+
     /**
      * Checks if the permission matches the provided action, without looking at indices.
      * To be used in very specific cases where indices actions need to be authorized regardless of their indices.

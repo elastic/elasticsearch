@@ -93,6 +93,5 @@ class MockHttpProxyServer implements Closeable {
     @FunctionalInterface
     interface SocketRequestHandler {
         void handle(InputStream is, OutputStream os) throws IOException;
-
     }
 }

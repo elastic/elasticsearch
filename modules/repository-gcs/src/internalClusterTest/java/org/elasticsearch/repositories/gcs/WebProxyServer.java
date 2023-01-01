@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -42,9 +42,9 @@ class WebProxyServer extends MockHttpProxyServer {
         String requestLine = readLine(is);
         String[] parts = requestLine.split(" ");
         String requestMethod = parts[0];
-        String url = parts[1];
+        String originUrl = parts[1];
 
-        var upstreamHttpConnection = (HttpURLConnection) new URL(url).openConnection();
+        var upstreamHttpConnection = (HttpURLConnection) URI.create(originUrl).toURL().openConnection();
         upstreamHttpConnection.setRequestMethod(requestMethod);
         upstreamHttpConnection.setRequestProperty("X-Via", "test-web-proxy-server");
 

@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.sun.net.httpserver.HttpServer;
-
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
+
+import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;

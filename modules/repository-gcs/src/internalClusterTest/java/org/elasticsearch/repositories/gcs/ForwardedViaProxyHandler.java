@@ -10,13 +10,16 @@ package org.elasticsearch.repositories.gcs;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 
+@SuppressForbidden(reason = "Tests that all requests come via a proxy")
 class ForwardedViaProxyHandler implements HttpHandler {
 
     private final HttpHandler delegateHandler;
 
-    public ForwardedViaProxyHandler(HttpHandler delegateHandler) {
+    ForwardedViaProxyHandler(HttpHandler delegateHandler) {
         this.delegateHandler = delegateHandler;
     }
 

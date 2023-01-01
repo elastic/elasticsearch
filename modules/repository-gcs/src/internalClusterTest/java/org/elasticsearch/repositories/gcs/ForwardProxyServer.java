@@ -21,7 +21,7 @@ import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 class ForwardProxyServer extends MockHttpProxyServer {
 
-    public ForwardProxyServer() throws IOException {
+    ForwardProxyServer() throws IOException {
         super(new MockHttpProxyServer.SocketRequestHandler() {
 
             @Override

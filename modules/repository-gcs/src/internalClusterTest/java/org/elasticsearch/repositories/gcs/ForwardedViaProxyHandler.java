@@ -25,7 +25,7 @@ class ForwardedViaProxyHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        assert "test-forward-proxy".equals(exchange.getRequestHeaders().getFirst("X-Via"));
+        assert "test-web-proxy-server".equals(exchange.getRequestHeaders().getFirst("X-Via"));
         delegateHandler.handle(exchange);
     }
 }

@@ -42,32 +42,32 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
 @SuppressForbidden(reason = "We start an HTTP proxy server to test proxy support for GCS")
 public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase {
 
-    private static HttpServer httpServer;
-    private static ForwardProxyServer proxyServer;
+    private static HttpServer upstreamServer;
+    private static WebProxyServer proxyServer;
 
     @BeforeClass
-    public static void startHttpServer() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.start();
-        proxyServer = new ForwardProxyServer();
+    public static void startServers() throws Exception {
+        upstreamServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        upstreamServer.start();
+        proxyServer = new WebProxyServer();
     }
 
     @AfterClass
-    public static void stopHttpServer() throws IOException {
-        httpServer.stop(0);
+    public static void stopServers() throws IOException {
+        upstreamServer.stop(0);
         proxyServer.close();
     }
 
     @Before
     public void setUpHttpServer() {
-        httpServer.createContext("/", new ForwardedViaProxyHandler(new GoogleCloudStorageHttpHandler("bucket")));
-        httpServer.createContext("/token", new ForwardedViaProxyHandler(new FakeOAuth2HttpHandler()));
+        upstreamServer.createContext("/", new ForwardedViaProxyHandler(new GoogleCloudStorageHttpHandler("bucket")));
+        upstreamServer.createContext("/token", new ForwardedViaProxyHandler(new FakeOAuth2HttpHandler()));
     }
 
     @After
     public void tearDownHttpServer() {
-        httpServer.removeContext("/");
-        httpServer.removeContext("/token");
+        upstreamServer.removeContext("/");
+        upstreamServer.removeContext("/token");
     }
 
     @Override
@@ -96,7 +96,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(),
             TestUtils.createServiceAccount(random())
         );
-        String upstreamServerUrl = "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort();
+        String upstreamServerUrl = "http://" + upstreamServer.getAddress().getHostString() + ":" + upstreamServer.getAddress().getPort();
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), upstreamServerUrl)

@@ -21,7 +21,7 @@
         "dynamic": false,
         "properties": {
           "upload_start": {
-            "type": "keyword"
+            "type": "date"
           },
           "agent_id": {
             "type": "keyword"

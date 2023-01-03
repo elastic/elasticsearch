@@ -873,7 +873,7 @@ GET /my-index*/_eql/search
 // TEST[continued]
 
 <1> Retrieve up to 2 samples per set of join keys.
-<2> Retrieve up to 20 samples.
+<2> Retrieve up to 20 samples in total.
 
 [discrete]
 [[retrieve-selected-fields]]

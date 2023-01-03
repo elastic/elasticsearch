@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92629")
 public class ReopenWhileClosingIT extends ESIntegTestCase {
 
     @Override

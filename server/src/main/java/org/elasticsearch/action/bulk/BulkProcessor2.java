@@ -200,7 +200,8 @@ public class BulkProcessor2 implements Closeable {
     /*
      * This mutex is used to protect two things related to the bulkRequest object: (1) it makes sure that two threads do not add requests
      * to the BulkRequest at the same time since BulkRequest is not threadsafe and (2) it makes sure that no other thread is writing to
-     * the BulkRequest when we swap the bulkRequest variable over to a new BulkRequest object.
+     * the BulkRequest when we swap the bulkRequest variable over to a new BulkRequest object. It also protects access to
+     * cancellableFlushTask.
      */
     private final Object mutex = new Object();
 

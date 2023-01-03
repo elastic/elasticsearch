@@ -138,7 +138,7 @@ class Retry2 {
         /**
          * Creates a RetryHandler listener
          * @param bulkRequest The BulkRequest to be sent, a subset of the original BulkRequest.
-         * @param responsesAccumulator The accumulator of all BulkItemResponses for the original BulkRequest. These are complted
+         * @param responsesAccumulator The accumulator of all BulkItemResponses for the original BulkRequest. These are completed
          *                             responses, meaning responses for successes, or responses for failures only if no more retries are
          *                             allowed.
          * @param consumer

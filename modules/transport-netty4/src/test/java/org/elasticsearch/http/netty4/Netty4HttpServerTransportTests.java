@@ -568,7 +568,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         new RestResponse(
                             OK,
                             ChunkedRestResponseBody.fromXContent(
-                                ignored -> Iterators.single(
+                                () -> Iterators.single(
                                     (builder, params) -> { throw new AssertionError("should not be called for HEAD REQUEST"); }
                                 ),
                                 ToXContent.EMPTY_PARAMS,

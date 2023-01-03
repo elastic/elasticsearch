@@ -314,7 +314,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             singleton("**.baz"),
             true
         );
-        // bug of double wildcard in excludes report in https://github.com/FasterXML/jackson-core/issues/700
         testFilter(
             builder -> builder.startObject().startObject("foo").field("baz", "test").endObject().endObject(),
             builder -> builder.startObject().startObject("foo").field("bar", "test").field("baz", "test").endObject().endObject(),

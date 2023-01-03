@@ -302,8 +302,8 @@ runtime field matching routing path:
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": "a"}}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": "a"}}}'
-  - match: {items.0.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
-  - match: {items.1.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+  - match: {items.0.index.error.reason: "[1:55] All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+  - match: {items.1.index.error.reason: "[1:55] All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
 
 ---
 nested dimensions:

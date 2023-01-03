@@ -194,7 +194,10 @@ public class BulkProcessor2 implements Closeable {
 
     private final ThreadPool threadPool;
 
-    private BulkRequest bulkRequest;
+    /*
+     * This is the BulkRequest that is being built up by this class in calls to the various add methods.
+     */
+    private BulkRequest bulkRequestUnderConstruction;
 
     private volatile boolean closed = false;
     /*
@@ -219,7 +222,7 @@ public class BulkProcessor2 implements Closeable {
         this.maxActionsPerBulkRequest = maxActionsPerBulkRequest;
         this.maxBulkSizeBytes = maxBulkSize.getBytes();
         this.maxBytesInFlight = maxBytesInFlight;
-        this.bulkRequest = new BulkRequest();
+        this.bulkRequestUnderConstruction = new BulkRequest();
         this.consumer = consumer;
         this.listener = listener;
         this.retry = new Retry2(maxNumberOfRetries);
@@ -262,7 +265,7 @@ public class BulkProcessor2 implements Closeable {
                 cancellableFlushTask.cancel();
             }
 
-            if (bulkRequest.numberOfActions() > 0) {
+            if (bulkRequestUnderConstruction.numberOfActions() > 0) {
                 execute();
             }
             this.retry.awaitClose(timeout, unit);
@@ -320,16 +323,16 @@ public class BulkProcessor2 implements Closeable {
             if (totalBytesInFlight.get() >= maxBytesInFlight.getBytes()) {
                 throw new EsRejectedExecutionException(
                     "Cannot index request of size "
-                        + bulkRequest.estimatedSizeInBytes()
+                        + bulkRequestUnderConstruction.estimatedSizeInBytes()
                         + " because "
                         + totalBytesInFlight.get()
                         + " bytes are already in flight and the max is "
                         + maxBytesInFlight
                 );
             }
-            long bytesBeforeNewRequest = bulkRequest.estimatedSizeInBytes();
-            bulkRequest.add(request);
-            totalBytesInFlight.addAndGet(bulkRequest.estimatedSizeInBytes() - bytesBeforeNewRequest);
+            long bytesBeforeNewRequest = bulkRequestUnderConstruction.estimatedSizeInBytes();
+            bulkRequestUnderConstruction.add(request);
+            totalBytesInFlight.addAndGet(bulkRequestUnderConstruction.estimatedSizeInBytes() - bytesBeforeNewRequest);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         }
         // execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
@@ -356,7 +359,7 @@ public class BulkProcessor2 implements Closeable {
             if (cancellableFlushTask == null) {
                 cancellableFlushTask = threadPool.schedule(() -> {
                     synchronized (mutex) {
-                        if (closed == false && bulkRequest.numberOfActions() > 0) {
+                        if (closed == false && bulkRequestUnderConstruction.numberOfActions() > 0) {
                             execute();
                         }
                         cancellableFlushTask = null;
@@ -370,8 +373,8 @@ public class BulkProcessor2 implements Closeable {
         assert Thread.holdsLock(mutex);
         ensureOpen();
         if (bulkRequestExceedsLimits() || totalBytesInFlight.get() >= maxBytesInFlight.getBytes()) {
-            final BulkRequest bulkRequest = this.bulkRequest;
-            this.bulkRequest = new BulkRequest();
+            final BulkRequest bulkRequest = this.bulkRequestUnderConstruction;
+            this.bulkRequestUnderConstruction = new BulkRequest();
             return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
         }
         return null;
@@ -408,18 +411,17 @@ public class BulkProcessor2 implements Closeable {
 
     private void execute() {
         assert Thread.holdsLock(mutex);
-        final BulkRequest bulkRequest = this.bulkRequest;
+        final BulkRequest bulkRequest = this.bulkRequestUnderConstruction;
         final long executionId = executionIdGen.incrementAndGet();
-
-        this.bulkRequest = new BulkRequest();
+        this.bulkRequestUnderConstruction = new BulkRequest();
         execute(bulkRequest, executionId);
     }
 
     private boolean bulkRequestExceedsLimits() {
         assert Thread.holdsLock(mutex);
-        if (maxActionsPerBulkRequest != -1 && bulkRequest.numberOfActions() >= maxActionsPerBulkRequest) {
+        if (maxActionsPerBulkRequest != -1 && bulkRequestUnderConstruction.numberOfActions() >= maxActionsPerBulkRequest) {
             return true;
         }
-        return maxBulkSizeBytes != -1 && bulkRequest.estimatedSizeInBytes() >= maxBulkSizeBytes;
+        return maxBulkSizeBytes != -1 && bulkRequestUnderConstruction.estimatedSizeInBytes() >= maxBulkSizeBytes;
     }
 }

@@ -53,7 +53,6 @@ public class CompoundProcessor implements Processor {
         List<Processor> onFailureProcessors,
         LongSupplier relativeTimeProvider
     ) {
-        super();
         this.ignoreFailure = ignoreFailure;
         this.processors = List.copyOf(processors);
         this.onFailureProcessors = List.copyOf(onFailureProcessors);

@@ -162,7 +162,7 @@ public final class IndicesPermission {
         return new IsAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
     }
 
-    public static final class IsAuthorizedPredicate {
+    public static class IsAuthorizedPredicate {
 
         private final StringMatcher nameMatcher;
         private final StringMatcher additionalNameMatcher;
@@ -172,17 +172,17 @@ public final class IndicesPermission {
             this.additionalNameMatcher = additionalNameMatcher;
         }
 
-        public boolean test(IndexAbstraction indexAbstraction) {
+        public final boolean test(IndexAbstraction indexAbstraction) {
             return nameMatcher.test(indexAbstraction.getName())
                 || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(indexAbstraction.getName()));
         }
 
-        public boolean test(String name, Map<String, IndexAbstraction> lookup) {
+        public final boolean test(String name, Map<String, IndexAbstraction> lookup) {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             return nameMatcher.test(name) || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(name));
         }
 
-        public IsAuthorizedPredicate and(IsAuthorizedPredicate other) {
+        public final IsAuthorizedPredicate and(IsAuthorizedPredicate other) {
             StringMatcher andNameMatcher = this.nameMatcher.and(other.nameMatcher);
             StringMatcher andAdditionalNameMatcher = (this.nameMatcher.and(other.additionalNameMatcher)).or(
                 (this.additionalNameMatcher.and(other.nameMatcher))

@@ -320,7 +320,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
-                Loggers.LOG_LEVEL_SETTING
+                Loggers.LOG_LEVEL_SETTING,
+                ApiKeyService.DELETE_RETENTION_PERIOD
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -2019,7 +2020,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
             .put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString())
             .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, systemUser.principal())
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getSourceRealm().getName())
+            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getEffectiveSubject().getRealm().getName())
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);

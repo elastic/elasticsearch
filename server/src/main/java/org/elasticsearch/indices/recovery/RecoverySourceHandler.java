@@ -574,6 +574,7 @@ public class RecoverySourceHandler {
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
                     canUseSnapshots,
+                    request.isPrimaryRelocation(),
                     ActionListener.wrap(plan -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );
             } else {

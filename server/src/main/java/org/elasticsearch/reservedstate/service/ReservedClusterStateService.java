@@ -351,17 +351,20 @@ public class ReservedClusterStateService {
             return;
         }
 
-        GroupedActionListener<NonStateTransformResult> postTasksListener = new GroupedActionListener<>(new ActionListener<>() {
-            @Override
-            public void onResponse(Collection<NonStateTransformResult> updateKeyTaskResult) {
-                listener.onResponse(updateKeyTaskResult);
-            }
+        GroupedActionListener<NonStateTransformResult> postTasksListener = new GroupedActionListener<>(
+            nonStateTransforms.size(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Collection<NonStateTransformResult> updateKeyTaskResult) {
+                    listener.onResponse(updateKeyTaskResult);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
             }
-        }, nonStateTransforms.size());
+        );
 
         for (var transform : nonStateTransforms) {
             // non cluster state transforms don't modify the cluster state, they however are given a chance to return a more

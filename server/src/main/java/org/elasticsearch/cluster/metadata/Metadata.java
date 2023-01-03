@@ -22,11 +22,13 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -37,6 +39,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -51,7 +55,6 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -91,7 +94,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
  * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
  * </p>
  */
-public class Metadata extends AbstractCollection<IndexMetadata> implements Diffable<Metadata>, ToXContentFragment {
+public class Metadata extends AbstractCollection<IndexMetadata> implements Diffable<Metadata>, ChunkedToXContent {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
@@ -137,7 +140,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
      * with the {@link NamedXContentRegistry}.
      */
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         EnumSet<XContentContext> context();
 
@@ -417,6 +420,42 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion,
+            reservedStateMetadata
+        );
+    }
+
+    public Metadata withLastCommittedValues(
+        boolean clusterUUIDCommitted,
+        CoordinationMetadata.VotingConfiguration lastCommittedConfiguration
+    ) {
+        if (clusterUUIDCommitted == this.clusterUUIDCommitted
+            && lastCommittedConfiguration.equals(this.coordinationMetadata.getLastCommittedConfiguration())) {
+            return this;
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            CoordinationMetadata.builder(coordinationMetadata).lastCommittedConfiguration(lastCommittedConfiguration).build(),
             transientSettings,
             persistentSettings,
             settings,
@@ -1297,6 +1336,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (customCount1 != customCount2) {
             return false;
         }
+        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
+            return false;
+        }
         return true;
     }
 
@@ -1317,9 +1359,55 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
+        XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        final Iterator<? extends ToXContent> start = context == XContentContext.API
+            ? ChunkedToXContentHelper.startObject("metadata")
+            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+
+        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
+            ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
+            })
+            : Collections.emptyIterator();
+
+        final Iterator<? extends ToXContent> indices = context == XContentContext.API
+            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            : Collections.emptyIterator();
+
+        return Iterators.concat(start, Iterators.<ToXContent>single((builder, params) -> {
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+            builder.startObject("cluster_coordination");
+            coordinationMetadata().toXContent(builder, params);
+            return builder.endObject();
+        }),
+            persistentSettings,
+            ChunkedToXContentHelper.wrapWithObject(
+                "templates",
+                templates().values()
+                    .stream()
+                    .map(
+                        template -> (ToXContent) (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(
+                            template,
+                            builder,
+                            params
+                        )
+                    )
+                    .iterator()
+            ),
+            indices,
+            Iterators.flatMap(
+                customs.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
+            ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {
@@ -1329,6 +1417,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private static class MetadataDiff implements Diff<Metadata> {
 
         private static final Version NOOP_METADATA_DIFF_VERSION = Version.V_8_5_0;
+        private static final Version NOOP_METADATA_DIFF_SAFE_VERSION = PublicationTransportHandler.INCLUDES_LAST_COMMITTED_DATA_VERSION;
 
         private final long version;
         private final String clusterUUID;
@@ -1415,12 +1504,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
+            if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_SAFE_VERSION)) {
                 out.writeBoolean(empty);
                 if (empty) {
                     // noop diff
                     return;
                 }
+            } else if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
+                // noops are not safe with these versions, see #92259
+                out.writeBoolean(false);
             }
             out.writeString(clusterUUID);
             out.writeBoolean(clusterUUIDCommitted);
@@ -2468,60 +2560,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return true;
         }
 
-        public static void toXContent(Metadata metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
-
-            if (context == XContentContext.API) {
-                builder.startObject("metadata");
-            } else {
-                builder.startObject("meta-data");
-                builder.field("version", metadata.version());
-            }
-
-            builder.field("cluster_uuid", metadata.clusterUUID);
-            builder.field("cluster_uuid_committed", metadata.clusterUUIDCommitted);
-
-            builder.startObject("cluster_coordination");
-            metadata.coordinationMetadata().toXContent(builder, params);
-            builder.endObject();
-
-            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
-                builder.startObject("settings");
-                metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-                builder.endObject();
-            }
-
-            builder.startObject("templates");
-            for (IndexTemplateMetadata template : metadata.templates().values()) {
-                IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params);
-            }
-            builder.endObject();
-
-            if (context == XContentContext.API) {
-                builder.startObject("indices");
-                for (IndexMetadata indexMetadata : metadata) {
-                    IndexMetadata.Builder.toXContent(indexMetadata, builder, params);
-                }
-                builder.endObject();
-            }
-
-            for (Map.Entry<String, Custom> cursor : metadata.customs().entrySet()) {
-                if (cursor.getValue().context().contains(context)) {
-                    builder.startObject(cursor.getKey());
-                    cursor.getValue().toXContent(builder, params);
-                    builder.endObject();
-                }
-            }
-
-            builder.startObject("reserved_state");
-            for (ReservedStateMetadata ReservedStateMetadata : metadata.reservedStateMetadata().values()) {
-                ReservedStateMetadata.toXContent(builder, params);
-            }
-            builder.endObject();
-
-            builder.endObject();
-        }
-
         public static Metadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
@@ -2639,7 +2677,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         Map<String, String> params = Maps.newMapWithExpectedSize(2);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
-        FORMAT_PARAMS = new MapParams(params);
+        FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
 
     /**
@@ -2649,7 +2687,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(state).toXContent(builder, FORMAT_PARAMS);
         }
 
         @Override

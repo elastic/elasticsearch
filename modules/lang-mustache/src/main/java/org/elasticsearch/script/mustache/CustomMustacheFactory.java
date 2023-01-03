@@ -14,7 +14,9 @@ import com.github.mustachejava.DefaultMustacheVisitor;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheVisitor;
+import com.github.mustachejava.SafeMustacheFactory;
 import com.github.mustachejava.TemplateContext;
+import com.github.mustachejava.TemplateFunction;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
@@ -34,12 +36,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CustomMustacheFactory extends DefaultMustacheFactory {
+public class CustomMustacheFactory extends SafeMustacheFactory {
     static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MEDIA_TYPE = "application/json";
@@ -64,7 +65,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     private final Encoder encoder;
 
     public CustomMustacheFactory(String mediaType) {
-        super();
+        super(Collections.emptySet(), ".");
         setObjectHandler(new CustomReflectionObjectHandler());
         this.encoder = createEncoder(mediaType);
     }
@@ -145,7 +146,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
             writer.write(tc.endChars());
         }
 
-        protected abstract Function<String, String> createFunction(Object resolved);
+        protected abstract TemplateFunction createFunction(Object resolved);
 
         /**
          * At compile time, this function extracts the name of the variable:
@@ -188,7 +189,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected Function<String, String> createFunction(Object resolved) {
+        protected TemplateFunction createFunction(Object resolved) {
             return s -> {
                 if (resolved == null) {
                     return null;
@@ -238,7 +239,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
 
         @Override
-        protected Function<String, String> createFunction(Object resolved) {
+        protected TemplateFunction createFunction(Object resolved) {
             return s -> {
                 if (s == null) {
                     return null;
@@ -260,7 +261,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     static class CustomJoinerCode extends JoinerCode {
 
-        private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
+        private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
         CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
@@ -357,7 +358,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
         }
     }
 }

@@ -113,9 +113,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
 
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var settings = Settings.EMPTY;
+        var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         var clusterService = new ClusterService(
-            Settings.EMPTY,
+            settings,
             clusterSettings,
             new FakeThreadPoolMasterService(LOCAL_NODE_ID, "test", threadPool, deterministicTaskQueue::scheduleNow),
             new ClusterApplierService(LOCAL_NODE_ID, Settings.EMPTY, clusterSettings, threadPool) {
@@ -141,6 +142,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         };
 
         final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            settings,
+            clusterSettings,
             createShardsAllocator(),
             threadPool,
             clusterService,
@@ -221,7 +224,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(shardsAllocator) {
+            new DesiredBalanceComputer(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                shardsAllocator
+            ) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -319,7 +327,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(shardsAllocator) {
+            new DesiredBalanceComputer(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                shardsAllocator
+            ) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,

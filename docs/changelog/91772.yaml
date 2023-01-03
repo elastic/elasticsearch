@@ -1,5 +1,0 @@
-pr: 91772
-summary: Add `trace.id` to request trace logs
-area: Infra/Core
-type: bug
-issues: [88174]

@@ -1,10 +1,13 @@
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-
-//randomise between implicitly and explicitly disabled security
-boolean implicitlyDisabledSecurity = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
@@ -12,61 +15,8 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  description = "Run tests against a cluster that doesn't have security"
-  if (!implicitlyDisabledSecurity) {
-    systemProperty 'tests.has_security', 'false'
-  }
-}
-
-if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
-  tasks.named("javaRestTest").configure{enabled = false }
+  onlyIf { BuildParams.inFipsJvm == false }
+
+  usesDefaultDistribution()
 }
-
-def cluster = testClusters.register("javaRestTest") {
-    testDistribution = 'DEFAULT'
-    numberOfNodes = 2
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'basic'
-    if (!implicitlyDisabledSecurity) {
-      setting 'xpack.security.enabled', 'false'
-    }
-}
-
-tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
-  mustRunAfter("javaRestTest")
-  description = "Run tests against a cluster that has security enabled"
-  dependsOn "javaRestTest"
-  useCluster cluster
-  systemProperty 'tests.has_security', 'true'
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath
-  onlyIf {
-    BuildParams.inFipsJvm == false
-  }
-  doFirst {
-    cluster.configure {
-      // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.
-      // Reconfigure cluster to enable security
-      setting 'xpack.security.enabled', 'true'
-      setting 'xpack.security.authc.anonymous.roles', 'anonymous'
-      setting 'xpack.security.transport.ssl.enabled', 'true'
-      setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
-      setting 'xpack.security.transport.ssl.key', 'transport.key'
-      setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
-      setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
-
-      extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
-      extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
-      extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
-      extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
-
-      user username: "admin_user", password: "admin-password"
-      user username: "security_test_user", password: "security-test-password", role: "security_test_role"
-
-      restart()
-    }
-    nonInputProperties.systemProperty 'tests.rest.cluster', cluster.map(c->c.getAllHttpSocketURI().join(","))
-  }
-}
-tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }

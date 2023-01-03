@@ -12,7 +12,6 @@ import com.unboundid.util.LDAPSDKUsageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
@@ -21,8 +20,10 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
+import java.lang.ref.SoftReference;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -77,16 +78,19 @@ public interface UserRoleMapper {
          */
         public ExpressionModel asModel() {
             final ExpressionModel model = new ExpressionModel();
+            final DistinguishedNameNormalizer dnNormalizer = getDnNormalizer();
             model.defineField("username", username);
             if (dn != null) {
                 // null dn fields get the default NULL_PREDICATE
-                model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
+                model.defineField("dn", dn, new DistinguishedNamePredicate(dn, dnNormalizer));
             }
             model.defineField(
                 "groups",
                 groups,
                 groups.stream()
-                    .filter(group -> group != null).<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
+                    .filter(group -> group != null).<Predicate<FieldExpression.FieldValue>>map(
+                        g -> new DistinguishedNamePredicate(g, dnNormalizer)
+                    )
                     .reduce(Predicate::or)
                     .orElse(fieldValue -> false)
             );
@@ -149,6 +153,67 @@ public interface UserRoleMapper {
         public RealmConfig getRealm() {
             return realm;
         }
+
+        // Package private for testing
+        DistinguishedNameNormalizer getDnNormalizer() {
+            return new DistinguishedNameNormalizer();
+        }
+    }
+
+    /**
+     * This class parse the given string into a DN and return its normalized format.
+     * If the input string is not a valid DN, {@code null} is returned.
+     * The DN parsing and normalization are cached internally so that the same
+     * input string will only be processed once (as long as the cache entry is not GC'd).
+     * The cache works regardless of whether the input string is a valid DN.
+     *
+     * The cache uses {@link SoftReference} for its values so that they free for GC.
+     * This is to prevent potential memory pressure when there are many concurrent role
+     * mapping processes coupled with large number of groups and role mappings, which
+     * in theory is unbounded.
+     */
+    class DistinguishedNameNormalizer {
+        private static final Logger LOGGER = LogManager.getLogger(DistinguishedNameNormalizer.class);
+        private static final SoftReference<String> NULL_REF = new SoftReference<>(null);
+        private final Map<String, SoftReference<String>> cache = new HashMap<>();
+
+        /**
+         * Parse the input string to a DN and returns its normalized form.
+         * @param str String that may represent a DN
+         * @return The normalized DN form of the input string or {@code null} if input string is not a DN
+         */
+        public String normalize(String str) {
+            final SoftReference<String> normalizedDnRef = cache.get(str);
+            if (normalizedDnRef == NULL_REF) {
+                return null;
+            }
+            if (normalizedDnRef != null) {
+                final String normalizedDn = normalizedDnRef.get();
+                if (normalizedDn != null) {
+                    return normalizedDn;
+                }
+            }
+            final String normalizedDn = doNormalize(str);
+            if (normalizedDn == null) {
+                cache.put(str, NULL_REF);
+            } else {
+                cache.put(str, new SoftReference<>(normalizedDn));
+            }
+            return normalizedDn;
+        }
+
+        String doNormalize(String str) {
+            final DN dn;
+            try {
+                dn = new DN(str);
+            } catch (LDAPException | LDAPSDKUsageException e) {
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace(() -> "failed to parse [" + str + "] as a DN", e);
+                }
+                return null;
+            }
+            return dn.toNormalizedString();
+        }
     }
 
     /**
@@ -169,26 +234,16 @@ public interface UserRoleMapper {
      *
      */
     class DistinguishedNamePredicate implements Predicate<FieldExpression.FieldValue> {
-        private static final Logger LOGGER = LogManager.getLogger(DistinguishedNamePredicate.class);
 
         private final String string;
-        private final DN dn;
+        private final DistinguishedNameNormalizer dnNormalizer;
+        private final String normalizedDn;
 
-        public DistinguishedNamePredicate(String string) {
+        public DistinguishedNamePredicate(String string, DistinguishedNameNormalizer dnNormalizer) {
             assert string != null : "DN string should not be null. Use the dedicated NULL_PREDICATE for every user null field.";
             this.string = string;
-            this.dn = parseDn(string);
-        }
-
-        private static DN parseDn(String string) {
-            try {
-                return new DN(string);
-            } catch (LDAPException | LDAPSDKUsageException e) {
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace(new ParameterizedMessage("failed to parse [{}] as a DN", string), e);
-                }
-                return null;
-            }
+            this.dnNormalizer = dnNormalizer;
+            this.normalizedDn = dnNormalizer.normalize(string);
         }
 
         @Override
@@ -203,13 +258,13 @@ public interface UserRoleMapper {
                 if (automaton.run(string)) {
                     return true;
                 }
-                if (dn != null && automaton.run(dn.toNormalizedString())) {
+                if (normalizedDn != null && automaton.run(normalizedDn)) {
                     return true;
                 }
                 if (automaton.run(string.toLowerCase(Locale.ROOT)) || automaton.run(string.toUpperCase(Locale.ROOT))) {
                     return true;
                 }
-                if (dn == null) {
+                if (normalizedDn == null) {
                     return false;
                 }
 
@@ -221,15 +276,11 @@ public interface UserRoleMapper {
                 String pattern = (String) fieldValue.getValue();
 
                 // If the pattern is "*,dc=example,dc=com" then the rule is actually trying to express a DN sub-tree match.
-                // We can use dn.isDescendantOf for that
                 if (pattern.startsWith("*,")) {
                     final String suffix = pattern.substring(2);
                     // if the suffix has a wildcard, then it's not a pure sub-tree match
                     if (suffix.indexOf('*') == -1) {
-                        final DN dnSuffix = parseDn(suffix);
-                        if (dnSuffix != null && dn.isDescendantOf(dnSuffix, false)) {
-                            return true;
-                        }
+                        return isDescendantOf(dnNormalizer.normalize(suffix));
                     }
                 }
 
@@ -240,17 +291,24 @@ public interface UserRoleMapper {
                 if (testString.equalsIgnoreCase(string)) {
                     return true;
                 }
-                if (dn == null) {
+                if (normalizedDn == null) {
                     return false;
                 }
 
-                final DN testDn = parseDn(testString);
-                if (testDn != null) {
-                    return dn.equals(testDn);
+                final String testNormalizedDn = dnNormalizer.normalize(testString);
+                if (testNormalizedDn != null) {
+                    return normalizedDn.equals(testNormalizedDn);
                 }
-                return testString.equalsIgnoreCase(dn.toNormalizedString());
+                return testString.equalsIgnoreCase(normalizedDn);
             }
             return false;
+        }
+
+        private boolean isDescendantOf(String normalizedDnSuffix) {
+            if (normalizedDnSuffix == null) {
+                return false;
+            }
+            return normalizedDn.endsWith("," + normalizedDnSuffix) || (normalizedDnSuffix.isEmpty() && false == normalizedDn.isEmpty());
         }
     }
 }

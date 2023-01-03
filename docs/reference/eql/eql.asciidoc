@@ -800,6 +800,8 @@ experimental::[]
 The EQL search API supports <<modules-cross-cluster-search,cross-cluster
 search>>. However, the local and <<remote-clusters,remote clusters>>
 must use the same {es} version.
+Local clusters version 7.17.7 or later also support <<modules-cross-cluster-search,cross-cluster
+search>> to <<remote-clusters,remote clusters>> version 7.15.0 or later.
 
 The following <<cluster-update-settings,cluster update settings>> request
 adds two remote clusters: `cluster_one` and `cluster_two`.

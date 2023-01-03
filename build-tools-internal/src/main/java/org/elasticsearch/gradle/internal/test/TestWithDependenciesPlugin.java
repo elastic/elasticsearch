@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.test;
 
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -48,6 +49,11 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
             return;
         }
         SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
+        project.getPlugins()
+            .withType(
+                LegacyJavaRestTestPlugin.class,
+                legacyJavaRestTestPlugin -> processConfiguration(sourceSets.getByName(LegacyJavaRestTestPlugin.SOURCE_SET_NAME))
+            );
         project.getPlugins()
             .withType(
                 InternalJavaRestTestPlugin.class,

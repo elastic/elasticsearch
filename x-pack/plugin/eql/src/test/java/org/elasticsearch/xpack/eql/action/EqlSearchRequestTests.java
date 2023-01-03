@@ -73,7 +73,8 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .query(randomAlphaOfLength(10))
                 .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
                 .fetchFields(randomFetchFields)
-                .runtimeMappings(randomRuntimeMappings());
+                .runtimeMappings(randomRuntimeMappings())
+                .resultPosition(randomFrom("tail", "head"));
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
@@ -119,7 +120,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
         mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
-
+        mutatedInstance.resultPosition(version.onOrAfter(Version.V_7_17_8) ? instance.resultPosition() : "tail");
         return mutatedInstance;
     }
 }

@@ -1,0 +1,96 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+configurations {
+  signedCerts
+  rootCert
+}
+
+dependencies {
+  signedCerts project(path: ':x-pack:plugin:core', configuration: 'signedCerts')
+  rootCert project(path: ':x-pack:plugin:core', configuration: 'rootCert')
+}
+
+tasks.register("copyCerts", Sync) {
+  dependsOn configurations.signedCerts
+  from(configurations.signedCerts)
+  from(configurations.rootCert)
+  into "${buildDir}/certs"
+}
+
+// randomise between sniff and proxy modes
+boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c1.key")
+  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
+  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  extraConfigFile 'trust.yml', file("${buildDir}/resources/test/trust.yml")
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.transport.ssl.trust_restrictions.path', 'trust.yml'
+  user username: "test_user", password: "x-pack-test-password"
+}
+
+def queryingCluster = testClusters.register('querying-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c2.key")
+  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c2.crt")
+  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  extraConfigFile 'trust.yml', file("${buildDir}/resources/test/trust.yml")
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.transport.ssl.trust_restrictions.path', 'trust.yml'
+  setting 'xpack.security.transport.ssl.trust_restrictions.x509_fields', 'subjectAltName.dnsName'
+  setting 'cluster.remote.connections_per_cluster', "1"
+  user username: "test_user", password: "x-pack-test-password"
+
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', {
+      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
+    }
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    }
+  }
+}
+
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
+  dependsOn 'copyCerts'
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
+}
+
+tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'copyCerts'
+  dependsOn 'fulfilling-cluster'
+  useCluster queryingCluster
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'querying_cluster'
+}
+
+// runs the fulfilling-cluster cluster tests then the querying-cluster tests
+tasks.register("integTest") {
+  dependsOn 'copyCerts'
+  dependsOn 'querying-cluster'
+}
+
+tasks.named("check").configure { dependsOn("integTest") }

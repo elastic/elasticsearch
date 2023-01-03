@@ -35,10 +35,6 @@ public class CompoundProcessor implements Processor {
     private final LongSupplier relativeTimeProvider;
     private final boolean isAsync;
 
-    CompoundProcessor(LongSupplier relativeTimeProvider, boolean ignoreFailure, Processor... processors) {
-        this(ignoreFailure, List.of(processors), List.of(), relativeTimeProvider);
-    }
-
     public CompoundProcessor(Processor... processors) {
         this(false, List.of(processors), List.of());
     }

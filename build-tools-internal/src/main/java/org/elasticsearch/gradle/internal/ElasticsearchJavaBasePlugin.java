@@ -146,6 +146,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureInputNormalization(Project project) {
         project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
+        project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

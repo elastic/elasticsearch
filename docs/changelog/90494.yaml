@@ -14,4 +14,4 @@ highlight:
     ----
     POST .monitoring-logstash-8-mb/_rollover
     ----
-    // TESTRESPONSE[skip:"quick changelog code snippet"]
+    // TEST[skip:"quick changelog code snippet"]

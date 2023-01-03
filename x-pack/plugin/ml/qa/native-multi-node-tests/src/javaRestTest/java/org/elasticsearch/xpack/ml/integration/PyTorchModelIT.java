@@ -754,6 +754,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         String modelId2 = "stopping_triggers_rebalance_2";
         createPassThroughModel(modelId2);
+
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 

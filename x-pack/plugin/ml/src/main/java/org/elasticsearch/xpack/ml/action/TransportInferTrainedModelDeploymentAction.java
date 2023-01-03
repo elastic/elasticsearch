@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
-import org.elasticsearch.xpack.ml.inference.deployment.NlpInferenceInput;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -113,11 +112,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
             logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), node));
             request.setNodes(node);
-            long start = System.currentTimeMillis();
-            super.doExecute(task, request, ActionListener.wrap(r -> {
-                r.setTookMillis(System.currentTimeMillis() - start);
-                listener.onResponse(r);
-            }, listener::onFailure));
+            super.doExecute(task, request, listener);
         }, () -> {
             logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
             listener.onFailure(
@@ -156,22 +151,14 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
         assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
-
-        NlpInferenceInput input;
-        if (request.getTextInput() != null) {
-            input = NlpInferenceInput.fromText(request.getTextInput());
-        } else {
-            input = NlpInferenceInput.fromDoc(request.getDocs().get(0));
-        }
-
         task.infer(
-            input,
+            request.getDocs().get(0),
             request.getUpdate(),
             request.isSkipQueue(),
             request.getInferenceTimeout(),
             actionTask,
             ActionListener.wrap(
-                pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult, 0)),
+                pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
                 listener::onFailure
             )
         );

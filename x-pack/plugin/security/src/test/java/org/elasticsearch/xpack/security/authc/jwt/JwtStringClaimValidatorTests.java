@@ -36,7 +36,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimIsNotSingleValued() throws ParseException {
-        final String claimName = randomAlphaOfLengthBetween(3, 8);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), true);
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar")));
@@ -49,7 +49,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimDoesNotExist() throws ParseException {
-        final String claimName = randomAlphaOfLengthBetween(3, 8);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
@@ -61,7 +61,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testMatchingClaimValues() throws ParseException {
-        final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8));
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String claimValue = randomAlphaOfLength(10);
         final boolean singleValuedClaim = randomBoolean();
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(
@@ -88,7 +88,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testDoesNotSupportWildcardOrRegex() throws ParseException {
-        final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8));
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String claimValue = randomFrom("*", "/.*/");
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(claimValue), randomBoolean());
 

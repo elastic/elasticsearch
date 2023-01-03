@@ -130,7 +130,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void infer(
-        NlpInferenceInput input,
+        Map<String, Object> doc,
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
@@ -156,7 +156,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         trainedModelAssignmentNodeService.infer(
             this,
             update.apply(inferenceConfigHolder.get()),
-            input,
+            doc,
             skipQueue,
             timeout,
             parentActionTask,

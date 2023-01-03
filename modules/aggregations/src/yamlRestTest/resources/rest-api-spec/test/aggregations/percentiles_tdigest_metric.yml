@@ -369,3 +369,36 @@ setup:
   - match:  { aggregations.percentiles_int.values.1.value:  26.0 }
   - match:  { aggregations.percentiles_int.values.2.key:  50.0 }
   - match:  { aggregations.percentiles_int.values.2.value:  76.0 }
+
+---
+"t-digest histogram overflow":
+  - skip:
+      version: " - 8.6.99"
+      reason:  fixed in 8.7.0
+
+  - do:
+      indices.create:
+        index: test_overflow
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+
+  - do:
+      bulk:
+        index: test_overflow
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"histo": {"counts": [2100000000, 300000000], "values": [1, 2]}}'
+
+  - do:
+      search:
+        index: test_overflow
+        body:
+          aggs:
+            percentiles_histo:
+              percentiles:
+                field: latency
+                percents: [95.0]

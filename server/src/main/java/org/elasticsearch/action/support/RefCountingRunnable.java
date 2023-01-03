@@ -16,8 +16,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
-import java.util.Objects;
-
 /**
  * A mechanism to trigger an action on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
  *
@@ -66,7 +64,6 @@ public final class RefCountingRunnable implements Releasable {
     private static final Logger logger = LogManager.getLogger(RefCountingRunnable.class);
     static final String ALREADY_CLOSED_MESSAGE = "already closed, cannot acquire or release any further refs";
 
-    private final Runnable delegate; // TODO drop this when #92616 merged
     private final RefCounted refCounted;
 
     /**
@@ -74,7 +71,6 @@ public final class RefCountingRunnable implements Releasable {
      * @param delegate The action to execute when all refs are released. This action must not throw any exception.
      */
     public RefCountingRunnable(Runnable delegate) {
-        this.delegate = Objects.requireNonNull(delegate);
         this.refCounted = AbstractRefCounted.of(delegate);
     }
 
@@ -114,7 +110,7 @@ public final class RefCountingRunnable implements Releasable {
 
     @Override
     public String toString() {
-        return "refCounted[" + delegate + "]"; // TODO refCounted.toString() when #92616 merged
+        return refCounted.toString();
     }
 
 }

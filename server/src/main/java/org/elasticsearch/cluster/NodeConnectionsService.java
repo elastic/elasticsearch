@@ -266,7 +266,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         private void doConnect() {
-            //noinspection resource
+            // noinspection resource
             var refs = acquireRefs();
             if (refs == null) {
                 return;

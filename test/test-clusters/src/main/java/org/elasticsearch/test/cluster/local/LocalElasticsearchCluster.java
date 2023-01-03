@@ -56,6 +56,12 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
     }
 
     @Override
+    public void restart(boolean forcibly) {
+        checkHandle();
+        handle.restart(forcibly);
+    }
+
+    @Override
     public boolean isStarted() {
         checkHandle();
         return handle.isStarted();
@@ -71,6 +77,24 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
     public String getHttpAddresses() {
         checkHandle();
         return handle.getHttpAddresses();
+    }
+
+    @Override
+    public String getHttpAddress(int index) {
+        checkHandle();
+        return handle.getHttpAddress(index);
+    }
+
+    @Override
+    public String getTransportEndpoints() {
+        checkHandle();
+        return handle.getTransportEndpoints();
+    }
+
+    @Override
+    public String getTransportEndpoint(int index) {
+        checkHandle();
+        return handle.getTransportEndpoint(index);
     }
 
     private void checkHandle() {

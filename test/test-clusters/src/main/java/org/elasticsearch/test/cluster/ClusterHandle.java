@@ -28,6 +28,13 @@ public interface ClusterHandle extends Closeable {
     void stop(boolean forcibly);
 
     /**
+     * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
+     *
+     * @param forcibly whether to ficibly terminate the cluster
+     */
+    void restart(boolean forcibly);
+
+    /**
      * Whether the cluster is started or not. This method makes no guarantees on cluster availability, only that the node processes have
      * been started.
      *
@@ -42,4 +49,28 @@ public interface ClusterHandle extends Closeable {
      * @return cluster node HTTP transport addresses
      */
     String getHttpAddresses();
+
+    /**
+     * Returns the HTTP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node HTTP transport addresses
+     */
+    String getHttpAddress(int index);
+
+    /**
+     * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node TCP transport endpoints
+     */
+    String getTransportEndpoints();
+
+    /**
+     * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node TCP transport endpoints
+     */
+    String getTransportEndpoint(int index);
 }

@@ -195,7 +195,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         given:
         clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
         buildFile << """
-        apply plugin:'elasticsearch.internal-yaml-rest-test'
+        apply plugin:'elasticsearch.legacy-yaml-rest-test'
 
         dependencies {
             yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
@@ -273,8 +273,8 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         )
 
         where:
-        pluginName                              | taskName                                | sourceSetName
-        "elasticsearch.internal-java-rest-test" | ":javaRestTestTestingConventions"       | "javaRestTest"
+        pluginName                              | taskName                                 | sourceSetName
+        "elasticsearch.legacy-java-rest-test"   | ":javaRestTestTestingConventions"        | "javaRestTest"
         "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
     }
 

@@ -413,3 +413,58 @@ setup:
   - is_false: jobs.1.timing_stats.maximum_bucket_processing_time_ms
   - is_false: jobs.1.timing_stats.average_bucket_processing_time_ms
   - is_false: jobs.1.timing_stats.exponential_average_bucket_processing_time_ms
+
+---
+"Test closed results index":
+
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+      ml.post_data:
+        job_id: job-stats-test
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
+
+  - do:
+      ml.close_job:
+        job_id: jobs-get-stats-datafeed-job
+  - match: { closed: true }
+
+  - do:
+      ml.close_job:
+        job_id: job-stats-test
+  - match: { closed: true }
+
+  - do:
+      ml.get_job_stats: {}
+  - length: { jobs : 2 }
+
+  - do:
+      xpack.usage: {}
+  - match: { ml.available: true }
+  - match: { ml.enabled: true }
+  - match: { ml.jobs.closed.count: 2 }
+
+  - do:
+      indices.close:
+        index: .ml-anomalies-shared
+        wait_for_active_shards: 1
+
+  # With the index closed the low level ML API reports a problem
+  - do:
+      catch: /type=cluster_block_exception, reason=index \[.ml-anomalies-shared\] blocked by. \[FORBIDDEN\/.\/index closed\]/
+      ml.get_job_stats: {}
+
+  # But the high level X-Pack API returns what it can - we do this
+  # so that corruption to ML doesn't blind observers of the general
+  # cluster status
+  - do:
+      xpack.usage: {}
+  - match: { ml.available: true }
+  - match: { ml.enabled: true }
+  - is_false: ml.jobs.closed.count

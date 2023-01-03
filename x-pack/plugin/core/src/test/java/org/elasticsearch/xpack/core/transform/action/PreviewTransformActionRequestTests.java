@@ -11,6 +11,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -22,9 +25,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class PreviewTransformActionRequestTests extends AbstractSerializingTransformTestCase<Request> {
@@ -127,5 +132,12 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             assertThat(request.getConfig().getDestination().getIndex(), is(equalTo(expectedDestIndex)));
             assertThat(request.getConfig().getDestination().getPipeline(), is(equalTo(expectedDestPipeline)));
         }
+    }
+
+    public void testCreateTask() {
+        Request request = createTestInstance();
+        Task task = request.createTask(123, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        assertThat(task, is(instanceOf(CancellableTask.class)));
+        assertThat(task.getDescription(), is(equalTo("preview_transform[transform-preview]")));
     }
 }

@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -420,8 +421,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    if (traceparent.length() >= 55) {
-                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
                     }
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));

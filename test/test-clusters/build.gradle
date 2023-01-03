@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+dependencies {
+  shadow("junit:junit:${versions.junit}") {
+    exclude module: 'hamcrest-core'
+  }
+  shadow "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
+  implementation files("$rootDir/build-tools/reaper/build/libs/reaper.jar")
+}
+
+// We use updated APIs here and since this project is only used for REST testing it's ok to run with > Java 8
+sourceCompatibility = 17
+targetCompatibility = 17
+
+tasks.named("processResources").configure {
+  from(new File(rootDir, "build-tools-internal/version.properties"))
+}

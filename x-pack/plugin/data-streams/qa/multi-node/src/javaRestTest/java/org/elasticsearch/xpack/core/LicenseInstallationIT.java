@@ -66,7 +66,6 @@ public class LicenseInstallationIT extends ESRestTestCase {
     /**
      * Tests that we can install a valid, signed license via the REST API.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85698")
     public void testInstallLicense() throws Exception {
         long futureExpiryDate = System.currentTimeMillis() + TimeValue.timeValueDays(randomIntBetween(1, 1000)).millis();
         License signedLicense = generateRandomLicense(UUID.randomUUID().toString(), futureExpiryDate);
@@ -78,6 +77,7 @@ public class LicenseInstallationIT extends ESRestTestCase {
         assertThat(responseMap.get("license_status").toString().toLowerCase(Locale.ROOT), equalTo("valid"));
 
         Request getLicenseRequest = new Request("GET", "/_license");
+        getLicenseRequest.addParameter("accept_enterprise", "true");
         Response getLicenseResponse = client().performRequest(getLicenseRequest);
         @SuppressWarnings("unchecked")
         Map<String, Object> innerMap = (Map<String, Object>) entityAsMap(getLicenseResponse).get("license");

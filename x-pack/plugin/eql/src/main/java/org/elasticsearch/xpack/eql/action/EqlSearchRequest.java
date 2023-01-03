@@ -123,6 +123,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (in.getVersion().before(Version.V_7_10_0)) {
             in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_7_17_8)) {
+            resultPosition = in.readString();
+        }
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
@@ -442,6 +445,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         if (out.getVersion().before(Version.V_7_10_0)) {
             out.writeBoolean(true);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_17_8)) {
+            out.writeString(resultPosition);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);

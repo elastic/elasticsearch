@@ -22,17 +22,12 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
 
     @Override
     protected AbstractXContentTestCase.XContentTester<T> createXContentTester() {
-        return chunkedXContentTester(
-            this::createParser,
-            xContentType -> createTestInstance(),
-            getToXContentParams(),
-            this::doParseInstance
-        );
+        return chunkedXContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance);
     }
 
     @Override
     protected ToXContent asXContent(T instance) {
-        return ChunkedToXContent.wrapAsXContentObject(instance);
+        return ChunkedToXContent.wrapAsToXContent(instance);
     }
 
     @Override

@@ -71,7 +71,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
 
-        result.toXContentChunked().forEachRemaining(xcontent -> {
+        result.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
             try {
                 xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             } catch (IOException e) {
@@ -107,7 +107,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
 
             if (diagnosis1.affectedResources() != null) {
                 XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
-                diagnosis1.toXContentChunked().forEachRemaining(xcontent -> {
+                diagnosis1.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
                     try {
                         xcontent.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
                     } catch (IOException e) {
@@ -132,7 +132,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
             expectedDiagnosis2.put("help_url", diagnosis2.definition().helpURL());
             if (diagnosis2.affectedResources() != null) {
                 XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
-                diagnosis2.toXContentChunked().forEachRemaining(xcontent -> {
+                diagnosis2.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
                     try {
                         xcontent.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
                     } catch (IOException e) {
@@ -200,7 +200,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
         // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
         int chunksExpected = 12;
-        int chunksSeen = Iterators.size(result.toXContentChunked());
+        int chunksSeen = Iterators.size(result.toXContentChunked(ToXContent.EMPTY_PARAMS));
         assertEquals(chunksExpected, chunksSeen);
     }
 }

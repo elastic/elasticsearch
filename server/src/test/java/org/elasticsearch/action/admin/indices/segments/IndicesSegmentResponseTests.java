@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class IndicesSegmentResponseTests extends ESTestCase {
@@ -43,7 +44,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             0,
             Collections.emptyList()
         );
-        var serialization = response.toXContentChunked();
+        var serialization = response.toXContentChunked(EMPTY_PARAMS);
         try (XContentBuilder builder = jsonBuilder()) {
             while (serialization.hasNext()) {
                 serialization.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -68,7 +69,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             0,
             Collections.emptyList()
         );
-        final int chunks = Iterators.size(response.toXContentChunked());
+        final int chunks = Iterators.size(response.toXContentChunked(EMPTY_PARAMS));
         assertEquals(indices + 2, chunks);
     }
 }

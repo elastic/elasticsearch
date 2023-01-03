@@ -15,8 +15,8 @@ import java.nio.file.Path
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
     description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -47,7 +47,7 @@ dependencies {
     }
     runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
     implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
-    api 'com.google.protobuf:protobuf-java:3.4.0'
+    api "com.google.protobuf:protobuf-java:${versions.protobuf}"
     api "commons-logging:commons-logging:${versions.commonslogging}"
     api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
     api 'commons-cli:commons-cli:1.2'
@@ -304,8 +304,11 @@ tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses()
     ignoreViolations(
             // internal java api: sun.misc.Unsafe
+            'com.google.protobuf.MessageSchema',
             'com.google.protobuf.UnsafeUtil',
             'com.google.protobuf.UnsafeUtil$1',
+            'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper',

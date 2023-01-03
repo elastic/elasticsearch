@@ -135,7 +135,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "the octopus comforter smells"
+          model_text: "the octopus comforter smells"
           knn:
             field: embedding
             k: 3
@@ -150,7 +150,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "the octopus comforter smells"
+          model_text: "the octopus comforter smells"
           text_embedding_config:
             tokenization:
               bert:
@@ -178,7 +178,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: source_text
             k: 2
@@ -198,7 +198,7 @@ setup:
         index: embedded_text_10_dims
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: embedding
             k: 2
@@ -212,7 +212,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: embedding
             k: 2
@@ -226,7 +226,7 @@ setup:
         index: embedded_text
         body:
           model_id: missing_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"
           knn:
             field: embedding
             k: 2
@@ -253,4 +253,4 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "kids pyjamas with picture of a tractor"
+          model_text: "kids pyjamas with picture of a tractor"

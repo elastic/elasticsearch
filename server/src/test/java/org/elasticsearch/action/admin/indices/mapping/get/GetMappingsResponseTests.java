@@ -23,6 +23,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
 public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
 
     public void testCheckEqualsAndHashCode() {
@@ -74,7 +76,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
                 .mapToObj(i -> "index-" + i)
                 .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
         );
-        int chunkCount = Iterators.size(response.toXContentChunked());
+        int chunkCount = Iterators.size(response.toXContentChunked(EMPTY_PARAMS));
         assertEquals(2 + indexCount, chunkCount);
     }
 

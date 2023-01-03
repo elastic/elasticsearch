@@ -106,7 +106,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
 
         Map<String, Object> json = createParser(
-            ChunkedToXContent.wrapAsXContentObject(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
         assertEquals(Set.of("stats", "routing_table"), json.keySet());
 
@@ -158,7 +158,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     public void testToChunkedXContent() {
         DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
-        var toXContentChunked = response.toXContentChunked();
+        var toXContentChunked = response.toXContentChunked(ToXContent.EMPTY_PARAMS);
         int chunks = 0;
         while (toXContentChunked.hasNext()) {
             toXContentChunked.next();

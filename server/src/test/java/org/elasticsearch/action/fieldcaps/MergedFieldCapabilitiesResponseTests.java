@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
 public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
@@ -208,7 +210,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
     public void testExpectedChunkSizes() {
         {
             final FieldCapabilitiesResponse instance = FieldCapabilitiesResponseTests.createResponseWithFailures();
-            final int chunks = Iterators.size(instance.toXContentChunked());
+            final int chunks = Iterators.size(instance.toXContentChunked(EMPTY_PARAMS));
             if (instance.getFailures().isEmpty()) {
                 assertEquals(2, chunks);
             } else {
@@ -217,7 +219,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         }
         {
             final FieldCapabilitiesResponse instance = createTestInstance();
-            final int chunks = Iterators.size(instance.toXContentChunked());
+            final int chunks = Iterators.size(instance.toXContentChunked(EMPTY_PARAMS));
             assertEquals(2 + instance.get().size(), chunks);
         }
     }

@@ -67,7 +67,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
     }
 
     @Override
-    public Iterator<ToXContent> toXContentChunked() {
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
             getMappings().entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {

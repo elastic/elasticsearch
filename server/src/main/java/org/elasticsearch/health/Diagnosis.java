@@ -11,6 +11,7 @@ package org.elasticsearch.health;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -19,9 +20,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
 
@@ -46,6 +44,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             INDEX("indices"),
             NODE("nodes"),
             SLM_POLICY("slm_policies"),
+            FEATURE_STATE("feature_states"),
             SNAPSHOT_REPOSITORY("snapshot_repositories");
 
             private final String displayValue;
@@ -77,8 +76,8 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked() {
-            Iterator<? extends ToXContent> valuesIterator;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            final Iterator<? extends ToXContent> valuesIterator;
             if (nodes != null) {
                 valuesIterator = nodes.stream().map(node -> (ToXContent) (builder, params) -> {
                     builder.startObject();
@@ -92,11 +91,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             } else {
                 valuesIterator = values.stream().map(value -> (ToXContent) (builder, params) -> builder.value(value)).iterator();
             }
-            return Iterators.concat(
-                Iterators.single((ToXContent) (builder, params) -> builder.startArray(type.displayValue)),
-                valuesIterator,
-                Iterators.single((builder, params) -> builder.endArray())
-            );
+            return ChunkedToXContentHelper.array(type.displayValue, valuesIterator);
         }
 
         @Override
@@ -147,12 +142,12 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
-        Iterator<? extends ToXContent> resourcesIterator = Collections.emptyIterator();
-        if (affectedResources != null && affectedResources.size() > 0) {
-            resourcesIterator = affectedResources.stream()
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
-                .iterator();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        final Iterator<? extends ToXContent> resourcesIterator;
+        if (affectedResources == null) {
+            resourcesIterator = Collections.emptyIterator();
+        } else {
+            resourcesIterator = Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams));
         }
         return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
             builder.startObject();

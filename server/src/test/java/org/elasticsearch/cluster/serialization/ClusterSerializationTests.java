@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,11 +37,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -285,13 +287,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("custom_string_object", strObject);
-            }
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject()),
+                Iterators.single((builder, params) -> builder.field("custom_string_object", strObject)),
+                Iterators.single((builder, params) -> builder.endObject())
+            );
         }
 
         @Override
@@ -329,13 +330,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("custom_integer_object", intObject);
-            }
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject()),
+                Iterators.single((builder, params) -> builder.field("custom_integer_object", intObject)),
+                Iterators.single((builder, params) -> builder.endObject())
+            );
         }
 
         @Override

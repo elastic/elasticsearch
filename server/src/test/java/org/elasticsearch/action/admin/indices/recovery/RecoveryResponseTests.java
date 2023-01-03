@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RecoveryResponseTests extends ESTestCase {
 
@@ -58,7 +59,7 @@ public class RecoveryResponseTests extends ESTestCase {
                 ),
             List.of()
         );
-        final int chunks = Iterators.size(recoveryResponse.toXContentChunked());
+        final int chunks = Iterators.size(recoveryResponse.toXContentChunked(EMPTY_PARAMS));
         assertEquals(shards + 2, chunks);
     }
 }

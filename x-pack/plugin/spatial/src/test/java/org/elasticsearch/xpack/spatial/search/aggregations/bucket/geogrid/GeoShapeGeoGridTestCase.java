@@ -61,7 +61,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     protected abstract int randomPrecision();
 
     /**
-     * Convert geo point into a hash string (bucket string ID)
+     * Convert geo point into an array of hash string (bucket string ID).
      */
     protected abstract String[] hashAsStrings(double lng, double lat, int precision);
 

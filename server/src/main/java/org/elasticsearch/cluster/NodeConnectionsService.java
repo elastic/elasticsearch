@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -97,28 +96,25 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final CountDownActionListener listener = new CountDownActionListener(discoveryNodes.getSize(), onCompletion);
-
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
-        synchronized (mutex) {
-            for (final DiscoveryNode discoveryNode : discoveryNodes) {
-                ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
-                final boolean isNewNode = connectionTarget == null;
-                if (isNewNode) {
-                    connectionTarget = new ConnectionTarget(discoveryNode);
-                    targetsByNode.put(discoveryNode, connectionTarget);
-                }
+        try (var refs = new RefCountingRunnable(onCompletion)) {
+            synchronized (mutex) {
+                for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                    ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
+                    final boolean isNewNode = connectionTarget == null;
+                    if (isNewNode) {
+                        connectionTarget = new ConnectionTarget(discoveryNode);
+                        targetsByNode.put(discoveryNode, connectionTarget);
+                    }
 
-                if (isNewNode) {
-                    logger.debug("connecting to {}", discoveryNode);
-                    runnables.add(
-                        connectionTarget.connect(ActionListener.runAfter(listener, () -> logger.debug("connected to {}", discoveryNode)))
-                    );
-                } else {
-                    // known node, try and ensure it's connected but do not wait
-                    logger.trace("checking connection to existing node [{}]", discoveryNode);
-                    runnables.add(connectionTarget.connect(null));
-                    runnables.add(() -> listener.onResponse(null));
+                    if (isNewNode) {
+                        logger.debug("connecting to {}", discoveryNode);
+                        runnables.add(connectionTarget.connect(refs.acquire()));
+                    } else {
+                        // known node, try and ensure it's connected but do not wait
+                        logger.trace("checking connection to existing node [{}]", discoveryNode);
+                        runnables.add(connectionTarget.connect(null));
+                    }
                 }
             }
         }
@@ -150,15 +146,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      */
     void ensureConnections(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
-        synchronized (mutex) {
-            final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
-            if (connectionTargets.isEmpty()) {
-                runnables.add(onCompletion);
-            } else {
+        try (var refs = new RefCountingRunnable(onCompletion)) {
+            synchronized (mutex) {
                 logger.trace("ensureConnections: {}", targetsByNode);
-                final CountDownActionListener listener = new CountDownActionListener(connectionTargets.size(), onCompletion);
-                for (final ConnectionTarget connectionTarget : connectionTargets) {
-                    runnables.add(connectionTarget.connect(listener));
+                for (ConnectionTarget connectionTarget : targetsByNode.values()) {
+                    runnables.add(connectionTarget.connect(refs.acquire()));
                 }
             }
         }
@@ -227,7 +219,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             Releasables.close(connectionRef.getAndSet(connectionReleasable));
         }
 
-        Runnable connect(ActionListener<Void> listener) {
+        Runnable connect(Releasable onCompletion) {
             return () -> {
                 final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
 
@@ -258,9 +250,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                             logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
                             setConnectionRef(null);
                         }
-                        if (listener != null) {
-                            listener.onResponse(null);
-                        }
+                        Releasables.closeExpectNoException(onCompletion);
                     }
 
                     @Override
@@ -274,9 +264,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                             e
                         );
                         setConnectionRef(null);
-                        if (listener != null) {
-                            listener.onFailure(e);
-                        }
+                        Releasables.closeExpectNoException(onCompletion);
                     }
                 });
             };

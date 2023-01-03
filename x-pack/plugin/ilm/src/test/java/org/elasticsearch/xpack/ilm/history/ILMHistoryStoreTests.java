@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.stubbing.Answer;
 
 import java.util.List;
 import java.util.Set;
@@ -56,8 +55,6 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTO
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ILMHistoryStoreTests extends ESTestCase {
 
@@ -236,11 +233,13 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
             // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
             int responses = bulkRequest.numberOfActions();
-            BulkItemResponse.Failure failure = mock(BulkItemResponse.Failure.class);
-            when(failure.getId()).thenReturn("1");
-            when(failure.getMessage()).thenReturn("message");
-            when(failure.getStatus()).thenAnswer((Answer<RestStatus>) invocation -> RestStatus.TOO_MANY_REQUESTS);
-            DocWriteResponse response = mock(DocWriteResponse.class);
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                "index",
+                "1",
+                new Exception("message"),
+                RestStatus.TOO_MANY_REQUESTS
+            );
+            DocWriteResponse response = new IndexResponse(new ShardId("index", "indexUUID", 1), "1", 1L, 1L, 1L, true);
             BulkResponse bulkItemResponse = new BulkResponse(
                 IntStream.range(0, responses)
                     .mapToObj(
@@ -269,7 +268,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 logger.error(e);
                 fail(e.getMessage());
             }
-        })) {
+        }, TimeValue.timeValueMillis(randomIntBetween(50, 1000)))) {
             for (int i = 0; i < numberOfDocs; i++) {
                 ILMHistoryItem record1 = ILMHistoryItem.success(
                     "index",
@@ -280,7 +279,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 );
                 localHistoryStore.putAsync(record1);
             }
-            latch.await(60, TimeUnit.SECONDS);
+            latch.await(5, TimeUnit.SECONDS);
             assertThat(actions.get(), equalTo(numberOfDocs));
         }
     }

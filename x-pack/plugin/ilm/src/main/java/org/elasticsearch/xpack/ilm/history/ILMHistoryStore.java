@@ -70,14 +70,7 @@ public class ILMHistoryStore implements Closeable {
     private final BulkProcessor2 processor;
 
     public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this(client, clusterService, threadPool, ActionListener.noop());
-    }
-
-    /*
-     * This constructor allows passing in a listener that is notified when a batch has succeeded or failed, useful for unit tests
-     */
-    ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool, ActionListener<BulkResponse> listener) {
-        this(client, clusterService, threadPool, listener, TimeValue.timeValueSeconds(5));
+        this(client, clusterService, threadPool, ActionListener.noop(), TimeValue.timeValueSeconds(5));
     }
 
     /**

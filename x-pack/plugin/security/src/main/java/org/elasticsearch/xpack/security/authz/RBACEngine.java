@@ -881,19 +881,14 @@ public class RBACEngine implements AuthorizationEngine {
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
-                return false;
-            }
-            if (includeDataStreams) {
+                // missing but authorized resources should be handled downstream in the action handler, not here in the Security filter
+                return predicate.testMissingResource(name);
+            } else {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
-                if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
-                    return true;
-                } else {
-                    return predicate.test(indexAbstraction);
-                }
-            } else {
-                return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
+                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
+                    || predicate.test(indexAbstraction);
             }
         });
     }

@@ -164,36 +164,33 @@ public final class IndicesPermission {
 
     public static class IsResourceAuthorizedPredicate {
 
-        private final StringMatcher nameMatcher;
-        private final StringMatcher additionalNameMatcher;
+        private final StringMatcher resourceNameMatcher;
+        private final StringMatcher additionalNonDatastreamNameMatcher;
 
-        private IsResourceAuthorizedPredicate(StringMatcher nameMatcher, StringMatcher additionalNameMatcher) {
-            this.nameMatcher = nameMatcher;
-            this.additionalNameMatcher = additionalNameMatcher;
+        private IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
+            this.resourceNameMatcher = resourceNameMatcher;
+            this.additionalNonDatastreamNameMatcher = additionalNonDatastreamNameMatcher;
         }
 
         public final boolean test(IndexAbstraction indexAbstraction) {
-            return nameMatcher.test(indexAbstraction.getName())
-                || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(indexAbstraction.getName()));
+            return resourceNameMatcher.test(indexAbstraction.getName())
+                || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstraction.getName()));
         }
 
-        public final boolean test(String name, Map<String, IndexAbstraction> lookup) {
-            final IndexAbstraction indexAbstraction = lookup.get(name);
-            return nameMatcher.test(name) || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(name));
+        public final boolean testMissingResource(String name) {
+            return resourceNameMatcher.test(name) || additionalNonDatastreamNameMatcher.test(name);
         }
 
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
-            StringMatcher andNameMatcher = this.nameMatcher.and(other.nameMatcher);
-            StringMatcher andAdditionalNameMatcher = (this.nameMatcher.and(other.additionalNameMatcher)).or(
-                (this.additionalNameMatcher.and(other.nameMatcher))
-            ).or((this.additionalNameMatcher.and(other.additionalNameMatcher)));
-            return new IsResourceAuthorizedPredicate(andNameMatcher, andAdditionalNameMatcher);
+            StringMatcher andedResourceNameMatcher = this.resourceNameMatcher.and(other.resourceNameMatcher);
+            StringMatcher andedAdditionalNonDatastreamNameMatcher = (this.resourceNameMatcher.and(other.additionalNonDatastreamNameMatcher))
+                .or((this.additionalNonDatastreamNameMatcher.and(other.resourceNameMatcher)))
+                .or((this.additionalNonDatastreamNameMatcher.and(other.additionalNonDatastreamNameMatcher)));
+            return new IsResourceAuthorizedPredicate(andedResourceNameMatcher, andedAdditionalNonDatastreamNameMatcher);
         }
 
-        private boolean shouldEvaluateAdditionalNameMatcher(@Nullable IndexAbstraction indexAbstraction) {
-            return indexAbstraction != null
-                && indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
-                && indexAbstraction.getParentDataStream() == null;
+        private boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
+            return indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM || indexAbstraction.getParentDataStream() != null;
         }
     }
 

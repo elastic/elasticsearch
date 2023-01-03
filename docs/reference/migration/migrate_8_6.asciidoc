@@ -51,6 +51,21 @@ Users should update the "remove_binary" option to be explicitly true or false, i
 ====
 
 [discrete]
+[[deprecations_86_cluster_and_node_setting]]
+==== Cluster and node setting deprecations
+
+[[ensure_balance_threshold_at_least_1]]
+.Ensure balance threshold is at least 1
+[%collapsible]
+====
+*Details* +
+Values for `cluster.routing.allocation.balance.threshold` smaller than `1` are now ignored. Support for values less than `1` for this setting is deprecated and will be forbidden in a future version.
+
+*Impact* +
+Set `cluster.routing.allocation.balance.threshold` to be at least `1`.
+====
+
+[discrete]
 [[deprecations_86_mapping]]
 ==== Mapping deprecations
 

@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.LazyPropertyMap
 
 Project idpFixtureProject = project(':x-pack:test:idp-fixture')
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {

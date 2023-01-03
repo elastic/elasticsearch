@@ -50,7 +50,7 @@ The type has been corrected to `half_float`. You can force a rollover to see the
 ----
 POST .monitoring-logstash-8-mb/_rollover
 ----
-// TESTRESPONSE[skip:"quick changelog code snippet"]
+// TEST[skip:"quick changelog code snippet"]
 
 {es-pull}90494[#90494]
 

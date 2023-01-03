@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -8,7 +8,7 @@ dependencies {
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat', 'semantic_search'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
   }
   restTests {
     includeXpack 'ml'
@@ -185,6 +185,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_crud/Test put job with duplicate detector configurations',
     'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',
+    'ml/jobs_crud/Test job with rule referencing missing filter',
     'ml/jobs_get/Test get job given missing job_id',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params via body',
@@ -197,6 +198,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid start param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid end param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given bucket_span is smaller than max job bucket_span',
+    'ml/jobs_get_stats/Test closed results index',
     'ml/jobs_get_stats/Test get job stats given missing job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
     'ml/job_groups/Test put job with empty group',

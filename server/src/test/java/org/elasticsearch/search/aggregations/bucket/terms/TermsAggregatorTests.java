@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -800,7 +801,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         termsAggregatorWithNestedMaxAgg(ValueType.LONG, fieldType, Integer::longValue, val -> luceneFieldFactory.apply(val, false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91679")
     public void testDoubleTermsAggregator() throws Exception {
         BiFunction<Double, Boolean, List<IndexableField>> luceneFieldFactory = (val, mv) -> {
             if (mv) {
@@ -924,7 +924,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .field("field")
                         .order(bucketOrder);
 
-                    Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+                    Terms result = searchAndReduce(
+                        indexSearcher,
+                        new AggTestConfig(aggregationBuilder, fieldType).withSplitLeavesIntoSeperateAggregators(false)
+                    );
                     assertEquals(size, result.getBuckets().size());
                     for (int i = 0; i < size; i++) {
                         Map.Entry<T, Integer> expected = expectedBuckets.get(i);
@@ -949,7 +952,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         );
                         result = ((Filter) searchAndReduce(
                             indexSearcher,
-                            new AggTestConfig(aggregationBuilder, fieldType, filterFieldType)
+                            new AggTestConfig(aggregationBuilder, fieldType, filterFieldType).withSplitLeavesIntoSeperateAggregators(false)
                         )).getAggregations().get("_name2");
                         int expectedFilteredCounts = 0;
                         for (Integer count : filteredCounts.values()) {
@@ -1992,7 +1995,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, new SourceLookup.ReaderSourceProvider());
-        StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, ctx) {
+        StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, OnScriptError.FAIL, ctx) {
             @Override
             public void execute() {
                 emit("cat");
@@ -2041,10 +2044,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTermsNotOptimized() throws IOException {
         long totalDocs = 500;
-        StringFieldScript.Factory scriptFactory = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
+        StringFieldScript.Factory scriptFactory = (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
             fieldName,
             Map.of(),
             lookup,
+            OnScriptError.FAIL,
             ctx
         ) {
             @Override
@@ -2054,7 +2058,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         };
         BytesRef[] values = new BytesRef[] { new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"), };
         MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
-        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of());
+        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), OnScriptError.FAIL);
         debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];

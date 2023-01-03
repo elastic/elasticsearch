@@ -15,7 +15,6 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -183,7 +182,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     ) throws Exception {
         List<String> networks = null;
 
-        if (internalNetworks != null) networks = Arrays.asList(internalNetworks);
+        if (internalNetworks != null) networks = List.of(internalNetworks);
 
         String processorTag = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();

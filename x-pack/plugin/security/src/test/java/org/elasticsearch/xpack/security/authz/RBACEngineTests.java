@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -25,12 +26,14 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -55,12 +58,19 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -83,23 +93,29 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
@@ -126,6 +142,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -153,7 +170,7 @@ public class RBACEngineTests extends ESTestCase {
 
         final PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
         engine.resolveAuthorizationInfo(
-            new AuthorizationEngine.RequestInfo(
+            new RequestInfo(
                 AuthenticationTestHelper.builder().build(),
                 mock(TransportRequest.class),
                 randomAlphaOfLengthBetween(20, 30),
@@ -1462,7 +1479,6 @@ public class RBACEngineTests extends ESTestCase {
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.READ, dataStreamName)
@@ -1485,24 +1501,26 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         SearchRequest request = new SearchRequest("*");
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, SearchAction.NAME),
-            lookup
+            lookup,
+            () -> ignore -> {}
         );
-        // The authorized indices is the lazily loading set implementation
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndicesSet.class));
-        assertThat(authorizedIndices, hasItem(dataStreamName));
+        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName), is(true));
         assertThat(
-            authorizedIndices,
+            authorizedIndices.all().get(),
             hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
         );
+        for (String index : backingIndices.stream().map(im -> im.getIndex().getName()).toList()) {
+            assertThat(authorizedIndices.check(index), is(true));
+        }
     }
 
     public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.emptySet(), Collections.emptyList())
             .add(IndexPrivilege.CREATE, "my_*")
@@ -1527,14 +1545,13 @@ public class RBACEngineTests extends ESTestCase {
 
         PutMappingRequest request = new PutMappingRequest("*");
         request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
-        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, PutMappingAction.NAME),
-            lookup
+            lookup,
+            () -> ignore -> {}
         );
-        // The authorized indices is the lazily loading set implementation
-        assertThat(authorizedIndices, instanceOf(RBACEngine.AuthorizedIndicesSet.class));
-        assertThat(authorizedIndices.isEmpty(), is(true));
+        assertThat(authorizedIndices.all().get().isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
@@ -1542,54 +1559,6 @@ public class RBACEngineTests extends ESTestCase {
         // No assertion is needed, the test is successful as long as hashCode calls do not throw error
         new RBACAuthorizationInfo(role, Role.builder(RESTRICTED_INDICES, "authenticated_role").build()).hashCode();
         new RBACAuthorizationInfo(role, null).hashCode();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testLazinessForAuthorizedIndicesSet() {
-        final Set<String> authorizedNames = Set.of("foo", "bar", "baz");
-        final HashSet<String> allNames = new HashSet<>(authorizedNames);
-        allNames.addAll(Set.of("buzz", "fiz"));
-
-        final Supplier<Set<String>> supplier = mock(Supplier.class);
-        when(supplier.get()).thenReturn(authorizedNames);
-        final Predicate<String> predicate = mock(Predicate.class);
-        doAnswer(invocation -> {
-            final String name = (String) invocation.getArguments()[0];
-            return authorizedNames.contains(name);
-        }).when(predicate).test(anyString());
-        final RBACEngine.AuthorizedIndicesSet authorizedIndicesSet = new RBACEngine.AuthorizedIndicesSet(supplier, predicate);
-
-        // Check with contains or containsAll do not trigger loading
-        final String name1 = randomFrom(allNames);
-        final String name2 = randomValueOtherThan(name1, () -> randomFrom(allNames));
-        final boolean containsAll = randomBoolean();
-        if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
-        } else {
-            assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
-        }
-        verify(supplier, never()).get();
-        verify(predicate, atLeastOnce()).test(anyString());
-
-        // Iterating through the set triggers loading
-        Mockito.clearInvocations(predicate);
-        final Set<String> collectedNames = new HashSet<>();
-        for (String name : authorizedIndicesSet) {
-            collectedNames.add(name);
-        }
-        verify(supplier).get();
-        assertThat(collectedNames, equalTo(authorizedNames));
-
-        // Check with contains and containsAll again now uses the loaded set not the predicate anymore
-        Mockito.clearInvocations(supplier);
-        if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
-        } else {
-            assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
-        }
-        verify(predicate, never()).test(anyString());
-        // It also does not load twice
-        verify(supplier, never()).get();
     }
 
     public void testGetUserPrivilegesThrowsIaeForUnsupportedOperation() {
@@ -1625,6 +1594,350 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersection() throws ExecutionException, InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final int numGroups = randomIntBetween(1, 3);
+        final List<IndicesPrivileges> expectedIndicesPrivileges = new ArrayList<>();
+        for (int i = 0; i < numGroups; i++) {
+            final String[] indexNames = Objects.requireNonNull(generateRandomStringArray(3, 10, false, false));
+            final boolean allowRestrictedIndices = randomBoolean();
+            final boolean hasFls = randomBoolean();
+            final FieldPermissionsDefinition.FieldGrantExcludeGroup group = hasFls
+                ? randomFieldGrantExcludeGroup()
+                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null);
+            final BytesReference query = randomBoolean() ? randomDlsQuery() : null;
+            final IndicesPrivileges.Builder builder = IndicesPrivileges.builder()
+                .indices(Arrays.stream(indexNames).sorted().collect(Collectors.toList()))
+                .privileges("read")
+                .allowRestrictedIndices(allowRestrictedIndices)
+                .query(query);
+            if (hasFls) {
+                builder.grantedFields(group.getGrantedFields());
+                builder.deniedFields(group.getExcludedFields());
+            }
+            expectedIndicesPrivileges.add(builder.build());
+            remoteIndicesBuilder.addGroup(
+                Set.of(randomFrom(concreteClusterAlias, "*")),
+                IndexPrivilege.READ,
+                new FieldPermissions(new FieldPermissionsDefinition(Set.of(group))),
+                query == null ? null : Set.of(query),
+                allowRestrictedIndices,
+                indexNames
+            );
+        }
+        final String mismatchedConcreteClusterAlias = randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10));
+        // Add some groups that don't match the alias
+        final int numMismatchedGroups = randomIntBetween(0, 3);
+        for (int i = 0; i < numMismatchedGroups; i++) {
+            remoteIndicesBuilder.addGroup(
+                Set.of(mismatchedConcreteClusterAlias),
+                IndexPrivilege.READ,
+                new FieldPermissions(
+                    new FieldPermissionsDefinition(Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)))
+                ),
+                null,
+                randomBoolean(),
+                generateRandomStringArray(3, 10, false, false)
+            );
+        }
+
+        final Role role = mockRoleWithRemoteIndices(remoteIndicesBuilder.build());
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
+        final RoleDescriptorsIntersection actual = future.get();
+
+        assertThat(
+            actual,
+            equalTo(
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                null,
+                                expectedIndicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        verify(role, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role);
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
+        InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final int numGroups = randomIntBetween(2, 5);
+        for (int i = 0; i < numGroups; i++) {
+            remoteIndicesBuilder.addGroup(
+                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                IndexPrivilege.get(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
+                new FieldPermissions(
+                    new FieldPermissionsDefinition(
+                        Set.of(
+                            randomBoolean()
+                                ? randomFieldGrantExcludeGroup()
+                                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
+                        )
+                    )
+                ),
+                randomBoolean() ? Set.of(randomDlsQuery()) : null,
+                randomBoolean(),
+                generateRandomStringArray(3, 10, false, false)
+            );
+        }
+        final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
+        List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
+        final Role role1 = mockRoleWithRemoteIndices(permissions);
+        final RBACAuthorizationInfo authorizationInfo1 = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo1.getRole()).thenReturn(role1);
+        final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
+        final RoleDescriptorsIntersection actual1 = future1.get();
+        verify(role1, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role1);
+
+        // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
+        final RemoteIndicesPermission shuffledPermissions = new RemoteIndicesPermission(
+            shuffledList(
+                remoteIndicesGroups.stream()
+                    .map(
+                        group -> new RemoteIndicesPermission.RemoteIndicesGroup(
+                            group.remoteClusterAliases(),
+                            shuffledList(group.indicesPermissionGroups())
+                        )
+                    )
+                    .toList()
+            )
+        );
+        final Role role2 = mockRoleWithRemoteIndices(shuffledPermissions);
+        final RBACAuthorizationInfo authorizationInfo2 = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo2.getRole()).thenReturn(role2);
+        final PlainActionFuture<RoleDescriptorsIntersection> future2 = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
+        final RoleDescriptorsIntersection actual2 = future2.get();
+
+        verify(role2, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role2);
+        assertThat(actual1, equalTo(actual2));
+        assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutMatchingGroups() throws ExecutionException, InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final Role role = mockRoleWithRemoteIndices(
+            RemoteIndicesPermission.builder()
+                .addGroup(
+                    Set.of(concreteClusterAlias),
+                    IndexPrivilege.READ,
+                    new FieldPermissions(new FieldPermissionsDefinition(null, null)),
+                    null,
+                    randomBoolean(),
+                    generateRandomStringArray(3, 10, false, false)
+                )
+                .build()
+        );
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(
+            randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
+            authorizationInfo,
+            future
+        );
+        final RoleDescriptorsIntersection actual = future.get();
+        assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
+        verify(role, times(1)).remoteIndices();
+        verifyNoMoreInteractions(role);
+    }
+
+    public void testGetRemoteAccessRoleDescriptorsIntersectionWithoutRemoteIndicesPermissions() throws ExecutionException,
+        InterruptedException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final String concreteClusterAlias = randomAlphaOfLength(10);
+        final Role role = mockRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+
+        final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
+        engine.getRemoteAccessRoleDescriptorsIntersection(
+            randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
+            authorizationInfo,
+            future
+        );
+        final RoleDescriptorsIntersection actual = future.get();
+        assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
+    }
+
+    public void testChildSearchActionAuthorizationIsSkipped() {
+        final String[] indices = { "test-index" };
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
+
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child authorization should be skipped since we passed parent authorization.
+                Mockito.verify(role, never()).checkIndicesAction(action);
+                Mockito.verify(role, never()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testChildSearchActionIsAuthorizedWithoutSkipping() {
+        final String[] indices = { "test-index" };
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
+
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = null;
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child action should have been authorized normally since we did not pass parent authorization
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testChildSearchActionAuthorizationIsNotSkippedWhenRoleHasDLS() {
+        final String[] indices = { "test-index" };
+        final BytesArray query = new BytesArray("""
+            {"term":{"foo":bar}}""");
+        final Role role = Mockito.spy(
+            Role.builder(RESTRICTED_INDICES, "test-role")
+                .add(
+                    new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, new String[0])),
+                    Set.of(query),
+                    IndexPrivilege.READ,
+                    randomBoolean(),
+                    indices
+                )
+                .build()
+        );
+
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child action authorization should not be skipped, even though the parent authorization was present
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testRandomChildSearchActionAuthorizionIsNotSkipped() {
+        final String[] indices = { "test-index" };
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
+
+        final String action = SearchAction.NAME + "[" + randomAlphaOfLength(3) + "]";
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    private void authorizeIndicesAction(
+        final String[] indices,
+        final Role role,
+        final String action,
+        final ParentActionAuthorization parentAuthorization,
+        final ActionListener<IndexAuthorizationResult> listener
+    ) {
+
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final ResolvedIndices resolvedIndices = new ResolvedIndices(List.of(indices), List.of());
+        final TransportRequest searchRequest = new SearchRequest(indices);
+        final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
+        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = s -> s.onResponse(resolvedIndices);
+
+        final Map<String, IndexAbstraction> aliasOrIndexLookup = Stream.of(indices)
+            .collect(
+                Collectors.toMap(
+                    i -> i,
+                    v -> new IndexAbstraction.ConcreteIndex(
+                        IndexMetadata.builder(v)
+                            .settings(
+                                Settings.builder()
+                                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                            )
+                            .build()
+                    )
+                )
+            );
+
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, aliasOrIndexLookup, listener);
+    }
+
+    private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {
+        final Authentication.RealmRef realm = new Authentication.RealmRef(
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(4),
+            "node0" + randomIntBetween(1, 9)
+        );
+        return new RequestInfo(
+            AuthenticationTestHelper.builder().user(new User(randomAlphaOfLength(8))).realmRef(realm).build(false),
+            request,
+            action,
+            null,
+            parentAuthorization
+        );
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {
@@ -1717,5 +2030,27 @@ public class RBACEngineTests extends ESTestCase {
 
     private static MapBuilder<String, Boolean> mapBuilder() {
         return MapBuilder.newMapBuilder();
+    }
+
+    private BytesArray randomDlsQuery() {
+        return new BytesArray(
+            "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+        );
+    }
+
+    private FieldPermissionsDefinition.FieldGrantExcludeGroup randomFieldGrantExcludeGroup() {
+        return new FieldPermissionsDefinition.FieldGrantExcludeGroup(generateRandomStringArray(3, 10, false, false), new String[] {});
+    }
+
+    private Role mockRoleWithRemoteIndices(final RemoteIndicesPermission remoteIndicesPermission) {
+        final Role role = mock(Role.class);
+        final String[] roleNames = generateRandomStringArray(3, 10, false, false);
+        when(role.names()).thenReturn(roleNames);
+        when(role.cluster()).thenReturn(ClusterPermission.NONE);
+        when(role.indices()).thenReturn(IndicesPermission.NONE);
+        when(role.application()).thenReturn(ApplicationPermission.NONE);
+        when(role.runAs()).thenReturn(RunAsPermission.NONE);
+        when(role.remoteIndices()).thenReturn(remoteIndicesPermission);
+        return role;
     }
 }

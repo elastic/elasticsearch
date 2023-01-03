@@ -462,7 +462,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
 
         private boolean hasRelocatingShards(ClusterState clusterState, String nodeId) {
-            return clusterState.getRoutingNodes().node(nodeId).shardsWithState(ShardRoutingState.RELOCATING).isEmpty() == false;
+            return clusterState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING) > 0;
         }
     }
 }

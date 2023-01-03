@@ -437,6 +437,7 @@ public class Constants {
         "indices:data/read/mtv",
         "indices:data/read/mtv[shard]",
         "indices:data/read/open_point_in_time",
+        "indices:data/read/profiling",
         "indices:data/read/rank_eval",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",
@@ -488,6 +489,7 @@ public class Constants {
         "internal:cluster/master_history/get",
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
-        "internal:gateway/local/started_shards"
+        "internal:gateway/local/started_shards",
+        "internal:admin/indices/prevalidate_shard_path"
     );
 }

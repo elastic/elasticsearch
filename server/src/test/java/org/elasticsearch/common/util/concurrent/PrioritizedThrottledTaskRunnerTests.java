@@ -189,6 +189,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var totalPermits = between(1, maxThreads * 2);
         final var permits = new Semaphore(totalPermits);
         final var taskCompleted = new CountDownLatch(between(1, maxThreads * 2));
+        final var rejectionCountDown = new CountDownLatch(between(1, maxThreads * 2));
 
         final var spawnThread = new Thread(() -> {
             try {
@@ -197,7 +198,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     taskRunner.enqueueTask(new TestTask(taskCompleted::countDown, getRandomPriority()) {
                         @Override
                         public void onRejection(Exception e) {
-                            // ok
+                            rejectionCountDown.countDown();
                         }
 
                         @Override
@@ -214,6 +215,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         assertTrue(taskCompleted.await(10, TimeUnit.SECONDS));
         executor.shutdown();
         assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        assertTrue(rejectionCountDown.await(10, TimeUnit.SECONDS));
         spawnThread.interrupt();
         spawnThread.join();
         assertThat(taskRunner.runningTasks(), equalTo(0));

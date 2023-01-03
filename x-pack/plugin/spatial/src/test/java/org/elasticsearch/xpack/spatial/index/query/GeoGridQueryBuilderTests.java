@@ -278,6 +278,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92611")
     public void testBoundingBoxQuantize() {
         double lat = randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, true);
         double lon = randomDoubleBetween(-180d, 180d, true);

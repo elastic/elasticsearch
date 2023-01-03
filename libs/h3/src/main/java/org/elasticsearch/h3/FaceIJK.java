@@ -628,7 +628,7 @@ final class FaceIJK {
                 adjacent hexagon edge will lie completely on a single icosahedron
                 face, and no additional vertex is required.
                 */
-                final boolean isIntersectionAtVertex = orig2d0.equals(inter) || orig2d1.equals(inter);
+                final boolean isIntersectionAtVertex = orig2d0.numericallyIdentical(inter) || orig2d1.numericallyIdentical(inter);
                 if (isIntersectionAtVertex == false) {
                     final LatLng point = inter.hex2dToGeo(this.face, adjRes, true);
                     boundary.add(point);

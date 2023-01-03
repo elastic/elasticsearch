@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -99,18 +100,18 @@ public class TaskCancellationService {
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
-            GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(3, completedListener.map(r -> null));
+            CountDownActionListener countDownListener = new CountDownActionListener(3, completedListener);
             Collection<Transport.Connection> childConnections = taskManager.startBanOnChildTasks(task.getId(), reason, () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
-                groupedListener.onResponse(null);
+                countDownListener.onResponse(null);
             });
             taskManager.cancel(task, reason, () -> {
                 logger.trace("task [{}] is cancelled", taskId);
-                groupedListener.onResponse(null);
+                countDownListener.onResponse(null);
             });
             StepListener<Void> setBanListener = new StepListener<>();
             setBanOnChildConnections(reason, waitForCompletion, task, childConnections, setBanListener);
-            setBanListener.addListener(groupedListener);
+            setBanListener.addListener(countDownListener);
             // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
             // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
             final Runnable removeBansRunnable = transportService.getThreadPool()
@@ -149,7 +150,7 @@ public class TaskCancellationService {
         }
         final TaskId taskId = new TaskId(localNodeId(), task.getId());
         logger.trace("cancelling child tasks of [{}] on child connections {}", taskId, childConnections);
-        GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(childConnections.size(), listener.map(r -> null));
+        CountDownActionListener countDownListener = new CountDownActionListener(childConnections.size(), listener);
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
         for (Transport.Connection connection : childConnections) {
             assert TransportService.unwrapConnection(connection) == connection : "Child connection must be unwrapped";
@@ -162,7 +163,7 @@ public class TaskCancellationService {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         logger.trace("sent ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
-                        groupedListener.onResponse(null);
+                        countDownListener.onResponse(null);
                     }
 
                     @Override
@@ -188,7 +189,7 @@ public class TaskCancellationService {
                             );
                         }
 
-                        groupedListener.onFailure(exp);
+                        countDownListener.onFailure(exp);
                     }
                 }
             );

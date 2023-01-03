@@ -71,9 +71,4 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
             randomFrom(Priority.values())
         );
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

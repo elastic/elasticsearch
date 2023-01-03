@@ -138,7 +138,12 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
+        writeChunks(
+            clusterState,
+            builder,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
+            34
+        );
         builder.endObject();
 
         assertEquals(XContentHelper.stripWhitespace(formatted("""
@@ -369,7 +374,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
         assertEquals(formatted("""
@@ -597,7 +602,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
         assertEquals(formatted("""
@@ -849,7 +854,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 25);
         builder.endObject();
 
         assertEquals(formatted("""
@@ -1039,5 +1044,16 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .build();
         assertEquals(DiscoveryNodes.EMPTY_NODES, notRecoveredState.nodesIfRecovered());
+    }
+
+    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params, int expectedChunks)
+        throws IOException {
+        final var iterator = clusterState.toXContentChunked(params);
+        int chunks = 0;
+        while (iterator.hasNext()) {
+            iterator.next().toXContent(builder, params);
+            chunks += 1;
+        }
+        assertEquals(expectedChunks, chunks);
     }
 }

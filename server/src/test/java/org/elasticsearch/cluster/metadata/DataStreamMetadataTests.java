@@ -68,11 +68,6 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
         return DataStreamMetadata::new;
     }
 
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
-
     public void testWithAlias() {
         Index index1 = new Index("data-stream-1-index", "1");
         Index index2 = new Index("data-stream-2-index", "2");

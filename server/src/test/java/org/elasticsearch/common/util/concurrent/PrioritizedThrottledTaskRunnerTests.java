@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -17,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -40,7 +42,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
-    static class TestTask implements Comparable<TestTask>, Runnable {
+    static class TestTask extends AbstractRunnable implements Comparable<TestTask> {
 
         private final Runnable runnable;
         private final int priority;
@@ -56,8 +58,13 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void run() {
+        public void doRun() {
             runnable.run();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            throw new AssertionError("unexpected", e);
         }
     }
 
@@ -169,6 +176,51 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
             assertThat(taskRunner.runningTasks(), equalTo(0));
         });
         assertThat(taskRunner.queueSize(), equalTo(0));
+    }
+
+    public void testFailsTasksOnRejectionOrShutdown() throws Exception {
+        final var maxThreads = between(1, 5);
+        final var threadFactory = EsExecutors.daemonThreadFactory("test");
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var executor = randomBoolean()
+            ? EsExecutors.newScaling("test", 1, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)
+            : EsExecutors.newFixed("test", maxThreads, between(1, 5), threadFactory, threadContext, false);
+        final var taskRunner = new PrioritizedThrottledTaskRunner<TestTask>("test", between(1, maxThreads * 2), executor);
+        final var totalPermits = between(1, maxThreads * 2);
+        final var permits = new Semaphore(totalPermits);
+        final var taskCompleted = new CountDownLatch(between(1, maxThreads * 2));
+        final var rejectionCountDown = new CountDownLatch(between(1, maxThreads * 2));
+
+        final var spawnThread = new Thread(() -> {
+            try {
+                while (true) {
+                    assertTrue(permits.tryAcquire(10, TimeUnit.SECONDS));
+                    taskRunner.enqueueTask(new TestTask(taskCompleted::countDown, getRandomPriority()) {
+                        @Override
+                        public void onRejection(Exception e) {
+                            rejectionCountDown.countDown();
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            permits.release();
+                        }
+                    });
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        spawnThread.start();
+        assertTrue(taskCompleted.await(10, TimeUnit.SECONDS));
+        executor.shutdown();
+        assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        assertTrue(rejectionCountDown.await(10, TimeUnit.SECONDS));
+        spawnThread.interrupt();
+        spawnThread.join();
+        assertThat(taskRunner.runningTasks(), equalTo(0));
+        assertThat(taskRunner.queueSize(), equalTo(0));
+        assertTrue(permits.tryAcquire(totalPermits));
     }
 
     private int getRandomPriority() {

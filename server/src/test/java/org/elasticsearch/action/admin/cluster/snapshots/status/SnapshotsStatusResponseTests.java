@@ -17,8 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-
 public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTestCase<SnapshotsStatusResponse> {
 
     @Override
@@ -52,20 +50,10 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
         return SnapshotsStatusResponse::new;
     }
 
-    public void testChunkCount() {
-        final var instance = createTestInstance();
-        // open and close chunk
-        int chunksExpected = 2;
-        for (SnapshotStatus snapshot : instance.getSnapshots()) {
-            // open and close chunk + one chunk per index
-            chunksExpected += 2 + snapshot.getIndices().size();
-        }
-        final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-        int chunksSeen = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunksSeen++;
-        }
-        assertEquals(chunksExpected, chunksSeen);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> 2 + instance.getSnapshots().stream().mapToInt(i -> 2 + i.getIndices().size()).sum()
+        );
     }
 }

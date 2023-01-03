@@ -30,10 +30,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScript.Factory> {
-    public static final StringFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
+    public static final StringFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -65,6 +66,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -91,6 +93,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -130,11 +133,12 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
-                List<String> results = stringFieldScript.resultsForDoc(0);
-                assertEquals(numValues, results.size());
+                stringFieldScript.runForDoc(0);
+                assertEquals(numValues, stringFieldScript.getValues().size());
             }
         }
     }
@@ -159,11 +163,12 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
-                List<String> results = stringFieldScript.resultsForDoc(0);
-                assertEquals(5, results.size());
+                stringFieldScript.runForDoc(0);
+                assertEquals(5, stringFieldScript.getValues().size());
             }
         }
     }

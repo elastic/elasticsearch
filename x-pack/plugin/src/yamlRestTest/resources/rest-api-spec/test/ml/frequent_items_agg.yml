@@ -369,6 +369,68 @@ setup:
   - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
 
 ---
+"Test frequent items exclude":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {
+                      "field": "error_message",
+                      "exclude": "engine overheated"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 3 }
+  - match: { aggregations.fi.buckets.0.doc_count: 5 }
+  - match: { aggregations.fi.buckets.0.support: 0.5 }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+  - match: { aggregations.fi.buckets.1.doc_count: 3 }
+  - match: { aggregations.fi.buckets.1.support: 0.3 }
+
+---
+"Test frequent items include":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {
+                      "field": "error_message",
+                      "include": "en.*ed"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 3 }
+  - match: { aggregations.fi.buckets.0.doc_count: 4 }
+  - match: { aggregations.fi.buckets.0.support: 0.4 }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["engine overheated"] }
+
+---
 "Test frequent items unsupported types":
   - do:
       catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_items\]/

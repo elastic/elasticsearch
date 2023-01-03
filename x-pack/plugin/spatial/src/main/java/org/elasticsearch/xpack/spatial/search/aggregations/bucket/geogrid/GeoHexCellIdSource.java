@@ -6,11 +6,17 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.spatial3d.geom.LatLonBounds;
+import org.apache.lucene.spatial3d.geom.Plane;
+import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.spatial3d.geom.SidedPlane;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
@@ -44,8 +50,9 @@ public class GeoHexCellIdSource extends CellIdSource {
                 final double lat = target.getLat();
                 final double lon = target.getLon();
                 final long hex = H3.geoToH3(lat, lon, precision);
-                // validPoint is a fast check, validHex is slow
-                if (validPoint(lon, lat) || predicate.validHex(hex)) {
+                // pointInBounds is a fast check, validHex is slow
+                if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
+                    assert predicate.validHex(hex) : H3.h3ToString(hex) + " should be valid but it is not";
                     value = hex;
                     return true;
                 }
@@ -75,13 +82,31 @@ public class GeoHexCellIdSource extends CellIdSource {
                 final double lon = target.getLon();
                 final long hex = H3.geoToH3(lat, lon, precision);
                 // validPoint is a fast check, validHex is slow
-                if (validPoint(lon, lat) || predicate.validHex(hex)) {
+                if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
                     values[valuesIdx] = hex;
                     return valuesIdx + 1;
                 }
                 return valuesIdx;
             }
         };
+    }
+
+    // package private for testing
+    static LatLonBounds getGeoBounds(CellBoundary cellBoundary) {
+        final LatLonBounds bounds = new LatLonBounds();
+        org.apache.lucene.spatial3d.geom.GeoPoint start = getGeoPoint(cellBoundary.getLatLon(cellBoundary.numPoints() - 1));
+        for (int i = 0; i < cellBoundary.numPoints(); i++) {
+            final org.apache.lucene.spatial3d.geom.GeoPoint end = getGeoPoint(cellBoundary.getLatLon(i));
+            bounds.addPoint(end);
+            final Plane plane = new Plane(start, end);
+            bounds.addPlane(PlanetModel.SPHERE, plane, new SidedPlane(start, plane, end), new SidedPlane(end, start, plane));
+            start = end;
+        }
+        return bounds;
+    }
+
+    private static org.apache.lucene.spatial3d.geom.GeoPoint getGeoPoint(LatLng latLng) {
+        return new org.apache.lucene.spatial3d.geom.GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
     }
 
     private static class GeoHexPredicate {
@@ -98,25 +123,25 @@ public class GeoHexCellIdSource extends CellIdSource {
         }
 
         public boolean validHex(long hex) {
-            CellBoundary boundary = H3.h3ToGeoBoundary(hex);
-            double minLat = Double.POSITIVE_INFINITY;
-            double minLon = Double.POSITIVE_INFINITY;
-            double maxLat = Double.NEGATIVE_INFINITY;
-            double maxLon = Double.NEGATIVE_INFINITY;
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                double boundaryLat = boundary.getLatLon(i).getLatDeg();
-                double boundaryLon = boundary.getLatLon(i).getLonDeg();
-                minLon = Math.min(minLon, boundaryLon);
-                maxLon = Math.max(maxLon, boundaryLon);
-                minLat = Math.min(minLat, boundaryLat);
-                maxLat = Math.max(maxLat, boundaryLat);
+            final LatLonBounds bounds = getGeoBounds(H3.h3ToGeoBoundary(hex));
+            final double minLat = bounds.checkNoBottomLatitudeBound() ? GeoUtils.MIN_LAT_INCL : Math.toDegrees(bounds.getMinLatitude());
+            final double maxLat = bounds.checkNoTopLatitudeBound() ? GeoUtils.MAX_LAT_INCL : Math.toDegrees(bounds.getMaxLatitude());
+            final double minLon;
+            final double maxLon;
+            if (bounds.checkNoLongitudeBound()) {
+                assert northPoleHex == hex || southPoleHex == hex;
+                minLon = GeoUtils.MIN_LON_INCL;
+                maxLon = GeoUtils.MAX_LON_INCL;
+            } else {
+                minLon = Math.toDegrees(bounds.getLeftLongitude());
+                maxLon = Math.toDegrees(bounds.getRightLongitude());
             }
             if (northPoleHex == hex) {
                 return minLat < bbox.top();
             } else if (southPoleHex == hex) {
                 return maxLat > bbox.bottom();
-            } else if (maxLon - minLon > 180) {
-                return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
+            } else if (maxLon < minLon) {
+                return intersects(-180, maxLon, minLat, maxLat) || intersects(minLon, 180, minLat, maxLat);
             } else {
                 return intersects(minLon, maxLon, minLat, maxLat);
             }

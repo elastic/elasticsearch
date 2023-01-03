@@ -12,6 +12,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -136,8 +137,8 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             b.endObject().endObject();
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field").field("foo", Arrays.asList(10, 20)).endObject()))
         );
         assertEquals(
@@ -145,7 +146,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage()
         );
 
-        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
             {
                 b.startObject().startObject("field").field("bar", 10).endObject().endObject();

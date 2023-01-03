@@ -108,17 +108,17 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             dynamicMapping("strict", b -> b.startObject("field1").field("type", "text").endObject())
         );
 
-        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.field("field1", "value1");
             b.field("field2", "value2");
         })));
-        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
+        assertThat(e.getMessage(), containsString("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
 
-        e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+        e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.field("field1", "value1");
             b.nullField("field2");
         })));
-        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
+        assertThat(e.getMessage(), containsString("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
     }
 
     public void testDynamicFalseWithInnerObjectButDynamicSetOnRoot() throws IOException {
@@ -160,7 +160,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.startObject("obj1");
             {
                 b.field("field1", "value1");
@@ -168,7 +168,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [obj1] is not allowed"));
+        assertThat(e.getMessage(), containsString("mapping set to strict, dynamic introduction of [field2] within [obj1] is not allowed"));
     }
 
     public void testDynamicMappingOnEmptyString() throws Exception {
@@ -556,8 +556,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
         assertNull(doc.dynamicMappingsUpdate());
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> newMapper.parse(source(b -> b.field("my_field2", "foobar")))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [my_field2] of type [integer]"));

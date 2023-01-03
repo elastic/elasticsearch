@@ -96,8 +96,8 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.startObject("field2").field("type", "long").field("script", "field1_plus_two").endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertEquals("Error executing script on field [field1]", e.getMessage());
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertEquals("[-1:-1] failed to parse: Error executing script on field [field1]", e.getMessage());
 
         Throwable root = e.getCause();
         while (root.getCause() != null) {
@@ -119,9 +119,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertEquals("Error executing script on field [index-field]", e.getMessage());
-        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertEquals("[-1:-1] failed to parse: Error executing script on field [index-field]", e.getMessage());
+        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getCause().getMessage());
     }
 
     @Override

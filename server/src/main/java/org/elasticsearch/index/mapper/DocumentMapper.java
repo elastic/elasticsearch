@@ -74,7 +74,7 @@ public class DocumentMapper {
         return this.mappingLookup;
     }
 
-    public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
+    public ParsedDocument parse(SourceToParse source) throws DocumentParsingException {
         return documentParser.parseDocument(source, mappingLookup);
     }
 

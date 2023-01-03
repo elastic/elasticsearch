@@ -220,12 +220,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
         );
 
-        assertThat(e.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
+        assertThat(e.getMessage(), startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
     }
 
     public void testCopyToInnerStrictDynamicInnerObjectParsing() throws Exception {
@@ -254,12 +254,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
         );
 
-        assertThat(e.getMessage(), startsWith("mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed"));
+        assertThat(e.getMessage(), startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed"));
     }
 
     public void testCopyToFieldMerge() throws Exception {
@@ -534,12 +534,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> {
             b.field("copy_test", "foo");
             b.field("new_field", "bar");
         })));
 
-        assertThat(e.getMessage(), startsWith("It is forbidden to create dynamic nested objects ([very]) through `copy_to`"));
+        assertThat(e.getMessage(), startsWith("[1:14] It is forbidden to create dynamic nested objects ([very]) through `copy_to`"));
     }
 
     private void assertFieldValue(LuceneDocument doc, String field, Number... expected) {
@@ -651,12 +651,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 .endObject()
         );
 
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
         );
         assertEquals(
-            "Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
+            "[1:74] Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
             ex.getMessage()
         );
     }
@@ -720,12 +720,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 jsonBuilder().startObject().startObject("geopoint").field("lat", 41.12).field("lon", -71.34).endObject().endObject()
             );
 
-            MapperParsingException ex = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
                 () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
             );
             assertEquals(
-                "Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
+                "[1:38] Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
                 ex.getMessage()
             );
         }
@@ -734,12 +734,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 jsonBuilder().startObject().array("geopoint", new double[] { -71.34, 41.12 }).endObject()
             );
 
-            MapperParsingException ex = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
                 () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
             );
             assertEquals(
-                "Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
+                "[1:26] Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
                 ex.getMessage()
             );
         }

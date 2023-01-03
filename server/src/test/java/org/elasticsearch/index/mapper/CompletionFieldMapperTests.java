@@ -241,8 +241,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     public void testParsingFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(source(b -> b.field("field", 1.0)))
         );
         assertEquals("failed to parse [field]: expected text or object, but got VALUE_NUMBER", e.getCause().getMessage());
@@ -682,7 +682,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
     public void testNonContextEnabledParsingWithContexts() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.startObject("field");
             {
                 b.field("input", "suggestion1");
@@ -692,7 +692,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
 
-        assertThat(e.getRootCause().getMessage(), containsString("field"));
+        assertThat(e.getMessage(), containsString("field"));
     }
 
     public void testFieldValueValidation() throws Exception {
@@ -702,36 +702,36 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         charsRefBuilder.setCharAt(2, '\u001F');
 
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
                 () -> defaultMapper.parse(source(b -> b.field("field", charsRefBuilder.get().toString())))
             );
 
-            Throwable cause = e.unwrapCause().getCause();
+            Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), containsString("[0x1f]"));
         }
 
         charsRefBuilder.setCharAt(2, '\u0000');
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
                 () -> defaultMapper.parse(source(b -> b.field("field", charsRefBuilder.get().toString())))
             );
 
-            Throwable cause = e.unwrapCause().getCause();
+            Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), containsString("[0x0]"));
         }
 
         charsRefBuilder.setCharAt(2, '\u001E');
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
                 () -> defaultMapper.parse(source(b -> b.field("field", charsRefBuilder.get().toString())))
             );
 
-            Throwable cause = e.unwrapCause().getCause();
+            Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), containsString("[0x1e]"));
         }

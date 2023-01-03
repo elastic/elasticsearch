@@ -163,7 +163,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
             parseCreateField(context);
         } catch (Exception e) {
-            rethrowAsMapperParsingException(context, e);
+            rethrowAsDocumentParsingException(context, e);
         }
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
@@ -184,7 +184,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
     }
 
-    private void rethrowAsMapperParsingException(DocumentParserContext context, Exception e) {
+    private void rethrowAsDocumentParsingException(DocumentParserContext context, Exception e) {
         String valuePreview;
         try {
             XContentParser parser = context.parser();
@@ -195,22 +195,28 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 valuePreview = complexValue.toString();
             }
         } catch (Exception innerException) {
-            throw new MapperParsingException(
-                "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
-                e,
-                fieldType().name(),
-                fieldType().typeName(),
-                context.documentDescription()
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
+                String.format(
+                    "failed to parse field [%s] of type [%s] in %s. Could not parse field value preview,",
+                    fieldType().name(),
+                    fieldType().typeName(),
+                    context.documentDescription()
+                ),
+                e
             );
         }
 
-        throw new MapperParsingException(
-            "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
-            e,
-            fieldType().name(),
-            fieldType().typeName(),
-            context.documentDescription(),
-            valuePreview
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
+            String.format(
+                "failed to parse field [%s] of type [%s] in %s. Preview of field's value: '%s'",
+                fieldType().name(),
+                fieldType().typeName(),
+                context.documentDescription(),
+                valuePreview
+            ),
+            e
         );
     }
 

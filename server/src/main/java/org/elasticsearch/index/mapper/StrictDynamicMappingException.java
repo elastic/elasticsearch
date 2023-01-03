@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class StrictDynamicMappingException extends MapperParsingException {
+public class StrictDynamicMappingException extends MapperException {
 
     public StrictDynamicMappingException(String path, String fieldName) {
         super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");

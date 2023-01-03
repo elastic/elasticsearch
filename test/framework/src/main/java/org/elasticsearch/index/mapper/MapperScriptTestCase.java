@@ -72,7 +72,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
         assertThat(e.getMessage(), containsString("failed to parse field [scripted]"));
         assertEquals("Cannot index data directly into a field with a [script] parameter", e.getCause().getMessage());
     }
@@ -151,8 +151,8 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
-        assertThat(e.getMessage(), equalTo("Error executing script on field [message_error]"));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
+        assertThat(e.getMessage(), equalTo("[-1:-1] failed to parse: Error executing script on field [message_error]"));
     }
 
     public final void testMultipleValues() throws IOException {

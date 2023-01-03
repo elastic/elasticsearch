@@ -1198,7 +1198,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
             {
               "metrics.object" : [
                 {}
@@ -1206,8 +1206,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """)));
         assertEquals(
-            "Tried to add nested object [object] to object [metrics] which does not support subobjects",
-            err.getRootCause().getMessage()
+            "[3:5] Tried to add nested object [object] to object [metrics] which does not support subobjects",
+            err.getMessage()
         );
     }
 
@@ -1232,14 +1232,14 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("subobjects", false);
         }));
 
-        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
             {
               "object" : [
                 {}
               ]
             }
             """)));
-        assertEquals("Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
+        assertEquals("[3:5] Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {

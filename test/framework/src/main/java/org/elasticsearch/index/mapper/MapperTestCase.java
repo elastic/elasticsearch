@@ -243,8 +243,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("field");
             value.accept(b);
         });
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             "didn't throw while parsing " + source.source().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
@@ -949,7 +949,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
             assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
         } else {
-            expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+            expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
         assertWarnings(getParseMinimalWarnings());

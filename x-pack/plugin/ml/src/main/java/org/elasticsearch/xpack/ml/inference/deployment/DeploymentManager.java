@@ -124,18 +124,22 @@ public class DeploymentManager {
 
     // function exposed for testing
     ProcessContext addProcessContext(Long id, ProcessContext processContext) {
-        if (processContextByAllocation.size() >= maxProcesses) {
-            throw ExceptionsHelper.serverError(
-                "[{}] Could not start inference process as the node reached the max number [{}] of processes",
-                processContext.task.getModelId(),
-                maxProcesses
-            );
-        }
         return processContextByAllocation.putIfAbsent(id, processContext);
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
         logger.info("[{}] Starting model deployment", task.getModelId());
+
+        if (processContextByAllocation.size() >= maxProcesses) {
+            finalListener.onFailure(
+                ExceptionsHelper.serverError(
+                    "[{}] Could not start inference process as the node reached the max number [{}] of processes",
+                    task.getModelId(),
+                    maxProcesses
+                )
+            );
+            return;
+        }
 
         ProcessContext processContext = new ProcessContext(task);
         if (addProcessContext(task.getId(), processContext) != null) {
@@ -145,16 +149,18 @@ public class DeploymentManager {
             return;
         }
 
-        ActionListener<TrainedModelDeploymentTask> listener = ActionListener.wrap(finalListener::onResponse, failure -> {
+        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener = ActionListener.wrap(finalListener::onResponse, failure -> {
             ProcessContext failedContext = processContextByAllocation.remove(task.getId());
-            failedContext.stopProcess();
+            if (failedContext != null) {
+                failedContext.stopProcess();
+            }
             finalListener.onFailure(failure);
         });
 
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(success -> {
             executorServiceForProcess.execute(() -> processContext.getResultProcessor().process(processContext.process.get()));
-            listener.onResponse(task);
-        }, listener::onFailure);
+            finalListener.onResponse(task);
+        }, failedDeploymentListener::onFailure);
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             assert getModelResponse.getResources().results().size() == 1;
@@ -167,7 +173,7 @@ public class DeploymentManager {
                 SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchVocabResponse -> {
                     if (searchVocabResponse.getHits().getHits().length == 0) {
-                        listener.onFailure(
+                        failedDeploymentListener.onFailure(
                             new ResourceNotFoundException(
                                 Messages.getMessage(
                                     Messages.VOCABULARY_NOT_FOUND,
@@ -187,9 +193,9 @@ public class DeploymentManager {
                     // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                     // executor.
                     executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
-                }, listener::onFailure));
+                }, failedDeploymentListener::onFailure));
             } else {
-                listener.onFailure(
+                failedDeploymentListener.onFailure(
                     new IllegalArgumentException(
                         format(
                             "[%s] must be a pytorch model; found inference config of kind [%s]",
@@ -199,7 +205,7 @@ public class DeploymentManager {
                     )
                 );
             }
-        }, listener::onFailure);
+        }, failedDeploymentListener::onFailure);
 
         executeAsyncWithOrigin(
             client,
@@ -427,7 +433,7 @@ public class DeploymentManager {
                     if (isStopped) {
                         logger.debug("[{}] model loaded but process is stopped", task.getModelId());
                         killProcessIfPresent();
-                        loadedListener.onFailure(new IllegalArgumentException("model loaded but process is stopped"));
+                        loadedListener.onFailure(new IllegalStateException("model loaded but process is stopped"));
                         return;
                     }
 

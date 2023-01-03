@@ -157,13 +157,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(
-            params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                this.toXContentChunked(params),
-                ChunkedToXContentHelper.endObject()
-            )
-        );
+        return Strings.toString(this);
     }
 
     public boolean hasOutdatedAssignments() {

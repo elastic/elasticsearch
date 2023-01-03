@@ -305,7 +305,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92632")
     public void testDotsAndDoubleWildcardInExcludedFieldName() throws IOException {
         testFilter(
             builder -> builder.startObject().endObject(),
@@ -355,12 +355,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         }
         FilterPath[] excludesFilter = FilterPath.compile(excludes);
         if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
-            /*
-             * If there are any double wildcard filters the parser based
-             * filtering produced weird invalid json. Just field names
-             * and no objects?! Weird. Anyway, we can't use it.
-             */
-            assertFalse("can't filter on builder with dotted wildcards in exclude", matchFieldNamesWithDots);
             return filterOnBuilder(sample, includes, excludes);
         }
         return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);

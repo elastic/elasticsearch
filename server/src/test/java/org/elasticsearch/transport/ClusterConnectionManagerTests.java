@@ -655,7 +655,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         assertTrue("threads did not all complete", countDownLatch.await(10, TimeUnit.SECONDS));
         assertFalse(closingRefs.hasReferences());
-        assertTrue(cleanlyOpenedConnectionFuture.actionGet(10, TimeUnit.SECONDS));
+        assertTrue(cleanlyOpenedConnectionFuture.actionGet(0, TimeUnit.SECONDS));
 
         assertTrue("validatorPermits not all released", validatorPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
         connectionManager.close();

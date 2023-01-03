@@ -75,10 +75,7 @@ public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
-            createTestInstance(),
-            response -> 2 + response.getIndexToSettings().size()
-        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> 2 + response.getIndexToSettings().size());
     }
 
 }

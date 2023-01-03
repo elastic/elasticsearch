@@ -44,7 +44,7 @@ public class FieldUsageStatsResponseTests extends ESTestCase {
             );
         }
 
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new FieldUsageStatsResponse(indices, indices, 0, List.of(), perIndex),
             ignored -> indices + 2
         );

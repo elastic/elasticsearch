@@ -132,7 +132,7 @@ public class IngestMetadataTests extends ESTestCase {
             final String id = Integer.toString(i);
             pipelineConfigurations.put(id, new PipelineConfiguration(id, pipelineConfig, XContentType.JSON));
         }
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new IngestMetadata(pipelineConfigurations),
             response -> 2 + response.getPipelines().size()
         );

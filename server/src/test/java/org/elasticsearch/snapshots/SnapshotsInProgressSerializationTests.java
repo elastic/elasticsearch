@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -417,8 +416,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             )
         );
 
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 2));
-        final var json = Strings.toString(ChunkedToXContentHelper.objectFromFragment(sip), false, true);
+        AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 2));
+        final var json = Strings.toString(sip, false, true);
         assertThat(
             json,
             anyOf(

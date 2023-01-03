@@ -77,6 +77,6 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
     }
 
     public void testChunking() throws IOException {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(createTestInstance(), response -> response.getIndices().length + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getIndices().length + 2);
     }
 }

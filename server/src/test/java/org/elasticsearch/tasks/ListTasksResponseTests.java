@@ -186,9 +186,9 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
 
     public void testChunkedEncoding() {
         final var response = createTestInstanceWithFailures().in();
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(response.groupedByNone(), o -> response.getTasks().size() + 2);
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(response.groupedByParent(), o -> response.getTaskGroups().size() + 2);
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(response.groupedByNone(), o -> response.getTasks().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response.groupedByParent(), o -> response.getTaskGroups().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             response.groupedByNode(() -> DiscoveryNodes.EMPTY_NODES),
             o -> 2 + response.getPerNodeTasks().values().stream().mapToInt(entry -> 2 + entry.size()).sum()
         );

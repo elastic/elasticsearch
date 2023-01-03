@@ -199,6 +199,6 @@ public class HealthIndicatorResultTests extends ESTestCase {
 
         // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
         // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(result, ignored -> 12);
+        AbstractChunkedSerializingTestCase.assertChunkCount(result, ignored -> 12);
     }
 }

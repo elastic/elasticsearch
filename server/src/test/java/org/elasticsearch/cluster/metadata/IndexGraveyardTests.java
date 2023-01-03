@@ -78,7 +78,7 @@ public class IndexGraveyardTests extends ESTestCase {
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(createRandom(), graveyard -> graveyard.getTombstones().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(createRandom(), graveyard -> graveyard.getTombstones().size() + 2);
     }
 
     public void testAddTombstones() {

@@ -105,6 +105,6 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(createTestInstance(), ignored -> 1);
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ignored -> 1);
     }
 }

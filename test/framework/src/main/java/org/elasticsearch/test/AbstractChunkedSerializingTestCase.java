@@ -43,31 +43,18 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
-    public static <T extends ChunkedToXContent> void assertObjectChunkCount(T instance, ToIntFunction<T> expectedChunkCount) {
-        assertObjectChunkCount(instance, EMPTY_PARAMS, expectedChunkCount);
+    public static <T extends ChunkedToXContent> void assertChunkCount(T instance, ToIntFunction<T> expectedChunkCount) {
+        assertChunkCount(instance, EMPTY_PARAMS, expectedChunkCount);
     }
 
-    public static <T extends ChunkedToXContent> void assertObjectChunkCount(
+    public static <T extends ChunkedToXContent> void assertChunkCount(
         T instance,
-        ToXContent.Params params,
-        ToIntFunction<T> expectedChunkCount
-    ) {
-        assertChunkCount(instance, false, params, expectedChunkCount);
-    }
-
-    public static <T extends ChunkedToXContent> void assertFragmentChunkCount(T instance, ToIntFunction<T> expectedChunkCount) {
-        assertChunkCount(instance, true, EMPTY_PARAMS, expectedChunkCount);
-    }
-
-    private static <T extends ChunkedToXContent> void assertChunkCount(
-        T instance,
-        boolean fragment,
         ToXContent.Params params,
         ToIntFunction<T> expectedChunkCount
     ) {
         int chunkCount = 0;
         try (var builder = jsonBuilder()) {
-            if (fragment) {
+            if (instance.isFragment()) {
                 builder.startObject();
             }
             final var iterator = instance.toXContentChunked(params);
@@ -75,7 +62,7 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
                 iterator.next().toXContent(builder, params);
                 chunkCount += 1;
             }
-            if (fragment) {
+            if (instance.isFragment()) {
                 builder.endObject();
             }
         } catch (IOException e) {

@@ -59,7 +59,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
         SortField sortField = new SortField("foo", SortField.Type.STRING);
         sortField.setMissingValue(SortField.STRING_LAST);
         segment.segmentSort = new Sort(sortField);
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new IndicesSegmentResponse(
                 routings.stream().map(routing -> new ShardSegments(routing, List.of(segment))).toArray(ShardSegments[]::new),
                 indices,

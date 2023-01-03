@@ -68,7 +68,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new GetMappingsResponse(
                 IntStream.range(0, randomIntBetween(1, 10))
                     .mapToObj(i -> "index-" + i)

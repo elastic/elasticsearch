@@ -135,12 +135,12 @@ public class IndicesStatsResponseTests extends ESTestCase {
             ClusterState.EMPTY_STATE.getMetadata(),
             ClusterState.EMPTY_STATE.routingTable()
         );
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "cluster")),
-            ignored -> 3
+            ignored1 -> 3
         );
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "indices")),
             ignored -> 4 + shards

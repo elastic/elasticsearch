@@ -73,8 +73,4 @@ public enum ChunkedToXContentHelper {
     private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
         return wrapWithObject(name, map.entrySet().stream().map(toXContent).iterator());
     }
-
-    public static ChunkedToXContent objectFromFragment(ChunkedToXContent fragment) {
-        return params -> Iterators.concat(startObject(), fragment.toXContentChunked(params), endObject());
-    }
 }

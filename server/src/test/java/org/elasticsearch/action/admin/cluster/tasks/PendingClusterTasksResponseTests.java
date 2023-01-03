@@ -30,7 +30,7 @@ public class PendingClusterTasksResponseTests extends ESTestCase {
                 )
             );
         }
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new PendingClusterTasksResponse(tasks),
             response -> response.pendingTasks().size() + 2
         );

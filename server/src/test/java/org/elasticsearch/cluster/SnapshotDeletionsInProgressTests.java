@@ -60,7 +60,7 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             SnapshotDeletionsInProgress.of(
                 randomList(
                     10,

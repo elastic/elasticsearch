@@ -89,6 +89,6 @@ public class FollowInfoResponseTests extends AbstractChunkedSerializingTestCase<
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(createTestInstance(), instance -> instance.getFollowInfos().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> instance.getFollowInfos().size() + 2);
     }
 }

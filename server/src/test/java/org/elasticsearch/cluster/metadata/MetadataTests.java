@@ -2276,7 +2276,17 @@ public class MetadataTests extends ESTestCase {
 
     public void testChunkedToXContent() throws IOException {
         final int datastreams = randomInt(10);
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(randomMetadata(datastreams), instance -> {
+        // 2 chunks at the beginning
+        // 1 chunk for each index + 2 to wrap the indices field
+        // 2 chunks for wrapping reserved state + 1 chunk for each item
+        // 2 chunks wrapping templates and one chunk per template
+        // 2 chunks to wrap each custom
+        // 1 chunk per datastream, 4 chunks to wrap ds and ds-aliases, or 0 if there are no datastreams
+        // 2 chunks to wrap index graveyard and one per tombstone
+        // 2 chunks to wrap component templates and one per component template
+        // 2 chunks to wrap v2 templates and one per v2 template
+        // 1 chunk to close metadata
+        AbstractChunkedSerializingTestCase.assertChunkCount(randomMetadata(datastreams), instance -> {
             // 2 chunks at the beginning
             // 1 chunk for each index + 2 to wrap the indices field
             final int indicesChunks = instance.indices().size() + 2;

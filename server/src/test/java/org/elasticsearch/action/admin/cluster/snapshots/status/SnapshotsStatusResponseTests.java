@@ -51,7 +51,7 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             createTestInstance(),
             instance -> 2 + instance.getSnapshots().stream().mapToInt(i -> 2 + i.getIndices().size()).sum()
         );

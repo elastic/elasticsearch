@@ -205,11 +205,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             FieldCapabilitiesResponseTests.createResponseWithFailures(),
             instance -> instance.getFailures().isEmpty() ? 2 : (3 + instance.get().size() + instance.getFailures().size())
         );
 
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(createTestInstance(), instance -> 2 + instance.get().size());
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> 2 + instance.get().size());
     }
 }

@@ -34,6 +34,6 @@ public class RestoreInProgressTests extends ESTestCase {
             );
         }
 
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(ripBuilder.build(), ignored -> entryCount + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(ripBuilder.build(), ignored -> entryCount + 2);
     }
 }

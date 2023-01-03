@@ -178,7 +178,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(createTestInstance(), response -> response.getSnapshots().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getSnapshots().size() + 2);
     }
 
 }

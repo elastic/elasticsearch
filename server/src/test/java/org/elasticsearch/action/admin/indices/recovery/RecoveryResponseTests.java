@@ -33,7 +33,7 @@ public class RecoveryResponseTests extends ESTestCase {
         DiscoveryNode sourceNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode targetNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final int shards = randomInt(50);
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new RecoveryResponse(
                 successfulShards + failedShards,
                 successfulShards,

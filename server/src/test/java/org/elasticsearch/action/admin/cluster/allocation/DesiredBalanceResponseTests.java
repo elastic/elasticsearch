@@ -158,7 +158,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     }
 
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertObjectChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new DesiredBalanceResponse(randomStats(), randomRoutingTable()),
             response -> response.getRoutingTable().size() + 2
         );

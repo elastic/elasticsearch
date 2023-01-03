@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class RepositoryCleanupInProgressTests extends ESTestCase {
     public void testChunking() {
-        AbstractChunkedSerializingTestCase.assertFragmentChunkCount(
+        AbstractChunkedSerializingTestCase.assertChunkCount(
             new RepositoryCleanupInProgress(
                 randomList(10, () -> new RepositoryCleanupInProgress.Entry(randomAlphaOfLength(10), randomNonNegativeLong()))
             ),

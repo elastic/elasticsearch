@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoNodeAction;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
@@ -322,11 +324,15 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
             );
         }
 
-        assertTrue(
+        assertThat(
             "balanced across " + newNodes + " in " + state,
-            Math.abs(shardCountsByNodeName.get(newNodes.get(0)) - shardCountsByNodeName.get(newNodes.get(1))) <= 1
+            Math.abs(shardCountsByNodeName.get(newNodes.get(0)) - shardCountsByNodeName.get(newNodes.get(1))),
+            lessThanOrEqualTo(1)
         );
+    }
 
+    @After
+    public void cleanUpSettings() {
         assertAcked(
             client().admin()
                 .cluster()
@@ -334,5 +340,4 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
                 .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()))
         );
     }
-
 }

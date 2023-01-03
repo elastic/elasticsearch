@@ -19,6 +19,8 @@ public class NoShardAvailableActionException extends ElasticsearchException {
 
     private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
 
+    // This is set so that no StackTrace is serialized in the scenario when we wrap other shard failures.
+    // It isn't necessary to serialize this field over the wire as the empty stack trace is serialized instead.
     private final boolean onShardFailureWrapper;
 
     public static NoShardAvailableActionException forOnShardFailureWrapper(String msg) {

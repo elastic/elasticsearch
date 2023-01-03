@@ -148,7 +148,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
      * Returns list of snapshot indices
      */
     public Map<String, SnapshotIndexStatus> getIndices() {
-        var res = this.indicesStatus;
+        Map<String, SnapshotIndexStatus> res = this.indicesStatus;
         if (res != null) {
             return res;
         }
@@ -157,7 +157,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         for (SnapshotIndexShardStatus shard : shards) {
             indices.computeIfAbsent(shard.getIndex(), k -> new ArrayList<>()).add(shard);
         }
-        Map<String, SnapshotIndexStatus> indicesStatus = Maps.newMapWithExpectedSize(indices.size());
+        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>(indices.size());
         for (Map.Entry<String, List<SnapshotIndexShardStatus>> entry : indices.entrySet()) {
             indicesStatus.put(entry.getKey(), new SnapshotIndexStatus(entry.getKey(), entry.getValue()));
         }

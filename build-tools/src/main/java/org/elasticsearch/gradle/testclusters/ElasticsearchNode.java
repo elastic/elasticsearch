@@ -1027,7 +1027,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
-            // Another exception here would eat the orriginal.
+            // Another exception here would eat the original.
             return;
         }
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
@@ -1089,9 +1089,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 processHandle.destroyForcibly();
             }
 
-            waitForProcessToExit(processHandle);
-            if (processHandle.isAlive()) {
-                throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+            if (processHandle.isAlive() == true) {
+                LOGGER.info("Elasticsearch process is still alive, waiting {} {} for it to exit", ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+                waitForProcessToExit(processHandle);
+                if (processHandle.isAlive()) {
+                    throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+                }
             }
         } finally {
             children.forEach(each -> stopHandle(each, forcibly));
@@ -1199,6 +1202,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void waitForProcessToExit(ProcessHandle processHandle) {
+        logProcessInfo("Waiting for elasticsearch process to terminate:", processHandle.info());
         try {
             processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {

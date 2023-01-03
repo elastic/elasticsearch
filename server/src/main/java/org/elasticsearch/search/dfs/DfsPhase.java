@@ -23,6 +23,7 @@ import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -181,11 +182,17 @@ public class DfsPhase {
                     CollectorResult.REASON_SEARCH_TOP_HITS,
                     List.of()
                 );
-                context.getProfilers().getDfsProfiler().setCollector(ipc);
+                QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipc);
                 collector = ipc;
+                // Set the current searcher profiler to gather query profiling information for gathering top K docs
+                context.searcher().setProfiler(knnProfiler);
             }
             context.searcher().search(knnQuery, collector);
             knnResults.add(new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs));
+        }
+        // Set profiler back after running KNN searches
+        if (context.getProfilers() != null) {
+            context.searcher().setProfiler(context.getProfilers().getCurrentQueryProfiler());
         }
         context.dfsResult().knnResults(knnResults);
     }

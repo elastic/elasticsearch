@@ -74,7 +74,7 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setKnnSearch(
                     randomList(
-                        1,
+                        2,
                         5,
                         () -> new KnnSearchBuilder(
                             vectorField,

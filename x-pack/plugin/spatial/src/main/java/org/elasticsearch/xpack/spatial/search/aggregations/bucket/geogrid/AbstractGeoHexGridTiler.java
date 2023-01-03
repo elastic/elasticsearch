@@ -20,10 +20,10 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     private static final long[] RES0CELLS = H3.getLongRes0Cells();
     // The hexRing neighbours optimization is insufficient at the Poles, so we do a little extra checking
-    private static final long[] NORTH_POLAR_CELLS = new long[H3.MAX_H3_RES];
-    private static final long[] SOUTH_POLAR_CELLS = new long[H3.MAX_H3_RES];
+    private static final long[] NORTH_POLAR_CELLS = new long[H3.MAX_H3_RES + 1];
+    private static final long[] SOUTH_POLAR_CELLS = new long[H3.MAX_H3_RES + 1];
     static {
-        for (int res = 0; res < H3.MAX_H3_RES; res++) {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
             NORTH_POLAR_CELLS[res] = H3.geoToH3(90, 0, res);
             SOUTH_POLAR_CELLS[res] = H3.geoToH3(-90, 0, res);
         }

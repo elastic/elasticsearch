@@ -283,7 +283,7 @@ public class InferenceIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = formatted("""
+    private static final String REGRESSION_CONFIG = Strings.format("""
         {
             "input": {
                 "field_names": [
@@ -300,31 +300,12 @@ public class InferenceIT extends ESRestTestCase {
             "definition": %s
         }""", REGRESSION_DEFINITION);
 
-    static {
-        REGRESSION_CONFIG = Strings.format("""
-            {
-                "input": {
-                    "field_names": [
-                        "col1",
-                        "col2",
-                        "col3",
-                        "col4"
-                    ]
-                },
-                "description": "test model for regression",
-                "inference_config": {
-                    "regression": {}
-                },
-                "definition": %s
-            }""", REGRESSION_DEFINITION);
-    }
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = formatted("""
+    private static final String CLASSIFICATION_CONFIG = Strings.format("""
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]
@@ -338,23 +319,6 @@ public class InferenceIT extends ESRestTestCase {
           },
           "definition": %s
         }""", InferenceDefinitionTests.getClassificationDefinition(false));
-
-    static {
-        CLASSIFICATION_CONFIG = Strings.format("""
-            {
-              "input": {
-                "field_names": [ "col1", "col2", "col3", "col4" ]
-              },
-              "description": "test model for classification",
-              "default_field_map": {
-                "col_1_alias": "col1"
-              },
-              "inference_config": {
-                "classification": {}
-              },
-              "definition": %s
-            }""", InferenceDefinitionTests.getClassificationDefinition(false));
-    }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId);

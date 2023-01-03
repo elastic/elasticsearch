@@ -71,7 +71,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = formatted("""
+    private static final String ROLES = org.elasticsearch.core.Strings.format("""
         %s:
           cluster: [ all ]
           indices:
@@ -97,35 +97,6 @@ public class LicensingTests extends SecurityIntegTestCase {
             - names: 'b'
               privileges: [all]
         """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
-
-    static {
-        ROLES = org.elasticsearch.core.Strings.format("""
-            %s:
-              cluster: [ all ]
-              indices:
-                - names: '*'
-                  privileges: [manage]
-                - names: '/.*/'
-                  privileges: [write]
-                - names: 'test'
-                  privileges: [read]
-                - names: 'test1'
-                  privileges: [read]
-
-            role_a:
-              indices:
-                - names: 'a'
-                  privileges: [all]
-                - names: 'test-dls'
-                  privileges: [read]
-                  query: '{"term":{"field":"value"} }'
-
-            role_b:
-              indices:
-                - names: 'b'
-                  privileges: [all]
-            """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
-    }
 
     private static final String USERS_ROLES = """
         superuser:test_superuser

@@ -21,6 +21,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -88,6 +89,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
                     "test",
                     Map.of(),
                     searchLookup,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override

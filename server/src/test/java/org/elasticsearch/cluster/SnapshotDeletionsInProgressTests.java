@@ -40,7 +40,7 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.humanReadable(true);
             builder.startObject();
-            ChunkedToXContent.wrapAsXContentObject(sdip).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(sdip).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             String json = Strings.toString(builder);
             assertThat(json, equalTo(XContentHelper.stripWhitespace("""

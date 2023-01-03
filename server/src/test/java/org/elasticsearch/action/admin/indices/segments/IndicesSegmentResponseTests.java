@@ -45,7 +45,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             Collections.emptyList()
         );
         try (XContentBuilder builder = jsonBuilder()) {
-            ChunkedToXContent.wrapAsXContentObject(response).toXContent(builder, EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, EMPTY_PARAMS);
         }
     }
 

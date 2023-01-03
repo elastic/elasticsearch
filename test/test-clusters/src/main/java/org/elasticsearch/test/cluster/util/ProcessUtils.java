@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -47,7 +48,6 @@ public final class ProcessUtils {
         String... args
     ) {
         Process process;
-        Path inputFile = null;
 
         if (Files.exists(executable) == false) {
             throw new IllegalArgumentException("Can't run executable: `" + executable + "` does not exist.");
@@ -68,37 +68,28 @@ public final class ProcessUtils {
         processBuilder.environment().clear();
         processBuilder.environment().putAll(environment);
 
-        if (input != null) {
-            try {
-                inputFile = Files.createTempFile("exec-input-", ".tmp");
-                Files.writeString(inputFile, input);
-                processBuilder.redirectInput(inputFile.toFile());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
         try {
             process = processBuilder.start();
-            Process finalProcess = process;
 
             startLoggingThread(
-                finalProcess.getInputStream(),
+                process.getInputStream(),
                 inheritIO ? System.out::println : PROCESS_LOGGER::info,
                 executable.getFileName().toString()
             );
 
             startLoggingThread(
-                finalProcess.getErrorStream(),
+                process.getErrorStream(),
                 inheritIO ? System.err::println : PROCESS_LOGGER::error,
                 executable.getFileName().toString()
             );
+
+            if (input != null) {
+                try (BufferedWriter writer = process.outputWriter()) {
+                    writer.write(input);
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Error executing process: " + executable.getFileName(), e);
-        } finally {
-            if (inputFile != null) {
-                IOUtils.uncheckedDeleteWithRetry(inputFile);
-            }
         }
 
         return process;

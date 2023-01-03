@@ -238,7 +238,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
@@ -407,7 +407,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
@@ -448,7 +448,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         metadata = Metadata.builder(metadata).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata).build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             logger.info("--> metadata: {}", Strings.toString(builder));
         }

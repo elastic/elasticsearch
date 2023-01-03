@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -769,7 +770,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + randomFunction.name()
                 + "(date + INTERVAL 1 YEAR)"
         );
-        assertESQuery(p, containsString(formatted("""
+        assertESQuery(p, containsString(Strings.format("""
             {
               "terms": {
                 "script": {
@@ -802,7 +803,7 @@ public class QueryTranslatorTests extends ESTestCase {
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(formatted("""
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(Strings.format("""
             {
               "terms": {
                 "script": {
@@ -1130,7 +1131,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith(
-                formatted(
+                Strings.format(
                     """
                         {
                           "buckets_path": {
@@ -1203,7 +1204,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(p, endsWith(formatted("""
+            assertESQuery(p, endsWith(Strings.format("""
                 "aggregations":{"%s":{"extended_stats":{"field":"int","sigma":2.0}}}}}}\
                 """, aggName)));
         }

@@ -32,6 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -233,7 +235,7 @@ public class MetadataRolloverService {
     }
 
     private RolloverResult rolloverDataStream(
-        ClusterState currentState,
+        ClusterState state,
         IndexAbstraction.DataStream dataStream,
         String dataStreamName,
         CreateIndexRequest createIndexRequest,
@@ -244,7 +246,7 @@ public class MetadataRolloverService {
         @Nullable IndexMetadataStats sourceIndexStats
     ) throws Exception {
 
-        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+        if (SnapshotsService.snapshottingDataStreams(state, Collections.singleton(dataStream.getName())).isEmpty() == false) {
             // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
             // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
             // rollover
@@ -254,6 +256,8 @@ public class MetadataRolloverService {
                     + ". Try again after snapshot finishes or cancel the currently running snapshot."
             );
         }
+
+        ClusterState currentState = maybeDowngradeDataStream(state, dataStream.getDataStream());
 
         final Metadata metadata = currentState.getMetadata();
         final ComposableIndexTemplate templateV2;
@@ -269,8 +273,8 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final DataStream ds = dataStream.getDataStream();
-        final Index originalWriteIndex = dataStream.getWriteIndex();
+        final DataStream ds = currentState.getMetadata().dataStreams().get(dataStream.getName());
+        final Index originalWriteIndex = ds.getWriteIndex();
         final Tuple<String, Long> nextIndexAndGeneration = ds.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
@@ -312,6 +316,40 @@ public class MetadataRolloverService {
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
+    }
+
+    ClusterState maybeDowngradeDataStream(final ClusterState current, final DataStream ds) {
+        final Metadata metadata = current.getMetadata();
+        final ComposableIndexTemplate templateV2;
+        if (ds.isSystem() == false) {
+            templateV2 = lookupTemplateForDataStream(ds.getName(), metadata);
+        } else {
+            var systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(ds.getName());
+            if (systemDataStreamDescriptor == null) {
+                return current;
+            }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
+        }
+        Settings templateSettings = templateV2.template() != null ? templateV2.template().settings() : null;
+        IndexMode indexModeInTemplate = templateSettings != null
+            ? IndexMode.fromString(templateSettings.get(IndexSettings.MODE.getKey(), "standard"))
+            : null;
+        if (ds.getIndexMode() == IndexMode.TIME_SERIES && ds.getIndexMode() != indexModeInTemplate) {
+            DataStream downgraded = new DataStream(
+                ds.getName(),
+                ds.getIndices(),
+                ds.getGeneration(),
+                ds.getMetadata(),
+                ds.isHidden(),
+                ds.isReplicated(),
+                ds.isSystem(),
+                ds.isAllowCustomRouting(),
+                null
+            );
+            return ClusterState.builder(current).metadata(Metadata.builder(metadata).put(downgraded)).build();
+        } else {
+            return current;
+        }
     }
 
     public Metadata.Builder withShardSizeForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {

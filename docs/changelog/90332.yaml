@@ -1,0 +1,5 @@
+pr: 90332
+summary: Batch snapshot create tasks
+area: Snapshot/Restore
+type: enhancement
+issues: []

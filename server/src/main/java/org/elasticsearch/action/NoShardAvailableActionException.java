@@ -9,16 +9,11 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class NoShardAvailableActionException extends ElasticsearchException {
 
@@ -55,31 +50,11 @@ public class NoShardAvailableActionException extends ElasticsearchException {
 
     public NoShardAvailableActionException(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-            this.onShardFailureWrapper = in.readBoolean();
-        } else {
-            this.onShardFailureWrapper = false;
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-            out.writeBoolean(this.onShardFailureWrapper);
-        }
+        onShardFailureWrapper = false;
     }
 
     @Override
     public StackTraceElement[] getStackTrace() {
         return onShardFailureWrapper ? EMPTY_STACK_TRACE : super.getStackTrace();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Map<String, String> delegatedParams = onShardFailureWrapper
-            ? Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "true", REST_EXCEPTION_SKIP_CAUSE, "true")
-            : Map.of();
-        return super.toXContent(builder, new ToXContent.DelegatingMapParams(delegatedParams, params));
     }
 }

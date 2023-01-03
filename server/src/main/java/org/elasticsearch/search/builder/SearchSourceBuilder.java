@@ -387,7 +387,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * An optional kNN search definition.
      */
     public List<KnnSearchBuilder> knnSearch() {
-        return knnSearch;
+        return Collections.unmodifiableList(knnSearch);
     }
 
     /**

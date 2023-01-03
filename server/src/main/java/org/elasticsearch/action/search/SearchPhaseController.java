@@ -138,7 +138,7 @@ public final class SearchPhaseController {
         }
 
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
-            if (dfsSearchResult.knnResults() != null && dfsSearchResult.knnResults().isEmpty() == false) {
+            if (dfsSearchResult.knnResults() != null) {
                 for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
                     DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
                     ScoreDoc[] scoreDocs = knnResults.scoreDocs();

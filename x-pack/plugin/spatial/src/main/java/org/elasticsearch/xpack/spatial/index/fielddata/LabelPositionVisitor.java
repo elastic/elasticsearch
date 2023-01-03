@@ -17,41 +17,41 @@ import java.util.function.BiFunction;
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor extends TriangleTreeReader.DecodedVisitor {
+class LabelPositionVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     private SpatialPoint labelPosition;
     private final BiFunction<Double, Double, SpatialPoint> pointMaker;
 
-    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
+    LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
         super(encoder);
         this.pointMaker = pointMaker;
     }
 
     @Override
-    void visitDecodedPoint(double x, double y) {
+    protected void visitDecodedPoint(double x, double y) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply(x, y);
     }
 
     @Override
-    public void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
+    protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply((aX + bX) / 2.0, (aY + bY) / 2.0);
     }
 
     @Override
-    public void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+    protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply((aX + bX + cX) / 3.0, (aY + bY + cY) / 3.0);
     }
 
     @Override
-    boolean pushDecodedX(double minX) {
+    protected boolean pushDecodedX(double minX) {
         return labelPosition == null;
     }
 
     @Override
-    boolean pushDecodedY(double minX) {
+    protected boolean pushDecodedY(double minX) {
         return labelPosition == null;
     }
 
@@ -62,18 +62,12 @@ public class LabelPositionVisitor extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    boolean pushDecoded(double maxX, double maxY) {
+    protected boolean pushDecoded(double maxX, double maxY) {
         return labelPosition == null;
     }
 
     @Override
-    public boolean push(int minX, int minY, int maxX, int maxY) {
-        // Always start the traversal
-        return labelPosition == null;
-    }
-
-    @Override
-    boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
+    protected boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
         return labelPosition == null;
     }
 

@@ -44,12 +44,13 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         Map<String, DiskUsage> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
+            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
             DiskUsage diskUsage = new DiskUsage(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(0, Integer.MAX_VALUE)
+                totalBytes,
+                randomIntBetween(0, totalBytes)
             );
             builder.put(key, diskUsage);
         }

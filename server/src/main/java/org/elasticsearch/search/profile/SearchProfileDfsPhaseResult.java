@@ -103,4 +103,12 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
             + queryProfileShardResult
             + '}';
     }
+
+    public ProfileResult getDfsShardResult() {
+        return dfsShardResult;
+    }
+
+    public QueryProfileShardResult getQueryProfileShardResult() {
+        return queryProfileShardResult;
+    }
 }

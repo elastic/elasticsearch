@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -410,7 +411,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         byte[] header = new byte[512];
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] sizeBytes = formatted("%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
+        byte[] sizeBytes = Strings.format("%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
         System.arraycopy(nameBytes, 0, header, 0, nameBytes.length);
         System.arraycopy(sizeBytes, 0, header, 124, 12);
         gzipOutputStream.write(header);

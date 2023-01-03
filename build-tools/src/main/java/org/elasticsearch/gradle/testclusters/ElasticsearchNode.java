@@ -1033,7 +1033,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
-        stopHandle(esProcess.toHandle(), true);
+        try {
+            stopHandle(esProcess.toHandle(), true);
+        } finally {
+            logFileContents("Log output of node", esOutputFile, true);
+        }
         reaperServiceProvider.get().unregister(toString());
         esProcess = null;
         // Clean up the ports file in case this is started again.

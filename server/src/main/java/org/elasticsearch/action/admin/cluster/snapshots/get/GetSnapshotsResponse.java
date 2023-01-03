@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -33,7 +33,7 @@ import java.util.Objects;
 /**
  * Get snapshots response
  */
-public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContent {
+public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final int UNKNOWN_COUNT = -1;
 

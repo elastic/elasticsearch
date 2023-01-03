@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -30,6 +31,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -102,11 +105,18 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                H3LatLonGeometry geometry = new H3LatLonGeometry(id);
-                if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
-                    return pointFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
-                } else if (fieldType instanceof GeoPointScriptFieldType scriptType) {
-                    return scriptType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                if (fieldType instanceof GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType geoShapeFieldType) {
+                    // shapes are solved on the cartesian geometry
+                    final LatLonGeometry geometry = H3CartesianUtil.getLatLonGeometry(H3.stringToH3(id));
+                    return geoShapeFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                } else {
+                    // points are solved on the spherical geometry
+                    final H3LatLonGeometry geometry = new H3LatLonGeometry(id);
+                    if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
+                        return pointFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                    } else if (fieldType instanceof GeoPointScriptFieldType scriptType) {
+                        return scriptType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                    }
                 }
                 throw new QueryShardException(
                     context,

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
@@ -19,15 +20,6 @@ import java.io.IOException;
 abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     private static final long[] RES0CELLS = H3.getLongRes0Cells();
-    // The hexRing neighbours optimization is insufficient at the Poles, so we do a little extra checking
-    private static final long[] NORTH_POLAR_CELLS = new long[H3.MAX_H3_RES + 1];
-    private static final long[] SOUTH_POLAR_CELLS = new long[H3.MAX_H3_RES + 1];
-    static {
-        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
-            NORTH_POLAR_CELLS[res] = H3.geoToH3(90, 0, res);
-            SOUTH_POLAR_CELLS[res] = H3.geoToH3(-90, 0, res);
-        }
-    }
 
     AbstractGeoHexGridTiler(int precision) {
         super(precision);
@@ -100,7 +92,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             // Normally sufficient to check only bottom-left against top-right
             return -1;
         }
-        if (minH3 == NORTH_POLAR_CELLS[res] || minH3 == SOUTH_POLAR_CELLS[res]) {
+        if (H3CartesianUtil.isPolar(minH3)) {
             // But with polar cells we must check the other two corners too
             final long minMax = H3.geoToH3(bounds.minY(), bounds.maxX(), res);
             final long maxMin = H3.geoToH3(bounds.maxY(), bounds.minX(), res);

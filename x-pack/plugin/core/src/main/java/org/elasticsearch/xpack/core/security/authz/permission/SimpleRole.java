@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 
@@ -97,7 +97,7 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public IsAuthorizedPredicate allowedIndicesMatcher(String action) {
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
         return indices.allowedIndicesMatcher(action);
     }
 

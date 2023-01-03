@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -123,8 +123,8 @@ public final class LimitedRole implements Role {
      * action on.
      */
     @Override
-    public IsAuthorizedPredicate allowedIndicesMatcher(String action) {
-        IsAuthorizedPredicate predicate = baseRole.indices().allowedIndicesMatcher(action);
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
+        IsResourceAuthorizedPredicate predicate = baseRole.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedByRole.indices().allowedIndicesMatcher(action));
         return predicate;
     }

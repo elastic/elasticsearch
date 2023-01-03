@@ -54,7 +54,7 @@ public final class IndicesPermission {
 
     private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
 
-    private final Map<String, IsAuthorizedPredicate> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final Map<String, IsResourceAuthorizedPredicate> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final RestrictedIndices restrictedIndices;
     private final Group[] groups;
@@ -126,7 +126,7 @@ public final class IndicesPermission {
      * @return A predicate that will match all the indices that this permission
      * has the privilege for executing the given action on.
      */
-    public IsAuthorizedPredicate allowedIndicesMatcher(String action) {
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, this::buildIndexMatcherPredicateForAction);
     }
 
@@ -134,7 +134,7 @@ public final class IndicesPermission {
         return hasFieldOrDocumentLevelSecurity;
     }
 
-    private IsAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
+    private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         final Set<String> ordinaryIndices = new HashSet<>();
         final Set<String> restrictedIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
@@ -159,15 +159,15 @@ public final class IndicesPermission {
         }
         final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return new IsAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
+        return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
     }
 
-    public static class IsAuthorizedPredicate {
+    public static class IsResourceAuthorizedPredicate {
 
         private final StringMatcher nameMatcher;
         private final StringMatcher additionalNameMatcher;
 
-        private IsAuthorizedPredicate(StringMatcher nameMatcher, StringMatcher additionalNameMatcher) {
+        private IsResourceAuthorizedPredicate(StringMatcher nameMatcher, StringMatcher additionalNameMatcher) {
             this.nameMatcher = nameMatcher;
             this.additionalNameMatcher = additionalNameMatcher;
         }
@@ -182,12 +182,12 @@ public final class IndicesPermission {
             return nameMatcher.test(name) || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(name));
         }
 
-        public final IsAuthorizedPredicate and(IsAuthorizedPredicate other) {
+        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
             StringMatcher andNameMatcher = this.nameMatcher.and(other.nameMatcher);
             StringMatcher andAdditionalNameMatcher = (this.nameMatcher.and(other.additionalNameMatcher)).or(
                 (this.additionalNameMatcher.and(other.nameMatcher))
             ).or((this.additionalNameMatcher.and(other.additionalNameMatcher)));
-            return new IsAuthorizedPredicate(andNameMatcher, andAdditionalNameMatcher);
+            return new IsResourceAuthorizedPredicate(andNameMatcher, andAdditionalNameMatcher);
         }
 
         private boolean shouldEvaluateAdditionalNameMatcher(@Nullable IndexAbstraction indexAbstraction) {

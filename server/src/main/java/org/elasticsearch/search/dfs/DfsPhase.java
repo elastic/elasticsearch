@@ -16,7 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,6 +32,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -61,6 +61,16 @@ public class DfsPhase {
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         Map<Term, TermStatistics> stats = new HashMap<>();
+        final Consumer<DfsTimingType> maybeStart = dtt -> {
+            if (profiler != null) {
+                profiler.startTimer(dtt);
+            }
+        };
+        final Consumer<DfsTimingType> maybeStop = dtt -> {
+            if (profiler != null) {
+                profiler.stopTimer(dtt);
+            }
+        };
 
         IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
             @Override
@@ -68,11 +78,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-
-                if (profiler != null) {
-                    profiler.startTimer(DfsTimingType.TERM_STATISTICS);
-                }
-
+                maybeStart.accept(DfsTimingType.TERM_STATISTICS);
                 try {
                     TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
@@ -80,9 +86,7 @@ public class DfsPhase {
                     }
                     return ts;
                 } finally {
-                    if (profiler != null) {
-                        profiler.stopTimer(DfsTimingType.TERM_STATISTICS);
-                    }
+                    maybeStop.accept(DfsTimingType.TERM_STATISTICS);
                 }
             }
 
@@ -91,11 +95,7 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-
-                if (profiler != null) {
-                    profiler.startTimer(DfsTimingType.COLLECTION_STATISTICS);
-                }
-
+                maybeStart.accept(DfsTimingType.COLLECTION_STATISTICS);
                 try {
                     CollectionStatistics cs = super.collectionStatistics(field);
                     if (cs != null) {
@@ -103,39 +103,7 @@ public class DfsPhase {
                     }
                     return cs;
                 } finally {
-                    if (profiler != null) {
-                        profiler.stopTimer(DfsTimingType.COLLECTION_STATISTICS);
-                    }
-                }
-            }
-
-            @Override
-            public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
-                if (profiler != null) {
-                    profiler.startTimer(DfsTimingType.CREATE_WEIGHT);
-                }
-
-                try {
-                    return super.createWeight(query, scoreMode, boost);
-                } finally {
-                    if (profiler != null) {
-                        profiler.stopTimer(DfsTimingType.CREATE_WEIGHT);
-                    }
-                }
-            }
-
-            @Override
-            public Query rewrite(Query original) throws IOException {
-                if (profiler != null) {
-                    profiler.startTimer(DfsTimingType.REWRITE);
-                }
-
-                try {
-                    return super.rewrite(original);
-                } finally {
-                    if (profiler != null) {
-                        profiler.stopTimer(DfsTimingType.REWRITE);
-                    }
+                    maybeStop.accept(DfsTimingType.COLLECTION_STATISTICS);
                 }
             }
         };
@@ -145,10 +113,27 @@ public class DfsPhase {
         }
 
         try {
-            searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
+            try {
+                maybeStart.accept(DfsTimingType.CREATE_WEIGHT);
+                searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
+            } finally {
+                maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
+            }
             for (RescoreContext rescoreContext : context.rescore()) {
                 for (Query query : rescoreContext.getQueries()) {
-                    searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1);
+                    final Query rewritten;
+                    try {
+                        maybeStart.accept(DfsTimingType.REWRITE);
+                        rewritten = searcher.rewrite(query);
+                    } finally {
+                        maybeStop.accept(DfsTimingType.REWRITE);
+                    }
+                    try {
+                        maybeStart.accept(DfsTimingType.CREATE_WEIGHT);
+                        searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
+                    } finally {
+                        maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
+                    }
                 }
             }
         } finally {

@@ -19,11 +19,15 @@ import java.io.IOException;
 abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     private static final long[] RES0CELLS = H3.getLongRes0Cells();
-    private static final long SOUTH_POLE = H3.geoToH3(-90, 0, 0);
-    private static final long NORTH_POLE = H3.geoToH3(90, 0, 0);
-    // The hexRing neighbours optimization is insufficient at the Poles, so we add in one more neighbour explicitly
-    private static final long SOUTH_POLE_EXTRA_NEIGHBOUR = 580542139465727999L;
-    private static final long NORTH_POLE_EXTRA_NEIGHBOUR = 576707042908045311L;
+    // The hexRing neighbours optimization is insufficient at the Poles, so we do a little extra checking
+    private static final long[] NORTH_POLAR_CELLS = new long[H3.MAX_H3_RES];
+    private static final long[] SOUTH_POLAR_CELLS = new long[H3.MAX_H3_RES];
+    static {
+        for (int res = 0; res < H3.MAX_H3_RES; res++) {
+            NORTH_POLAR_CELLS[res] = H3.geoToH3(90, 0, res);
+            SOUTH_POLAR_CELLS[res] = H3.geoToH3(-90, 0, res);
+        }
+    }
 
     AbstractGeoHexGridTiler(int precision) {
         super(precision);
@@ -53,10 +57,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         assert bounds.minX() <= bounds.maxX();
         // first check if we are touching just fetch cells
         if (bounds.maxX() - bounds.minX() < 180d) {
-            final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), precision);
-            final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), precision);
-            if (minH3 == maxH3) {
-                return setValuesFromPointResolution(minH3, values, geoValue);
+            final long singleCell = boundsInSameCell(bounds, precision);
+            if (singleCell > 0) {
+                return setValuesFromPointResolution(singleCell, values, geoValue);
             }
             // TODO: specialize when they are neighbour cells.
         }
@@ -79,7 +82,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         // Point resolution is done using H3 library which uses spherical geometry. It might happen that in cartesian, the
         // actual point value is in a neighbour cell as well.
         {
-            for (long n : hexRing(h3)) {
+            for (long n : H3.hexRing(h3)) {
                 final GeoRelation relation = relateTile(geoValue, n);
                 valueIndex = maybeAdd(n, relation, values, valueIndex);
                 if (relation == GeoRelation.QUERY_CONTAINS) {
@@ -90,24 +93,23 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         return valueIndex;
     }
 
-    private static long[] hexRing(long h3) {
-        long[] neighbours = H3.hexRing(h3);
-        if (h3 == NORTH_POLE) {
-            // Due to equi-rectangular distortion, the hexRing neighbours of the South Pole are insufficient
-            return addNeighbour(neighbours, NORTH_POLE_EXTRA_NEIGHBOUR);
-        } else if (h3 == SOUTH_POLE) {
-            // Due to equi-rectangular distortion, the hexRing neighbours of the South Pole are insufficient
-            return addNeighbour(neighbours, SOUTH_POLE_EXTRA_NEIGHBOUR);
-        } else {
-            return neighbours;
+    private long boundsInSameCell(GeoShapeValues.BoundingBox bounds, int res) {
+        final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), res);
+        final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), res);
+        if (minH3 != maxH3) {
+            // Normally sufficient to check only bottom-left against top-right
+            return -1;
         }
-    }
-
-    private static long[] addNeighbour(long[] neighbours, long extraNeighbour) {
-        long[] extended = new long[neighbours.length + 1];
-        System.arraycopy(neighbours, 0, extended, 0, neighbours.length);
-        extended[neighbours.length] = extraNeighbour;
-        return extended;
+        if (minH3 == NORTH_POLAR_CELLS[res] || minH3 == SOUTH_POLAR_CELLS[res]) {
+            // But with polar cells we must check the other two corners too
+            final long minMax = H3.geoToH3(bounds.minY(), bounds.maxX(), res);
+            final long maxMin = H3.geoToH3(bounds.maxY(), bounds.minX(), res);
+            if (minMax != minH3 || maxMin != minH3) {
+                return -1;
+            }
+        }
+        // If all checks passed, we can use this cell in an optimization
+        return minH3;
     }
 
     /**
@@ -132,12 +134,11 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         // NOTE: When we recurse, we cannot shortcut for CONTAINS relationship because it might fail when visiting noChilds.
         int valueIndex = 0;
         if (bounds.maxX() - bounds.minX() < 180d) {
-            final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), 0);
-            final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), 0);
-            if (minH3 == maxH3) {
+            final long singleCell = boundsInSameCell(bounds, 0);
+            if (singleCell > 0) {
                 // When the level 0 bounds are within a single cell, we can search that cell and its immediate neighbours
-                valueIndex = setValuesByRecursion(values, geoValue, minH3, 0, valueIndex);
-                for (long n : hexRing(minH3)) {
+                valueIndex = setValuesByRecursion(values, geoValue, singleCell, 0, valueIndex);
+                for (long n : H3.hexRing(singleCell)) {
                     valueIndex = setValuesByRecursion(values, geoValue, n, 0, valueIndex);
                 }
                 return valueIndex;

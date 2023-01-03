@@ -1075,6 +1075,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // and in that case the ML processes will be grandchildren of the wrapper.
         List<ProcessHandle> children = processHandle.children().toList();
         try {
+            ProcessHandle.Info processInfo1 = processHandle.info();
             logProcessInfo("Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":", processHandle.info());
 
             if (forcibly) {
@@ -1087,6 +1088,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
                 LOGGER.info("process did not terminate after {} {}, stopping it forcefully", ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
                 processHandle.destroyForcibly();
+            }
+
+            ProcessHandle.Info processInfo2 = processHandle.info();
+            if (processInfo1.commandLine().isPresent() == true  && processInfo2.commandLine().isPresent() == false) {
+                LOGGER.info("Process command line {} is no longer present. Assuming process has terminated", processInfo1.commandLine().get());
+                return;
             }
 
             if (processHandle.isAlive() == true) {

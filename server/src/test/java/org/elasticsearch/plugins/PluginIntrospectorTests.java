@@ -151,8 +151,8 @@ public class PluginIntrospectorTests extends ESTestCase {
             }
 
             @Override
-            public RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
-                return null;
+            public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+                return Optional.empty();
             }
 
             @Override

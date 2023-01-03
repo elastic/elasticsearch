@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
@@ -33,6 +36,8 @@ final class EvalMapper {
     private static final List<ExpressionMapper<?>> MAPPERS = Arrays.asList(
         new Arithmetics(),
         new Comparisons(),
+        new BooleanLogic(),
+        new Nots(),
         new Attributes(),
         new Literals(),
         new RoundFunction(),
@@ -70,6 +75,25 @@ final class EvalMapper {
             ExpressionEvaluator leftEval = toEvaluator(bc.left(), layout);
             ExpressionEvaluator rightEval = toEvaluator(bc.right(), layout);
             return (page, pos) -> bc.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
+        }
+    }
+
+    static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
+
+        @Override
+        protected ExpressionEvaluator map(BinaryLogic bc, Layout layout) {
+            ExpressionEvaluator leftEval = toEvaluator(bc.left(), layout);
+            ExpressionEvaluator rightEval = toEvaluator(bc.right(), layout);
+            return (page, pos) -> bc.function().apply((Boolean) leftEval.computeRow(page, pos), (Boolean) rightEval.computeRow(page, pos));
+        }
+    }
+
+    static class Nots extends ExpressionMapper<Not> {
+
+        @Override
+        protected ExpressionEvaluator map(Not not, Layout layout) {
+            ExpressionEvaluator expEval = toEvaluator(not.field(), layout);
+            return (page, pos) -> NotProcessor.apply(expEval.computeRow(page, pos));
         }
     }
 

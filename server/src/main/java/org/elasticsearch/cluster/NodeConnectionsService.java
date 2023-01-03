@@ -211,6 +211,13 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
 
+        // all access to these fields is synchronized
+        private List<Releasable> pendingRefs;
+        private boolean connectionInProgress;
+
+        // placeholder listener for a fire-and-forget connection attempt
+        private static final List<Releasable> NOOP = List.of();
+
         ConnectionTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
         }
@@ -221,53 +228,95 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         Runnable connect(Releasable onCompletion) {
             return () -> {
-                final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
+                registerRef(onCompletion);
+                doConnect();
+            };
+        }
 
-                if (alreadyConnected) {
-                    logger.trace("refreshing connection to {}", discoveryNode);
-                } else {
-                    logger.debug("connecting to {}", discoveryNode);
+        private synchronized void registerRef(Releasable ref) {
+            if (ref == null) {
+                pendingRefs = pendingRefs == null ? NOOP : pendingRefs;
+                return;
+            }
+
+            if (pendingRefs == null || pendingRefs == NOOP) {
+                pendingRefs = new ArrayList<>();
+            }
+            pendingRefs.add(ref);
+        }
+
+        private synchronized Releasable acquireRefs() {
+            // Avoid concurrent connection attempts because they don't necessarily complete in order otherwise, and out-of-order completion
+            // might mean we end up disconnected from a node even though we triggered a call to connect() after all close() calls had
+            // finished.
+            if (connectionInProgress == false) {
+                var refs = pendingRefs;
+                if (refs != null) {
+                    pendingRefs = null;
+                    connectionInProgress = true;
+                    return Releasables.wrap(refs);
+                }
+            }
+            return null;
+        }
+
+        private synchronized void releaseListener() {
+            assert connectionInProgress;
+            connectionInProgress = false;
+        }
+
+        private void doConnect() {
+            //noinspection resource
+            var refs = acquireRefs();
+            if (refs == null) {
+                return;
+            }
+
+            final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
+
+            if (alreadyConnected) {
+                logger.trace("refreshing connection to {}", discoveryNode);
+            } else {
+                logger.debug("connecting to {}", discoveryNode);
+            }
+
+            // It's possible that connectionRef is a reference to an older connection that closed out from under us, but that something else
+            // has opened a fresh connection to the node. Therefore we always call connectToNode() and update connectionRef.
+            transportService.connectToNode(discoveryNode, ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable connectionReleasable) {
+                    if (alreadyConnected) {
+                        logger.trace("refreshed connection to {}", discoveryNode);
+                    } else {
+                        logger.debug("connected to {}", discoveryNode);
+                    }
+                    consecutiveFailureCount.set(0);
+                    setConnectionRef(connectionReleasable);
+
+                    final boolean isActive;
+                    synchronized (mutex) {
+                        isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
+                    }
+                    if (isActive == false) {
+                        logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
+                        setConnectionRef(null);
+                    }
+                    Releasables.closeExpectNoException(refs);
                 }
 
-                // It's possible that connectionRef is a reference to an older connection that closed out from under us, but that something
-                // else has opened a fresh connection to the node. Therefore we always call connectToNode() and update connectionRef.
-                transportService.connectToNode(discoveryNode, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Releasable connectionReleasable) {
-                        if (alreadyConnected) {
-                            logger.trace("refreshed connection to {}", discoveryNode);
-                        } else {
-                            logger.debug("connected to {}", discoveryNode);
-                        }
-                        consecutiveFailureCount.set(0);
-                        setConnectionRef(connectionReleasable);
-
-                        final boolean isActive;
-                        synchronized (mutex) {
-                            isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
-                        }
-                        if (isActive == false) {
-                            logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
-                            setConnectionRef(null);
-                        }
-                        Releasables.closeExpectNoException(onCompletion);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
-                        // only warn every 6th failure
-                        final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
-                        logger.log(
-                            level,
-                            () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount),
-                            e
-                        );
-                        setConnectionRef(null);
-                        Releasables.closeExpectNoException(onCompletion);
-                    }
-                });
-            };
+                @Override
+                public void onFailure(Exception e) {
+                    final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
+                    // only warn every 6th failure
+                    final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
+                    logger.log(level, () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount), e);
+                    setConnectionRef(null);
+                    Releasables.closeExpectNoException(refs);
+                }
+            }, () -> {
+                releaseListener();
+                transportService.getThreadPool().generic().execute(this::doConnect);
+            }));
         }
 
         void disconnect() {

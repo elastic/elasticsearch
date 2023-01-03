@@ -74,7 +74,7 @@ def generateProviderManifest = tasks.register("generateProviderManifest") {
   doLast {
     manifestFile.parentFile.mkdirs()
     manifestFile.setText(configurations.providerImpl.files.stream()
-      .map(f -> f.name).collect(Collectors.joining('\n')), 'UTF-8')
+      .map(f -> f.name).sorted().collect(Collectors.joining('\n')), 'UTF-8')
   }
 }
 

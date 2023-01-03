@@ -32,11 +32,12 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
-    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
         fieldName,
         params,
         lookup,
         formatter,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -69,6 +70,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -104,7 +106,8 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     "field",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    DateFormatter.forPattern("epoch_millis")
+                    DateFormatter.forPattern("epoch_millis"),
+                    OnScriptError.FAIL
                 );
                 DateFieldScript dateFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();

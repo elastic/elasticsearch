@@ -334,6 +334,7 @@ public class NativePrivilegeStore {
     ) {
         securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
+                privileges.size(),
                 ActionListener.wrap((Collection<IndexResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
@@ -345,8 +346,7 @@ public class NativePrivilegeStore {
                         privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
                         createdNames
                     );
-                }, listener::onFailure),
-                privileges.size()
+                }, listener::onFailure)
             );
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
@@ -392,14 +392,14 @@ public class NativePrivilegeStore {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(ActionListener.wrap(responses -> {
+                ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(names.size(), ActionListener.wrap(responses -> {
                     final Map<String, List<String>> deletedNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearCaches(listener, Collections.singleton(application), deletedNames);
-                }, listener::onFailure), names.size());
+                }, listener::onFailure));
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

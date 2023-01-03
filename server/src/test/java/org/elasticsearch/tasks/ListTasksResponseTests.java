@@ -42,7 +42,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     public record ListTasksResponseWrapper(ListTasksResponse in) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return ChunkedToXContent.wrapAsXContentObject(in.groupedByNone()).toXContent(builder, params);
+            return ChunkedToXContent.wrapAsToXContent(in.groupedByNone()).toXContent(builder, params);
         }
     }
 

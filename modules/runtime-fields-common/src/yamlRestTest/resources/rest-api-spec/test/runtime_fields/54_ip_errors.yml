@@ -1,0 +1,177 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              rtf:
+                type: ip
+                script: |
+                  if(doc['ip_string'].value.length() <= 0) throw new Exception("empty");
+                  emit(doc['ip_string'].value);
+                on_script_error: continue
+              rtf_strict_error:
+                type: ip
+                script: |
+                  if(doc['ip_string'].value.length() <= 0) throw new Exception("empty");
+                  emit(doc['ip_string'].value);
+                on_script_error: fail
+            properties:
+              ip_string:
+                type: keyword
+
+  - do:
+      bulk:
+        index: testindex
+        refresh: true
+        body: |
+          {"index":{}}
+          {"ip_string": "192.68.0.1"}
+          {"index":{}}
+          {"ip_string": ""}
+
+---
+"Query rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            term:
+              rtf:
+                192.68.0.1
+          fields: [ ip_string, rtf ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.ip_string: [ "192.68.0.1" ] }
+  - match: { hits.hits.0.fields.rtf: [ 192.68.0.1 ] }
+
+---
+"Query rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            term:
+              rtf_strict_error: 192.68.0.1
+          fields: [ ip_string, rtf_strict_error ]
+
+---
+"Aggregate on rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          aggs:
+            rtf:
+              terms:
+                field: rtf
+  - length: { aggregations.rtf.buckets: 1 }
+  - match: { aggregations.rtf.buckets.0.key: 192.68.0.1 }
+
+---
+"Aggregate on rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          aggs:
+            rtf:
+              terms:
+                field: rtf_strict_error
+
+---
+"Fields retrieval with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ ip_string, rtf ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.ip_string: [ "192.68.0.1" ] }
+  - match: { hits.hits.0.fields.rtf: [ "192.68.0.1" ] }
+  - match: { hits.hits.1.fields.ip_string: [ "" ] }
+  - is_false: hits.hits.1.fields.rtf
+
+---
+"Fields retrieval with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ ip_string, rtf_strict_error ]
+
+---
+"Sorting with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ ip_string ]
+          sort: rtf
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.ip_string: [ "192.68.0.1" ] }
+  - match: { hits.hits.1.fields.ip_string: [ "" ] }
+
+---
+"Sorting with with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ ip_string ]
+          sort: rtf_strict_error
+
+---
+"Query search time rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_search: "192.68.0.1"
+          fields: [ ip_string, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: ip
+              script: |
+                if(doc['ip_string'].value.length() <= 0) throw new Exception("empty");
+                emit(doc['ip_string'].value);
+              on_script_error: continue
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.ip_string: [ "192.68.0.1" ] }
+  - match: { hits.hits.0.fields.rtf_search: [ "192.68.0.1" ] }
+
+---
+"Query search time rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_search: "192.68.0.1"
+          fields: [ ip_string, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: ip
+              script: |
+                if(doc['ip_string'].value.length() <= 0) throw new Exception("empty");
+                emit(doc['ip_string'].value);
+              on_script_error: fail

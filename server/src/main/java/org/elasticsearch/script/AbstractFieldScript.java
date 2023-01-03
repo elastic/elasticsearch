@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -69,10 +70,16 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     protected final String fieldName;
     protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
+    private final OnScriptError onScriptError;
 
-    public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        LeafReaderContext ctx,
+        OnScriptError onScriptError
+    ) {
         super(new DocValuesDocReader(searchLookup, ctx));
-
         this.fieldName = fieldName;
         Map<String, Object> docAsMap = docAsMap();
         this.sourceLookup = (SourceLookup) docAsMap.get("_source");
@@ -80,6 +87,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         params.put("_source", sourceLookup);
         params.put("_fields", docAsMap.get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.onScriptError = onScriptError;
     }
 
     /**
@@ -130,6 +138,25 @@ public abstract class AbstractFieldScript extends DocBasedScript {
                     MAX_VALUES
                 )
             );
+        }
+    }
+
+    protected abstract void prepareExecute();
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        prepareExecute();
+        setDocument(docId);
+        try {
+            execute();
+        } catch (Exception e) {
+            if (onScriptError == OnScriptError.CONTINUE) {
+                // ignore
+            } else {
+                throw e;
+            }
         }
     }
 

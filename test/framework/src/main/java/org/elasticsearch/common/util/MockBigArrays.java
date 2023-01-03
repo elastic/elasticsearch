@@ -50,6 +50,11 @@ public class MockBigArrays extends BigArrays {
     private static final Logger logger = LogManager.getLogger(MockBigArrays.class);
 
     /**
+     * Error message thrown by {@link BigArrays} produced with {@link MockBigArrays#MockBigArrays(PageCacheRecycler, ByteSizeValue)}.
+     */
+    public static final String ERROR_MESSAGE = "over test limit";
+
+    /**
      * Assert that a function returning a {@link Releasable} runs to completion
      * when allocated a breaker with that breaks when it uses more than {@code max}
      * bytes <strong>and</strong> that the function doesn't leak any
@@ -667,7 +672,7 @@ public class MockBigArrays extends BigArrays {
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             long total = used.addAndGet(bytes);
             if (total > max.getBytes()) {
-                throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
+                throw new CircuitBreakingException(ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
             }
         }
 

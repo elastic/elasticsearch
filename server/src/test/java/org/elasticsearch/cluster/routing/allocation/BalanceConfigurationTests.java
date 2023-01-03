@@ -279,8 +279,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         for (String index : routingTable.indicesRouting().keySet()) {
             for (RoutingNode node : nodes) {
-                assertThat(node.shardsWithState(index, STARTED).size(), greaterThanOrEqualTo(minAvgNumberOfShards));
-                assertThat(node.shardsWithState(index, STARTED).size(), lessThanOrEqualTo(maxAvgNumberOfShards));
+                assertThat(Math.toIntExact(node.shardsWithState(index, STARTED).count()), greaterThanOrEqualTo(minAvgNumberOfShards));
+                assertThat(Math.toIntExact(node.shardsWithState(index, STARTED).count()), lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
     }

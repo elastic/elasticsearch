@@ -234,7 +234,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             internalStats.getAvg(),
             sum,
             format != DocValueFormat.RAW
-                ? org.elasticsearch.core.Strings.format(
+                ? Strings.format(
                     """
                         ,
                         "min_as_string" : "%s",
@@ -248,7 +248,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
                     format.format(internalStats.getSum())
                 )
                 : "" };
-        String expected = org.elasticsearch.core.Strings.format("""
+        String expected = Strings.format("""
             {
               "count" : %s,
               "min" : %s,

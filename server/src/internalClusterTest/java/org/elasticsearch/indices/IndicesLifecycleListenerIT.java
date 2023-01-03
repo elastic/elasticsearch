@@ -271,7 +271,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         try {
             assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
-            fail(org.elasticsearch.core.Strings.format("""
+            fail(Strings.format("""
                 failed to observe expect shard states
                 expected: [%d] shards with states: %s
                 observed:

@@ -198,7 +198,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             int numDocs = randomIntBetween(1000, 20000);
             Set<String> modifiedEvents = new HashSet<>();
-            String action = org.elasticsearch.core.Strings.format("""
+            String action = Strings.format("""
                 {"create":{"_index":"%s"}}
                 """, sourceIndexName);
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
@@ -415,7 +415,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
             logger.info("Creating source index with: {}", indexSettingsAndMappings);
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(org.elasticsearch.core.Strings.format("""
+                createCompositeTemplate.setJsonEntity(Strings.format("""
                     {
                       "index_patterns": [ "%s" ],
                       "data_stream": {

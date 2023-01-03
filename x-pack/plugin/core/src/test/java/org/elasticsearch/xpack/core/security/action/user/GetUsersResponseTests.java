@@ -66,7 +66,7 @@ public class GetUsersResponseTests extends ESTestCase {
             Strings.toString(builder),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    org.elasticsearch.core.Strings.format(
+                    Strings.format(
                         """
                             {
                               "%s": {

@@ -93,7 +93,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
             int a = 3 * i;
             int b = a + 1;
             int c = b + 1;
-            bulk.append(org.elasticsearch.core.Strings.format("""
+            bulk.append(Strings.format("""
                 {"index":{"_id":"%s"}}
                 {"a": %s, "b": %s, "c": %s}
                 """, i, a, b, c));

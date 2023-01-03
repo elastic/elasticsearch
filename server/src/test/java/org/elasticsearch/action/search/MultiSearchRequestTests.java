@@ -195,7 +195,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             tookInMillis
         );
 
-        assertEquals(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "took": %s,
               "responses": [

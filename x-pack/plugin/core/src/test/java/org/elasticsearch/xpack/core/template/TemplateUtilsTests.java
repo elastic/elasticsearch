@@ -29,25 +29,22 @@ public class TemplateUtilsTests extends ESTestCase {
 
     public void testLoadTemplate() throws IOException {
         final int version = randomIntBetween(0, 10_000);
-        String resource = org.elasticsearch.core.Strings.format(SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.loadTemplate(resource, String.valueOf(version), "monitoring.template.version");
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(
-            XContentHelper.stripWhitespace(source),
-            equalTo(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
-                {
-                  "index_patterns": ".monitoring-data-%s",
-                  "mappings": {
-                    "doc": {
-                      "_meta": {
-                        "template.version": "%s"
-                      }
-                    }
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "index_patterns": ".monitoring-data-%s",
+              "mappings": {
+                "doc": {
+                  "_meta": {
+                    "template.version": "%s"
                   }
-                }""", version, version)))
-        );
+                }
+              }
+            }""", version, version))));
     }
 
     public void testLoadTemplate_GivenTemplateWithVariables() throws IOException {
@@ -66,32 +63,29 @@ public class TemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(
-            XContentHelper.stripWhitespace(source),
-            equalTo(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
-                {
-                  "index_patterns": ".test-%s",
-                  "mappings": {
-                    "doc": {
-                      "_meta": {
-                        "template.version": "%s"
-                      },
-                      "properties": {
-                        "test_field_1": {
-                          "type": "keyword"
-                        },
-                        "test_field_2": {
-                          "type": "long"
-                        }
-                      }
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "index_patterns": ".test-%s",
+              "mappings": {
+                "doc": {
+                  "_meta": {
+                    "template.version": "%s"
+                  },
+                  "properties": {
+                    "test_field_1": {
+                      "type": "keyword"
+                    },
+                    "test_field_2": {
+                      "type": "long"
                     }
                   }
-                }""", version, version)))
-        );
+                }
+              }
+            }""", version, version))));
     }
 
     public void testLoad() throws IOException {
-        String resource = org.elasticsearch.core.Strings.format(SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.load(resource);
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
@@ -116,7 +110,7 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidate() throws IOException {
-        String resource = org.elasticsearch.core.Strings.format(SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         TemplateUtils.validate(TemplateUtils.load(resource));
     }
 
@@ -139,7 +133,7 @@ public class TemplateUtilsTests extends ESTestCase {
         final int version = randomIntBetween(0, 100);
         assertTemplate(TemplateUtils.replaceVariable("""
             {"foo-${monitoring.template.version}": "bar-${monitoring.template.version}"}
-            """, "monitoring.template.version", String.valueOf(version)), equalTo(org.elasticsearch.core.Strings.format("""
+            """, "monitoring.template.version", String.valueOf(version)), equalTo(Strings.format("""
             {"foo-%s": "bar-%s"}
             """, version, version)));
     }

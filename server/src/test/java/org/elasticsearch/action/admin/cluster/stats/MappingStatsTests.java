@@ -96,16 +96,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     private static final String SCRIPT_4 = scriptAsJSON("params._source.field");
 
     public void testToXContent() {
-        String mapping = org.elasticsearch.core.Strings.format(
-            MAPPING_TEMPLATE,
-            SCRIPT_1,
-            SCRIPT_2,
-            SCRIPT_3,
-            SCRIPT_4,
-            SCRIPT_3,
-            SCRIPT_4,
-            SCRIPT_1
-        );
+        String mapping = Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
@@ -213,21 +204,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testToXContentWithSomeSharedMappings() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(SINGLE_SHARD_NO_REPLICAS)
-            .putMapping(
-                org.elasticsearch.core.Strings.format(
-                    MAPPING_TEMPLATE,
-                    SCRIPT_1,
-                    SCRIPT_2,
-                    SCRIPT_3,
-                    SCRIPT_4,
-                    SCRIPT_3,
-                    SCRIPT_4,
-                    SCRIPT_1
-                )
-            )
+            .putMapping(Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
             .build();
         // make mappings that are slightly different because we shuffled 2 scripts between fields
-        final String mappingString2 = org.elasticsearch.core.Strings.format(
+        final String mappingString2 = Strings.format(
             MAPPING_TEMPLATE,
             SCRIPT_1,
             SCRIPT_2,

@@ -545,7 +545,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
         String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
+        createAirlineDataRequest.setJsonEntity(Strings.format("""
             {
               "mappings": {
                 "properties": {

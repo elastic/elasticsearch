@@ -28,7 +28,7 @@ public class IndexFeatureStatsTests extends AbstractWireSerializingTestCase<Inde
 
     public void testToXContent() {
         IndexFeatureStats testInstance = createTestInstance();
-        assertEquals(org.elasticsearch.core.Strings.format("""
+        assertEquals(Strings.format("""
             {"name":"%s","count":%s,"index_count":%s}\
             """, testInstance.name, testInstance.count, testInstance.indexCount), Strings.toString(testInstance));
     }

@@ -789,7 +789,7 @@ public class GetActionIT extends ESIntegTestCase {
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
         String storedString = stored ? "true" : "false";
-        String createIndexSource = org.elasticsearch.core.Strings.format("""
+        String createIndexSource = Strings.format("""
             {
               "settings": {
                 "index.translog.flush_threshold_size": "1pb",

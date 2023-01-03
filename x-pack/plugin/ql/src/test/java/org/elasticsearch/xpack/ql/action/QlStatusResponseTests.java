@@ -66,7 +66,7 @@ public class QlStatusResponseTests extends AbstractWireSerializingTestCase<QlSta
                 response.getStartTime() != null ? "\"start_time_in_millis\" : " + response.getStartTime() + "," : "",
                 response.getExpirationTime(),
                 response.getCompletionStatus() != null ? ", \"completion_status\" : " + response.getCompletionStatus().getStatus() : "" };
-            String expectedJson = org.elasticsearch.core.Strings.format("""
+            String expectedJson = Strings.format("""
                 {
                   "id" : "%s",
                   "is_running" : %s,

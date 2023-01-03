@@ -96,7 +96,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         Object[] args = new Object[] {
             shardRoutingState.toString().toLowerCase(Locale.ROOT),
             shard.unassignedInfo() != null
-                ? org.elasticsearch.core.Strings.format(
+                ? Strings.format(
                     """
                         ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
                         """,
@@ -109,7 +109,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             cae.getCurrentNode().getName(),
             cae.getCurrentNode().getAddress(),
             explanation };
-        assertEquals(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "index": "idx",
               "shard": 0,

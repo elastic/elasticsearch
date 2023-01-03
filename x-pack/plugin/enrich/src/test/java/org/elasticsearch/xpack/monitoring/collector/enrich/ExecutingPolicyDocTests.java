@@ -87,11 +87,11 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
             executingPolicy.getTaskInfo().runningTimeNanos(),
             executingPolicy.getTaskInfo().cancellable(),
             executingPolicy.getTaskInfo().cancellable()
-                ? org.elasticsearch.core.Strings.format("\"cancelled\": %s,", executingPolicy.getTaskInfo().cancelled())
+                ? Strings.format("\"cancelled\": %s,", executingPolicy.getTaskInfo().cancelled())
                 : "",
-            header.map(entry -> { return org.elasticsearch.core.Strings.format("""
+            header.map(entry -> { return Strings.format("""
                 {"%s":"%s"}""", entry.getKey(), entry.getValue()); }).orElse("{}") };
-        assertThat(xContent.utf8ToString(), equalTo(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
+        assertThat(xContent.utf8ToString(), equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "%s",

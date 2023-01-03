@@ -409,7 +409,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         } else {
             assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
         }
-        request.setJsonEntity(org.elasticsearch.core.Strings.format("""
+        request.setJsonEntity(Strings.format("""
             {
               "index": "%s",
               "renamed_index": "%s",

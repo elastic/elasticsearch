@@ -603,7 +603,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             roleDescriptorsStringBuilder,
             createApiKeyRequest.getMetadata() == null || createApiKeyRequest.getMetadata().isEmpty()
                 ? ""
-                : org.elasticsearch.core.Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+                : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
         );
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -635,9 +635,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 """,
             keyId,
             updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
-            updateApiKeyRequest.getMetadata() == null
-                ? ""
-                : org.elasticsearch.core.Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+            updateApiKeyRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -667,14 +665,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
             """
                 "change":{"apikeys":{"ids":[%s]%s%s}}\
                 """,
-            bulkUpdateApiKeyRequest.getIds()
-                .stream()
-                .map(s -> org.elasticsearch.core.Strings.format("\"%s\"", s))
-                .collect(Collectors.joining(",")),
+            bulkUpdateApiKeyRequest.getIds().stream().map(s -> Strings.format("\"%s\"", s)).collect(Collectors.joining(",")),
             bulkUpdateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
             bulkUpdateApiKeyRequest.getMetadata() == null
                 ? ""
-                : org.elasticsearch.core.Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+                : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -767,7 +762,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedPutRoleAuditEventString = output.get(1);
-        String expectedPutRoleAuditEventString = org.elasticsearch.core.Strings.format("""
+        String expectedPutRoleAuditEventString = Strings.format("""
             "put":{"role":{"name":"%s","role_descriptor":%s}}\
             """, putRoleRequest.name(), auditedRolesMap.get(putRoleRequest.name()));
         assertThat(generatedPutRoleAuditEventString, containsString(expectedPutRoleAuditEventString));
@@ -1245,7 +1240,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedEnableUserAuditEventString = output.get(1);
-        String expectedEnableUserAuditEventString = org.elasticsearch.core.Strings.format("""
+        String expectedEnableUserAuditEventString = Strings.format("""
             "change":{"enable":{"user":{"name":"%s"}}}\
             """, username);
         assertThat(generatedEnableUserAuditEventString, containsString(expectedEnableUserAuditEventString));
@@ -1270,7 +1265,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedDisableUserAuditEventString = output.get(1);
-        String expectedDisableUserAuditEventString = org.elasticsearch.core.Strings.format("""
+        String expectedDisableUserAuditEventString = Strings.format("""
             "change":{"disable":{"user":{"name":"%s"}}}\
             """, username);
         assertThat(generatedDisableUserAuditEventString, containsString(expectedDisableUserAuditEventString));
@@ -1294,7 +1289,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedChangePasswordAuditEventString = output.get(1);
-        String expectedChangePasswordAuditEventString = org.elasticsearch.core.Strings.format("""
+        String expectedChangePasswordAuditEventString = Strings.format("""
             "change":{"password":{"user":{"name":"%s"}}}\
             """, username);
         assertThat(generatedChangePasswordAuditEventString, containsString(expectedChangePasswordAuditEventString));
@@ -1320,7 +1315,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedDeleteUserAuditEventString = output.get(1);
-        String expectedDeleteUserAuditEventString = org.elasticsearch.core.Strings.format("""
+        String expectedDeleteUserAuditEventString = Strings.format("""
             "delete":{"user":{"name":"%s"}}\
             """, username);
         assertThat(generatedDeleteUserAuditEventString, containsString(expectedDeleteUserAuditEventString));
@@ -1361,7 +1356,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedCreateServiceAccountTokenAuditEventString = output.get(1);
 
-        final String expectedCreateServiceAccountTokenAuditEventString = org.elasticsearch.core.Strings.format("""
+        final String expectedCreateServiceAccountTokenAuditEventString = Strings.format("""
             "create":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
         assertThat(generatedCreateServiceAccountTokenAuditEventString, containsString(expectedCreateServiceAccountTokenAuditEventString));
         generatedCreateServiceAccountTokenAuditEventString = generatedCreateServiceAccountTokenAuditEventString.replace(
@@ -1396,7 +1391,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedDeleteServiceAccountTokenAuditEventString = output.get(1);
 
-        final String expectedDeleteServiceAccountTokenAuditEventString = org.elasticsearch.core.Strings.format("""
+        final String expectedDeleteServiceAccountTokenAuditEventString = Strings.format("""
             "delete":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
         assertThat(generatedDeleteServiceAccountTokenAuditEventString, containsString(expectedDeleteServiceAccountTokenAuditEventString));
         generatedDeleteServiceAccountTokenAuditEventString = generatedDeleteServiceAccountTokenAuditEventString.replace(
@@ -1475,7 +1470,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.accessGranted(requestId, authentication, UpdateProfileDataAction.NAME, updateProfileDataRequest, authorizationInfo);
         assertThat(output.size(), is(2));
         String generatedUpdateAuditEventString = output.get(1);
-        final String expectedUpdateAuditEventString = org.elasticsearch.core.Strings.format("""
+        final String expectedUpdateAuditEventString = Strings.format("""
             "put":{"uid":"%s","labels":{"space":"production"},"data":{"theme":"default"}}""", updateProfileDataRequest.getUid());
         assertThat(generatedUpdateAuditEventString, containsString(expectedUpdateAuditEventString));
         generatedUpdateAuditEventString = generatedUpdateAuditEventString.replace(", " + expectedUpdateAuditEventString, "");
@@ -1514,7 +1509,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         Object[] args = new Object[] { setProfileEnabledRequest.isEnabled() ? "enable" : "disable" };
         checkedFields.put("type", "audit")
             .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, org.elasticsearch.core.Strings.format("change_%s_user_profile", args))
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, Strings.format("change_%s_user_profile", args))
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedSetEnabledAuditEventString, checkedFields.map());
         // clear log

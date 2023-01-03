@@ -83,7 +83,7 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
             xContent.utf8ToString(),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    org.elasticsearch.core.Strings.format(
+                    Strings.format(
                         """
                             {
                               "cluster_uuid": "_cluster",

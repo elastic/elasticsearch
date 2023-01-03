@@ -530,7 +530,7 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
+                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(Strings.format("""
                     {
                       "translog": {
                         "operations": 4,

@@ -154,7 +154,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             xContent.utf8ToString(),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    org.elasticsearch.core.Strings.format(
+                    Strings.format(
                         """
                             {
                               "cluster_uuid": "_cluster",

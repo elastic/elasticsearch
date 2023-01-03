@@ -84,7 +84,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "index": "idx",
               "shard": 0,
@@ -112,7 +112,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             actual,
             equalTo(
                 XContentHelper.stripWhitespace(
-                    org.elasticsearch.core.Strings.format(
+                    Strings.format(
                         """
                             {
                               "note": "%s",

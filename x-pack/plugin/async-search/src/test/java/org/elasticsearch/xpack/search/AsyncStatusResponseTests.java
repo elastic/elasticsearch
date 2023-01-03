@@ -88,9 +88,9 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                 response.getSuccessfulShards(),
                 response.getSkippedShards(),
                 response.getFailedShards(),
-                response.getCompletionStatus() == null ? "" : org.elasticsearch.core.Strings.format("""
+                response.getCompletionStatus() == null ? "" : Strings.format("""
                     ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
-            String expectedJson = org.elasticsearch.core.Strings.format("""
+            String expectedJson = Strings.format("""
                 {
                   "id" : "%s",
                   "is_running" : %s,

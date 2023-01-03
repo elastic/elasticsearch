@@ -151,7 +151,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         responseBuilder.endObject();
 
         Object[] args = new Object[] { type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"" };
-        String result = org.elasticsearch.core.Strings.format("""
+        String result = Strings.format("""
             {
               "class": {
                 "doc_count_error_upper_bound": 0,

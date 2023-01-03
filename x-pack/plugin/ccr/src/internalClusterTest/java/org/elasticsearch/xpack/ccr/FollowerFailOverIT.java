@@ -141,7 +141,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 Object[] args = new Object[] { counter++ };
-                final String source = org.elasticsearch.core.Strings.format("{\"f\":%d}", args);
+                final String source = Strings.format("{\"f\":%d}", args);
                 IndexResponse indexResp = leaderClient().prepareIndex("index1")
                     .setSource(source, XContentType.JSON)
                     .setTimeout(TimeValue.timeValueSeconds(1))

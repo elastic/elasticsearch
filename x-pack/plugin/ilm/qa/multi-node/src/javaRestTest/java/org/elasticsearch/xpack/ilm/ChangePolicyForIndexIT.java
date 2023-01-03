@@ -129,7 +129,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
-        createIndexRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
+        createIndexRequest.setJsonEntity(Strings.format("""
             {
               "settings": %s,
               "aliases": {

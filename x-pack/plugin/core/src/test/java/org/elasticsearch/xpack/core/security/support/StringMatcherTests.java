@@ -208,13 +208,13 @@ public class StringMatcherTests extends ESTestCase {
 
     private void assertMatch(StringMatcher matcher, String str) {
         if (matcher.test(str) == false) {
-            fail(org.elasticsearch.core.Strings.format("Matcher [%s] failed to match [%s] but should", matcher, str));
+            fail(Strings.format("Matcher [%s] failed to match [%s] but should", matcher, str));
         }
     }
 
     private void assertNoMatch(StringMatcher matcher, String str) {
         if (matcher.test(str)) {
-            fail(org.elasticsearch.core.Strings.format("Matcher [%s] matched [%s] but should not", matcher, str));
+            fail(Strings.format("Matcher [%s] matched [%s] but should not", matcher, str));
         }
     }
 

@@ -538,7 +538,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
         final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
 
-        final String json = org.elasticsearch.core.Strings.format("""
+        final String json = Strings.format("""
             {
               "indices": [
                 {
@@ -776,7 +776,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }
             profileNamesString.append("\"" + profileNames[i] + "\"");
         }
-        String json = org.elasticsearch.core.Strings.format("""
+        String json = Strings.format("""
             {
               "global": {
                 "profile": {
@@ -793,7 +793,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }""", profileNamesString, applicationNamesString);
         RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role3, is(role1));
-        json = org.elasticsearch.core.Strings.format("""
+        json = Strings.format("""
             {
               "global": {
                 "application": {

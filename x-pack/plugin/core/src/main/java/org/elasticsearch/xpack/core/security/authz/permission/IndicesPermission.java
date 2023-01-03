@@ -54,7 +54,7 @@ public final class IndicesPermission {
 
     private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
 
-    private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final Map<String, IsAuthorizedPredicate> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final RestrictedIndices restrictedIndices;
     private final Group[] groups;
@@ -126,7 +126,7 @@ public final class IndicesPermission {
      * @return A predicate that will match all the indices that this permission
      * has the privilege for executing the given action on.
      */
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+    public IsAuthorizedPredicate allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, this::buildIndexMatcherPredicateForAction);
     }
 
@@ -134,7 +134,7 @@ public final class IndicesPermission {
         return hasFieldOrDocumentLevelSecurity;
     }
 
-    private Predicate<IndexAbstraction> buildIndexMatcherPredicateForAction(String action) {
+    private IsAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         final Set<String> ordinaryIndices = new HashSet<>();
         final Set<String> restrictedIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
@@ -159,13 +159,10 @@ public final class IndicesPermission {
         }
         final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return indexAbstraction -> nameMatcher.test(indexAbstraction.getName())
-            || (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
-                && (indexAbstraction.getParentDataStream() == null)
-                && bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
+        return new IsAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
     }
 
-    static final class IsAuthorizedPredicate {
+    public static final class IsAuthorizedPredicate {
 
         private final StringMatcher nameMatcher;
         private final StringMatcher additionalNameMatcher;
@@ -183,6 +180,14 @@ public final class IndicesPermission {
         public boolean test(String name, Map<String, IndexAbstraction> lookup) {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             return nameMatcher.test(name) || (shouldEvaluateAdditionalNameMatcher(indexAbstraction) && additionalNameMatcher.test(name));
+        }
+
+        public IsAuthorizedPredicate and(IsAuthorizedPredicate other) {
+            StringMatcher andNameMatcher = this.nameMatcher.and(other.nameMatcher);
+            StringMatcher andAdditionalNameMatcher = (this.nameMatcher.and(other.additionalNameMatcher)).or(
+                (this.additionalNameMatcher.and(other.nameMatcher))
+            ).or((this.additionalNameMatcher.and(other.additionalNameMatcher)));
+            return new IsAuthorizedPredicate(andNameMatcher, andAdditionalNameMatcher);
         }
 
         private boolean shouldEvaluateAdditionalNameMatcher(@Nullable IndexAbstraction indexAbstraction) {

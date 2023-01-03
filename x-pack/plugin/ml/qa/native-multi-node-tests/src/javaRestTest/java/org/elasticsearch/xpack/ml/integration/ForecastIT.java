@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -623,7 +624,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             double value = 10.0 + h;
             for (int i = 1; i < 101; i++) {
                 for (int j = 1; j < 81; j++) {
-                    String json = formatted("""
+                    String json = Strings.format("""
                         {"time": %s, "value": %f, "clientIP": "192.168.%d.%d"}
                         """, timestamp, value, i, j);
                     data.add(json);

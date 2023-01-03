@@ -185,7 +185,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                   "clusters": [ "*", "remote-2" ]
                 }
               ]""";
-        assertThat(json, equalTo(XContentHelper.stripWhitespace(formatted("""
+        assertThat(json, equalTo(XContentHelper.stripWhitespace(org.elasticsearch.core.Strings.format("""
             {
               "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
               "global": [

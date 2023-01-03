@@ -183,7 +183,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(indexToRemove));
         assertThat(
             e.getMessage(),
-            equalTo(formatted("index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
+            equalTo(
+                org.elasticsearch.core.Strings.format("index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName)
+            )
         );
     }
 
@@ -398,7 +400,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
-        String expectedBackingIndexName = formatted(".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
+        String expectedBackingIndexName = org.elasticsearch.core.Strings.format(
+            ".ds-%s-%s-%06d",
+            dataStreamName,
+            dateString,
+            backingIndexNum
+        );
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
     }
 

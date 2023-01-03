@@ -98,6 +98,35 @@ public class LicensingTests extends SecurityIntegTestCase {
               privileges: [all]
         """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
+    static {
+        ROLES = org.elasticsearch.core.Strings.format("""
+            %s:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [manage]
+                - names: '/.*/'
+                  privileges: [write]
+                - names: 'test'
+                  privileges: [read]
+                - names: 'test1'
+                  privileges: [read]
+
+            role_a:
+              indices:
+                - names: 'a'
+                  privileges: [all]
+                - names: 'test-dls'
+                  privileges: [read]
+                  query: '{"term":{"field":"value"} }'
+
+            role_b:
+              indices:
+                - names: 'b'
+                  privileges: [all]
+            """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+    }
+
     private static final String USERS_ROLES = """
         superuser:test_superuser
         role_a:user_a,user_b

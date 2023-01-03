@@ -21,6 +21,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -315,7 +316,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             Object previousSecond = null;
             while (firstTokens.hasNext()) {
                 if (false == secondTokens.hasNext()) {
-                    fail(formatted("""
+                    fail(Strings.format("""
                         %s has fewer tokens than %s. %s has [%s] but %s is out of tokens. \
                         %s's last token was [%s] and %s's last token was' [%s]
                         """, second, first, first, firstTokens.next(), second, first, previousFirst, second, previousSecond));
@@ -326,7 +327,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 String secondText = (String) secondToken.get("token");
                 // Check the text and produce an error message with the utf8 sequence if they don't match.
                 if (false == secondText.equals(firstText)) {
-                    fail(formatted("""
+                    fail(Strings.format("""
                         text differs: %s was [%s] but %s was [%s]. In utf8 those are
                         %s and
                         %s
@@ -338,7 +339,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 previousSecond = secondToken;
             }
             if (secondTokens.hasNext()) {
-                fail(formatted("""
+                fail(Strings.format("""
                     %s has more tokens than %s. %s has [%s] but %s is out of tokens. \
                     %s's last token was [%s] and %s's last token was [%s]
                     """, second, first, second, secondTokens.next(), first, first, previousFirst, second, previousSecond));

@@ -102,7 +102,7 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String profileUid = (String) activateProfileMap.get("uid");
         final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        profileHasPrivilegesRequest.setJsonEntity(formatted("""
+        profileHasPrivilegesRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
             {
               "uids": ["some_missing_profile", "%s"],
               "privileges": {
@@ -152,7 +152,12 @@ public class ProfileIT extends ESRestTestCase {
 
         // Create the profile documents
         for (String uid : uids) {
-            final String source = formatted(SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
+            final String source = org.elasticsearch.core.Strings.format(
+                SAMPLE_PROFILE_DOCUMENT_TEMPLATE,
+                uid,
+                uid,
+                Instant.now().toEpochMilli()
+            );
             final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
             indexRequest.setJsonEntity(source);
             indexRequest.addParameter("refresh", "wait_for");
@@ -264,7 +269,7 @@ public class ProfileIT extends ESRestTestCase {
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                payload = formatted("""
+                payload = org.elasticsearch.core.Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -274,7 +279,8 @@ public class ProfileIT extends ESRestTestCase {
                     """, "not-" + uid);
             }
             case 1 -> {
-                payload = formatted("""
+                Object[] args = new Object[] { randomBoolean() ? "\"demo\"" : "[\"demo\"]" };
+                payload = org.elasticsearch.core.Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -283,10 +289,11 @@ public class ProfileIT extends ESRestTestCase {
                         }
                       }
                     }
-                    """, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    """, args);
             }
             default -> {
-                payload = formatted("""
+                Object[] args = new Object[] { "not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]" };
+                payload = org.elasticsearch.core.Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -295,7 +302,7 @@ public class ProfileIT extends ESRestTestCase {
                           "kibana.spaces": %s
                         }
                       }
-                    }""", "not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    }""", args);
             }
         }
         suggestProfilesRequest1.setJsonEntity(payload);
@@ -463,7 +470,7 @@ public class ProfileIT extends ESRestTestCase {
 
     private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
-        activateProfileRequest.setJsonEntity(formatted("""
+        activateProfileRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
             {
               "grant_type": "password",
               "username": "%s",

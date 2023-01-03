@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -189,7 +190,7 @@ public class XContentRecordReaderTests extends ESTestCase {
             """;
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < XContentRecordReader.PARSE_ERRORS_LIMIT; i++) {
-            builder.append(formatted(format, i));
+            builder.append(Strings.format(format, i));
         }
 
         XContentParser parser = createParser(builder.toString());
@@ -212,7 +213,7 @@ public class XContentRecordReaderTests extends ESTestCase {
     public void testRead_givenControlCharacterInData() throws Exception {
         char controlChar = '\u0002';
 
-        String data = formatted("""
+        String data = Strings.format("""
             {"a":10, "%s" : 5, "b":20, "c":30}
             {"b":21, "a":11, "c":31}
             {"c":32, "b":22, "a":12}

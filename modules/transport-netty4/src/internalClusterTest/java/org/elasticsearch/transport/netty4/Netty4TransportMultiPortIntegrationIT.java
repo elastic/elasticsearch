@@ -14,6 +14,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -37,7 +38,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
             randomPort = randomIntBetween(49152, 65525);
-            randomPortRange = formatted("%s-%s", randomPort, randomPort + 10);
+            randomPortRange = Strings.format("%s-%s", randomPort, randomPort + 10);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))

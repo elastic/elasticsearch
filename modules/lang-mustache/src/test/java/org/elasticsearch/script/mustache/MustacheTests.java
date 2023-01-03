@@ -9,6 +9,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TemplateScript;
@@ -149,7 +150,7 @@ public class MustacheTests extends ESTestCase {
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
-        String expectedString = formatted("%s %s", randomArrayValues.length, randomList.size());
+        String expectedString = Strings.format("%s %s", randomArrayValues.length, randomList.size());
         assertThat(factory.newInstance(vars).execute(), equalTo(expectedString));
     }
 

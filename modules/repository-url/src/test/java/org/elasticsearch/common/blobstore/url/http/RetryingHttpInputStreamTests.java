@@ -10,6 +10,7 @@ package org.elasticsearch.common.blobstore.url.http;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,7 +44,7 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
         when(secondHttpResponseInputStream.read(any(), anyInt(), anyInt())).thenReturn(blobSize - firstChunkSize).thenReturn(-1);
         final Map<String, String> secondResponseHeaders = Map.of(
             "Content-Range",
-            formatted("bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize)
+            Strings.format("bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize)
         );
 
         final List<MockHttpResponse> responses = List.of(

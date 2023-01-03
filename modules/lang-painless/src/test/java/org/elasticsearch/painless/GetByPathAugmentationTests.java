@@ -8,6 +8,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,20 +39,20 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
     }
 
     private String toScript(String collection, String key) {
-        return formatted("return %s.getByPath('%s')", collection, key);
+        return Strings.format("return %s.getByPath('%s')", collection, key);
     }
 
     private String toScript(String collection, String key, String defaultValue) {
-        return formatted("return %s.getByPath('%s', %s)", collection, key, defaultValue);
+        return Strings.format("return %s.getByPath('%s', %s)", collection, key, defaultValue);
     }
 
     private String numberFormat(String unparsable, String path, int i) {
         String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
-        return formatted(format, unparsable, path, i);
+        return Strings.format(format, unparsable, path, i);
     }
 
     private String missingValue(String path) {
-        return formatted("Could not find value at path [%s]", path);
+        return Strings.format("Could not find value at path [%s]", path);
     }
 
     private void assertPathValue(String collection, String key, Object value) {

@@ -526,7 +526,10 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         assertThat(attachment, instanceOf(Attachment.Bytes.class));
         assertThat(attachment.getWarnings(), hasSize(WARNINGS.keySet().size()));
         // parameterize the messages
-        assertEquals(attachment.getWarnings(), WARNINGS.values().stream().map(s -> formatted(s, reportId)).collect(Collectors.toSet()));
+        assertEquals(
+            attachment.getWarnings(),
+            WARNINGS.values().stream().map(s -> org.elasticsearch.core.Strings.format(s, reportId)).collect(Collectors.toSet())
+        );
 
         Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
         assertThat(new String(bytesAttachment.bytes(), StandardCharsets.UTF_8), is(content));
@@ -606,7 +609,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         // parameterize the messages
         assertEquals(
             attachment.getWarnings(),
-            customWarnings.values().stream().map(s -> formatted(s, reportId)).collect(Collectors.toSet())
+            customWarnings.values().stream().map(s -> org.elasticsearch.core.Strings.format(s, reportId)).collect(Collectors.toSet())
         );
         // ensure the reportId is parameterized in
         attachment.getWarnings().forEach(s -> { assertThat(s, containsString(reportId)); });

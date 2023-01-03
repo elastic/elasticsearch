@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
@@ -262,7 +263,7 @@ public class IPFilterTests extends ESTestCase {
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
         // don't use the assert helper because we don't want the audit trail to be invoked here
-        String message = formatted("Expected address %s to be allowed", "8.8.8.8");
+        String message = Strings.format("Expected address %s to be allowed", "8.8.8.8");
         InetAddress address = InetAddresses.forString("8.8.8.8");
         assertThat(message, ipFilter.accept("default", new InetSocketAddress(address, 0)), is(true));
         verifyNoMoreInteractions(auditTrail);
@@ -289,7 +290,7 @@ public class IPFilterTests extends ESTestCase {
 
     private void assertAddressIsAllowedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
-            String message = formatted("Expected address %s to be allowed", inetAddress);
+            String message = Strings.format("Expected address %s to be allowed", inetAddress);
             InetSocketAddress address = new InetSocketAddress(InetAddresses.forString(inetAddress), 0);
             assertTrue(message, ipFilter.accept(profile, address));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);
@@ -304,7 +305,7 @@ public class IPFilterTests extends ESTestCase {
 
     private void assertAddressIsDeniedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
-            String message = formatted("Expected address %s to be denied", inetAddress);
+            String message = Strings.format("Expected address %s to be denied", inetAddress);
             InetSocketAddress address = new InetSocketAddress(InetAddresses.forString(inetAddress), 0);
             assertFalse(message, ipFilter.accept(profile, address));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);

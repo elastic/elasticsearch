@@ -19,6 +19,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -149,7 +150,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Request updateRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_update/" + docId.get());
         updateRequest.addParameter("refresh", WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
         updateRequest.setOptions(SECURITY_REQUEST_OPTIONS);
-        updateRequest.setJsonEntity(formatted("""
+        updateRequest.setJsonEntity(Strings.format("""
             {
               "doc": {
                 "creation_time": %s
@@ -442,7 +443,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Request updateRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_update/" + docId.get());
         updateRequest.addParameter("refresh", WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
         updateRequest.setOptions(SECURITY_REQUEST_OPTIONS);
-        updateRequest.setJsonEntity(formatted("""
+        updateRequest.setJsonEntity(Strings.format("""
             {
               "doc": {
                 "refresh_token": {
@@ -674,7 +675,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(ObjectPath.evaluate(authenticateMap, "authentication_realm.name"), equalTo("file"));
         assertThat(ObjectPath.evaluate(authenticateMap, "authentication_type"), is("token"));
 
-        final TokenInvalidation tokenInvalidation = getSecurityClient().invalidateTokens(formatted("""
+        final TokenInvalidation tokenInvalidation = getSecurityClient().invalidateTokens(Strings.format("""
             {
               "realm_name":"%s",
               "username":"%s"

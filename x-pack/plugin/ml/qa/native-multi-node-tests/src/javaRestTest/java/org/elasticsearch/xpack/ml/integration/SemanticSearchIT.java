@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
@@ -222,7 +223,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
         {
             // combined query should return size documents where size > k
             Request request = new Request("GET", indexName + "/_semantic_search");
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {
                   "model_id": "%s",
                   "model_text": "my words",
@@ -247,7 +248,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             // score should be close to 1.0. Use an unrelated query so scores are
             // not combined
             Request request = new Request("GET", indexName + "/_semantic_search");
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {
                   "model_id": "%s",
                   "model_text": "my words",

@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -89,7 +90,7 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
                 assertThat(
                     violation.message(),
-                    containsString(formatted("settings [%s,%s]", transientSetting.getKey(), persistentSetting.getKey()))
+                    containsString(Strings.format("settings [%s,%s]", transientSetting.getKey(), persistentSetting.getKey()))
                 );
             }
             case 1 -> {
@@ -97,14 +98,14 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
                 persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(formatted("setting [%s]", transientSetting.getKey())));
+                assertThat(violation.message(), containsString(Strings.format("setting [%s]", transientSetting.getKey())));
             }
             case 2 -> {
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
                 persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(formatted("setting [%s]", persistentSetting.getKey())));
+                assertThat(violation.message(), containsString(Strings.format("setting [%s]", persistentSetting.getKey())));
             }
             case 3 -> {
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));

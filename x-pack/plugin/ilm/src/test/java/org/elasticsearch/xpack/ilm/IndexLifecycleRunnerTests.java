@@ -370,7 +370,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("failed to register ILM history"));
-        assertThat(historyItem.toString(), containsString(formatted("""
+        assertThat(historyItem.toString(), containsString(org.elasticsearch.core.Strings.format("""
             {
               "index": "test",
               "policy": "foo",

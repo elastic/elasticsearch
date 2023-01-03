@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -153,7 +154,7 @@ public class ExportersTests extends ESTestCase {
         int year = zonedDateTime.getYear();
         int month = zonedDateTime.getMonthValue();
         int day = zonedDateTime.getDayOfMonth();
-        String expecdateDate = formatted("%02d.%02d.%02d", year, month, day);
+        String expecdateDate = Strings.format("%02d.%02d.%02d", year, month, day);
         String formattedDate = formatter.format(instant);
         assertThat("input date was " + instant, expecdateDate, is(formattedDate));
     }

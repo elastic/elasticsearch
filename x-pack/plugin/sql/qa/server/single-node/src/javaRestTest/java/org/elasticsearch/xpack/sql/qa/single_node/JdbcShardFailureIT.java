@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.single_node;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{}}
                 {"test_field":%s}
                 """, i));
@@ -100,7 +101,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             String indexName = "/test" + i;
             Request request = new Request("PUT", indexName);
             boolean indexWithDocVals = i < okShards;
-            request.setJsonEntity(formatted(mappingTemplate, indexWithDocVals, indexWithDocVals));
+            request.setJsonEntity(Strings.format(mappingTemplate, indexWithDocVals, indexWithDocVals));
             assertOK(provisioningClient().performRequest(request));
 
             request = new Request("POST", indexName + "/_doc");

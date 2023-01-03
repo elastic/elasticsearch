@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.BeforeClass;
@@ -183,7 +184,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         }
 
         IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
-        String message = formatted("Expected allowed connection for profile %s against host %s", profile, host);
+        String message = Strings.format("Expected allowed connection for profile %s against host %s", profile, host);
         assertThat(message, ipFilter.accept(profile, new InetSocketAddress(InetAddress.getByName(host), 0)), is(true));
     }
 
@@ -194,7 +195,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         }
 
         IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
-        String message = formatted("Expected rejection for profile %s against host %s", profile, host);
+        String message = Strings.format("Expected rejection for profile %s against host %s", profile, host);
         assertThat(message, ipFilter.accept(profile, new InetSocketAddress(InetAddress.getByName(host), 0)), is(false));
     }
 }

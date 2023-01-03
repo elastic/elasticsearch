@@ -54,7 +54,12 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+            equalTo(
+                org.elasticsearch.core.Strings.format(
+                    " with assigned roles [%s]",
+                    Strings.collectionToCommaDelimitedString(assignedRoleNames)
+                )
+            )
         );
     }
 
@@ -74,7 +79,12 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+            equalTo(
+                org.elasticsearch.core.Strings.format(
+                    " with assigned roles [%s]",
+                    Strings.collectionToCommaDelimitedString(assignedRoleNames)
+                )
+            )
         );
     }
 
@@ -105,7 +115,12 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+            equalTo(
+                org.elasticsearch.core.Strings.format(
+                    " with assigned roles [%s]",
+                    Strings.collectionToCommaDelimitedString(assignedRoleNames)
+                )
+            )
         );
     }
 
@@ -130,7 +145,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             assertThat(
                 rolesDescription,
                 equalTo(
-                    formatted(
+                    org.elasticsearch.core.Strings.format(
                         " with effective roles [] (assigned roles [%s] were not found)",
                         Strings.collectionToCommaDelimitedString(assignedRoleNames.stream().sorted().toList())
                     )
@@ -164,7 +179,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         assertThat(
             rolesDescription,
             equalTo(
-                formatted(
+                org.elasticsearch.core.Strings.format(
                     " with effective roles [%s]",
                     Strings.collectionToCommaDelimitedString(effectiveRoleNames.stream().sorted().toList())
                 )

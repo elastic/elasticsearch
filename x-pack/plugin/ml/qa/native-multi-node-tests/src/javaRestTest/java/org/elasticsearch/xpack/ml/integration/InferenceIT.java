@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -62,7 +63,7 @@ public class InferenceIT extends ESRestTestCase {
         }
 
         Request inferRequest = new Request("POST", "_ml/trained_models/" + regressionModelId + "/_infer");
-        inferRequest.setJsonEntity(formatted("""
+        inferRequest.setJsonEntity(Strings.format("""
             {
               "docs": [%s]
             }
@@ -75,7 +76,7 @@ public class InferenceIT extends ESRestTestCase {
         putModelAlias("foo_regression", regressionModelId);
 
         inferRequest = new Request("POST", "_ml/trained_models/foo_regression/_infer");
-        inferRequest.setJsonEntity(formatted("""
+        inferRequest.setJsonEntity(Strings.format("""
             {
               "docs": [%s]
             }
@@ -98,7 +99,7 @@ public class InferenceIT extends ESRestTestCase {
         }
 
         Request inferRequest = new Request("POST", "_ml/trained_models/" + classificationModelId + "/_infer");
-        inferRequest.setJsonEntity(formatted("""
+        inferRequest.setJsonEntity(Strings.format("""
             {
               "docs": [%s]
             }
@@ -111,7 +112,7 @@ public class InferenceIT extends ESRestTestCase {
         putModelAlias("foo_classification", classificationModelId);
 
         inferRequest = new Request("POST", "_ml/trained_models/foo_classification/_infer");
-        inferRequest.setJsonEntity(formatted("""
+        inferRequest.setJsonEntity(Strings.format("""
             {
               "docs": [%s]
             }
@@ -299,6 +300,25 @@ public class InferenceIT extends ESRestTestCase {
             "definition": %s
         }""", REGRESSION_DEFINITION);
 
+    static {
+        REGRESSION_CONFIG = Strings.format("""
+            {
+                "input": {
+                    "field_names": [
+                        "col1",
+                        "col2",
+                        "col3",
+                        "col4"
+                    ]
+                },
+                "description": "test model for regression",
+                "inference_config": {
+                    "regression": {}
+                },
+                "definition": %s
+            }""", REGRESSION_DEFINITION);
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -318,6 +338,23 @@ public class InferenceIT extends ESRestTestCase {
           },
           "definition": %s
         }""", InferenceDefinitionTests.getClassificationDefinition(false));
+
+    static {
+        CLASSIFICATION_CONFIG = Strings.format("""
+            {
+              "input": {
+                "field_names": [ "col1", "col2", "col3", "col4" ]
+              },
+              "description": "test model for classification",
+              "default_field_map": {
+                "col_1_alias": "col1"
+              },
+              "inference_config": {
+                "classification": {}
+              },
+              "definition": %s
+            }""", InferenceDefinitionTests.getClassificationDefinition(false));
+    }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId);

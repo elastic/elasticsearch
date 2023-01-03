@@ -124,7 +124,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + formatted("""
+        return super.configUsers() + org.elasticsearch.core.Strings.format("""
             user1:%s
             user2:%s
             user3:%s

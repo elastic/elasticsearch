@@ -1,0 +1,160 @@
+---
+"percentiles t-digest numeric field":
+  - skip:
+      version: " - 8.6.99"
+      reason:  fixed in 8.7.0
+      features: close_to
+
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          mappings:
+            properties:
+              latency:
+                type: integer
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": 100}'
+          - '{"index": {}}'
+          - '{"latency": 120}'
+          - '{"index": {}}'
+          - '{"latency": 150}'
+          - '{"index": {}}'
+          - '{"latency": 140}'
+          - '{"index": {}}'
+          - '{"latency": 110}'
+          - '{"index": {}}'
+          - '{"latency": 110}'
+          - '{"index": {}}'
+          - '{"latency": 120}'
+          - '{"index": {}}'
+          - '{"latency": 160}'
+          - '{"index": {}}'
+          - '{"latency": 120}'
+          - '{"index": {}}'
+          - '{"latency": 100}'
+          - '{"index": {}}'
+          - '{"latency": 100}'
+          - '{"index": {}}'
+          - '{"latency": 130}'
+          - '{"index": {}}'
+          - '{"latency": 140}'
+          - '{"index": {}}'
+          - '{"latency": 130}'
+          - '{"index": {}}'
+          - '{"latency": 120}'
+          - '{"index": {}}'
+          - '{"latency": 160}'
+
+  - do:
+      search:
+        index: test_1
+        body:
+          aggs:
+            percentiles_histo:
+              percentiles:
+                field: latency
+                percents: [10.0, 50.0, 95.0, 96.0, 97.0, 98.0, 99.0, 100.0]
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - close_to: { aggregations.percentiles_histo.values.10\\.0: { value: 100.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.50\\.0: { value: 120.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 160.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.96\\.0: { value: 160.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.97\\.0: { value: 160.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.98\\.0: { value: 160.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 160.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.100\\.0: { value: 160.0, error: 0.000001 } }
+
+---
+"percentiles t-digest histogram field":
+  - skip:
+      version: " - 8.6.99"
+      reason:  fixed in 8.7.0
+      features: close_to
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": {"counts": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10], "values": [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0]}}'
+
+  - do:
+      search:
+        index: test_2
+        body:
+          aggs:
+            percentiles_histo:
+              percentiles:
+                field: latency
+                percents: [10.0, 50.0, 95.0, 96.0, 97.0, 98.0, 99.0, 100.0]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - close_to: { aggregations.percentiles_histo.values.10\\.0: { value: 5.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.50\\.0: { value: 45.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.96\\.0: { value: 90.0, error: 0.1 }}
+  - close_to: { aggregations.percentiles_histo.values.97\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.98\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.100\\.0: { value: 90.0, error: 0.1 } }
+
+---
+"percentiles t-digest histogram field large count sum":
+  - skip:
+      version: " - 8.6.99"
+      reason:  fixed in 8.7.0
+      features: close_to
+
+  - do:
+      indices.create:
+        index: test_3
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": {"counts": [2100000000, 300000000], "values": [1, 2]}}'
+
+  - do:
+      search:
+        index: test_3
+        body:
+          aggs:
+            percentiles_histo:
+              percentiles:
+                field: latency
+                percents: [90.0, 95.0, 99.0]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - close_to: { aggregations.percentiles_histo.values.90\\.0: { value: 1.125, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 1.125, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 1.125, error: 0.1 } }
+

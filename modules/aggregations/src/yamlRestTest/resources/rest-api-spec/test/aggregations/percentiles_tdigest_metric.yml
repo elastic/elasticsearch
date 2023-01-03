@@ -422,6 +422,7 @@ setup:
   - match:  { aggregations.percentiles_int.values.1.key:  25.0 }
   - close_to:  { aggregations.percentiles_int.values.1.value:  { value: 51.0, error: 0.1 } }
   - match:  { aggregations.percentiles_int.values.2.key:  50.0 }
+<<<<<<< HEAD
   - close_to:  { aggregations.percentiles_int.values.2.value:  { value: 101.0, error: 0.1 } }
   - match: { aggregations.percentiles_int.values.3.key: 100.0 }
   - close_to: { aggregations.percentiles_int.values.3.value: { value: 151.0, error: 0.1 } }
@@ -464,3 +465,36 @@ setup:
   - close_to: { aggregations.percentiles_double.values.75\.0: { value: 1.79, error: 0.1 } }
   - close_to: { aggregations.percentiles_double.values.95\.0: { value: 2.20, error: 0.1 } }
   - close_to: { aggregations.percentiles_double.values.99\.0: { value: 2.20, error: 0.1 } }
+
+---
+"t-digest histogram overflow":
+  - skip:
+      version: " - 8.6.99"
+      reason:  fixed in 8.7.0
+
+  - do:
+      indices.create:
+        index: test_overflow
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+
+  - do:
+      bulk:
+        index: test_overflow
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"histo": {"counts": [2100000000, 300000000], "values": [1, 2]}}'
+
+  - do:
+      search:
+        index: test_overflow
+        body:
+          aggs:
+            percentiles_histo:
+              percentiles:
+                field: latency
+                percents: [95.0]

@@ -107,7 +107,7 @@ setup:
   - match: { aggregations.plot.min: 2.0 }
   - match: { aggregations.plot.max: 10000.0 }
   - match: { aggregations.plot.q1: 3 }
-  - match: { aggregations.plot.q2: 7.5 }
+  - match: { aggregations.plot.q2: 10.0 }
   - match: { aggregations.plot.q3: 15.0 }
   - match: { aggregations.plot.lower: 2.0 }
   - match: { aggregations.plot.upper: 15.0 }

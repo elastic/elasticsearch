@@ -29,6 +29,7 @@ public class EqlSpec {
     private String[] joinKeys;
 
     private Integer size;
+    private Integer maxSamplesPerKey;
 
     public String name() {
         return name;
@@ -94,6 +95,14 @@ public class EqlSpec {
         this.size = size;
     }
 
+    public Integer maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    public void maxSamplesPerKey(Integer maxSamplesPerKey) {
+        this.maxSamplesPerKey = maxSamplesPerKey;
+    }
+
     @Override
     public String toString() {
         String str = "";
@@ -120,6 +129,9 @@ public class EqlSpec {
         if (size != null) {
             str = appendWithComma(str, "size", "" + size);
         }
+        if (maxSamplesPerKey != null) {
+            str = appendWithComma(str, "max_samples_per_key", "" + maxSamplesPerKey);
+        }
 
         return str;
     }
@@ -136,12 +148,14 @@ public class EqlSpec {
 
         EqlSpec that = (EqlSpec) other;
 
-        return Objects.equals(this.query(), that.query()) && Objects.equals(size, that.size);
+        return Objects.equals(this.query(), that.query())
+            && Objects.equals(size, that.size)
+            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query, size);
+        return Objects.hash(this.query, size, maxSamplesPerKey);
     }
 
     private static String appendWithComma(String str, String name, String append) {

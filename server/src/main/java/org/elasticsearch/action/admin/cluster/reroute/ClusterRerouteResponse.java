@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -75,7 +76,8 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
                 deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
             }
             builder.startObject("state");
-            state.toXContent(builder, params);
+            // TODO this should be chunked, see #89838
+            ChunkedToXContent.wrapAsToXContent(state).toXContent(builder, params);
             builder.endObject();
         }
 

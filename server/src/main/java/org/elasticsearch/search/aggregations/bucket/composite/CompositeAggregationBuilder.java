@@ -211,6 +211,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         AggregatorFactory parent,
         AggregatorFactories.Builder subfactoriesBuilder
     ) throws IOException {
+        if (context.isInSortOrderExecutionRequired()) {
+            throw new IllegalArgumentException("[composite] aggregation is incompatible with time series execution mode");
+        }
         AggregatorFactory invalid = validateParentAggregations(parent);
         if (invalid != null) {
             throw new IllegalArgumentException(

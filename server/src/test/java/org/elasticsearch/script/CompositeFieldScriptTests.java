@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +34,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                     "composite",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -64,6 +66,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                     "composite",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -77,6 +80,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                     "composite.leaf",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override

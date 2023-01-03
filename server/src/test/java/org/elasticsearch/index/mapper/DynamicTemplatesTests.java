@@ -1205,10 +1205,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
               ]
             }
             """)));
-        assertEquals(
-            "[3:5] Tried to add nested object [object] to object [metrics] which does not support subobjects",
-            err.getMessage()
-        );
+        assertEquals("[3:5] Tried to add nested object [object] to object [metrics] which does not support subobjects", err.getMessage());
     }
 
     public void testRootSubobjectFalseDynamicNestedNotAllowed() throws IOException {

@@ -297,7 +297,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "[1:6] failed to parse field [a] of type [integer] in a time series document. Preview of field's value: '" + Long.MAX_VALUE + "'"
+                "[1:6] failed to parse field [a] of type [integer] in a time series document. Preview of field's value: '"
+                    + Long.MAX_VALUE
+                    + "'"
             )
         );
     }
@@ -353,7 +355,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "[1:6] failed to parse field [a] of type [short] in a time series document. Preview of field's value: '" + Long.MAX_VALUE + "'"
+                "[1:6] failed to parse field [a] of type [short] in a time series document. Preview of field's value: '"
+                    + Long.MAX_VALUE
+                    + "'"
             )
         );
     }
@@ -409,7 +413,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "[1:6] failed to parse field [a] of type [byte] in a time series document. Preview of field's value: '" + Long.MAX_VALUE + "'"
+                "[1:6] failed to parse field [a] of type [byte] in a time series document. Preview of field's value: '"
+                    + Long.MAX_VALUE
+                    + "'"
             )
         );
     }

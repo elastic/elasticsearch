@@ -111,7 +111,10 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 () -> defaultMapper.parse(source(b -> b.field("field", value)))
             );
             assertEquals(
-                "[1:10] failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '" + value + "'",
+                "[1:10] failed to parse field [field] of type [boolean] in document with id '1'. "
+                    + "Preview of field's value: '"
+                    + value
+                    + "'",
                 ex.getMessage()
             );
         }
@@ -127,7 +130,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertEquals(
-            "[1:29] failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '{inner_field=no}'",
+            "[1:29] failed to parse field [field] of type [boolean] in document with id '1'. "
+                + "Preview of field's value: '{inner_field=no}'",
             ex.getMessage()
         );
     }

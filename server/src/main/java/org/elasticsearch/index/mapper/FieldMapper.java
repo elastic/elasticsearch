@@ -41,6 +41,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -198,6 +199,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
                 String.format(
+                    Locale.ROOT,
                     "failed to parse field [%s] of type [%s] in %s. Could not parse field value preview,",
                     fieldType().name(),
                     fieldType().typeName(),
@@ -210,6 +212,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         throw new DocumentParsingException(
             context.parser().getTokenLocation(),
             String.format(
+                Locale.ROOT,
                 "failed to parse field [%s] of type [%s] in %s. Preview of field's value: '%s'",
                 fieldType().name(),
                 fieldType().typeName(),

@@ -494,7 +494,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             () -> defaultMapper.parse(source(b -> b.startObject("field").nullField("field_name").endObject()))
         );
         assertEquals(
-            "[1:28] failed to parse field [field] of type [keyword] in document with id '1'. " + "Preview of field's value: '{field_name=null}'",
+            "[1:28] failed to parse field [field] of type [keyword] in document with id '1'. "
+                + "Preview of field's value: '{field_name=null}'",
             e.getMessage()
         );
     }

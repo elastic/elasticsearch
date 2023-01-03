@@ -411,11 +411,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startObject("bar").field("type", "boolean").endObject();
         }));
         {
-            DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("foo", true))));
+            DocumentParsingException exception = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(source(b -> b.field("foo", true)))
+            );
             assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long] in document with id '1'"));
         }
         {
-            DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("bar", "bar"))));
+            DocumentParsingException exception = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(source(b -> b.field("bar", "bar")))
+            );
             assertThat(exception.getMessage(), containsString("failed to parse field [bar] of type [boolean] in document with id '1'"));
         }
     }
@@ -824,7 +830,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed")
+        );
     }
 
     public void testDynamicRuntimeLongArray() throws Exception {
@@ -937,7 +946,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("foo").field("bar", "baz").endObject()))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed")
+        );
     }
 
     public void testDynamicFalseValue() throws Exception {
@@ -952,7 +964,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("bar", "baz")))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed")
+        );
     }
 
     public void testDynamicFalseNull() throws Exception {
@@ -967,7 +982,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.nullField("bar")))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed")
+        );
     }
 
     public void testMappedNullValue() throws Exception {
@@ -1273,7 +1291,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startArray("foo.bar.baz").value(0).value(1).endArray()))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed")
+        );
     }
 
     public void testDynamicDottedFieldNameLong() throws Exception {
@@ -1358,7 +1379,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("foo.bar.baz", 0)))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed")
+        );
     }
 
     public void testDynamicDottedFieldNameObject() throws Exception {
@@ -1453,12 +1477,18 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("foo.bar.baz").field("a", 0).endObject()))
         );
-        assertThat(exception.getMessage(), containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed"));
+        assertThat(
+            exception.getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed")
+        );
     }
 
     public void testDocumentContainsMetadataField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("_field_names", 0))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("_field_names", 0)))
+        );
         assertTrue(
             e.getCause().getMessage(),
             e.getCause().getMessage().contains("Field [_field_names] is a metadata field and cannot be added inside a document.")
@@ -1899,12 +1929,18 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testBlankFieldNames() throws Exception {
         dynamicTrueOrDynamicRuntimeTest(mapper -> {
             {
-                DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
+                DocumentParsingException e = expectThrows(
+                    DocumentParsingException.class,
+                    () -> mapper.parse(source(b -> b.field("", "foo")))
+                );
                 assertThat(e.getCause(), notNullValue());
                 assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));
             }
             {
-                DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(" ", "foo"))));
+                DocumentParsingException e = expectThrows(
+                    DocumentParsingException.class,
+                    () -> mapper.parse(source(b -> b.field(" ", "foo")))
+                );
                 assertThat(e.getMessage(), containsString("Field name cannot contain only whitespace: [ ]"));
             }
             {
@@ -1981,7 +2017,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals("[4:16] Tried to add subobject [time] to object [metrics.service] which does not support subobjects", err.getMessage());
+        assertEquals(
+            "[4:16] Tried to add subobject [time] to object [metrics.service] which does not support subobjects",
+            err.getMessage()
+        );
     }
 
     public void testSubobjectsFalseWithInnerDottedObject() throws Exception {
@@ -2165,10 +2204,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
               ]
             }
             """)));
-        assertEquals(
-            "[3:5] Tried to add subobject [service.time] to object [metrics] which does not support subobjects",
-            err.getMessage()
-        );
+        assertEquals("[3:5] Tried to add subobject [service.time] to object [metrics] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseParseGeoPoint() throws Exception {

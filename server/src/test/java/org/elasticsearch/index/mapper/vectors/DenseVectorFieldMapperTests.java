@@ -275,7 +275,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -12.1f, 2.7f, -4 };
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -308,7 +311,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -329,7 +335,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),

@@ -852,11 +852,12 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-            "The number of nested documents has exceeded the allowed limit of ["
-                + defaultMaxNoNestedDocs
-                + "]. This limit can be set by changing the ["
-                + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
-                + "] index level setting.")
+                "The number of nested documents has exceeded the allowed limit of ["
+                    + defaultMaxNoNestedDocs
+                    + "]. This limit can be set by changing the ["
+                    + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                    + "] index level setting."
+            )
         );
     }
 

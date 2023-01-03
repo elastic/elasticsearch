@@ -225,7 +225,10 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
         );
 
-        assertThat(e.getMessage(), startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
+        assertThat(
+            e.getMessage(),
+            startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed")
+        );
     }
 
     public void testCopyToInnerStrictDynamicInnerObjectParsing() throws Exception {
@@ -259,7 +262,10 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
         );
 
-        assertThat(e.getMessage(), startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed"));
+        assertThat(
+            e.getMessage(),
+            startsWith("[-1:-1] failed to parse: mapping set to strict, dynamic introduction of [field] within [very.far] is not allowed")
+        );
     }
 
     public void testCopyToFieldMerge() throws Exception {
@@ -725,7 +731,8 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
             );
             assertEquals(
-                "[1:38] Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
+                "[1:38] Cannot copy field [geopoint] to fields [geopoint_copy]. "
+                    + "Copy-to currently only works for value-type fields, not objects.",
                 ex.getMessage()
             );
         }
@@ -739,7 +746,8 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
             );
             assertEquals(
-                "[1:26] Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
+                "[1:26] Cannot copy field [geopoint] to fields [geopoint_copy]. "
+                    + "Copy-to currently only works for value-type fields, not objects.",
                 ex.getMessage()
             );
         }

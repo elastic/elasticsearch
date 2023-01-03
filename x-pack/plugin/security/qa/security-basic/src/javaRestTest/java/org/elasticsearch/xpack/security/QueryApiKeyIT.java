@@ -114,7 +114,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 assertQuery(
                     API_KEY_ADMIN_AUTH_HEADER,
                         Strings.format("""
-                                { "query": { "ids": { "values": [%s] } } }""", subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))),
+                                { "query": { "ids": { "values": [%s] } } }""",
+                            subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))),
                     keys -> {
                         assertThat(keys, hasSize(subset.size()));
                         keys.forEach(k -> assertThat(k, not(hasKey("_sort"))));

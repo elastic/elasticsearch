@@ -1,5 +1,0 @@
-pr: 92621
-summary: Handle rejection in `PrioritizedThrottledTaskRunner`
-area: Snapshot/Restore
-type: bug
-issues: []

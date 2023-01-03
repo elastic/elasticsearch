@@ -417,7 +417,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public boolean createOperation() {
+            public boolean isCreateOperation() {
                 return true;
             }
 
@@ -532,7 +532,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public boolean createOperation() {
+            public boolean isCreateOperation() {
                 return true;
             }
 
@@ -711,7 +711,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 @Override
-                public boolean createOperation() {
+                public boolean isCreateOperation() {
                     return true;
                 }
 
@@ -2264,7 +2264,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             @Override
-            public boolean createOperation() {
+            public boolean isCreateOperation() {
                 return false;
             }
 
@@ -2481,8 +2481,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 @Override
-                public boolean createOperation() {
-                    return updateTask.createOperation();
+                public boolean isCreateOperation() {
+                    return updateTask.isCreateOperation();
                 }
 
                 @Override
@@ -3238,7 +3238,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> successes = new ArrayList<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask()instanceof SnapshotOperationClusterStateUpdateTask task) {
-                    if (task.createOperation()) {
+                    if (task.isCreateOperation()) {
                         snapshots.add(taskContext);
                     } else {
                         newState = applyOperation(newState, successes, taskContext);
@@ -3527,7 +3527,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public interface SnapshotOperationClusterStateUpdateTask extends SnapshotClusterStateUpdateTask {
         ClusterState execute(ClusterState clusterState);
 
-        boolean createOperation();
+        /**
+         * @return true if this task starts a snapshot creation or clone
+         */
+        boolean isCreateOperation();
     }
 
     /**

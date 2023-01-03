@@ -3471,7 +3471,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public boolean createOperation() {
+        public boolean isCreateOperation() {
             return false;
         }
 
@@ -3547,7 +3547,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public boolean createOperation() {
+        public boolean isCreateOperation() {
             return false;
         }
 

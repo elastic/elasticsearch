@@ -75,6 +75,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -119,6 +120,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             .add(masterNode);
 
         when(clusterState.nodes()).thenReturn(builder.build());
+        when(clusterState.toXContentChunked(any())).thenReturn(Collections.emptyIterator());
     }
 
     @Override

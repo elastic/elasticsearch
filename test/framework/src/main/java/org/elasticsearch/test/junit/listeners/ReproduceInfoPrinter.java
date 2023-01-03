@@ -169,7 +169,11 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
-            appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+
+            appendOpt(
+                "runtime.java",
+                System.getProperty("tests.runtime.java.version", Integer.toString(JavaVersion.current().getVersion().get(0)))
+            );
             appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;

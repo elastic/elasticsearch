@@ -19,7 +19,7 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         configurationCacheCompatible = false
         buildFile << """
         plugins {
-          id 'elasticsearch.internal-yaml-rest-test'
+          id 'elasticsearch.legacy-yaml-rest-test'
         }
         """
 
@@ -38,7 +38,7 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         configurationCacheCompatible = false
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.internal-yaml-rest-test'
+            apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"

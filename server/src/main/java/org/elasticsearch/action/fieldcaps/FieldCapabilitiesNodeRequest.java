@@ -141,8 +141,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
 
     @Override
     public String getDescription() {
-        final StringBuilder stringBuilder = new StringBuilder("shards[" + shardIds.size() + "]");
-        stringBuilder.append(", fields[");
+        final StringBuilder stringBuilder = new StringBuilder("shards[");
+        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], fields[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
         stringBuilder.append("], filters[");
         stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(filters), ","));

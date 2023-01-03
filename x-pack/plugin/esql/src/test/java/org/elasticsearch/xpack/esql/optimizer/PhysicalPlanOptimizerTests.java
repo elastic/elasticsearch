@@ -331,6 +331,51 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNotNull(source);
     }
 
+    public void testExtractGroupingFieldsIfAggd() {
+        var plan = physicalPlan("""
+            from test
+            | stats x = count(gender) by gender
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        var exchange = as(aggregate.child(), ExchangeExec.class);
+        aggregate = as(exchange.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("gender")));
+
+        var source = source(extract.child());
+        assertNotNull(source);
+    }
+
+    public void testExtractGroupingFieldsIfAggdWithEval() {
+        var plan = physicalPlan("""
+            from test
+            | eval g = gender
+            | stats x = count(gender) by gender
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        var exchange = as(aggregate.child(), ExchangeExec.class);
+        aggregate = as(exchange.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+
+        var eval = as(aggregate.child(), EvalExec.class);
+        assertThat(Expressions.names(eval.fields()), equalTo(List.of("g")));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("gender")));
+
+        var source = source(extract.child());
+        assertNotNull(source);
+    }
+
     public void testQueryWithAggregation() {
         var plan = physicalPlan("""
             from test

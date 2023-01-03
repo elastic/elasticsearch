@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -226,9 +227,15 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             plan = plan.transformUp(UnaryExec.class, p -> {
                 var missing = missingAttributes(p);
 
-                // don't extract grouping fields the hash aggregator will do the extraction by itself
+                // don't extract grouping fields, the hash aggregator will do the extraction by itself, unless used themselves in the aggs
                 if (p instanceof AggregateExec agg) {
-                    missing.removeAll(Expressions.references(agg.groupings()));
+                    var leaves = new LinkedList<>();
+                    agg.aggregates()
+                        .stream()
+                        .filter(a -> agg.groupings().contains(a) == false)
+                        .forEach(a -> leaves.addAll(a.collectLeaves()));
+                    var remove = agg.groupings().stream().filter(g -> leaves.contains(g) == false).toList();
+                    missing.removeAll(Expressions.references(remove));
                 }
 
                 // add extractor

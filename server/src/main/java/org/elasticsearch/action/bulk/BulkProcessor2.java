@@ -183,7 +183,7 @@ public class BulkProcessor2 implements Closeable {
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(BulkProcessor2.class);
 
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     private final Listener listener;
@@ -218,7 +218,6 @@ public class BulkProcessor2 implements Closeable {
         @Nullable TimeValue flushInterval,
         ThreadPool threadPool
     ) {
-        this.logger = LogManager.getLogger(getClass());
         this.maxActionsPerBulkRequest = maxActionsPerBulkRequest;
         this.maxBulkSizeBytes = maxBulkSize.getBytes();
         this.maxBytesInFlight = maxBytesInFlight;
@@ -296,7 +295,7 @@ public class BulkProcessor2 implements Closeable {
      * @throws EsRejectedExecutionException if the total bytes already in flight exceeds maxBytesInFlight. In this case, the request will
      * not be retried and it is on the client to decide whether to wait and try later.
      */
-    public BulkProcessor2 add(DocWriteRequest<?> request) throws EsRejectedExecutionException {
+    private BulkProcessor2 add(DocWriteRequest<?> request) throws EsRejectedExecutionException {
         internalAdd(request);
         return this;
     }
@@ -339,6 +338,12 @@ public class BulkProcessor2 implements Closeable {
         if (bulkRequestToExecute != null) {
             execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
         }
+        /*
+         * We could have the flush task running nonstop, checking every flushInterval whether there was data to flush. But there is
+         * likely to not be data almost all of the time, so this would waste a thread's time. So instead we schedule a flush task
+         * whenever we add data. If a task is already scheduled, it does nothing. Since both the cancellableFlushTask and the
+         * bulkRequestUnderConstruction are protected by the same mutex, there is no risk that a request will be left hanging.
+         */
         scheduleFlushTask();
     }
 
@@ -389,7 +394,7 @@ public class BulkProcessor2 implements Closeable {
     private void execute(BulkRequest bulkRequest, long executionId) {
         try {
             listener.beforeBulk(executionId, bulkRequest);
-            retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {
+            retry.consumeRequestWithRetries(consumer, bulkRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());

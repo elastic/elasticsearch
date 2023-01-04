@@ -31,7 +31,7 @@ import java.util.stream.StreamSupport;
  * times is exhausted, it sends the listener an EsRejectedExecutionException.
  */
 class Retry2 {
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(Retry2.class);
     private final int maxNumberOfRetries;
     /**
      * Once awaitClose() has been called this is set to true. Any new requests that come in (whether via withBackoff() or a retry) will
@@ -48,7 +48,6 @@ class Retry2 {
      * @param maxNumberOfRetries This is the maximum number of times a BulkRequest will be retried
      */
     Retry2(int maxNumberOfRetries) {
-        this.logger = LogManager.getLogger(getClass());
         this.maxNumberOfRetries = maxNumberOfRetries;
     }
 
@@ -61,7 +60,7 @@ class Retry2 {
      * @param bulkRequest The bulk request that should be executed.
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception.
      */
-    public void withBackoff(
+    public void consumeRequestWithRetries(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         BulkRequest bulkRequest,
         ActionListener<BulkResponse> listener

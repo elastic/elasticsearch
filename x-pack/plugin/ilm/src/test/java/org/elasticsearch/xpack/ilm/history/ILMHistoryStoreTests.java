@@ -211,13 +211,14 @@ public class ILMHistoryStoreTests extends ESTestCase {
     }
 
     /*
-     * This tests that we don't see deadlock if we throw a lot of data at the ILMHistoryStore quickly.
+     * This tests that things behave correctly if we throw a lot of data at the ILMHistoryStore quickly -- multiple flushes occur, all
+     * counts add up, and no deadlock occurs.
      */
     // @TestLogging(
     // value = "org.elasticsearch.action.bulk:trace",
     // reason = "Logging information about locks useful for tracking down deadlock"
     // )
-    public void testDeadlock() throws Exception {
+    public void testMultipleFlushes() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();
         AtomicLong actions = new AtomicLong(0);

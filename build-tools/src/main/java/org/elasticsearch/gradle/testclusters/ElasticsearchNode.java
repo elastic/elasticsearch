@@ -1093,8 +1093,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
 
             ProcessHandle.Info processInfo2 = processHandle.info();
-            LOGGER.info("processHandle1 {}[{}]", processInfo1.command().orElse("NONE"), processHandle.pid());
-            LOGGER.info("processHandle2 {}[{}]", processInfo2.command().orElse("NONE"), processHandle.pid());
+            LOGGER.info("processInfo1 {}[{}]", processInfo1.command().orElse("NONE"), processHandle.pid());
+            LOGGER.info("processInfo2 {}[{}]", processInfo2.command().orElse("NONE"), processHandle.pid());
+
+            if (ProcessHandle.of(pid).isEmpty()) {
+                LOGGER.info("Process associated with pid [{}] does not exist. Assuming process has terminated.", pid);
+                return;
+            }
 
             if (processInfo1.commandLine().isPresent() && processInfo2.commandLine().isPresent() == false) {
                 LOGGER.info("Process command line {} is no longer present. Assuming process has terminated", processInfo1.commandLine().get());

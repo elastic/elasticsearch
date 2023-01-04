@@ -371,7 +371,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                         "my-alias",
                         List.of(dataStreamToSnapshot),
                         "other-ds".equals(dataStreamToSnapshot) ? "other-ds" : null,
-                        Map.of("match_all", Map.of("boost", 1f))
+                        Map.of("other-ds", Map.of("match_all", Map.of("boost", 1f)), "ds", Map.of("match_all", Map.of("boost", 1f)))
                     )
                 )
             )

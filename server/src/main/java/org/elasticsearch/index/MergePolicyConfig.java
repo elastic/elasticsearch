@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -101,7 +102,8 @@ import org.elasticsearch.core.SuppressForbidden;
  */
 
 public final class MergePolicyConfig {
-    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
+    private final TieredMergePolicy tieredMergePolicy = new TieredMergePolicy();
+    private final LogByteSizeMergePolicy logByteSizeMergePolicy = new LogByteSizeMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
 
@@ -190,15 +192,15 @@ public final class MergePolicyConfig {
             );
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
-        indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING).configure(mergePolicy);
-        mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
-        mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
-        mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-        mergePolicy.setSegmentsPerTier(segmentsPerTier);
-        mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        setCompoundFormatThreshold(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
+        setExpungeDeletesAllowed(forceMergeDeletesPctAllowed);
+        setFloorSegmentSetting(floorSegment);
+        setMaxMergesAtOnce(maxMergeAtOnce);
+        setMaxMergedSegment(maxMergedSegment);
+        setSegmentsPerTier(segmentsPerTier);
+        setDeletesPctAllowed(deletesPctAllowed);
         logger.trace(
-            "using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}],"
+            "using merge policy with expunge_deletes_allowed[{}], floor_segment[{}],"
                 + " max_merge_at_once[{}], max_merged_segment[{}], segments_per_tier[{}],"
                 + " deletes_pct_allowed[{}]",
             forceMergeDeletesPctAllowed,
@@ -210,32 +212,44 @@ public final class MergePolicyConfig {
         );
     }
 
-    void setSegmentsPerTier(Double segmentsPerTier) {
-        mergePolicy.setSegmentsPerTier(segmentsPerTier);
+    void setSegmentsPerTier(double segmentsPerTier) {
+        tieredMergePolicy.setSegmentsPerTier(segmentsPerTier);
+        logByteSizeMergePolicy.setMergeFactor((int) segmentsPerTier);
     }
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
-        mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
+        tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
+        // Note: max merge MB has different semantics on LogByteSizeMergePolicy: it's the maximum size for a segment to be considered for a
+        // merge, ie. max input segment size, while for TieredMergePolicy, it's the max output segment size. Also LogByteSizeMergePolicy
+        // doesn't try to pack as many segments together as necessary to get as close as possible to the max merged segment size. To
+        // account for that, we divide the max segment size by 2, and in practice, the maximum segment size in an index will be somewhere in
+        // [maxMergedSegment / 2, maxMergedSegment * 5] (assuming a merge factor of 10).
+        logByteSizeMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac() / 2);
     }
 
-    void setMaxMergesAtOnce(Integer maxMergeAtOnce) {
-        mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
+    void setMaxMergesAtOnce(int maxMergeAtOnce) {
+        tieredMergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
+        // LogByteSizeMergePolicy ignores this parameter, it always merges "segments per tier" segments at once.
     }
 
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
-        mergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
+        tieredMergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
+        logByteSizeMergePolicy.setMinMergeMB(floorSegementSetting.getMbFrac());
     }
 
     void setExpungeDeletesAllowed(Double value) {
-        mergePolicy.setForceMergeDeletesPctAllowed(value);
+        tieredMergePolicy.setForceMergeDeletesPctAllowed(value);
+        // LogByteSizeMergePolicy doesn't have a similar configuration option
     }
 
     void setCompoundFormatThreshold(CompoundFileThreshold compoundFileThreshold) {
-        compoundFileThreshold.configure(mergePolicy);
+        compoundFileThreshold.configure(tieredMergePolicy);
+        compoundFileThreshold.configure(logByteSizeMergePolicy);
     }
 
     void setDeletesPctAllowed(Double deletesPctAllowed) {
-        mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        tieredMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
+        // LogByteSizeMergePolicy doesn't have a similar configuration option
     }
 
     private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
@@ -258,8 +272,19 @@ public final class MergePolicyConfig {
     }
 
     @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
-    MergePolicy getMergePolicy() {
-        return mergesEnabled ? mergePolicy : NoMergePolicy.INSTANCE;
+    MergePolicy getMergePolicy(boolean isTimeSeriesIndex) {
+        if (mergesEnabled == false) {
+            return NoMergePolicy.INSTANCE;
+        }
+        if (isTimeSeriesIndex) {
+            // TieredMergePolicy is better than LogByteSizeMergePolicy at computing cheaper merges, but it does so by allowing itself to
+            // merge non-adjacent segments. An important property we get when only merging adjacent segments and data gets indexed in order
+            // is that segments have non-overlapping time ranges. This means that a range query on the time field will only partially match
+            // 2 segments at most, and other segments will either fully match or not match at all.
+            return logByteSizeMergePolicy;
+        } else {
+            return tieredMergePolicy;
+        }
     }
 
     private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {

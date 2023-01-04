@@ -3255,7 +3255,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings,
             warmer,
             store,
-            indexSettings.getMergePolicy(),
+            indexSettings.getMergePolicy(isTimeseriesIndex),
             buildIndexAnalyzer(mapperService),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,

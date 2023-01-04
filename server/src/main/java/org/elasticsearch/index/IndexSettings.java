@@ -1210,8 +1210,8 @@ public final class IndexSettings {
     /**
      * Returns the merge policy that should be used for this index.
      */
-    public MergePolicy getMergePolicy() {
-        return mergePolicyConfig.getMergePolicy();
+    public MergePolicy getMergePolicy(boolean isTimeseriesIndex) {
+        return mergePolicyConfig.getMergePolicy(isTimeseriesIndex);
     }
 
     public <T> T getValue(Setting<T> setting) {

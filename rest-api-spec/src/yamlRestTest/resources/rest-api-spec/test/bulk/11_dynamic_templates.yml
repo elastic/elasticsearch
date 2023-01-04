@@ -27,17 +27,19 @@
           - index:
               _index: test_index
               _id: id_1
+              op_type: create
               dynamic_templates:
                 location: location
           - { "location": "41.12,-71.34"}
           - index:
+              op_type: index
               _index: test_index
               _id: id_2
               dynamic_templates:
                 location: location
           - { "location": [ -71.34, 41.12 ]}
   - match: { errors: false }
-  - match: { items.0.index.result: created }
+  - match: { items.0.create.result: created }
   - match: { items.1.index.result: created }
 
   - do:

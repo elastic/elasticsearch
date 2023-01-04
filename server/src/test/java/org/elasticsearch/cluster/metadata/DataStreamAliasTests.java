@@ -87,8 +87,9 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
             assertThat(result, not(sameInstance(alias)));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("""
+            assertThat(result.getFilter("ds-1"), nullValue());
+            assertThat(result.getFilter("ds-2"), notNullValue());
+            assertThat(result.getFilter("ds-2").string(), equalTo("""
                 {"term":{"field":"value"}}"""));
         }
         // noop update to filter:
@@ -97,7 +98,7 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
                 "my-alias",
                 List.of("ds-1", "ds-2"),
                 null,
-                Map.of("term", Map.of("field", "value"))
+                Map.of("ds-2", Map.of("term", Map.of("field", "value")))
             );
             DataStreamAlias result = alias.update("ds-2", null, Map.of("term", Map.of("field", "value")));
             assertThat(result, sameInstance(alias));
@@ -108,14 +109,15 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
                 "my-alias",
                 List.of("ds-1", "ds-2"),
                 null,
-                Map.of("term", Map.of("field", "value"))
+                Map.of("ds-2", Map.of("term", Map.of("field", "value")))
             );
             DataStreamAlias result = alias.update("ds-2", null, Map.of("term", Map.of("field", "value1")));
             assertThat(result, not(sameInstance(alias)));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("""
+            assertThat(result.getFilter("ds-1"), nullValue());
+            assertThat(result.getFilter("ds-2"), notNullValue());
+            assertThat(result.getFilter("ds-2").string(), equalTo("""
                 {"term":{"field":"value1"}}"""));
         }
         // Filter not specified, keep existing filter:
@@ -124,13 +126,14 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
                 "my-alias",
                 List.of("ds-1", "ds-2"),
                 null,
-                Map.of("term", Map.of("field", "value"))
+                Map.of("ds-2", Map.of("term", Map.of("field", "value")))
             );
             DataStreamAlias result = alias.update("ds-2", null, null);
             assertThat(result, sameInstance(alias));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter().string(), equalTo("""
+            assertThat(result.getFilter("ds-1"), nullValue());
+            assertThat(result.getFilter("ds-2").string(), equalTo("""
                 {"term":{"field":"value"}}"""));
         }
     }

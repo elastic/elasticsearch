@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
@@ -42,8 +41,8 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
@@ -56,7 +55,6 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
@@ -76,45 +74,23 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
-public class Analyzer extends RuleExecutor<LogicalPlan> {
-    /**
-     * Valid functions.
-     */
-    private final FunctionRegistry functionRegistry;
-    /**
-     * Information about the index against which the SQL is being analyzed.
-     */
-    private final IndexResolution indexResolution;
-    /**
-     * Per-request specific settings needed in some of the functions (timezone, username and clustername),
-     * to which they are attached.
-     */
-    private final SqlConfiguration configuration;
-    /**
-     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
-     */
-    private final Verifier verifier;
+public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
 
-    public Analyzer(SqlConfiguration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
-        this.configuration = configuration;
-        this.functionRegistry = functionRegistry;
-        this.indexResolution = results;
-        this.verifier = verifier;
-    }
+    private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
-    @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitution = new Batch("Substitution", new CTESubstitution());
-        Batch resolution = new Batch(
+    static {
+        var substitution = new Batch<>("Substitution", new CTESubstitution());
+        var resolution = new Batch<>(
             "Resolution",
             new ResolveTable(),
             new ResolveRefs(),
             new ResolveOrdinalInOrderByAndGroupBy(),
             new ResolveMissingRefs(),
             new ResolveFilterRefs(),
-            new ResolveFunctions(configuration, functionRegistry),
+            new ResolveFunctions(),
             new ResolveAliases(),
             new ProjectedAggregations(),
             new HavingOverProject(),
@@ -122,14 +98,30 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             new ResolveAggsInOrderBy()
             // new ImplicitCasting()
         );
-        Batch finish = new Batch(
+        var finish = new Batch<>(
             "Finish Analysis",
             new ReplaceSubQueryAliases(), // Should be run before pruning SubqueryAliases
             new PruneSubQueryAliases(),
             new AddMissingEqualsToBoolField(),
             CleanAliases.INSTANCE
         );
-        return Arrays.asList(substitution, resolution, finish);
+        rules = Arrays.asList(substitution, resolution, finish);
+    }
+
+    /**
+     * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
+     */
+    private final Verifier verifier;
+
+    public Analyzer(AnalyzerContext context, Verifier verifier) {
+        super(context);
+        context.analyzeWithoutVerify().set(this::execute);
+        this.verifier = verifier;
+    }
+
+    @Override
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        return rules;
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -148,7 +140,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan, configuration.version());
+        Collection<Failure> failures = verifier.verify(plan, context().configuration().version());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -227,9 +219,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private class ResolveTable extends AnalyzerRule<UnresolvedRelation> {
-        @Override
-        protected LogicalPlan rule(UnresolvedRelation plan) {
+    private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
+
+        protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
+            IndexResolution indexResolution = context.indexResolution();
             if (indexResolution.isValid() == false) {
                 return plan.unresolvedMessage().equals(indexResolution.toString())
                     ? plan
@@ -256,7 +249,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private class ResolveRefs extends BaseAnalyzerRule {
+    private static class ResolveRefs extends BaseAnalyzerRule {
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
@@ -818,15 +811,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveFunctions extends AnalyzerRules.ResolveFunctions {
-
-        ResolveFunctions(Configuration configuration, FunctionRegistry functionRegistry) {
-            super(configuration, functionRegistry);
-        }
+    private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
+                if (uf.analyzed()) {
+                    return uf;
+                }
                 if (hasStar(uf.arguments())) {
                     FunctionResolutionStrategy strategy = uf.resolutionStrategy();
                     if (SqlFunctionResolution.DISTINCT == strategy) {
@@ -839,7 +831,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                                 uf.source(),
                                 uf.name(),
                                 strategy,
-                                singletonList(new Literal(uf.arguments().get(0).source(), 1, DataTypes.INTEGER))
+                                singletonList(new Literal(uf.arguments().get(0).source(), Integer.valueOf(1), DataTypes.INTEGER))
                             );
                         }
                     }
@@ -848,7 +840,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                return resolveFunction(uf);
+                return resolveFunction(uf, context.configuration(), context.functionRegistry());
             });
         }
     }
@@ -967,7 +959,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // Handle aggs in HAVING. To help folding any aggs not found in Aggregation
     // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
     //
-    private class ResolveAggsInHaving extends AnalyzerRule<Filter> {
+    private static class ResolveAggsInHaving extends ParameterizedAnalyzerRule<Filter, AnalyzerContext> {
 
         @Override
         protected boolean skipResolved() {
@@ -975,7 +967,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(Filter f) {
+        protected LogicalPlan rule(Filter f, AnalyzerContext context) {
             // HAVING = Filter followed by an Agg
             // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (f.child() instanceof Aggregate agg && agg.resolved()) {
@@ -996,7 +988,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         combine(agg.aggregates(), new Alias(f.source(), ".having", condition))
                     );
 
-                    tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
+                    var analyze = context.analyzeWithoutVerify().get();
+                    tryResolvingCondition = (Aggregate) analyze.apply(tryResolvingCondition);
 
                     // if it got resolved
                     if (tryResolvingCondition.resolved()) {

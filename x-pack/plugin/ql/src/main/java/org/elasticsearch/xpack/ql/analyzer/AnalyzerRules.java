@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -84,8 +85,25 @@ public final class AnalyzerRules {
             return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t));
         }
 
-        @Override
         protected abstract LogicalPlan rule(SubPlan plan);
+
+        protected boolean skipResolved() {
+            return true;
+        }
+    }
+
+    public abstract static class ParameterizedAnalyzerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
+        SubPlan,
+        LogicalPlan,
+        P> {
+
+        // transformUp (post-order) - that is first children and then the node
+        // but with a twist; only if the tree is not resolved or analyzed
+        public final LogicalPlan apply(LogicalPlan plan, P context) {
+            return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t, context));
+        }
+
+        protected abstract LogicalPlan rule(SubPlan plan, P context);
 
         protected boolean skipResolved() {
             return true;
@@ -105,36 +123,20 @@ public final class AnalyzerRules {
         protected abstract LogicalPlan doRule(LogicalPlan plan);
     }
 
-    public static class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
-
-        private final Configuration configuration;
-        private final FunctionRegistry functionRegistry;
-
-        public ResolveFunctions(Configuration configuration, FunctionRegistry functionRegistry) {
-            this.configuration = configuration;
-            this.functionRegistry = functionRegistry;
+    public static Function resolveFunction(UnresolvedFunction uf, Configuration configuration, FunctionRegistry functionRegistry) {
+        if (uf.analyzed()) {
+            return uf;
+        }
+        if (uf.childrenResolved() == false) {
+            return uf;
         }
 
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(UnresolvedFunction.class, this::resolveFunction);
+        String functionName = functionRegistry.resolveAlias(uf.name());
+        if (functionRegistry.functionExists(functionName) == false) {
+            return uf.missing(functionName, functionRegistry.listFunctions());
         }
-
-        protected Function resolveFunction(UnresolvedFunction uf) {
-            if (uf.analyzed()) {
-                return uf;
-            }
-            if (uf.childrenResolved() == false) {
-                return uf;
-            }
-
-            String functionName = functionRegistry.resolveAlias(uf.name());
-            if (functionRegistry.functionExists(functionName) == false) {
-                return uf.missing(functionName, functionRegistry.listFunctions());
-            }
-            FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-            return uf.buildResolved(configuration, def);
-        }
+        FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+        return uf.buildResolved(configuration, def);
     }
 
     public static List<Attribute> maybeResolveAgainstList(

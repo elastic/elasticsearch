@@ -2052,6 +2052,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91967")
     public void testWriteLoadAndAvgShardSizeIsStoredInABestEffort() throws Exception {
         // This test simulates the scenario where some nodes fail to respond
         // to the IndicesStatsRequest and therefore only a partial view of the

@@ -23,7 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
  * Test class with settings for a JWT issuer to sign JWTs for users.
@@ -37,7 +39,7 @@ public class JwtIssuer implements Closeable {
     // input parameters
     final String issuerClaimValue; // claim name is hard-coded to `iss` for OIDC ID Token compatibility
     final List<String> audiencesClaimValue; // claim name is hard-coded to `aud` for OIDC ID Token compatibility
-    final String principalClaimName; // claim name is configurable, EX: Users (sub, oid, email, dn, uid), Clients (azp, appid, client_id)
+    final String principalClaimName;
     final Map<String, User> principals; // principals with roles, for sending encoded JWTs into JWT realms for authc/authz verification
     final JwtIssuerHttpsServer httpsServer;
 
@@ -56,15 +58,14 @@ public class JwtIssuer implements Closeable {
     JwtIssuer(
         final String issuerClaimValue,
         final List<String> audiencesClaimValue,
-        final String principalClaimName,
         final Map<String, User> principals,
         final boolean createHttpsServer
     ) throws Exception {
         this.issuerClaimValue = issuerClaimValue;
         this.audiencesClaimValue = audiencesClaimValue;
-        this.principalClaimName = principalClaimName;
         this.principals = principals;
         this.httpsServer = createHttpsServer ? new JwtIssuerHttpsServer(null) : null;
+        this.principalClaimName = randomFrom("sub", "oid", "client_id", "appid", "azp", "email", randomAlphaOfLengthBetween(12, 18));
     }
 
     // The flag areHmacJwksOidcSafe indicates if all provided HMAC JWKs are UTF8, for HMAC OIDC JWK encoding compatibility.

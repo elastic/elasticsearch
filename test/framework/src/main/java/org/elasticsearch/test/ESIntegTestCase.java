@@ -1162,13 +1162,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(metadataWithoutIndices).toXContent(builder, serializationFormatParams);
+                ChunkedToXContent.wrapAsToXContent(metadataWithoutIndices).toXContent(builder, serializationFormatParams);
                 builder.endObject();
                 final BytesReference originalBytes = BytesReference.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(metadataWithoutIndices).toXContent(compareBuilder, compareFormatParams);
+                ChunkedToXContent.wrapAsToXContent(metadataWithoutIndices).toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
@@ -1184,7 +1184,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
                 builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                ChunkedToXContent.wrapAsXContentObject(loadedMetadata).toXContent(builder, compareFormatParams);
+                ChunkedToXContent.wrapAsToXContent(loadedMetadata).toXContent(builder, compareFormatParams);
                 builder.endObject();
                 final BytesReference parsedBytes = BytesReference.bytes(builder);
 

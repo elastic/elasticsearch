@@ -38,7 +38,6 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
         noFallback();
 
         jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
-            createJwtRealmsSettingsBuilder(),
             randomIntBetween(1, 1), // realms
             randomIntBetween(0, 1), // authz
             randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algorithms
@@ -60,7 +59,6 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
         randomFallbacks();
 
         jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
-            createJwtRealmsSettingsBuilder(),
             randomIntBetween(1, 1), // realms
             randomIntBetween(0, 1), // authz
             randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algorithms
@@ -122,8 +120,15 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
                 otherClaims.put(fallbackSub, randomValueOtherThan(subClaimValue, () -> randomAlphaOfLength(15)));
             }
         }
-        // TODO: fallback aud
         List<String> audClaimValue = JwtRealmInspector.getAllowedAudiences(jwtIssuerAndRealm.realm());
+        if (fallbackAud != null) {
+            if (randomBoolean()) {
+                otherClaims.put(fallbackAud, audClaimValue);
+                audClaimValue = null;
+            } else {
+                otherClaims.put(fallbackAud, randomValueOtherThanMany(audClaimValue::contains, () -> randomAlphaOfLength(15)));
+            }
+        }
 
         // A bogus auth_time but access_token type does not check it
         if (randomBoolean()) {

@@ -28,7 +28,9 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("transport.port", "0");
         settings.put("network.host", "_local_");
 
-        if (nodeSpec.getDistributionType() == DistributionType.DEFAULT) {
+        if (nodeSpec.getDistributionType() == DistributionType.INTEG_TEST) {
+            settings.put("xpack.security.enabled", "false");
+        } else {
             // Disable deprecation indexing which is enabled by default in 7.16
             if (nodeSpec.getVersion().onOrAfter("7.16.0")) {
                 settings.put("cluster.deprecation_indexing.enabled", "false");

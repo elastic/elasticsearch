@@ -110,6 +110,8 @@ public class IndexAbstractionResolver {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
+                    // only unauthorized names are considered "unavailable" at this stage
+                    // missing (but authorized) resources are handled as "unavailable" while resolving the expression in the action handler
                     finalIndices.add(indexAbstraction);
                 }
             }

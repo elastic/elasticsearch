@@ -1086,6 +1086,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
         refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("wait_if_ongoing", "true");
         // Allow system index deprecation warnings
         refreshRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {

@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1215,6 +1216,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Executes the given refresh request
+     *
+     * @param request
+     * @return <code>false</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, else <code>true</code>
+     *         If <code>false</code> is returned, there is in-flight refreshing.
+     */
+    public boolean refresh(RefreshRequest request, String source) {
+        final boolean waitIfOngoing = request.waitIfOngoing();
+        boolean refreshed = true;
+        logger.trace("refresh with {}", request);
+        if (waitIfOngoing) {
+            refresh(source);
+        } else {
+            refreshed = maybeRefresh(source);
+        }
+        return refreshed;
+    }
+
+    /**
      * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
      */
     public void refresh(String source) {
@@ -1223,6 +1243,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("refresh with source [{}]", source);
         }
         getEngine().refresh(source);
+    }
+
+    public boolean maybeRefresh(String source) {
+        verifyNotClosed();
+        if (logger.isTraceEnabled()) {
+            logger.trace("maybeRefresh with source [{}]", source);
+        }
+        return getEngine().maybeRefresh(source);
     }
 
     /**

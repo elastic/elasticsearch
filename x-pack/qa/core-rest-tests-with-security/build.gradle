@@ -7,6 +7,7 @@ dependencies {
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('data-streams'))
 }
 
 restResources {

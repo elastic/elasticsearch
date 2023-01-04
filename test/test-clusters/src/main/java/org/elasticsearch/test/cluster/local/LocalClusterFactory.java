@@ -430,9 +430,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             Path destination = distributionDir.resolve("modules").resolve(moduleName);
             if (Files.notExists(destination)) {
                 Path modulePath = modulePaths.stream()
-                    .map(path -> Pair.of(BUNDLE_ARTIFACT_PATTERN.matcher(path.getFileName().toString()), path))
-                    .filter(pair -> pair.left.matches())
-                    .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                    .filter(path -> path.getFileName().toString().startsWith(moduleName))
                     .findFirst()
                     .orElseThrow(() -> {
                         String taskPath = System.getProperty("tests.task");

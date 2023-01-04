@@ -35,11 +35,12 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("rank-eval")
         .module("x-pack-ilm")
         .module("x-pack-stack")
+        .module("x-pack-data-streams")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("indices.lifecycle.history_index_enabled", "false")
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();

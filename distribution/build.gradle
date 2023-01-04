@@ -99,7 +99,7 @@ tasks.withType(NoticeTask).configureEach {
 String ossOutputs = 'build/outputs/oss'
 String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
-String transportOutputs = 'build/outputs/transport-only'
+String integTestOutputs = 'build/outputs/integ-test'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
@@ -116,8 +116,9 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
-def processTransportOutputsTaskProvider = tasks.register("processTransportOutputs", Sync) {
-  into transportOutputs
+// Additionally install security plugin so we can run tests with security enabled using this distribution
+def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
+  into integTestOutputs
 }
 
 def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
@@ -127,17 +128,23 @@ def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
 def defaultBinFiles = fileTree("${defaultOutputs}/bin") {
   builtBy processDefaultOutputsTaskProvider
 }
+def integTestBinFiles = fileTree("${integTestOutputs}/bin") {
+  builtBy processIntegTestOutputsTaskProvider
+}
 def defaultConfigFiles = fileTree("${defaultOutputs}/config") {
   builtBy processDefaultOutputsTaskProvider
+}
+def integTestConfigFiles = fileTree("${integTestOutputs}/config") {
+  builtBy processIntegTestOutputsTaskProvider
 }
 
 def systemdModuleFiles = fileTree("${systemdOutputs}/modules") {
   builtBy processSystemdOutputsTaskProvider
 }
 
-def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
-  dependsOn processTransportOutputsTaskProvider
-  outputs.dir "${transportOutputs}/modules"
+def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") {
+  dependsOn processIntegTestOutputsTaskProvider
+  outputs.dir "${integTestOutputs}/modules"
 }
 def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
@@ -226,7 +233,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   copyModule(processDefaultOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
-    copyModule(processTransportOutputsTaskProvider, module)
+    copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
   restTestExpansions['expected.modules.count'] += 1
@@ -243,6 +250,9 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+    copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+  }
 }
 
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
@@ -364,8 +374,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    transportModulesFiles = copySpec {
-      from buildTransportModulesTaskProvider
+    integTestModulesFiles = copySpec {
+      from buildIntegTestModulesTaskProvider
     }
 
     configFiles = { distributionType, testDistro, jdk ->
@@ -377,7 +387,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
-        from defaultConfigFiles
+        from testDistro ? integTestConfigFiles : defaultConfigFiles
       }
     }
 
@@ -407,9 +417,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if(testDistro == false) {
-            from(defaultBinFiles)
-          }
+          from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }

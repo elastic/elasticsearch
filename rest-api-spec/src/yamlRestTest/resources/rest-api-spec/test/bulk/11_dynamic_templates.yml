@@ -24,15 +24,13 @@
       bulk:
         refresh: true
         body:
-          - index:
+          - create:
               _index: test_index
               _id: id_1
-              op_type: create
               dynamic_templates:
                 location: location
           - { "location": "41.12,-71.34"}
           - index:
-              op_type: index
               _index: test_index
               _id: id_2
               dynamic_templates:

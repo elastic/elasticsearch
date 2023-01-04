@@ -129,15 +129,12 @@ public class DataStreamMetadata implements Metadata.Custom {
         if (alias == null) {
             String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStreamName : null;
             alias = new DataStreamAlias(aliasName, List.of(dataStreamName), writeDataStream, filterAsMap);
-            logger.debug("--> adding new alias: {}", alias);
         } else {
             DataStreamAlias copy = alias.update(dataStreamName, isWriteDataStream, filterAsMap);
-            logger.debug("--> updating alias with new filter: {}, copy: {}", filterAsMap, copy);
             if (copy == alias) {
                 return this;
             }
             alias = copy;
-            logger.debug("--> updating alias: {}", alias);
         }
         ImmutableOpenMap<String, DataStreamAlias> updatedDataStreamAliases = ImmutableOpenMap.builder(dataStreamAliases)
             .fPut(aliasName, alias)

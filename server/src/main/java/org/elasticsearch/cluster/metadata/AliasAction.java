@@ -256,7 +256,6 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(aliasName, null, null, filter, isWriteDataStream);
-            logger.debug("--> adding alias " + aliasName + " to " + dataStreamName + " with filter: " + filter);
             return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
         }
     }

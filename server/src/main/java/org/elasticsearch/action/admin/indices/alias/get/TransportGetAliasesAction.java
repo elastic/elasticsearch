@@ -138,7 +138,6 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
-        logger.debug("--> requested streams: {}", requestedDataStreams);
         for (String requestedDataStream : requestedDataStreams) {
             List<DataStreamAlias> aliases = state.metadata()
                 .dataStreams()
@@ -146,7 +145,6 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                 .getAliases()
                 .values()
                 .stream()
-                .peek(dsa -> logger.debug("--> found DSA: {}, filter: {}", dsa.getDataStreams(), dsa.getFilter()))
                 .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
                 .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
                 .toList();

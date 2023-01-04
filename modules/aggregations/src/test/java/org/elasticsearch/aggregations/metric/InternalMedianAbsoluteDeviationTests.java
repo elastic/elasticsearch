@@ -6,12 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,6 +29,19 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTestCase<InternalMedianAbsoluteDeviation> {
+
+    protected SearchPlugin registerPlugin() {
+        return new AggregationsPlugin();
+    }
+
+    @Override
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
+        ContextParser<Object, Aggregation> parser = (p, c) -> ParsedMedianAbsoluteDeviation.fromXContent(p, (String) c);
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MedianAbsoluteDeviationAggregationBuilder.NAME), parser)
+        );
+    }
 
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
@@ -61,7 +82,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         InternalMedianAbsoluteDeviation reduced,
         SamplingContext samplingContext
     ) {
-        assertThat(sampled.getMedianAbsoluteDeviation(), equalTo(reduced.getMedianAbsoluteDeviation()));
+        assertThat(sampled.value(), equalTo(reduced.value()));
     }
 
     @Override
@@ -69,7 +90,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         assertTrue(parsedAggregation instanceof ParsedMedianAbsoluteDeviation);
         ParsedMedianAbsoluteDeviation parsedMAD = (ParsedMedianAbsoluteDeviation) parsedAggregation;
         // Double.compare handles NaN, which we use for no result
-        assertEquals(internalMAD.getMedianAbsoluteDeviation(), parsedMAD.getMedianAbsoluteDeviation(), 0);
+        assertEquals(internalMAD.value(), parsedMAD.value(), 0);
     }
 
     @Override
@@ -98,6 +119,6 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
             }
         }
 
-        return new InternalMedianAbsoluteDeviation(name, metadata, instance.format, valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, metadata, instance.getFormat(), valuesSketch);
     }
 }

@@ -31,10 +31,6 @@ public class MetricInspectionHelper {
         return agg.getState().getTotalCount() > 0;
     }
 
-    public static boolean hasValue(InternalMedianAbsoluteDeviation agg) {
-        return agg.getValuesSketch().size() > 0;
-    }
-
     public static boolean hasValue(InternalScriptedMetric agg) {
         // TODO better way to know if the scripted metric received documents?
         // Could check for null too, but a script might return null on purpose...

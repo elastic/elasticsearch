@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.aggregations.bucket.AggregationTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -27,8 +28,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.hamcrest.Description;
@@ -47,11 +46,11 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
-import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
+import static org.elasticsearch.aggregations.metric.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
+import static org.elasticsearch.aggregations.metric.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
+public class MedianAbsoluteDeviationAggregatorTests extends AggregationTestCase {
 
     private static final int SAMPLE_MIN = -1000000;
     private static final int SAMPLE_MAX = 1000000;
@@ -78,8 +77,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     // intentionally not writing any docs
     public void testNoDocs() throws IOException {
         testAggregation(new MatchAllDocsQuery(), writer -> {}, agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-            assertFalse(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), equalTo(Double.NaN));
+            assertFalse(hasValue(agg));
         });
     }
 
@@ -88,8 +87,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
             writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 2)));
         }, agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-            assertFalse(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), equalTo(Double.NaN));
+            assertFalse(hasValue(agg));
         });
     }
 
@@ -100,8 +99,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             sample.add(point);
             return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
-            assertTrue(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), closeToRelative(calculateMAD(sample)));
+            assertTrue(hasValue(agg));
         });
     }
 
@@ -112,8 +111,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             sample.add(point);
             return singleton(new NumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
-            assertTrue(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), closeToRelative(calculateMAD(sample)));
+            assertTrue(hasValue(agg));
         });
     }
 
@@ -127,8 +126,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, point), new SortedNumericDocValuesField(FIELD_NAME, point)));
             }
         }, agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
-            assertTrue(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), closeToRelative(calculateMAD(filteredSample)));
+            assertTrue(hasValue(agg));
         });
     }
 
@@ -137,8 +136,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, 1), new SortedNumericDocValuesField(FIELD_NAME, 1)));
             writer.addDocument(Arrays.asList(new IntPoint(FIELD_NAME, 2), new SortedNumericDocValuesField(FIELD_NAME, 2)));
         }, agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-            assertFalse(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), equalTo(Double.NaN));
+            assertFalse(hasValue(agg));
         });
     }
 
@@ -151,8 +150,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, agg -> {
-            assertEquals(Double.NaN, agg.getMedianAbsoluteDeviation(), 0);
-            assertFalse(AggregationInspectionHelper.hasValue(agg));
+            assertEquals(Double.NaN, agg.value(), 0);
+            assertFalse(hasValue(agg));
         });
     }
 
@@ -166,8 +165,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
         }, agg -> {
-            assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(agg));
+            assertEquals(0, agg.value(), 0);
+            assertTrue(hasValue(agg));
         });
     }
 
@@ -184,8 +183,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             sample.add(point);
             return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
-            assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
-            assertTrue(AggregationInspectionHelper.hasValue(agg));
+            assertThat(agg.value(), closeToRelative(calculateMAD(sample)));
+            assertTrue(hasValue(agg));
         }, fieldType);
     }
 
@@ -203,8 +202,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, i + 1)));
             }
         }, agg -> {
-            assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(agg));
+            assertEquals(0, agg.value(), 0);
+            assertTrue(hasValue(agg));
         }, fieldType);
     }
 
@@ -326,5 +325,9 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+    }
+
+    private static boolean hasValue(InternalMedianAbsoluteDeviation agg) {
+        return agg.getValuesSketch().size() > 0;
     }
 }

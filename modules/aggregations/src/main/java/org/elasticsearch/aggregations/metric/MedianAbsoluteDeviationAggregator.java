@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.ObjectArray;
@@ -19,6 +19,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -26,7 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
+import static org.elasticsearch.aggregations.metric.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
 
 public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleValue {
 

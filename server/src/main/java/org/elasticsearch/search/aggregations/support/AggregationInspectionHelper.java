@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
@@ -176,10 +175,6 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(Max agg) {
         return agg.value() != Double.NEGATIVE_INFINITY;
-    }
-
-    public static boolean hasValue(InternalMedianAbsoluteDeviation agg) {
-        return MetricInspectionHelper.hasValue(agg);
     }
 
     public static boolean hasValue(Min agg) {

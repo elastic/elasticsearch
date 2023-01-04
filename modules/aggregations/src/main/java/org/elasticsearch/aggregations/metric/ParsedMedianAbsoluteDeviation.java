@@ -6,15 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
+import org.elasticsearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ParsedMedianAbsoluteDeviation extends ParsedSingleValueNumericMetricsAggregation implements MedianAbsoluteDeviation {
+public class ParsedMedianAbsoluteDeviation extends ParsedSingleValueNumericMetricsAggregation {
 
     private static final ObjectParser<ParsedMedianAbsoluteDeviation, Void> PARSER = new ObjectParser<>(
         ParsedMedianAbsoluteDeviation.class.getSimpleName(),
@@ -34,17 +35,12 @@ public class ParsedMedianAbsoluteDeviation extends ParsedSingleValueNumericMetri
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        final boolean hasValue = Double.isFinite(getMedianAbsoluteDeviation());
-        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? getMedianAbsoluteDeviation() : null);
+        final boolean hasValue = Double.isFinite(value());
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value() : null);
         if (hasValue && valueAsString != null) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);
         }
         return builder;
-    }
-
-    @Override
-    public double getMedianAbsoluteDeviation() {
-        return value();
     }
 
     @Override

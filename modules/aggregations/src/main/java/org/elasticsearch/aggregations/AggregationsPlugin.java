@@ -15,8 +15,10 @@ import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.aggregations.metric.InternalMatrixStats;
+import org.elasticsearch.aggregations.metric.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder;
 import org.elasticsearch.aggregations.metric.MatrixStatsParser;
+import org.elasticsearch.aggregations.metric.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.Derivative;
@@ -64,6 +66,14 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
                 ).addResultReader(InternalTimeSeries::new)
             );
         }
+        specs.add(
+            new AggregationSpec(
+                MedianAbsoluteDeviationAggregationBuilder.NAME,
+                MedianAbsoluteDeviationAggregationBuilder::new,
+                MedianAbsoluteDeviationAggregationBuilder.PARSER
+            ).addResultReader(InternalMedianAbsoluteDeviation::new)
+                .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators)
+        );
         return List.copyOf(specs);
     }
 

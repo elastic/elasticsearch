@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,6 +36,8 @@ import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.aggregations.metric.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
+import static org.elasticsearch.aggregations.metric.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -43,8 +47,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
-import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -129,7 +131,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(AggregationTestScriptsPlugin.class);
+        return List.of(AggregationsPlugin.class, AggregationTestScriptsPlugin.class);
     }
 
     private static MedianAbsoluteDeviationAggregationBuilder randomBuilder() {
@@ -153,10 +155,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Histogram.Bucket bucket = histogram.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
-        final MedianAbsoluteDeviation mad = bucket.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = bucket.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), is(Double.NaN));
+        assertThat(mad.value(), is(Double.NaN));
     }
 
     @Override
@@ -173,10 +175,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+        assertThat(mad.value(), closeToRelative(singleValueExactMAD));
     }
 
     @Override
@@ -195,7 +197,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().entrySet(), hasSize(1));
 
-        final MedianAbsoluteDeviation mad = global.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = global.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
         assertThat(((InternalAggregation) global).getProperty("mad"), sameInstance(mad));
@@ -210,10 +212,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+        assertThat(mad.value(), closeToRelative(singleValueExactMAD));
     }
 
     @Override
@@ -228,12 +230,12 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
 
         final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        assertThat(mad.value(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     @Override
@@ -251,12 +253,12 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
 
         final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        assertThat(mad.value(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     @Override
@@ -268,10 +270,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+        assertThat(mad.value(), closeToRelative(multiValueExactMAD));
     }
 
     @Override
@@ -286,11 +288,11 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
 
         final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(multiValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        assertThat(mad.value(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     @Override
@@ -308,11 +310,11 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
 
         final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(multiValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        assertThat(mad.value(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     @Override
@@ -328,10 +330,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+        assertThat(mad.value(), closeToRelative(singleValueExactMAD));
     }
 
     @Override
@@ -348,12 +350,12 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
 
         final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        assertThat(mad.value(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     @Override
@@ -369,10 +371,10 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+        assertThat(mad.value(), closeToRelative(multiValueExactMAD));
     }
 
     @Override
@@ -396,14 +398,14 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation mad = response.getAggregations().get("mad");
         assertThat(mad, notNullValue());
         assertThat(mad.getName(), is("mad"));
 
         final double fromIncrementedSampleMAD = calculateMAD(
             Arrays.stream(singleValueSample).flatMap(point -> LongStream.of(point, point + 1)).toArray()
         );
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        assertThat(mad.value(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     public void testAsSubAggregation() throws Exception {
@@ -436,17 +438,16 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Range.Bucket lowerBucket = buckets.get(0);
         assertThat(lowerBucket, notNullValue());
 
-        final MedianAbsoluteDeviation lowerBucketMAD = lowerBucket.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation lowerBucketMAD = lowerBucket.getAggregations().get("mad");
         assertThat(lowerBucketMAD, notNullValue());
-        assertThat(lowerBucketMAD.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(lowerBucketSample)));
+        assertThat(lowerBucketMAD.value(), closeToRelative(calculateMAD(lowerBucketSample)));
 
         final Range.Bucket upperBucket = buckets.get(1);
         assertThat(upperBucket, notNullValue());
 
-        final MedianAbsoluteDeviation upperBucketMAD = upperBucket.getAggregations().get("mad");
+        final InternalMedianAbsoluteDeviation upperBucketMAD = upperBucket.getAggregations().get("mad");
         assertThat(upperBucketMAD, notNullValue());
-        assertThat(upperBucketMAD.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(upperBucketSample)));
-
+        assertThat(upperBucketMAD.value(), closeToRelative(calculateMAD(upperBucketSample)));
     }
 
     @Override
@@ -480,9 +481,9 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             assertThat(filter, notNullValue());
             assertThat(filter.getDocCount(), equalTo(0L));
 
-            MedianAbsoluteDeviation mad = filter.getAggregations().get("mad");
+            InternalMedianAbsoluteDeviation mad = filter.getAggregations().get("mad");
             assertThat(mad, notNullValue());
-            assertThat(mad.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+            assertThat(mad.value(), equalTo(Double.NaN));
         }
     }
 

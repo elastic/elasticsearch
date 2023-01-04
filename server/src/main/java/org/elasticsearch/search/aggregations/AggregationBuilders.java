@@ -57,8 +57,6 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviation;
-import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
@@ -297,13 +295,6 @@ public class AggregationBuilders {
      */
     public static PercentileRanksAggregationBuilder percentileRanks(String name, double[] values) {
         return new PercentileRanksAggregationBuilder(name, values);
-    }
-
-    /**
-     * Create a new {@link MedianAbsoluteDeviation} aggregation with the given name
-     */
-    public static MedianAbsoluteDeviationAggregationBuilder medianAbsoluteDeviation(String name) {
-        return new MedianAbsoluteDeviationAggregationBuilder(name);
     }
 
     /**

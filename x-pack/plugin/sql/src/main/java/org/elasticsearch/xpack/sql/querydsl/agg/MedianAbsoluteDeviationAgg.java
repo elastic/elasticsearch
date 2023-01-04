@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.aggregations.metric.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.function.Function;
@@ -20,6 +20,6 @@ public class MedianAbsoluteDeviationAgg extends DefaultAggSourceLeafAgg {
 
     @Override
     Function<String, ValuesSourceAggregationBuilder<?>> builder() {
-        return AggregationBuilders::medianAbsoluteDeviation;
+        return MedianAbsoluteDeviationAggregationBuilder::new;
     }
 }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;

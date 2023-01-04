@@ -6,13 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,7 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
+/**
+ * An aggregation that approximates the median absolute deviation of a numeric field
+ *
+ * @see <a href="https://en.wikipedia.org/wiki/Median_absolute_deviation">https://en.wikipedia.org/wiki/Median_absolute_deviation</a>
+ */
+public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue {
 
     static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
 
@@ -81,7 +88,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final boolean anyResults = valuesSketch.size() > 0;
-        final Double mad = anyResults ? getMedianAbsoluteDeviation() : null;
+        final Double mad = anyResults ? medianAbsoluteDeviation : null;
 
         builder.field(CommonFields.VALUE.getPreferredName(), mad);
         if (format != DocValueFormat.RAW && anyResults) {
@@ -116,11 +123,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     @Override
     public double value() {
-        return getMedianAbsoluteDeviation();
-    }
-
-    @Override
-    public double getMedianAbsoluteDeviation() {
         return medianAbsoluteDeviation;
     }
+
 }

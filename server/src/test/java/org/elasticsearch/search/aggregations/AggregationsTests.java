@@ -44,7 +44,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroidTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
@@ -137,8 +136,7 @@ public class AggregationsTests extends ESTestCase {
         new InternalScriptedMetricTests(),
         new InternalBinaryRangeTests(),
         new InternalTopHitsTests(),
-        new InternalCompositeTests(),
-        new InternalMedianAbsoluteDeviationTests()
+        new InternalCompositeTests()
     );
 
     @Override

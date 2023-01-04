@@ -156,6 +156,10 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         return false;
     }
 
+    public DocValueFormat getFormat() {
+        return format;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), format);

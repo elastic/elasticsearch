@@ -123,7 +123,7 @@ public final class MergePolicyConfig {
         Property.IndexScope
     );
 
-    public static enum Type {
+    public enum Type {
         UNSET {
             @Override
             MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {

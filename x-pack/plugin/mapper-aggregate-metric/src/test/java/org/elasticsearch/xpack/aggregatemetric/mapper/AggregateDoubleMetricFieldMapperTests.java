@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -141,7 +142,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseEmptyValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
         assertThat(
             e.getCause().getMessage(),
             containsString("Aggregate metric field [field] must contain all metrics [min, max, value_count]")
@@ -212,7 +213,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         // min > max
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(
                 source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).field("value_count", 14).endObject())
             )
@@ -242,7 +243,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseArrayValue() throws Exception {
         int randomNumber = randomIntBetween(0, 3);
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomMapping(b, randomNumber)));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").startObject();
             switch (randomNumber) {
                 case 0 -> b.field("min", 10.0);

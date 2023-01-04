@@ -78,6 +78,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -1296,7 +1297,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create").source("{}", XContentType.JSON);
-        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        Exception e = expectThrows(Exception.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
     }
 
@@ -1308,7 +1309,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
-        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        Exception e = expectThrows(Exception.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 

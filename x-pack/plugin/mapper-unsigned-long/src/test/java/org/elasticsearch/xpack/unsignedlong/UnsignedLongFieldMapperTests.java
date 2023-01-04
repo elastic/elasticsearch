@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -92,7 +93,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         // test that indexing values as number with decimal is not allowed
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
     }
@@ -187,12 +188,12 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping);
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("100.5", 100.5, 100.5f))));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
         }
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("0.9", 0.9, 0.9f))));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
         }
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
@@ -208,7 +209,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         for (Object outOfRangeValue : new Object[] { "-1", -1L, "18446744073709551616", new BigInteger("18446744073709551616") }) {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));
-            expectThrows(MapperParsingException.class, runnable);
+            expectThrows(DocumentParsingException.class, runnable);
         }
     }
 
@@ -271,7 +272,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));

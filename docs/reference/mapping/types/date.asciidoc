@@ -10,9 +10,6 @@ JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 * a number representing _milliseconds-since-the-epoch_.
 * a number representing _seconds-since-the-epoch_ (<<date-epoch-seconds, configuration>>).
 
-NOTE: Values for _milliseconds-since-the-epoch_ must be non-negative. Use a
-formatted date to represent dates before 1970.
-
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
 

@@ -124,6 +124,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(IlmHealthIndicatorService.NAME, equalTo("ilm"));
+        assertThat(
+            IlmHealthIndicatorService.ILM_NOT_RUNNING.definition().getUniqueId(),
+            equalTo("elasticsearch:health:ilm:diagnosis:ilm_disabled")
+        );
+    }
+
     private static ClusterState createClusterStateWith(IndexLifecycleMetadata metadata) {
         var builder = new ClusterState.Builder(new ClusterName("test-cluster"));
         if (metadata != null) {

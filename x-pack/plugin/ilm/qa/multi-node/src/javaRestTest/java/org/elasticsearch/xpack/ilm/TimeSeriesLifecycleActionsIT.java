@@ -552,7 +552,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity(formatted("""
+        final StringEntity template = new StringEntity(Strings.format("""
             {
               "index_patterns": "%s*",
               "settings": {
@@ -719,7 +719,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // Add the policy again
         Request addPolicyRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        addPolicyRequest.setJsonEntity(formatted("""
+        addPolicyRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "index.lifecycle.name": "%s",
@@ -780,7 +780,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {"index_patterns": ["%s-*"],
               "settings": {
                 "number_of_shards": 1,
@@ -806,7 +806,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {
               "index_patterns": [ "%s-*" ],
               "settings": {
@@ -915,7 +915,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -1134,47 +1134,44 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             stepName
         );
         final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
-        historySearchRequest.setJsonEntity(
-            formatted(
-                """
+        Object[] args = new Object[] {
+            policyName,
+            success,
+            indexName,
+            stepName,
+            phase == null ? "" : Strings.format(",{\"term\": {\"state.phase\": \"%s\"}}", phase),
+            action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}" };
+        historySearchRequest.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "bool": {
+                  "must": [
                     {
-                      "query": {
-                        "bool": {
-                          "must": [
-                            {
-                              "term": {
-                                "policy": "%s"
-                              }
-                            },
-                            {
-                              "term": {
-                                "success": %s
-                              }
-                            },
-                            {
-                              "term": {
-                                "index": "%s"
-                              }
-                            },
-                            {
-                              "term": {
-                                "state.step": "%s"
-                              }
-                            }
-                            %s
-                            %s
-                          ]
-                        }
+                      "term": {
+                        "policy": "%s"
                       }
-                    }""",
-                policyName,
-                success,
-                indexName,
-                stepName,
-                phase == null ? "" : formatted(",{\"term\": {\"state.phase\": \"%s\"}}", phase),
-                action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}"
-            )
-        );
+                    },
+                    {
+                      "term": {
+                        "success": %s
+                      }
+                    },
+                    {
+                      "term": {
+                        "index": "%s"
+                      }
+                    },
+                    {
+                      "term": {
+                        "state.step": "%s"
+                      }
+                    }
+                    %s
+                    %s
+                  ]
+                }
+              }
+            }""", args));
         Response historyResponse;
         try {
             historyResponse = client().performRequest(historySearchRequest);
@@ -1188,7 +1185,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             // For a failure, print out whatever history we *do* have for the index
             if (hits == 0) {
                 final Request allResults = new Request("GET", "ilm-history*/_search");
-                allResults.setJsonEntity(formatted("""
+                allResults.setJsonEntity(Strings.format("""
                     {
                       "query": {
                         "bool": {

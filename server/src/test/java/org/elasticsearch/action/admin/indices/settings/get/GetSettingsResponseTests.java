@@ -21,8 +21,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-
 public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase<GetSettingsResponse> {
 
     @Override
@@ -76,15 +74,8 @@ public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase
         return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
     }
 
-    public void testOneChunkPerIndex() {
-        final var instance = createTestInstance();
-        final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-        int chunks = 0;
-        while (iterator.hasNext()) {
-            chunks++;
-            iterator.next();
-        }
-        assertEquals(2 + instance.getIndexToSettings().size(), chunks);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> 2 + response.getIndexToSettings().size());
     }
 
 }

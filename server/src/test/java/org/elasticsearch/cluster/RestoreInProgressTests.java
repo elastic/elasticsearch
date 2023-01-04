@@ -10,15 +10,12 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class RestoreInProgressTests extends ESTestCase {
     public void testChunking() throws IOException {
@@ -37,19 +34,6 @@ public class RestoreInProgressTests extends ESTestCase {
             );
         }
 
-        final var instance = ripBuilder.build();
-
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            builder.startObject();
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-            builder.endObject();
-        } // closing the builder verifies that the XContent is well-formed
-
-        assertEquals(entryCount + 2, chunkCount);
+        AbstractChunkedSerializingTestCase.assertChunkCount(ripBuilder.build(), ignored -> entryCount + 2);
     }
 }

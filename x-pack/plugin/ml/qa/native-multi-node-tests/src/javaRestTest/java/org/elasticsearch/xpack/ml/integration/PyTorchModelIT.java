@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
@@ -309,7 +310,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(badModel);
         putVocabulary(List.of("once", "twice"), badModel);
         Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
         client().performRequest(request);
         startDeployment(badModel, AllocationStatus.State.STARTING.toString());
@@ -435,7 +436,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
@@ -536,7 +537,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         // We set timeout to 20s as we've seen this test time out on some busy workers.
         request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=20s");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "docs": [
                 {
@@ -563,7 +564,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(putPipeline("my_pipeline", formatted("""
+        client().performRequest(putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -593,9 +594,9 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
-        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+        client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
 
-        client().performRequest(putPipeline("my_pipeline", formatted("""
+        client().performRequest(putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -625,9 +626,9 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
-        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+        client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
 
-        String source = formatted("""
+        String source = Strings.format("""
             {
               "pipeline": {
                 "processors": [

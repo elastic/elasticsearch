@@ -79,9 +79,6 @@ public class HealthApiStatsTransportAction extends TransportNodesAction<
         if (healthApiStats.hasCounters()) {
             statsResponse.setStats(healthApiStats.getStats());
         }
-        statsResponse.setStatuses(healthApiStats.getStatuses());
-        statsResponse.setIndicators(healthApiStats.getIndicators());
-        statsResponse.setDiagnoses(healthApiStats.getDiagnoses());
         return statsResponse;
     }
 }

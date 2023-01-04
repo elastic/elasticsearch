@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
@@ -57,7 +58,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -521,7 +521,7 @@ public class TransportWriteActionTests extends ESTestCase {
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
+                    Strings.format("%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
                 );
             }
             count.incrementAndGet();

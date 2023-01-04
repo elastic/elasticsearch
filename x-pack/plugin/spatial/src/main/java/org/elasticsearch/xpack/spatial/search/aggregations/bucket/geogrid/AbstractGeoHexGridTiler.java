@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
@@ -48,10 +49,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         assert bounds.minX() <= bounds.maxX();
         // first check if we are touching just fetch cells
         if (bounds.maxX() - bounds.minX() < 180d) {
-            final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), precision);
-            final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), precision);
-            if (minH3 == maxH3) {
-                return setValuesFromPointResolution(minH3, values, geoValue);
+            final long singleCell = boundsInSameCell(bounds, precision);
+            if (singleCell > 0) {
+                return setValuesFromPointResolution(singleCell, values, geoValue);
             }
             // TODO: specialize when they are neighbour cells.
         }
@@ -85,6 +85,25 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         return valueIndex;
     }
 
+    private long boundsInSameCell(GeoShapeValues.BoundingBox bounds, int res) {
+        final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), res);
+        final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), res);
+        if (minH3 != maxH3) {
+            // Normally sufficient to check only bottom-left against top-right
+            return -1;
+        }
+        if (H3CartesianUtil.isPolar(minH3)) {
+            // But with polar cells we must check the other two corners too
+            final long minMax = H3.geoToH3(bounds.minY(), bounds.maxX(), res);
+            final long maxMin = H3.geoToH3(bounds.maxY(), bounds.minX(), res);
+            if (minMax != minH3 || maxMin != minH3) {
+                return -1;
+            }
+        }
+        // If all checks passed, we can use this cell in an optimization
+        return minH3;
+    }
+
     /**
      * Adds {@code h3} to {@link GeoShapeCellValues} if {@link #relateTile(GeoShapeValues.GeoShapeValue, long)} returns
      * a relation different to {@link GeoRelation#QUERY_DISJOINT}.
@@ -107,11 +126,11 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         // NOTE: When we recurse, we cannot shortcut for CONTAINS relationship because it might fail when visiting noChilds.
         int valueIndex = 0;
         if (bounds.maxX() - bounds.minX() < 180d) {
-            final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), 0);
-            final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), 0);
-            if (minH3 == maxH3) {
-                valueIndex = setValuesByRecursion(values, geoValue, minH3, 0, valueIndex);
-                for (long n : H3.hexRing(minH3)) {
+            final long singleCell = boundsInSameCell(bounds, 0);
+            if (singleCell > 0) {
+                // When the level 0 bounds are within a single cell, we can search that cell and its immediate neighbours
+                valueIndex = setValuesByRecursion(values, geoValue, singleCell, 0, valueIndex);
+                for (long n : H3.hexRing(singleCell)) {
                     valueIndex = setValuesByRecursion(values, geoValue, n, 0, valueIndex);
                 }
                 return valueIndex;

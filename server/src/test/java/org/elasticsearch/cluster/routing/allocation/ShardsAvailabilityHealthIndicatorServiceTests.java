@@ -1457,6 +1457,38 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(ShardsAvailabilityHealthIndicatorService.NAME, equalTo("shards_availability"));
+        assertThat(
+            ACTION_RESTORE_FROM_SNAPSHOT.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:restore_from_snapshot")
+        );
+        assertThat(
+            ACTION_CHECK_ALLOCATION_EXPLAIN_API.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:explain_allocations")
+        );
+        assertThat(
+            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:delayed_shard_allocations")
+        );
+        assertThat(
+            ACTION_ENABLE_INDEX_ROUTING_ALLOCATION.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:enable_index_allocations")
+        );
+        assertThat(
+            ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:enable_cluster_allocations")
+        );
+        for (String tier : List.of("data_content", "data_hot", "data_warm", "data_cold", "data_frozen")) {
+            assertThat(
+                ACTION_ENABLE_TIERS_LOOKUP.get(tier).getUniqueId(),
+                equalTo("elasticsearch:health:shards_availability:diagnosis:enable_data_tiers:tier:" + tier)
+            );
+        }
+    }
+
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
         String symptom,

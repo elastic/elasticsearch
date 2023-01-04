@@ -16,7 +16,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;

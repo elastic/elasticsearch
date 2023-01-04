@@ -241,4 +241,30 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(), equalTo(1));
         assertThat(is.read(), equalTo(2));
     }
+
+    public void testReadZeroShouldReturnZero() throws IOException {
+        try (Directory dir = new ByteBuffersDirectory()) {
+            try (IndexOutput output = dir.createOutput("test", IOContext.DEFAULT)) {
+                output.writeByte((byte) 1);
+            }
+            try (IndexInput input = dir.openInput("test", IOContext.DEFAULT)) {
+                assertEquals(0, new InputStreamIndexInput(input, input.length()).read(new byte[randomIntBetween(0, 16)], 0, 0));
+            }
+        }
+    }
+
+    public void testReadAllBytes() throws IOException {
+        try (Directory dir = new ByteBuffersDirectory()) {
+            // Need to be bigger than InputStream#DEFAULT_BUFFER_SIZE in order to test that `readAllBytes`
+            // will call `read` again after calling it with length 0
+            int size = randomIntBetween(8193, 10_000);
+            try (IndexOutput output = dir.createOutput("test", IOContext.DEFAULT)) {
+                output.writeBytes(randomByteArrayOfLength(size), size);
+            }
+            try (IndexInput input = dir.openInput("test", IOContext.DEFAULT)) {
+                byte[] bytes = new InputStreamIndexInput(input, input.length()).readAllBytes();
+                assertEquals(size, bytes.length);
+            }
+        }
+    }
 }

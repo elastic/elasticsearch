@@ -52,8 +52,8 @@ public class InputStreamIndexInput extends InputStream {
         if (counter + len > limit) {
             len = (int) (limit - counter);
         }
-        if (len <= 0) {
-            return -1;
+        if (len == 0) {
+            return 0;
         }
         indexInput.readBytes(b, off, len, false);
         counter += len;

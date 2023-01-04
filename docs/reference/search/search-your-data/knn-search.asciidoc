@@ -413,9 +413,9 @@ nearest documents. If the search also includes a `query`, then aggregations are 
 and `query` matches.
 
 [discrete]
-==== Search multiple KNN fields
+==== Search multiple kNN fields
 
-In addition to 'hybrid retrieval', you can search more than one KNN vector field at a time:
+In addition to 'hybrid retrieval', you can search more than one kNN vector field at a time:
 
 [source,console]
 ----

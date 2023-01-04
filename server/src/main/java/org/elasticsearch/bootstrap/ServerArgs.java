@@ -46,6 +46,7 @@ public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureS
      */
     public ServerArgs {
         assert pidFile == null || pidFile.isAbsolute();
+        assert secrets != null;
     }
 
     /**

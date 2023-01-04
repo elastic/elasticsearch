@@ -15,6 +15,8 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -68,6 +70,7 @@ public class ServerProcessTests extends ESTestCase {
     ProcessValidator processValidator;
     MainMethod mainCallback;
     MockElasticsearchProcess process;
+    SecureSettings secrets;
 
     interface MainMethod {
         void main(ServerArgs args, InputStream stdin, PrintStream stderr, AtomicInteger exitCode) throws IOException;
@@ -94,6 +97,7 @@ public class ServerProcessTests extends ESTestCase {
         optionsBuilder = (args, configDir, tmpDir, envOptions) -> new ArrayList<>();
         processValidator = null;
         mainCallback = null;
+        secrets = KeyStoreWrapper.create();
     }
 
     @AfterClass
@@ -191,7 +195,7 @@ public class ServerProcessTests extends ESTestCase {
 
     ServerProcess startProcess(boolean daemonize, boolean quiet, String keystorePassword) throws Exception {
         var pinfo = new ProcessInfo(Map.copyOf(sysprops), Map.copyOf(envVars), esHomeDir);
-        var args = new ServerArgs(daemonize, quiet, null, null, nodeSettings.build(), esHomeDir.resolve("config"));
+        var args = new ServerArgs(daemonize, quiet, null, secrets, nodeSettings.build(), esHomeDir.resolve("config"));
         ServerProcess.ProcessStarter starter = pb -> {
             if (processValidator != null) {
                 processValidator.validate(pb);

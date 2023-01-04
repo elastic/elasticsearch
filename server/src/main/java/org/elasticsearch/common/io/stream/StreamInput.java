@@ -599,6 +599,14 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    @Nullable
+    public byte[] readOptionalByteArray() throws IOException {
+        if (readBoolean()) {
+            return readByteArray();
+        }
+        return null;
+    }
+
     /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */

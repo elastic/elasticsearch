@@ -712,6 +712,31 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertSame(before, after);
     }
 
+    public void testPartialBatchFailureDelaysNotification() throws Exception {
+        // Create a state with a single index
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+        IndicesAliasesClusterStateUpdateRequest addAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
+            List.of(new AliasAction.Add(index, "test", null, null, null, null, null))
+        );
+        IndicesAliasesClusterStateUpdateRequest removeAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
+            List.of(new AliasAction.Remove(index, "test", true))
+        );
+
+        ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            before,
+            service.getExecutor(),
+            List.of(
+                new MetadataIndexAliasesService.ApplyAliasesTask(addAliasRequest, null),
+                new MetadataIndexAliasesService.ApplyAliasesTask(removeAliasRequest, null),
+                // removing the alias again should fail, but we report success so the master service doesn't notify listeners early
+                new MetadataIndexAliasesService.ApplyAliasesTask(removeAliasRequest, null)
+            )
+        );
+
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+    }
+
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {
         return service.applyAliasActions(
             before,

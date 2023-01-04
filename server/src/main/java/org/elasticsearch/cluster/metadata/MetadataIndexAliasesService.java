@@ -77,7 +77,15 @@ public class MetadataIndexAliasesService {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState) {
-                return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
+                try {
+                    return new Tuple<>(
+                        applyAliasActions(clusterState, applyAliasesTask.request().actions()),
+                        applyAliasesTask.getSuccessListener()
+                    );
+                } catch (Exception e) {
+                    // delay failure notification until end of batch
+                    return new Tuple<>(clusterState, applyAliasesTask.getFailureListener(e));
+                }
             }
         };
     }
@@ -261,37 +269,73 @@ public class MetadataIndexAliasesService {
      */
     record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
         implements
-            ClusterStateTaskListener,
-            ClusterStateAckListener {
+            ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
+        public ClusterStateAckListener getSuccessListener() {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
+
+                @Override
+                public void onAllNodesAcked() {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    listener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    listener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
 
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }
+        public ClusterStateAckListener getFailureListener(Exception e) {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
+                private void notifyListener() {
+                    listener.onFailure(e);
+                }
 
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
+                @Override
+                public void onAllNodesAcked() {
+                    notifyListener();
+                }
 
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
+                @Override
+                public void onAckFailure(Exception e) {
+                    notifyListener();
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    notifyListener();
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
     }
 }

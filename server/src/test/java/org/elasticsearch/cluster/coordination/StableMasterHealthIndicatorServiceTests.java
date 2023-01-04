@@ -150,10 +150,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(1));
-        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
+        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
@@ -180,7 +179,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(diagnosis.size(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultGreenOrUnknown() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
@@ -262,6 +260,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
 
+    }
+
+    // We expose the indicator name and the diagnosis in the x-pack usage API, consequently these end up in the mapping of the telemetry
+    // index, any changes or additions that we want to track need to be added to the mapping.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(StableMasterHealthIndicatorService.NAME, equalTo("master_is_stable"));
+        assertThat(
+            StableMasterHealthIndicatorService.CONTACT_SUPPORT.definition().getUniqueId(),
+            equalTo("elasticsearch:health:master_is_stable:diagnosis:contact_support")
+        );
     }
 
     private ClusterState createClusterState(DiscoveryNode masterNode) {

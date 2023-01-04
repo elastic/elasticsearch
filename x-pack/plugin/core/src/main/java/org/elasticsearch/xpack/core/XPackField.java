@@ -73,6 +73,8 @@ public final class XPackField {
     public static final String OPERATOR_PRIVILEGES = "operator_privileges";
     /** Name constant for the archive feature. */
     public static final String ARCHIVE = "archive";
+    /** Name constant for the health api feature. */
+    public static final String HEALTH_API = "health_api";
 
     private XPackField() {}
 

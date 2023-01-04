@@ -17,6 +17,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -170,7 +171,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         // IDP end user doesn't need any privileges on the security cluster
         // Could switch to grant apikey for user and call this as console_user
         // Console user should be able to call all IDP related endpoints and register application privileges
-        return formatted("""
+        return Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:
@@ -261,7 +262,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
                 Files.move(tempFile, path, REPLACE_EXISTING);
             }
         } catch (final IOException e) {
-            throw new UncheckedIOException(formatted("could not write file [%s]", path.toAbsolutePath()), e);
+            throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
         } finally {
             // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
             IOUtils.deleteFilesIgnoringExceptions(tempFile);

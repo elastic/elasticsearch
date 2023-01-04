@@ -177,7 +177,7 @@ public final class IndicesPermission {
                 || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstraction.getName()));
         }
 
-        private final boolean testMissingResource(String name) {
+        private boolean testMissingResource(String name) {
             return resourceNameMatcher.test(name) || additionalNonDatastreamNameMatcher.test(name);
         }
 

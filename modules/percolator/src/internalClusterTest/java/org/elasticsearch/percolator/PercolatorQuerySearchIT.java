@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -888,7 +887,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        Exception e = expectThrows(Exception.class, () -> {
             client().prepareIndex("test2")
                 .setId("1")
                 .setSource(

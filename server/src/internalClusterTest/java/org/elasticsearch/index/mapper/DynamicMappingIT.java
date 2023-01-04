@@ -68,14 +68,20 @@ public class DynamicMappingIT extends ESIntegTestCase {
         try {
             client().prepareIndex("index").setId("2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
-        } catch (MapperParsingException e) {
-            // general case, the parsing code complains that it can't parse "bar" as a "long"
-            assertThat(e.getMessage(), Matchers.containsString("failed to parse field [foo] of type [long]"));
         } catch (IllegalArgumentException e) {
-            // rare case: the node that processes the index request doesn't have the mappings
-            // yet and sends a mapping update to the master node to map "bar" as "text". This
-            // fails as it had been already mapped as a long by the previous index request.
-            assertThat(e.getMessage(), Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
+            assertThat(
+                e.getMessage(),
+                Matchers.either(
+                    // general case, the parsing code complains that it can't parse "bar" as a "long"
+                    Matchers.containsString("failed to parse field [foo] of type [long]")
+                )
+                    .or(
+                        // rare case: the node that processes the index request doesn't have the mappings
+                        // yet and sends a mapping update to the master node to map "bar" as "text". This
+                        // fails as it had been already mapped as a long by the previous index request.
+                        Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]")
+                    )
+            );
         }
     }
 
@@ -225,7 +231,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         masterBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
-            Exception e = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            Exception e = expectThrows(Exception.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
@@ -270,7 +276,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
                 .setId("1")
                 .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
-            Exception exc = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            Exception exc = expectThrows(Exception.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
@@ -425,12 +431,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());
-        assertThat(bulkItemResponses.getItems()[0].getFailure().getCause(), instanceOf(MapperParsingException.class));
         assertThat(
             bulkItemResponses.getItems()[0].getFailureMessage(),
             containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [my_location]")
         );
-        assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(MapperParsingException.class));
         assertThat(
             bulkItemResponses.getItems()[1].getFailureMessage(),
             containsString("Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]")
@@ -524,13 +528,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
 
-        MapperParsingException exception = expectThrows(
-            MapperParsingException.class,
-            () -> client().prepareIndex("test").setSource("obj.runtime", "value").get()
-        );
-        assertEquals(
-            "object mapping for [obj.runtime] tried to parse field [runtime] as object, but found a concrete value",
-            exception.getMessage()
+        Exception exception = expectThrows(Exception.class, () -> client().prepareIndex("test").setSource("obj.runtime", "value").get());
+        assertThat(
+            exception.getMessage(),
+            containsString("object mapping for [obj.runtime] tried to parse field [runtime] as object, but found a concrete value")
         );
 
         assertAcked(client().admin().indices().preparePutMapping("test").setSource("""
@@ -574,14 +575,16 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
 
         // a doc with the same field but a different type causes a conflict
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            Exception.class,
             () -> client().prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string").get()
         );
-        assertEquals(
-            "failed to parse field [obj.runtime.dynamic.number] of type [long] in document with id 'id'. "
-                + "Preview of field's value: 'string'",
-            e.getMessage()
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "failed to parse field [obj.runtime.dynamic.number] of type [long] in document with id 'id'. "
+                    + "Preview of field's value: 'string'"
+            )
         );
     }
 

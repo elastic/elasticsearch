@@ -210,6 +210,12 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                 return
             }
             if (snippet.testResponse || snippet.language == 'console-result') {
+                if (previousTest == null) {
+                    throw new InvalidUserDataException("$snippet: No paired previous test")
+                }
+                if (previousTest.path != snippet.path) {
+                    throw new InvalidUserDataException("$snippet: Result can't be first in file")
+                }
                 response(snippet)
                 return
             }

@@ -61,6 +61,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -103,11 +104,10 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -127,10 +127,10 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -450,9 +450,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
      * <p>
-     * Half the time it aggregates each leaf individually and reduces all
-     * results together. The other half the time it aggregates across the entire
-     * index at once and runs a final reduction on the single resulting agg.
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      */
@@ -463,41 +460,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
         // Second run it to the end
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        return searchAndReduce(
-            indexSettings,
-            searcher,
-            aggTestConfig.query(),
-            aggTestConfig.builder(),
-            aggTestConfig.maxBuckets(),
-            aggTestConfig.splitLeavesIntoSeparateAggregators(),
-            aggTestConfig.shouldBeCached(),
-            breakerService,
-            aggTestConfig.fieldTypes()
-        );
+        return searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig);
     }
 
     /**
-     * This is extracted into a seperate function so that stack traces will indicate if a bad allocation happened in the
-     * cranky CB run or the happy path run.
+     * Run an aggregation test against the {@link CrankyCircuitBreakerService}
+     * which fails randomly. This is extracted into a separate function so that
+     * stack traces will indicate if a bad allocation happened in the cranky CB
+     * run or the happy path run.
      */
     private void runWithCrankyCircuitBreaker(IndexSettings indexSettings, IndexSearcher searcher, AggTestConfig aggTestConfig)
         throws IOException {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(
-                    indexSettings,
-                    searcher,
-                    aggTestConfig.query(),
-                    aggTestConfig.builder(),
-                    aggTestConfig.maxBuckets(),
-                    aggTestConfig.splitLeavesIntoSeparateAggregators(),
-                    aggTestConfig.shouldBeCached(),
-                    crankyService,
-                    aggTestConfig.fieldTypes()
-                );
+                searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig);
             } catch (CircuitBreakingException e) {
-                // expected
+                // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             } catch (IOException e) {
                 throw e;
             }
@@ -508,14 +488,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        boolean splitLeavesIntoSeparateAggregators,
-        boolean shouldBeCached,
         CircuitBreakerService breakerService,
-        MappedFieldType... fieldTypes
+        AggTestConfig aggTestConfig
     ) throws IOException {
+        Query query = aggTestConfig.query();
+        AggregationBuilder builder = aggTestConfig.builder();
+        int maxBucket = aggTestConfig.maxBuckets();
+        boolean splitLeavesIntoSeparateAggregators = aggTestConfig.splitLeavesIntoSeparateAggregators();
+        boolean shouldBeCached = aggTestConfig.shouldBeCached();
+        MappedFieldType[] fieldTypes = aggTestConfig.fieldTypes();
+
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -588,7 +570,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
         try {
-            if (randomBoolean() && aggs.size() > 1) {
+            if (aggTestConfig.incrementalReduce() && aggs.size() > 1) {
                 // sometimes do an incremental reduce
                 int toReduceSize = aggs.size();
                 Collections.shuffle(aggs, random());
@@ -1037,7 +1019,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             IndexSettings indexSettings = createIndexSettings();
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext(indexSettings));
-            FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.ROOT);
+            FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.root(false));
 
             MappedFieldType fieldType = mapper.fieldType();
 
@@ -1199,14 +1181,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
             doc.add(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range))));
-            json = formatted("""
+            json = Strings.format("""
                 { "%s" : { "gte" : "%s", "lte" : "%s" } }
                 """, fieldName, start, end);
         } else if (vst.equals(CoreValuesSourceType.GEOPOINT)) {
             double lat = randomDouble();
             double lon = randomDouble();
             doc.add(new LatLonDocValuesField(fieldName, lat, lon));
-            json = formatted("""
+            json = Strings.format("""
                 { "%s" : "[%s,%s]" }""", fieldName, lon, lat);
         } else {
             throw new IllegalStateException("Unknown field type [" + typeName + "]");
@@ -1450,105 +1432,78 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private static class CrankyCircuitBreakerService extends CircuitBreakerService {
-
-        private final CircuitBreaker breaker = new CircuitBreaker() {
-            @Override
-            public void circuitBreak(String fieldName, long bytesNeeded) {
-
-            }
-
-            @Override
-            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                if (random().nextInt(20) == 0) {
-                    throw new CircuitBreakingException("fake error", Durability.PERMANENT);
-                }
-            }
-
-            @Override
-            public void addWithoutBreaking(long bytes) {
-
-            }
-
-            @Override
-            public long getUsed() {
-                return 0;
-            }
-
-            @Override
-            public long getLimit() {
-                return 0;
-            }
-
-            @Override
-            public double getOverhead() {
-                return 0;
-            }
-
-            @Override
-            public long getTrippedCount() {
-                return 0;
-            }
-
-            @Override
-            public String getName() {
-                return CircuitBreaker.FIELDDATA;
-            }
-
-            @Override
-            public Durability getDurability() {
-                return null;
-            }
-
-            @Override
-            public void setLimitAndOverhead(long limit, double overhead) {
-
-            }
-        };
-
-        @Override
-        public CircuitBreaker getBreaker(String name) {
-            return breaker;
-        }
-
-        @Override
-        public AllCircuitBreakerStats stats() {
-            return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
-        }
-
-        @Override
-        public CircuitBreakerStats stats(String name) {
-            return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
-        }
-    }
-
     public record AggTestConfig(
         Query query,
         AggregationBuilder builder,
         int maxBuckets,
         boolean splitLeavesIntoSeparateAggregators,
         boolean shouldBeCached,
+        boolean incrementalReduce,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), fieldTypes);
         }
 
         public AggTestConfig withQuery(Query query) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                fieldTypes
+            );
         }
 
         public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                fieldTypes
+            );
         }
 
         public AggTestConfig withShouldBeCached(boolean shouldBeCached) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                fieldTypes
+            );
         }
 
         public AggTestConfig withMaxBuckets(int maxBuckets) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig withIncrementalReduce(boolean incrementalReduce) {
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                fieldTypes
+            );
         }
     }
 

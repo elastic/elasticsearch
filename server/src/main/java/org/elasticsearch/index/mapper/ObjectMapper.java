@@ -578,16 +578,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> extra) {
         return new SyntheticSourceFieldLoader(
-            mappers.values()
-                .stream()
+            Stream.concat(extra, mappers.values().stream())
                 .sorted(Comparator.comparing(Mapper::name))
                 .map(Mapper::syntheticFieldLoader)
                 .filter(l -> l != null)
                 .toList()
         );
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return syntheticFieldLoader(Stream.empty());
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {

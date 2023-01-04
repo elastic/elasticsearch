@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -137,10 +138,15 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
+        writeChunks(
+            clusterState,
+            builder,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
+            34
+        );
         builder.endObject();
 
-        assertEquals(XContentHelper.stripWhitespace(formatted("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "clusterUUID",
               "version": 0,
@@ -283,10 +289,17 @@ public class ClusterStateTests extends ESTestCase {
                     "timestamp_range": {
                       "shards": []
                     },
-                    "write_load": {
-                      "loads": [-1.0],
-                      "uptimes": [-1]
-                    }
+                    "stats": {
+                        "write_load": {
+                          "loads": [-1.0],
+                          "uptimes": [-1]
+                        },
+                        "avg_size": {
+                            "total_size_in_bytes": 120,
+                            "shard_count": 1
+                        }
+                    },
+                    "write_load_forecast" : 8.0
                   }
                 },
                 "index-graveyard": {
@@ -361,10 +374,10 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -499,14 +512,21 @@ public class ClusterStateTests extends ESTestCase {
                     "timestamp_range" : {
                       "shards" : [ ]
                     },
-                    "write_load" : {
-                      "loads" : [
-                        -1.0
-                      ],
-                      "uptimes" : [
-                        -1
-                      ]
-                    }
+                    "stats" : {
+                      "write_load" : {
+                        "loads" : [
+                          -1.0
+                        ],
+                        "uptimes" : [
+                          -1
+                        ]
+                      },
+                      "avg_size" : {
+                        "total_size_in_bytes" : 120,
+                        "shard_count" : 1
+                      }
+                    },
+                    "write_load_forecast" : 8.0
                   }
                 },
                 "index-graveyard" : {
@@ -582,10 +602,10 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -726,14 +746,21 @@ public class ClusterStateTests extends ESTestCase {
                     "timestamp_range" : {
                       "shards" : [ ]
                     },
-                    "write_load" : {
-                      "loads" : [
-                        -1.0
-                      ],
-                      "uptimes" : [
-                        -1
-                      ]
-                    }
+                    "stats" : {
+                      "write_load" : {
+                        "loads" : [
+                          -1.0
+                        ],
+                        "uptimes" : [
+                          -1
+                        ]
+                      },
+                      "avg_size" : {
+                        "total_size_in_bytes" : 120,
+                        "shard_count" : 1
+                      }
+                    },
+                    "write_load_forecast" : 8.0
                   }
                 },
                 "index-graveyard" : {
@@ -827,10 +854,10 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 25);
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -922,7 +949,8 @@ public class ClusterStateTests extends ESTestCase {
             })
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
-            .indexWriteLoad(IndexWriteLoad.builder(1).build())
+            .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
+            .indexWriteLoadForecast(8.0)
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
@@ -1016,5 +1044,16 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .build();
         assertEquals(DiscoveryNodes.EMPTY_NODES, notRecoveredState.nodesIfRecovered());
+    }
+
+    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params, int expectedChunks)
+        throws IOException {
+        final var iterator = clusterState.toXContentChunked(params);
+        int chunks = 0;
+        while (iterator.hasNext()) {
+            iterator.next().toXContent(builder, params);
+            chunks += 1;
+        }
+        assertEquals(expectedChunks, chunks);
     }
 }

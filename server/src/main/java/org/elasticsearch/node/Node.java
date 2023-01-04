@@ -63,6 +63,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -112,6 +113,7 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -566,14 +568,20 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
+            final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext(),
-                systemIndices
+                threadPool,
+                systemIndices,
+                writeLoadForecaster
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -694,6 +702,7 @@ public class Node implements Closeable {
             );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
+                threadPool,
                 clusterService,
                 metadataCreateIndexService
             );
@@ -704,7 +713,8 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 settingsModule.getIndexScopedSettings(),
                 indicesService,
-                shardLimitValidator
+                shardLimitValidator,
+                threadPool
             );
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
@@ -868,7 +878,8 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 systemIndices,
                 indicesService,
-                fileSettingsService
+                fileSettingsService,
+                threadPool
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
@@ -986,10 +997,17 @@ public class Node implements Closeable {
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
+            HealthService healthService = createHealthService(
+                clusterService,
+                clusterModule,
+                coordinationDiagnosticsService,
+                threadPool,
+                systemIndices
+            );
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
+            HealthApiStats healthApiStats = new HealthApiStats();
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1078,8 +1096,10 @@ public class Node implements Closeable {
                 b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
                 b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
+                b.bind(HealthApiStats.class).toInstance(healthApiStats);
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
+                b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1184,7 +1204,9 @@ public class Node implements Closeable {
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
-        CoordinationDiagnosticsService coordinationDiagnosticsService
+        CoordinationDiagnosticsService coordinationDiagnosticsService,
+        ThreadPool threadPool,
+        SystemIndices systemIndices
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
@@ -1192,7 +1214,7 @@ public class Node implements Closeable {
         var serverHealthIndicatorServices = new ArrayList<>(
             List.of(
                 new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
+                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
             )
         );
         serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
@@ -1202,7 +1224,8 @@ public class Node implements Closeable {
             .toList();
         return new HealthService(
             preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices)
+            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
+            threadPool
         );
     }
 
@@ -1211,22 +1234,39 @@ public class Node implements Closeable {
         ClusterService clusterService,
         RepositoriesService repositoryService
     ) {
-        final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
-        if (recoveryPlannerPlugins.isEmpty()) {
+        final List<RecoveryPlannerService> recoveryPlannerServices = pluginsService.filterPlugins(RecoveryPlannerPlugin.class)
+            .stream()
+            .map(
+                plugin -> plugin.createRecoveryPlannerService(
+                    new ShardSnapshotsService(client, repositoryService, threadPool, clusterService)
+                )
+            )
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
+        if (recoveryPlannerServices.isEmpty()) {
             return new PeerOnlyRecoveryPlannerService();
+        } else if (recoveryPlannerServices.size() > 1) {
+            throw new IllegalStateException("Expected a single RecoveryPlannerService but got: " + recoveryPlannerServices.size());
+        }
+        return recoveryPlannerServices.get(0);
+    }
+
+    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+        final List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+        final List<WriteLoadForecaster> writeLoadForecasters = clusterPlugins.stream()
+            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream())
+            .toList();
+
+        if (writeLoadForecasters.isEmpty()) {
+            return WriteLoadForecaster.DEFAULT;
         }
 
-        if (recoveryPlannerPlugins.size() > 1) {
-            throw new IllegalStateException("A single RecoveryPlannerPlugin was expected but got: " + recoveryPlannerPlugins);
+        if (writeLoadForecasters.size() > 1) {
+            throw new IllegalStateException("A single WriteLoadForecaster was expected but got: " + writeLoadForecasters);
         }
 
-        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(
-            client,
-            repositoryService,
-            threadPool,
-            clusterService
-        );
-        return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
+        return writeLoadForecasters.get(0);
     }
 
     protected TransportService newTransportService(

@@ -148,8 +148,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 /**
  * Converts the ANTLR tree to a Painless tree.
  */
@@ -251,8 +249,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             location(ctx),
             "<internal>",
             "execute",
-            emptyList(),
-            emptyList(),
+            List.of(),
+            List.of(),
             new SBlock(nextIdentifier(), location(ctx), statements),
             false,
             false,
@@ -268,18 +266,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     public ANode visitFunction(FunctionContext ctx) {
         String rtnType = ctx.decltype().getText();
         String name = ctx.ID().getText();
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
+
+        List<String> paramTypes = ctx.parameters().decltype().stream().map(DecltypeContext::getText).toList();
+        List<String> paramNames = ctx.parameters().ID().stream().map(TerminalNode::getText).toList();
+
         List<AStatement> statements = new ArrayList<>();
-
-        for (DecltypeContext decltype : ctx.parameters().decltype()) {
-            paramTypes.add(decltype.getText());
-        }
-
-        for (TerminalNode id : ctx.parameters().ID()) {
-            paramNames.add(id.getText());
-        }
-
         for (StatementContext statement : ctx.block().statement()) {
             statements.add((AStatement) visit(statement));
         }
@@ -1084,7 +1075,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private List<AExpression> collectArguments(ArgumentsContext ctx) {
-        List<AExpression> arguments = new ArrayList<>();
+        List<AExpression> arguments = new ArrayList<>(ctx.argument().size());
 
         for (ArgumentContext argument : ctx.argument()) {
             arguments.add((AExpression) visit(argument));
@@ -1108,8 +1099,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitLambda(LambdaContext ctx) {
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
+        List<String> paramTypes = new ArrayList<>(ctx.lamtype().size());
+        List<String> paramNames = new ArrayList<>(ctx.lamtype().size());
         SBlock block;
 
         for (LamtypeContext lamtype : ctx.lamtype()) {

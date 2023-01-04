@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,16 +22,13 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Snapshot status response
  */
-public class SnapshotsStatusResponse extends ActionResponse implements ChunkedToXContent {
+public class SnapshotsStatusResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final List<SnapshotStatus> snapshots;
 
@@ -89,12 +86,10 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
-        return Iterators.concat(
-            Iterators.single((ToXContent) (b, p) -> b.startObject().startArray("snapshots")),
-            snapshots.stream()
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
-                .iterator(),
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.<ToXContent>concat(
+            Iterators.single((b, p) -> b.startObject().startArray("snapshots")),
+            Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
             Iterators.single((b, p) -> b.endArray().endObject())
         );
     }

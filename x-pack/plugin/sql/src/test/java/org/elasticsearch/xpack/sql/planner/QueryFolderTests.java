@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -42,6 +40,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -60,7 +59,7 @@ public class QueryFolderTests extends ESTestCase {
         Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = analyzer(getIndexResult);
         optimizer = new Optimizer();
         planner = new Planner();
     }

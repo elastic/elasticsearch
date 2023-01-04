@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -97,7 +99,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
 
@@ -126,7 +128,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
@@ -231,7 +233,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             assertThat(
                 decision.getExplanation(),
                 equalTo(
-                    formatted(
+                    Strings.format(
                         """
                             cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
                             address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\

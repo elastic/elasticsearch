@@ -74,7 +74,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 
 /**
  * Utility class to create aggregations.
@@ -336,13 +335,6 @@ public class AggregationBuilders {
      */
     public static ScriptedMetricAggregationBuilder scriptedMetric(String name) {
         return new ScriptedMetricAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link TimeSeriesAggregationBuilder} aggregation with the given name.
-     */
-    public static TimeSeriesAggregationBuilder timeSeries(String name) {
-        return new TimeSeriesAggregationBuilder(name);
     }
 
 }

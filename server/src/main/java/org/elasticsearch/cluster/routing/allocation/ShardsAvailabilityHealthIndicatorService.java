@@ -43,6 +43,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
@@ -59,6 +60,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
@@ -67,6 +70,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.FEATURE_STATE;
 import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -96,9 +100,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private final ClusterService clusterService;
     private final AllocationService allocationService;
 
-    public ShardsAvailabilityHealthIndicatorService(ClusterService clusterService, AllocationService allocationService) {
+    private final SystemIndices systemIndices;
+
+    public ShardsAvailabilityHealthIndicatorService(
+        ClusterService clusterService,
+        AllocationService allocationService,
+        SystemIndices systemIndices
+    ) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -107,7 +118,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -115,18 +126,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, explain);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, explain);
+                    status.addReplica(replicaShard, state, shutdown, verbose);
                 }
             }
         }
         return createIndicator(
             status.getStatus(),
             status.getSymptom(),
-            status.getDetails(explain),
+            status.getDetails(verbose),
             status.getImpacts(),
-            status.getDiagnosis(explain)
+            status.getDiagnosis(verbose, maxAffectedResourcesCount)
         );
     }
 
@@ -134,7 +145,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String PRIMARY_UNASSIGNED_IMPACT_ID = "primary_unassigned";
     public static final String REPLICA_UNASSIGNED_IMPACT_ID = "replica_unassigned";
 
-    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
+    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "https://ela.st/restore-snapshot";
     public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
         NAME,
         "restore_from_snapshot",
@@ -144,7 +155,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         RESTORE_FROM_SNAPSHOT_ACTION_GUIDE
     );
 
-    public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
+    public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "https://ela.st/diagnose-shards";
     public static final Diagnosis.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new Diagnosis.Definition(
         NAME,
         "explain_allocations",
@@ -155,7 +166,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
-    public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
+    public static final String FIX_DELAYED_SHARDS_GUIDE = "https://ela.st/fix-delayed-shard-allocation";
     public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
         NAME,
         "delayed_shard_allocations",
@@ -166,7 +177,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         FIX_DELAYED_SHARDS_GUIDE
     );
 
-    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
+    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "https://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         NAME,
         "enable_index_allocations",
@@ -179,7 +190,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "].",
         ENABLE_INDEX_ALLOCATION_GUIDE
     );
-    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "http://ela.st/fix-cluster-allocation";
+    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "https://ela.st/fix-cluster-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new Diagnosis.Definition(
         NAME,
         "enable_cluster_allocations",
@@ -193,7 +204,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE
     );
 
-    public static final String ENABLE_TIER_ACTION_GUIDE = "http://ela.st/enable-tier";
+    public static final String ENABLE_TIER_ACTION_GUIDE = "https://ela.st/enable-tier";
     public static final Map<String, Diagnosis.Definition> ACTION_ENABLE_TIERS_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -209,7 +220,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/index-total-shards";
+    public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "https://ela.st/index-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new Diagnosis.Definition(
         NAME,
         "increase_shard_limit_index_setting",
@@ -240,7 +251,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/cluster-total-shards";
+    public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "https://ela.st/cluster-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new Diagnosis.Definition(
         NAME,
         "increase_shard_limit_cluster_setting",
@@ -271,7 +282,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "http://ela.st/migrate-to-tiers";
+    public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "https://ela.st/migrate-to-tiers";
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new Diagnosis.Definition(
         NAME,
         "migrate_data_tiers_require_data",
@@ -340,7 +351,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String TIER_CAPACITY_ACTION_GUIDE = "http://ela.st/tier-capacity";
+    public static final String TIER_CAPACITY_ACTION_GUIDE = "https://ela.st/tier-capacity";
     public static final Diagnosis.Definition ACTION_INCREASE_NODE_CAPACITY = new Diagnosis.Definition(
         NAME,
         "increase_node_capacity_for_allocations",
@@ -378,7 +389,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
         private final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -394,7 +405,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (explain) {
+                        if (verbose) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(
                                 definition -> addDefinition(definition, routing.getIndexName())
                             );
@@ -441,9 +452,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
-                if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
-                    diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
-                }
+                diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 break;
             case NO_ATTEMPT:
                 if (shardRouting.unassignedInfo().isDelayed()) {
@@ -762,7 +771,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private class ShardAllocationStatus {
+    class ShardAllocationStatus {
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
         private final Metadata clusterMetadata;
@@ -771,12 +780,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
-            primaries.increment(routing, state, shutdowns, explain);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            primaries.increment(routing, state, shutdowns, verbose);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
-            replicas.increment(routing, state, shutdowns, explain);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            replicas.increment(routing, state, shutdowns, verbose);
         }
 
         public HealthStatus getStatus() {
@@ -819,8 +828,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public HealthIndicatorDetails getDetails(boolean explain) {
-            if (explain) {
+        public HealthIndicatorDetails getDetails(boolean verbose) {
+            if (verbose) {
                 return new SimpleHealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
@@ -892,11 +901,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Returns the diagnosis for unassigned primary and replica shards.
-         * @param explain true if the diagnosis should be generated, false if they should be omitted.
-         * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or explain is false.
+         * @param verbose true if the diagnosis should be generated, false if they should be omitted.
+         * @param maxAffectedResourcesCount the max number of affected resources to be returned as part of the diagnosis
+         * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or verbose is false.
          */
-        public List<Diagnosis> getDiagnosis(boolean explain) {
-            if (explain) {
+        public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
+            if (verbose) {
                 Map<Diagnosis.Definition, Set<String>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
                     Set<String> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
@@ -909,27 +919,108 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 if (diagnosisToAffectedIndices.isEmpty()) {
                     return List.of();
                 } else {
-                    return diagnosisToAffectedIndices.entrySet()
-                        .stream()
-                        .map(
-                            e -> new Diagnosis(
-                                e.getKey(),
-                                List.of(
-                                    new Diagnosis.Resource(
-                                        INDEX,
-                                        e.getValue()
-                                            .stream()
-                                            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
-                                            .collect(Collectors.toList())
-                                    )
+
+                    return diagnosisToAffectedIndices.entrySet().stream().map(e -> {
+                        List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
+                        if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
+                            Set<String> restoreFromSnapshotIndices = e.getValue();
+                            if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
+                                affectedResources = getRestoreFromSnapshotAffectedResources(
+                                    clusterMetadata,
+                                    systemIndices,
+                                    restoreFromSnapshotIndices,
+                                    maxAffectedResourcesCount
+                                );
+                            }
+                        } else {
+                            affectedResources.add(
+                                new Diagnosis.Resource(
+                                    INDEX,
+                                    e.getValue()
+                                        .stream()
+                                        .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                        .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
+                                        .collect(Collectors.toList())
                                 )
-                            )
-                        )
-                        .collect(Collectors.toList());
+                            );
+                        }
+                        return new Diagnosis(e.getKey(), affectedResources);
+                    }).collect(Collectors.toList());
                 }
             } else {
                 return List.of();
             }
+        }
+
+        /**
+         * The restore from snapshot operation requires the user to specify indices and feature states.
+         * The indices that are part of the feature states must not be specified. This method loops through all the
+         * identified unassigned indices and returns the affected {@link Diagnosis.Resource}s of type `INDEX`
+         * and if applicable `FEATURE_STATE`
+         */
+        static List<Diagnosis.Resource> getRestoreFromSnapshotAffectedResources(
+            Metadata metadata,
+            SystemIndices systemIndices,
+            Set<String> restoreFromSnapshotIndices,
+            int maxAffectedResourcesCount
+        ) {
+            List<Diagnosis.Resource> affectedResources = new ArrayList<>(2);
+
+            Set<String> affectedIndices = new HashSet<>(restoreFromSnapshotIndices);
+            Set<String> affectedFeatureStates = new HashSet<>();
+            Map<String, Set<String>> featureToSystemIndices = systemIndices.getFeatures()
+                .stream()
+                .collect(
+                    toMap(
+                        SystemIndices.Feature::getName,
+                        feature -> feature.getIndexDescriptors()
+                            .stream()
+                            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
+                            .collect(toSet())
+                    )
+                );
+
+            for (Map.Entry<String, Set<String>> featureToIndices : featureToSystemIndices.entrySet()) {
+                for (String featureIndex : featureToIndices.getValue()) {
+                    if (restoreFromSnapshotIndices.contains(featureIndex)) {
+                        affectedFeatureStates.add(featureToIndices.getKey());
+                        affectedIndices.remove(featureIndex);
+                    }
+                }
+            }
+
+            Map<String, Set<String>> featureToDsBackingIndices = systemIndices.getFeatures()
+                .stream()
+                .collect(
+                    toMap(
+                        SystemIndices.Feature::getName,
+                        feature -> feature.getDataStreamDescriptors()
+                            .stream()
+                            .flatMap(descriptor -> descriptor.getBackingIndexNames(metadata).stream())
+                            .collect(toSet())
+                    )
+                );
+
+            // the shards_availability indicator works with indices so let's remove the feature states data streams backing indices from
+            // the list of affected indices (the feature state will cover the restore of these indices too)
+            for (Map.Entry<String, Set<String>> featureToBackingIndices : featureToDsBackingIndices.entrySet()) {
+                for (String featureIndex : featureToBackingIndices.getValue()) {
+                    if (restoreFromSnapshotIndices.contains(featureIndex)) {
+                        affectedFeatureStates.add(featureToBackingIndices.getKey());
+                        affectedIndices.remove(featureIndex);
+                    }
+                }
+            }
+
+            if (affectedIndices.isEmpty() == false) {
+                affectedResources.add(new Diagnosis.Resource(INDEX, affectedIndices.stream().limit(maxAffectedResourcesCount).toList()));
+            }
+            if (affectedFeatureStates.isEmpty() == false) {
+                affectedResources.add(
+                    new Diagnosis.Resource(FEATURE_STATE, affectedFeatureStates.stream().limit(maxAffectedResourcesCount).toList())
+                );
+            }
+            return affectedResources;
         }
     }
 }

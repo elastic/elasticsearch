@@ -292,7 +292,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             featureStatesSet = Collections.emptySet();
         }
 
-        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotsInProgress.Entry newEntry;
@@ -412,7 +411,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
                     shards,
-                    userMeta,
+                    request.userMetadata(),
                     version,
                     List.copyOf(featureStates)
                 );
@@ -602,8 +601,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         final StepListener<Collection<Tuple<IndexId, Integer>>> allShardCountsListener = new StepListener<>();
         final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener = new GroupedActionListener<>(
-            allShardCountsListener,
-            indices.size()
+            indices.size(),
+            allShardCountsListener
         );
         snapshotInfoListener.whenComplete(snapshotInfo -> {
             for (IndexId indexId : indices) {

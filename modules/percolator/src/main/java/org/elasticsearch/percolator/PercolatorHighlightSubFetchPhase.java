@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -60,6 +61,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+
+            @Override
             public void process(HitContext hit) throws IOException {
                 boolean singlePercolateQuery = percolateQueries.size() == 1;
                 for (PercolateQuery percolateQuery : percolateQueries) {
@@ -83,9 +89,10 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             int slot = (int) matchedSlot;
                             BytesReference document = percolateQuery.getDocuments().get(slot);
                             HitContext subContext = new HitContext(
-                                new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
+                                new SearchHit(slot, "unknown"),
                                 percolatorLeafReaderContext,
                                 slot,
+                                Map.of(),
                                 Source.fromBytes(document)
                             );
                             // force source because MemoryIndex does not store fields

@@ -22,7 +22,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IndexFieldMapperTests extends MapperServiceTestCase {
+public class IndexFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return IndexFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testDefaultDisabledIndexMapper() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
@@ -49,7 +62,7 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
-                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                fieldDataLookup(mapperService),
                 new SourceLookup.ReaderSourceProvider()
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);

@@ -28,7 +28,7 @@ cluster where security features are already enabled and configured. Before
 starting your new node, run the 
 <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
 with the `-s node` option to generate an enrollment token on any node in your
-existing cluster. On your new node, run the the
+existing cluster. On your new node, run the
 `elasticsearch-reconfigure-node` tool and pass the enrollment token as a
 parameter.
 
@@ -53,6 +53,11 @@ nodes in an existing, secured cluster.
 `-s, --silent`:: Shows minimal output.
 
 `-v, --verbose`:: Shows verbose output.
+
+
+:tool-name: reconfigure-node
+include::cli-jvm-options.asciidoc[]
+:!tool-name:
 
 [discrete]
 === Examples

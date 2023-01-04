@@ -33,7 +33,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly(project(':modules:lang-painless:spi'))
   api project('sql-action')
-  api project(':modules:aggs-matrix-stats')
+  api project(':modules:aggregations')
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

@@ -269,7 +269,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             }
                             return context.getFieldType(field);
                         });
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;
                     }

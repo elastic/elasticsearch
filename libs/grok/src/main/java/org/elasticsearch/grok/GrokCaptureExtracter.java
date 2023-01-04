@@ -35,7 +35,7 @@ public abstract class GrokCaptureExtracter {
             fieldExtracters = new ArrayList<>(captureConfig.size());
             for (GrokCaptureConfig config : captureConfig) {
                 fieldExtracters.add(
-                    config.objectExtracter(value -> result.computeIfAbsent(config.name(), __ -> new ArrayList<>()).add(value))
+                    config.objectExtracter(value -> result.computeIfAbsent(config.name(), ignored -> new ArrayList<>()).add(value))
                 );
             }
         }

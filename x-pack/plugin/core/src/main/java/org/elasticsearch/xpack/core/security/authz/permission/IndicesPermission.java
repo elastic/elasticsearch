@@ -177,22 +177,8 @@ public final class IndicesPermission {
                 || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstraction.getName()));
         }
 
-        private final boolean testMissingResource(String name) {
+        public final boolean testMissingResource(String name) {
             return resourceNameMatcher.test(name) || additionalNonDatastreamNameMatcher.test(name);
-        }
-
-        public final boolean testResourceName(String name, Map<String, IndexAbstraction> lookup) {
-            final IndexAbstraction indexAbstraction = lookup.get(name);
-            if (indexAbstraction == null) {
-                // missing but authorized resources should be handled downstream in the action handler, not here in the Security filter
-                return testMissingResource(name);
-            } else {
-                // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-                // more efficient than checking the index name first because we recommend grant privileges over data stream
-                // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && test(indexAbstraction.getParentDataStream()))
-                    || test(indexAbstraction);
-            }
         }
 
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {

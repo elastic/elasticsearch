@@ -273,9 +273,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.all(), metadata),
-                    authorizedIndices::check,
-                    aliasesRequest.indicesOptions().ignoreUnavailable()
+                    loadAuthorizedAliases(authorizedIndices.all(), metadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -362,32 +360,25 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private static Supplier<List<String>> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {
-        return () -> {
-            List<String> authorizedAliases = new ArrayList<>();
-            SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
-            for (String authorizedIndex : authorizedIndices.get()) {
-                IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
-                if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                    authorizedAliases.add(authorizedIndex);
-                }
+    private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {
+        List<String> authorizedAliases = new ArrayList<>();
+        SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
+        for (String authorizedIndex : authorizedIndices.get()) {
+            IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
+            if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
+                authorizedAliases.add(authorizedIndex);
             }
-            return authorizedAliases;
-        };
+        }
+        return authorizedAliases;
     }
 
-    private static List<String> replaceWildcardsWithAuthorizedAliases(
-        String[] aliases,
-        Supplier<List<String>> allAliasesAuthorizedAndAvailable,
-        Predicate<String> isAuthorized,
-        boolean ignoreUnavailable
-    ) {
+    private static List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
         final List<String> finalAliases = new ArrayList<>();
 
         // IndicesAliasesRequest doesn't support empty aliases (validation fails) but
         // GetAliasesRequest does (in which case empty means _all)
         if (aliases.length == 0) {
-            finalAliases.addAll(allAliasesAuthorizedAndAvailable.get());
+            finalAliases.addAll(authorizedAliases);
         }
 
         for (String aliasExpression : aliases) {
@@ -398,7 +389,7 @@ class IndicesAndAliasesResolver {
             }
             if (Metadata.ALL.equals(aliasExpression) || Regex.isSimpleMatchPattern(aliasExpression)) {
                 final Set<String> resolvedAliases = new HashSet<>();
-                for (final String authorizedAlias : allAliasesAuthorizedAndAvailable.get()) {
+                for (final String authorizedAlias : authorizedAliases) {
                     if (Metadata.ALL.equals(aliasExpression) || Regex.simpleMatch(aliasExpression, authorizedAlias)) {
                         resolvedAliases.add(authorizedAlias);
                     }
@@ -408,12 +399,10 @@ class IndicesAndAliasesResolver {
                 } else {
                     finalAliases.removeAll(resolvedAliases);
                 }
-            } else if (include == false) {
-                finalAliases.remove(aliasExpression);
-            } else if (ignoreUnavailable == false || isAuthorized.test(aliasExpression)) {
-                // only unauthorized alias names are considered "unavailable" at this stage
-                // missing (but authorized) resources are handled as "unavailable" while resolving the expression in the action handler
+            } else if (include) {
                 finalAliases.add(aliasExpression);
+            } else {
+                finalAliases.remove(aliasExpression);
             }
         }
 

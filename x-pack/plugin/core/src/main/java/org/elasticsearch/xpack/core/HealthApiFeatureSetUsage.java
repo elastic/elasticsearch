@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -62,6 +63,12 @@ import java.util.stream.Collectors;
  *     }
  *   }
  * }
+
+ * Note: If the minimum version of the cluster is not after 8.7.0 then the response will look like this:
+ * {
+ *   "available": false,
+ *   "enabled": true
+ * }
  */
 public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
@@ -72,10 +79,14 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
         usageStats = in.readMap();
     }
 
-    public HealthApiFeatureSetUsage(boolean available, boolean enabled, Counters stats) {
+    public HealthApiFeatureSetUsage(boolean available, boolean enabled, @Nullable Counters stats) {
         super(XPackField.HEALTH_API, available, enabled);
-        usageStats = stats.toMutableNestedMap();
-        enrichUsageStatsWithValues(usageStats);
+        if (stats != null) {
+            usageStats = stats.toMutableNestedMap();
+            enrichUsageStatsWithValues(usageStats);
+        } else {
+            usageStats = Map.of();
+        }
     }
 
     // This method enriches the stats map with a list of encountered values for the statuses, the indicators and the diagnoses stats.

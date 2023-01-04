@@ -46,6 +46,9 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     private Counters randomCounters() {
+        if (rarely()) {
+            return null;
+        }
         Counters counters = new Counters();
         for (int i = 0; i < randomInt(20); i++) {
             if (randomBoolean()) {

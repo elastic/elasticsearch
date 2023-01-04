@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -62,11 +63,16 @@ public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAct
             client.threadPool().getThreadContext()
         );
 
-        HealthApiStatsAction.Request statsRequest = new HealthApiStatsAction.Request();
-        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(HealthApiStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r -> {
-            HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(true, true, r.getStats());
+        if (state.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_7_0)) {
+            HealthApiStatsAction.Request statsRequest = new HealthApiStatsAction.Request();
+            statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+            client.execute(HealthApiStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r -> {
+                HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(true, true, r.getStats());
+                preservingListener.onResponse(new XPackUsageFeatureResponse(usage));
+            }, preservingListener::onFailure));
+        } else {
+            HealthApiFeatureSetUsage usage = new HealthApiFeatureSetUsage(false, true, null);
             preservingListener.onResponse(new XPackUsageFeatureResponse(usage));
-        }, preservingListener::onFailure));
+        }
     }
 }

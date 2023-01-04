@@ -106,6 +106,7 @@ public final class MergePolicyConfig {
     private final LogByteSizeMergePolicy logByteSizeMergePolicy = new LogByteSizeMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
+    private volatile Type mergePolicyType;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
@@ -118,6 +119,45 @@ public final class MergePolicyConfig {
         INDEX_COMPOUND_FORMAT_SETTING_KEY,
         "1gb",
         MergePolicyConfig::parseCompoundFormat,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static enum Type {
+        UNSET {
+            @Override
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {
+                if (isTimeSeriesIndex) {
+                    // TieredMergePolicy is better than LogByteSizeMergePolicy at computing cheaper merges, but it does so by allowing
+                    // itself to merge non-adjacent segments. An important property we get when only merging adjacent segments and data gets
+                    // indexed in order is that segments have non-overlapping time ranges. This means that a range query on the time field
+                    // will only partially match 2 segments at most, and other segments will either fully match or not match at all.
+                    return config.logByteSizeMergePolicy;
+                } else {
+                    return config.tieredMergePolicy;
+                }
+            }
+        },
+        TIERED {
+            @Override
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {
+                return config.tieredMergePolicy;
+            }
+        },
+        LOG_BYTE_SIZE {
+            @Override
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {
+                return config.logByteSizeMergePolicy;
+            }
+        };
+
+        abstract MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeries);
+    }
+
+    public static final Setting<Type> INDEX_MERGE_POLICY_TYPE_SETTING = Setting.enumSetting(
+        Type.class,
+        "index.merge.policy.type",
+        Type.UNSET,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -176,6 +216,7 @@ public final class MergePolicyConfig {
 
     MergePolicyConfig(Logger logger, IndexSettings indexSettings) {
         this.logger = logger;
+        Type mergePolicyType = indexSettings.getValue(INDEX_MERGE_POLICY_TYPE_SETTING);
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
@@ -192,6 +233,7 @@ public final class MergePolicyConfig {
             );
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
+        setMergePolicyType(mergePolicyType);
         setCompoundFormatThreshold(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
         setExpungeDeletesAllowed(forceMergeDeletesPctAllowed);
         setFloorSegmentSetting(floorSegment);
@@ -210,6 +252,10 @@ public final class MergePolicyConfig {
             segmentsPerTier,
             deletesPctAllowed
         );
+    }
+
+    void setMergePolicyType(Type type) {
+        this.mergePolicyType = type;
     }
 
     void setSegmentsPerTier(double segmentsPerTier) {
@@ -276,15 +322,7 @@ public final class MergePolicyConfig {
         if (mergesEnabled == false) {
             return NoMergePolicy.INSTANCE;
         }
-        if (isTimeSeriesIndex) {
-            // TieredMergePolicy is better than LogByteSizeMergePolicy at computing cheaper merges, but it does so by allowing itself to
-            // merge non-adjacent segments. An important property we get when only merging adjacent segments and data gets indexed in order
-            // is that segments have non-overlapping time ranges. This means that a range query on the time field will only partially match
-            // 2 segments at most, and other segments will either fully match or not match at all.
-            return logByteSizeMergePolicy;
-        } else {
-            return tieredMergePolicy;
-        }
+        return mergePolicyType.getMergePolicy(this, isTimeSeriesIndex);
     }
 
     private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {

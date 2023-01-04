@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
@@ -107,6 +108,17 @@ public class MergePolicyConfigTests extends ESTestCase {
         indexSettings.updateIndexMetadata(newIndexMeta("index", build("100mb")));
         assertThat((indexSettings.getMergePolicy(randomBoolean())).getNoCFSRatio(), equalTo(1.0));
         assertThat(indexSettings.getMergePolicy(randomBoolean()).getMaxCFSSegmentSizeMB(), equalTo(100d));
+        indexSettings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(), "tiered").build())
+        );
+        assertThat(indexSettings.getMergePolicy(randomBoolean()), Matchers.instanceOf(TieredMergePolicy.class));
+        indexSettings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(), "log_byte_size").build()
+            )
+        );
+        assertThat(indexSettings.getMergePolicy(randomBoolean()), Matchers.instanceOf(LogByteSizeMergePolicy.class));
     }
 
     public void testTieredMergePolicySettingsUpdate() throws IOException {
@@ -193,7 +205,7 @@ public class MergePolicyConfigTests extends ESTestCase {
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMaxMergeMB(),
-            MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getMbFrac(),
+            MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getMbFrac() / 2,
             0.0001
         );
         indexSettings.updateIndexMetadata(
@@ -214,7 +226,7 @@ public class MergePolicyConfigTests extends ESTestCase {
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMaxMergeMB(),
-            ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(),
+            ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac() / 2,
             0.0001
         );
 
@@ -301,7 +313,7 @@ public class MergePolicyConfigTests extends ESTestCase {
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMaxMergeMB(),
-            ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(),
+            ByteSizeValue.ofBytes(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac() / 2,
             0.0001
         );
         assertEquals(

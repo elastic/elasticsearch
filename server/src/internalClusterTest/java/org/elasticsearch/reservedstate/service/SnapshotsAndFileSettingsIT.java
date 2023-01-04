@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  * cluster state
  */
 @LuceneTestCase.SuppressFileSystems("*")
-public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
+public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testFileSettingsJSON = """

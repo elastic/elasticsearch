@@ -14,36 +14,132 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ActionListenerTests extends ESTestCase {
 
-    public void testWrap() {
+    public void testWrapConsumers() {
         AtomicReference<Boolean> reference = new AtomicReference<>();
         AtomicReference<Exception> exReference = new AtomicReference<>();
 
-        CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> {
-            if (Boolean.FALSE.equals(o)) {
-                throw new IllegalArgumentException("must not be false");
+        ActionListener<Boolean> wrap = ActionListener.wrap(new CheckedConsumer<>() {
+            @Override
+            public void accept(Boolean o) {
+                if (Boolean.FALSE.equals(o)) {
+                    throw new IllegalArgumentException("must not be false");
+                }
+                reference.set(o);
             }
-            reference.set(o);
-        };
-        ActionListener<Boolean> wrap = ActionListener.wrap(handler, exReference::set);
+
+            @Override
+            public String toString() {
+                return "test handler";
+            }
+        }, new Consumer<>() {
+            @Override
+            public void accept(Exception newValue) {
+                exReference.set(newValue);
+            }
+
+            @Override
+            public String toString() {
+                return "test exception handler";
+            }
+        });
+
+        assertEquals("WrappedActionListener{test handler}{test exception handler}", wrap.toString());
+
         wrap.onResponse(Boolean.FALSE);
-        assertNull(reference.get());
-        assertNotNull(exReference.get());
-        assertEquals("must not be false", exReference.get().getMessage());
-        exReference.set(null);
+        assertNull(reference.getAndSet(null));
+        assertEquals("must not be false", exReference.getAndSet(null).getMessage());
 
         wrap.onResponse(Boolean.TRUE);
-        assertTrue(reference.get());
-        assertNull(exReference.get());
+        assertTrue(reference.getAndSet(null));
+        assertNull(exReference.getAndSet(null));
+
+        wrap.onFailure(new RuntimeException("test exception"));
+        assertNull(reference.getAndSet(null));
+        assertEquals("test exception", exReference.getAndSet(null).getMessage());
+    }
+
+    public void testWrapRunnable() {
+        var executed = new AtomicBoolean();
+        var listener = ActionListener.wrap(new Runnable() {
+            @Override
+            public void run() {
+                assertTrue(executed.compareAndSet(false, true));
+            }
+
+            @Override
+            public String toString() {
+                return "test runnable";
+            }
+        });
+
+        assertEquals("RunnableWrappingActionListener{test runnable}", listener.toString());
+
+        listener.onResponse(new Object());
+        assertTrue(executed.getAndSet(false));
+
+        listener.onFailure(new Exception("simulated"));
+        assertTrue(executed.getAndSet(false));
+
+        expectThrows(
+            AssertionError.class,
+            () -> ActionListener.wrap(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
+        );
+    }
+
+    public void testWrapListener() {
+        var succeeded = new AtomicBoolean();
+        var failed = new AtomicBoolean();
+
+        var listener = ActionListener.wrap(new ActionListener<>() {
+            @Override
+            public void onResponse(Object o) {
+                assertTrue(succeeded.compareAndSet(false, true));
+                if (o instanceof RuntimeException e) {
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(failed.compareAndSet(false, true));
+                assertEquals("test exception", e.getMessage());
+                if (e instanceof UnsupportedOperationException uoe) {
+                    throw uoe;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "test listener";
+            }
+        });
+
+        assertEquals("wrapped{test listener}", listener.toString());
+
+        listener.onResponse(new Object());
+        assertTrue(succeeded.getAndSet(false));
+        assertFalse(failed.getAndSet(false));
+
+        listener.onFailure(new RuntimeException("test exception"));
+        assertFalse(succeeded.getAndSet(false));
+        assertTrue(failed.getAndSet(false));
+
+        listener.onResponse(new RuntimeException("test exception"));
+        assertTrue(succeeded.getAndSet(false));
+        assertTrue(failed.getAndSet(false));
     }
 
     public void testOnResponse() {
@@ -207,6 +303,53 @@ public class ActionListenerTests extends ESTestCase {
             assertThat(onResponseTimes.get(), equalTo(0));
             assertThat(onFailureTimes.get(), equalTo(1));
         }
+    }
+
+    public void testConcurrentNotifyOnce() throws InterruptedException {
+        final var completed = new AtomicBoolean();
+        final var listener = ActionListener.notifyOnce(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                assertTrue(completed.compareAndSet(false, true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(completed.compareAndSet(false, true));
+            }
+
+            @Override
+            public String toString() {
+                return "inner-listener";
+            }
+        });
+        assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
+
+        final var threads = new Thread[between(1, 10)];
+        final var startBarrier = new CyclicBarrier(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    startBarrier.await(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                if (randomBoolean()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(new RuntimeException("test"));
+                }
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertTrue(completed.get());
     }
 
     public void testCompleteWith() {

@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugin.api.Inject;
+import org.elasticsearch.plugin.api.settings.AnalysisSettings;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 
@@ -204,10 +206,47 @@ public class StableApiWrappers {
         Environment environment
     ) {
         try {
-            Constructor<T> constructor = clazz.getConstructor();
-            return constructor.newInstance();
-        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalStateException("cannot create instance of " + clazz, e);
+
+            Constructor<?>[] constructors = clazz.getConstructors();
+            if (constructors.length > 1) {
+                throw new IllegalStateException("Plugin can only have one public constructor.");
+            }
+            Constructor<?> constructor = constructors[0];
+            if (constructor.getParameterCount() == 0) {
+                return (T) constructor.newInstance();
+            } else {
+                Inject inject = constructor.getAnnotation(Inject.class);
+                if (inject != null) {
+                    Class<?>[] parameterTypes = constructor.getParameterTypes();
+                    Object[] parameters = new Object[parameterTypes.length];
+                    for (int i = 0; i < parameterTypes.length; i++) {
+                        Object settings = createSettings(parameterTypes[i], indexSettings, nodeSettings, analysisSettings, environment);
+                        parameters[i] = settings;
+                    }
+                    return (T) constructor.newInstance(parameters);
+                } else {
+                    throw new IllegalStateException("Missing @Inject annotation for constructor with settings.");
+                }
+            }
+
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Cannot create instance of " + clazz, e);
         }
+
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static <T> T createSettings(
+        Class<T> settingsClass,
+        IndexSettings indexSettings,
+        Settings nodeSettings,
+        Settings analysisSettings,
+        Environment environment
+    ) {
+        if (settingsClass.getAnnotationsByType(AnalysisSettings.class).length > 0) {
+            return SettingsInvocationHandler.create(analysisSettings, settingsClass, environment);
+        }
+
+        throw new IllegalArgumentException("Parameter is not instance of a class annotated with settings annotation.");
     }
 }

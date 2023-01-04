@@ -24,7 +24,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
@@ -259,7 +258,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
-    @TestLogging(value = "org.elasticsearch.monitor.fs.FsService:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/91083")
     public void testScaleWhileShrinking() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();

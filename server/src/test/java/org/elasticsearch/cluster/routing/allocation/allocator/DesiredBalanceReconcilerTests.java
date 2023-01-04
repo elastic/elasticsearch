@@ -85,7 +85,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -883,8 +882,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
         final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
-        assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
-        assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
 
         // Ensuring that we check the shortcut two-param canAllocate() method up front
         canAllocateRef.set(Decision.NO);
@@ -925,7 +924,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             "test",
             ActionListener.noop()
         );
-        assertThat(shuttingDownState.getRoutingNodes().node("node-2").shardsWithState(ShardRoutingState.INITIALIZING), hasSize(1));
+        assertThat(shuttingDownState.getRoutingNodes().node("node-2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
     }
 
     public void testRebalance() {
@@ -1011,8 +1010,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
         final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
-        assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
-        assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
     }
 
     public void testDoNotRebalanceToTheNodeThatNoLongerExists() {

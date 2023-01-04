@@ -979,7 +979,7 @@ overall time, the breakdown is inclusive of all children times.
 ===== Profiling Fetch
 
 All shards that fetched documents will have a `fetch` section in the profile.
-Let's execute a small search and have a look a the fetch profile:
+Let's execute a small search and have a look at the fetch profile:
 
 [source,console]
 ----

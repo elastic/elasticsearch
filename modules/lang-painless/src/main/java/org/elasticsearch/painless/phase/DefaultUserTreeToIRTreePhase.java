@@ -15,6 +15,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -759,17 +760,24 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irForEachSubIterableNode.setBlockNode(irBlockNode);
             irForEachSubIterableNode.attachDecoration(new IRDVariableType(variable.type()));
             irForEachSubIterableNode.attachDecoration(new IRDVariableName(variable.name()));
-            irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
             irForEachSubIterableNode.attachDecoration(new IRDIterableName("#itr" + userEachNode.getLocation().getOffset()));
 
             if (iterableValueType != def.class) {
+                irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
                 irForEachSubIterableNode.attachDecoration(
                     new IRDMethod(scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class).iterablePainlessMethod())
                 );
-            }
 
-            if (painlessCast != null) {
-                irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+                if (painlessCast != null) {
+                    irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+                }
+            } else {
+                // use ValueIterator as we could be iterating over an array directly
+                irForEachSubIterableNode.attachDecoration(new IRDIterableType(ValueIterator.class));
+
+                if (painlessCast != null && variable.type().isPrimitive() == false) {
+                    irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+                }
             }
 
             irConditionNode = irForEachSubIterableNode;
@@ -905,7 +913,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irCompoundNode = stringConcatenationNode;
 
                 // must handle the StringBuilder case for java version <= 8
-                if (irLoadNode instanceof BinaryImplNode bin && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
+                if (irLoadNode instanceof BinaryImplNode bin && WriterConstants.STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
                     bin.getLeftNode().attachDecoration(new IRDDepth(1));
                 }
                 // handles when the operation is mathematical

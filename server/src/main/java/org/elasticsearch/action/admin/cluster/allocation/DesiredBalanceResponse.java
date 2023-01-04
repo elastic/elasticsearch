@@ -15,7 +15,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContent {
+public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final DesiredBalanceStats stats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
@@ -60,21 +60,21 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
-        return Iterators.concat(Iterators.single((builder, params) -> {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(Iterators.single((builder, p) -> {
             builder.startObject();
             builder.startObject("stats");
-            stats.toXContent(builder, params);
+            stats.toXContent(builder, p);
             builder.endObject();
             return builder.startObject("routing_table");
-        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
+        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
             builder.startObject(indexEntry.getKey());
             for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
                 builder.field(String.valueOf(shardEntry.getKey()));
-                shardEntry.getValue().toXContent(builder, params);
+                shardEntry.getValue().toXContent(builder, p);
             }
             return builder.endObject();
-        }).iterator(), Iterators.single((builder, params) -> builder.endObject().endObject()));
+        }).iterator(), Iterators.single((builder, p) -> builder.endObject().endObject()));
     }
 
     public DesiredBalanceStats getStats() {

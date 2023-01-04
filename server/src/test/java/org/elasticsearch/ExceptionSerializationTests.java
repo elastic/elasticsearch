@@ -69,7 +69,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
@@ -87,7 +86,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -118,7 +116,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -392,13 +389,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("aliases [one, two, three] missing", ex.getMessage());
         assertEquals("aliases", ex.getResourceType());
         assertArrayEquals(new String[] { "one", "two", "three" }, ex.getResourceId().toArray(new String[0]));
-    }
-
-    public void testSearchParseException() throws IOException {
-        SearchParseException ex = serialize(new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(66, 666)));
-        assertEquals("foo", ex.getMessage());
-        assertEquals(66, ex.getLineNumber());
-        assertEquals(666, ex.getColumnNumber());
     }
 
     public void testIllegalIndexShardStateException() throws IOException {
@@ -740,7 +730,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
         ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
         ids.put(71, org.elasticsearch.action.FailedNodeException.class);
-        ids.put(72, org.elasticsearch.search.SearchParseException.class);
+        ids.put(72, null); // was SearchParseException, only used in tests since 7.11
         ids.put(73, org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class);
         ids.put(74, org.elasticsearch.common.blobstore.BlobStoreException.class);
         ids.put(75, org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class);

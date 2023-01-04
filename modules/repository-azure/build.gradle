@@ -13,7 +13,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 
@@ -23,21 +23,21 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.16.0',
-  'azureCommon': '12.15.1',
-  'azureCore': '1.27.0',
-  'azureCoreHttpNetty': '1.11.9',
-  'azureJackson': '2.13.2',
-  'azureJacksonDatabind': '2.13.2.2',
+  'azure': '12.20.1',
+  'azureCommon': '12.19.1',
+  'azureCore': '1.34.0',
+  'azureCoreHttpNetty': '1.12.7',
+  'azureJackson': '2.13.4',
+  'azureJacksonDatabind': '2.13.4.2',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
   'stax2API': '4.2.1',
-  'woodstox': '6.2.7',
+  'woodstox': '6.4.0',
 
-  'reactorNetty': '1.0.15',
-  'reactorCore': '3.4.14',
-  'reactiveStreams': '1.0.3',
+  'reactorNetty': '1.0.24',
+  'reactorCore': '3.4.23',
+  'reactiveStreams': '1.0.4',
 ]
 
 dependencies {
@@ -119,7 +119,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoders',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 

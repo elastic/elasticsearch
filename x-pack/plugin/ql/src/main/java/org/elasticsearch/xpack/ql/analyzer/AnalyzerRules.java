@@ -124,19 +124,21 @@ public final class AnalyzerRules {
     }
 
     public static Function resolveFunction(UnresolvedFunction uf, Configuration configuration, FunctionRegistry functionRegistry) {
+        Function f = null;
         if (uf.analyzed()) {
-            return uf;
+            f = uf;
+        } else if (uf.childrenResolved() == false) {
+            f = uf;
+        } else {
+            String functionName = functionRegistry.resolveAlias(uf.name());
+            if (functionRegistry.functionExists(functionName) == false) {
+                f = uf.missing(functionName, functionRegistry.listFunctions());
+            } else {
+                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                f = uf.buildResolved(configuration, def);
+            }
         }
-        if (uf.childrenResolved() == false) {
-            return uf;
-        }
-
-        String functionName = functionRegistry.resolveAlias(uf.name());
-        if (functionRegistry.functionExists(functionName) == false) {
-            return uf.missing(functionName, functionRegistry.listFunctions());
-        }
-        FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-        return uf.buildResolved(configuration, def);
+        return f;
     }
 
     public static List<Attribute> maybeResolveAgainstList(

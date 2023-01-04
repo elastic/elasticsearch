@@ -133,7 +133,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        } catch (MapperParsingException e) {
+        } catch (Exception e) {
             // Random geometry generator created something other than a POINT type, verify the correct exception is thrown
             assertThat(e.getMessage(), containsString("is configured for points only"));
             return;

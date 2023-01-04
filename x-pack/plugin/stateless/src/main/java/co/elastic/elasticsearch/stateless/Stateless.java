@@ -8,6 +8,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -23,14 +25,21 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +47,8 @@ import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -46,7 +57,9 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class Stateless extends Plugin implements EnginePlugin {
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+
+public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -113,11 +126,39 @@ public class Stateless extends Plugin implements EnginePlugin {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
             indexModule.setIndexCommitListener(createIndexCommitListener());
         }
-        // register a default listener when the shard is created in order to know the shard id and primary term
         indexModule.addIndexEventListener(new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
+                if (indexShard.recoveryState().getPrimary() == false) {
+                    final Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        // creates a new empty Lucene index
+                        Lucene.cleanLuceneIndex(store.directory());
+                        // TODO Download files from object store here and only create an empty store if no blobs are downloaded
+                        store.createEmpty();
+                        // not required but avoid annoying warnings in logs
+                        final String translogUUID = Translog.createEmptyTranslog(
+                            indexShard.shardPath().resolveTranslog(),
+                            indexShard.shardId(),
+                            SequenceNumbers.NO_OPS_PERFORMED,
+                            indexShard.getPendingPrimaryTerm(),
+                            "_na_",
+                            null
+                        );
+                        store.associateIndexWithNewTranslog(translogUUID);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Failed to create empty Lucene index", e);
+                    } finally {
+                        store.decRef();
+                    }
+                }
+            }
+
             @Override
             public void afterIndexShardCreated(IndexShard indexShard) {
                 final StatelessDirectory directory = StatelessDirectory.unwrapDirectory(indexShard.store().directory());
+                // register a default listener when the shard is created in order to log all operations on Lucene files
                 directory.addListener(new DefaultDirectoryListener(indexShard.shardId(), indexShard::getOperationPrimaryTerm));
             }
         });
@@ -145,6 +186,51 @@ public class Stateless extends Plugin implements EnginePlugin {
             @Override
             public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
         };
+    }
+
+    @Override
+    public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+        return Optional.of(
+            (
+                shardId,
+                shardStateIdentifier,
+                sourceMetadata,
+                targetMetadata,
+                startingSeqNo,
+                translogOps,
+                targetVersion,
+                useSnapshots,
+                primaryRelocation,
+                listener) -> {
+                if (primaryRelocation) {
+                    // TODO index/primary shards should also use object store instead of file based recovery
+                    ActionListener.completeWith(listener, () -> {
+                        Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(targetMetadata);
+                        return new ShardRecoveryPlan(
+                            ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
+                            concatLists(diff.missing, diff.different),
+                            diff.identical,
+                            startingSeqNo,
+                            translogOps,
+                            sourceMetadata
+                        );
+                    });
+                } else {
+                    // create an empty recovery plan for search/replica shards
+                    ActionListener.completeWith(
+                        listener,
+                        () -> new ShardRecoveryPlan(
+                            ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY, // no files to recovery from snapshot
+                            List.of(), // no files to recover from peer
+                            List.of(), // no files in target too
+                            startingSeqNo,
+                            translogOps,
+                            sourceMetadata
+                        )
+                    );
+                }
+            }
+        );
     }
 
     /**

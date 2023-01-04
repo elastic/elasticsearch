@@ -2,6 +2,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -10,6 +11,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+/**
+ * {@link Engine} implementation for index shards
+ */
 public class IndexEngine extends InternalEngine {
 
     public static final Setting<TimeValue> INDEX_FLUSH_INTERVAL_SETTING = Setting.timeSetting(

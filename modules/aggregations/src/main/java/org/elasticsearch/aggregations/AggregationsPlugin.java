@@ -52,7 +52,9 @@ public class AggregationsPlugin extends Plugin implements ExtensiblePlugin, Sear
                 AutoDateHistogramAggregationBuilder::new,
                 AutoDateHistogramAggregationBuilder.PARSER
             ).addResultReader(InternalAutoDateHistogram::new)
-                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators),
+                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators)
+        );
+        specs.add(
             new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
                 .addResultReader(InternalComposite::new)
                 .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators)

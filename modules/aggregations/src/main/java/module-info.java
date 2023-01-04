@@ -13,6 +13,7 @@ module org.elasticsearch.aggs {
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.aggregations.bucket.histogram;
     exports org.elasticsearch.aggregations.bucket.adjacency;

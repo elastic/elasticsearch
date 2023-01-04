@@ -92,6 +92,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MapMatcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -115,6 +116,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -3406,6 +3409,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             fooMapping
         );
     }
+
+    private void assertMap(Map<String, Map<String, Object>> debug, MapMatcher name) {}
 
     public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndDescendingOrder() throws Exception {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(

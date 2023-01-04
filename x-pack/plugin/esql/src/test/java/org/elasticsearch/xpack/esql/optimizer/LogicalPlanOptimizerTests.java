@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -62,6 +63,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class LogicalPlanOptimizerTests extends ESTestCase {
 
@@ -352,6 +354,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit2 = as(filter.child(), Limit.class);
         assertTrue(limit2.child() instanceof EsRelation);
+    }
+
+    public void testPushDownFilterPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | project x = emp_no
+            | where x > 10""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
+        assertThat(as(attr, FieldAttribute.class).name(), is("emp_no"));
+    }
+
+    public void testPushDownFilterPastProjectUsingEval() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval y = emp_no + 1
+            | project x = y
+            | where x > 10""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
+        assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
+        var eval = as(filter.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
     }
 
     public void testPushDownLimitPastEval() {

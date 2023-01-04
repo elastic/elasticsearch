@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
@@ -236,30 +237,34 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             if (child instanceof Filter f) {
                 // combine nodes into a single Filter with updated ANDed condition
                 plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
-            } else if (child instanceof UnaryPlan unary) {
-                if (unary instanceof Aggregate agg) { // TODO: re-evaluate along with multi-value support
-                    // Only push [parts of] a filter past an agg if these/it operates on agg's grouping[s], not output.
-                    plan = maybePushDownPastUnary(
-                        filter,
-                        agg,
-                        e -> e instanceof Attribute && agg.output().contains(e) && agg.groupings().contains(e) == false
-                            || e instanceof AggregateFunction
-                    );
-                } else if (unary instanceof Eval eval) {
-                    // Don't push if Filter (still) contains references of Eval's fields.
-                    List<Attribute> attributes = new ArrayList<>(eval.fields().size());
-                    for (NamedExpression ne : eval.fields()) {
-                        attributes.add(ne.toAttribute());
-                    }
-                    plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
-                } else { // Project, OrderBy, Limit
-                    if (unary instanceof Project || unary instanceof OrderBy) {
-                        // swap the filter with its child
-                        plan = unary.replaceChild(filter.with(unary.child(), condition));
-                    }
-                    // cannot push past a Limit, this could change the tailing result set returned
+            } else if (child instanceof Aggregate agg) { // TODO: re-evaluate along with multi-value support
+                // Only push [parts of] a filter past an agg if these/it operates on agg's grouping[s], not output.
+                plan = maybePushDownPastUnary(
+                    filter,
+                    agg,
+                    e -> e instanceof Attribute && agg.output().contains(e) && agg.groupings().contains(e) == false
+                        || e instanceof AggregateFunction
+                );
+            } else if (child instanceof Eval eval) {
+                // Don't push if Filter (still) contains references of Eval's fields.
+                List<Attribute> attributes = new ArrayList<>(eval.fields().size());
+                for (NamedExpression ne : eval.fields()) {
+                    attributes.add(ne.toAttribute());
                 }
+                plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
+            } else if (child instanceof Project project) {
+                // resolve aliases and push down
+                AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
+                project.forEachExpression(Alias.class, a -> { aliasesBuilder.put(a.toAttribute(), a.child()); });
+                AttributeMap<Expression> aliases = aliasesBuilder.build();
+
+                var conditionWithResolvedAliases = filter.condition().transformUp(ReferenceAttribute.class, r -> aliases.resolve(r, r));
+                plan = project.replaceChild(filter.with(project.child(), conditionWithResolvedAliases));
+            } else if (child instanceof OrderBy orderBy) {
+                // swap the filter with its child
+                plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
             }
+            // cannot push past a Limit, this could change the tailing result set returned
             return plan;
         }
 

@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
-    private final static TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2); // default
+    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2); // default
 
     DataStreamIndexSettingsProvider provider;
 

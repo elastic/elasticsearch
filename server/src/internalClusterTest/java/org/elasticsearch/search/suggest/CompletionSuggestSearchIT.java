@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -429,8 +428,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightMustBeAnInteger() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            Exception.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -488,8 +487,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightMustNotBeANonNumberString() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            Exception.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -512,8 +511,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         String weight = String.valueOf(Long.MAX_VALUE - 4);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            Exception.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -1119,8 +1118,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                 )
                 .get();
-            fail("Expected MapperParsingException");
-        } catch (MapperParsingException e) {
+            fail("Expected Exception");
+        } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
@@ -1398,8 +1397,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         );
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            Exception.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(

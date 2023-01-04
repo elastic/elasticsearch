@@ -277,7 +277,7 @@ public class TaskManager implements ClusterStateApplier {
      * Unregister the task
      */
     public Task unregister(Task task) {
-        logger.debug("unregister task for id: {}", task.getId());
+        logger.trace("unregister task for id: {}", task.getId());
         try {
             if (task instanceof CancellableTask) {
                 CancellableTaskHolder holder = cancellableTasks.remove(task);

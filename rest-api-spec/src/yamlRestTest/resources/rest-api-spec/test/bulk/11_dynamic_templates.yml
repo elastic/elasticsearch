@@ -1,8 +1,8 @@
 ---
 "Dynamic templates":
   - skip:
-      version: " - 8.1.0"
-      reason: "Error message has changed in 8.1.0"
+      version: " - 8.7.0"
+      reason: "Exception type has changed in 8.7.0"
 
   - do:
       indices.create:
@@ -140,10 +140,10 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: document_parsing_exception }
-  - match: { items.0.index.error.reason: "Can't find dynamic template for dynamic template name [bar_foo] of field [foo_location]"}
+  - match: { items.0.index.error.reason: "[-1:-1] failed to parse: Can't find dynamic template for dynamic template name [bar_foo] of field [foo_location]"}
   - match: { items.1.index.status: 400 }
   - match: { items.1.index.error.type: document_parsing_exception }
-  - match: { items.1.index.error.reason: "Can't find dynamic template for dynamic template name [foo_bar] of field [foo_location]"}
+  - match: { items.1.index.error.reason: "[-1:-1] failed to parse: Can't find dynamic template for dynamic template name [foo_bar] of field [foo_location]"}
   - match: { items.2.index.status: 201 }
   - match: { items.2.index.result: created }
 

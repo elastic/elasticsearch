@@ -271,8 +271,8 @@ runtime field matching routing path:
 ---
 "dynamic: false matches routing_path":
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.7.0"
+      reason: error message changed in 8.7.0
 
   - do:
       indices.create:

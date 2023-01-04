@@ -381,7 +381,8 @@ public class HistogramFieldMapper extends FieldMapper {
                 throw new DocumentParsingException(
                     context.parser().getTokenLocation(),
                     "failed to parse field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "]",
-                    ex);
+                    ex
+                );
             }
 
             if (subParser != null) {

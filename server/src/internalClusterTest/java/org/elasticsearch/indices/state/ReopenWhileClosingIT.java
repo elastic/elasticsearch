@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.state;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -45,7 +44,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92629")
 public class ReopenWhileClosingIT extends ESIntegTestCase {
 
     @Override
@@ -81,11 +79,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     }
 
     public void testReopenDuringCloseOnMultipleIndices() throws Exception {
-        // need two management threads here since we're blocking one below
-        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(
-            randomIntBetween(2, 3),
-            Settings.builder().put("thread_pool.management.core", 2).put("thread_pool.management.max", 2).build()
-        );
+        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(randomIntBetween(2, 3));
         final List<String> indices = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             indices.add("index-" + i);

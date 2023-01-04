@@ -7,8 +7,17 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,21 +30,31 @@ import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MergePolicySettingsTests extends ESTestCase {
+public class MergePolicyConfigTests extends ESTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     public void testCompoundFileSettings() throws IOException {
-        assertThat(new MergePolicyConfig(logger, indexSettings(Settings.EMPTY)).getMergePolicy().getNoCFSRatio(), equalTo(0.1));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build(true))).getMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build(0.5))).getMergePolicy().getNoCFSRatio(), equalTo(0.5));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build(1.0))).getMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build("true"))).getMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build("True"))).getMergePolicy().getNoCFSRatio(), equalTo(1.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build("False"))).getMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build("false"))).getMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build(false))).getMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build(0))).getMergePolicy().getNoCFSRatio(), equalTo(0.0));
-        assertThat(new MergePolicyConfig(logger, indexSettings(build(0.0))).getMergePolicy().getNoCFSRatio(), equalTo(0.0));
+        assertCompoundThreshold(Settings.EMPTY, 1.0, ByteSizeValue.ofGb(1));
+        assertCompoundThreshold(build(true), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(0.5), 0.5, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(1.0), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build("true"), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build("True"), 1.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build("False"), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build("false"), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(false), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(0.0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(0.0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build("100MB"), 1.0, ByteSizeValue.ofMb(100));
+        assertCompoundThreshold(build("0MB"), 1.0, ByteSizeValue.ofBytes(0));
+        assertCompoundThreshold(build("0B"), 1.0, ByteSizeValue.ofBytes(0));
+    }
+
+    private void assertCompoundThreshold(Settings settings, double noCFSRatio, ByteSizeValue maxCFSSize) {
+        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy();
+        assertThat(mp.getNoCFSRatio(), equalTo(noCFSRatio));
+        assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(maxCFSSize.getMbFrac()));
     }
 
     private static IndexSettings indexSettings(Settings settings) {
@@ -52,17 +71,26 @@ public class MergePolicySettingsTests extends ESTestCase {
 
     public void testUpdateSettings() throws IOException {
         IndexSettings indexSettings = indexSettings(Settings.EMPTY);
-        assertThat(indexSettings.getMergePolicy().getNoCFSRatio(), equalTo(0.1));
+        assertThat(indexSettings.getMergePolicy().getNoCFSRatio(), equalTo(1.0));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(1024d));
         indexSettings = indexSettings(build(0.9));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.9));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac()));
         indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.1)));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.1));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac()));
         indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.0)));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.0));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac()));
         indexSettings.updateIndexMetadata(newIndexMeta("index", build("true")));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(1.0));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac()));
         indexSettings.updateIndexMetadata(newIndexMeta("index", build("false")));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.0));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofBytes(Long.MAX_VALUE).getMbFrac()));
+        indexSettings.updateIndexMetadata(newIndexMeta("index", build("100mb")));
+        assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(1.0));
+        assertThat(indexSettings.getMergePolicy().getMaxCFSSegmentSizeMB(), equalTo(100d));
     }
 
     public void testTieredMergePolicySettingsUpdate() throws IOException {
@@ -242,4 +270,43 @@ public class MergePolicySettingsTests extends ESTestCase {
         return Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), value).build();
     }
 
+    private Settings build(ByteSizeValue value) {
+        return Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), value).build();
+    }
+
+    public void testCompoundFileConfiguredByByteSize() throws IOException {
+        try (Directory dir = newDirectory()) {
+            // index.compound_format: 1gb, the merge will use a compound file
+            MergePolicy mp = new MergePolicyConfig(logger, indexSettings(Settings.EMPTY)).getMergePolicy();
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setMergePolicy(mp))) {
+                w.addDocument(new Document());
+                w.flush();
+                w.addDocument(new Document());
+                w.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                SegmentCommitInfo sci = ((SegmentReader) leaf).getSegmentInfo();
+                assertEquals(IndexWriter.SOURCE_MERGE, sci.info.getDiagnostics().get(IndexWriter.SOURCE));
+                assertTrue(sci.info.getUseCompoundFile());
+            }
+        }
+
+        // index.compound_format: 1b, the merge will not use a compound file
+        try (Directory dir = newDirectory()) {
+            MergePolicy mp = new MergePolicyConfig(logger, indexSettings(build("1b"))).getMergePolicy();
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setMergePolicy(mp))) {
+                w.addDocument(new Document());
+                w.flush();
+                w.addDocument(new Document());
+                w.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                SegmentCommitInfo sci = ((SegmentReader) leaf).getSegmentInfo();
+                assertEquals(IndexWriter.SOURCE_MERGE, sci.info.getDiagnostics().get(IndexWriter.SOURCE));
+                assertFalse(sci.info.getUseCompoundFile());
+            }
+        }
+    }
 }

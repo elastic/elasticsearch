@@ -33,7 +33,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -101,7 +100,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         if (request.isCompatibleWithVersion(minNodeVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in version: " + minNodeVersion
+                    "Unable to use processor ranges, floating-point (with greater precision) processors "
+                        + "in mixed-clusters with nodes in version: "
+                        + minNodeVersion
                 )
             );
             return;
@@ -125,7 +126,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
 
         if (latestDesiredNodes != null) {
-            if (latestDesiredNodes.equals(proposedDesiredNodes)) {
+            if (latestDesiredNodes.equalsWithProcessorsCloseTo(proposedDesiredNodes)) {
                 return latestDesiredNodes;
             }
 
@@ -177,10 +178,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         }
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
-            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
+        public ClusterState execute(BatchExecutionContext<UpdateDesiredNodesTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(initialState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
-            for (final var taskContext : taskContexts) {
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final UpdateDesiredNodesRequest request = taskContext.getTask().request();
                 if (request.isDryRun()) {
                     try {
@@ -192,7 +194,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                     continue;
                 }
                 final var previousDesiredNodes = desiredNodes;
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     desiredNodes = updateDesiredNodes(desiredNodes, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
@@ -205,12 +207,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 );
             }
 
-            desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState.nodes(), desiredNodes);
+            desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(initialState.nodes(), desiredNodes);
 
             if (desiredNodes == initialDesiredNodes) {
-                return currentState;
+                return initialState;
             } else {
-                final ClusterState withUpdatedDesiredNodes = replaceDesiredNodes(currentState, desiredNodes);
+                final ClusterState withUpdatedDesiredNodes = replaceDesiredNodes(initialState, desiredNodes);
                 return allocationService.adaptAutoExpandReplicas(withUpdatedDesiredNodes);
             }
         }

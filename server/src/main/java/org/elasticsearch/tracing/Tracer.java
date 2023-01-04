@@ -47,10 +47,22 @@ public interface Tracer {
     void startTrace(ThreadContext threadContext, String id, String name, Map<String, Object> attributes);
 
     /**
+     * Called when a span starts. This version of the method relies on context to assign the span a parent.
+     * @param name the name of the span. Sent to the tracing system
+     * @param attributes
+     */
+    void startTrace(String name, Map<String, Object> attributes);
+
+    /**
      * Called when a span ends.
      * @param id an identifier for the span
      */
     void stopTrace(String id);
+
+    /**
+     * Called when a span ends. This version of the method relies on context to select the span to stop.
+     */
+    void stopTrace();
 
     /**
      * Some tracing implementations support the concept of "events" within a span, marking a point in time during the span
@@ -141,7 +153,13 @@ public interface Tracer {
         public void startTrace(ThreadContext threadContext, String id, String name, Map<String, Object> attributes) {}
 
         @Override
+        public void startTrace(String name, Map<String, Object> attributes) {}
+
+        @Override
         public void stopTrace(String id) {}
+
+        @Override
+        public void stopTrace() {}
 
         @Override
         public void addEvent(String id, String eventName) {}

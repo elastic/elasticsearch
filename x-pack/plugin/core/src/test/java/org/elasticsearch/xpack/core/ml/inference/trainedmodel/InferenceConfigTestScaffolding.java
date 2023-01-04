@@ -7,7 +7,21 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
+
 public final class InferenceConfigTestScaffolding {
+
+    static Tokenization mutateTokenizationForVersion(Tokenization tokenization, Version version) {
+        if (tokenization instanceof BertTokenization bertTokenization) {
+            return BertTokenizationTests.mutateForVersion(bertTokenization, version);
+        } else if (tokenization instanceof MPNetTokenization mpNetTokenization) {
+            return MPNetTokenizationTests.mutateForVersion(mpNetTokenization, version);
+        } else if (tokenization instanceof RobertaTokenization robertaTokenization) {
+            return RobertaTokenizationTests.mutateForVersion(robertaTokenization, version);
+        } else {
+            throw new IllegalArgumentException("unknown tokenization [" + tokenization.getName() + "]");
+        }
+    }
 
     static Tokenization cloneWithNewTruncation(Tokenization tokenization, Tokenization.Truncate truncate) {
         if (tokenization instanceof MPNetTokenization) {

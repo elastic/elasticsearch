@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -58,8 +59,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -91,7 +92,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataService;
+    private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -170,7 +171,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardRequestIndex,
             source.indexSettings,
             source.bitsetFilterCache,
-            source.indexFieldDataService,
+            source.indexFieldDataLookup,
             source.mapperService,
             source.mappingLookup,
             source.similarityService,
@@ -218,7 +219,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.indexFieldDataService = indexFieldDataLookup;
+        this.indexFieldDataLookup = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
         this.scriptService = scriptService;
@@ -278,10 +279,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FielddataOperation fielddataOperation) {
+        return (IFD) indexFieldDataLookup.apply(
             fieldType,
-            new FieldDataContext(fullyQualifiedIndex.getName(), () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()))
+            new FieldDataContext(
+                fullyQualifiedIndex.getName(),
+                () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
+                this::sourcePath,
+                fielddataOperation
+            )
         );
     }
 
@@ -385,8 +391,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.sourcePaths(fullName);
     }
 
+    /**
+     * Will there be {@code _source}.
+     */
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
+    }
+
+    /**
+     * Does the source need to be rebuilt on the fly?
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
     }
 
     /**
@@ -410,7 +426,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(MapperBuilderContext.ROOT);
+        Mapper mapper = builder.build(MapperBuilderContext.root(false));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper) mapper).fieldType();
         }
@@ -455,7 +471,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(MapperBuilderContext.ROOT).fieldType();
+            return builder.build(MapperBuilderContext.root(false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -475,12 +491,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
+            SourceLookup.SourceProvider sourceProvider = mappingLookup == null
+                ? new SourceLookup.ReaderSourceProvider()
+                : mappingLookup.getSourceProvider();
             this.lookup = new SearchLookup(
                 this::getFieldType,
-                (fieldType, searchLookup) -> indexFieldDataService.apply(
+                (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                     fieldType,
-                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup)
-                )
+                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
+                ),
+                sourceProvider
             );
         }
         return this.lookup;
@@ -624,10 +644,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
-        return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-    }
-
     @Override
     public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
@@ -711,6 +727,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
+        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 }

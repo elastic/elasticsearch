@@ -1,6 +1,0 @@
-pr: 88622
-summary: Use origin for the client when running _features/_reset
-area: Infra/Core
-type: bug
-issues:
- - 88617

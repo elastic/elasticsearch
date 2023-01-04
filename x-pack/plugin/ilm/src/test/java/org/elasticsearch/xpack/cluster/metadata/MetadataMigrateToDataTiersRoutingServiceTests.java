@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -1551,7 +1552,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getWarmPhaseDef() {
-        return """
+        return Strings.format("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1573,11 +1574,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
               },
               "version": 1,
               "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+            }""", lifecycleName);
     }
 
     private String getColdPhaseDefinitionWithTotalShardsPerNode() {
-        return """
+        return Strings.format("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1593,11 +1594,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
               },
               "version": 1,
               "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+            }""", lifecycleName);
     }
 
     private String getColdPhaseDefinition() {
-        return """
+        return Strings.format("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1613,7 +1614,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
               },
               "version": 1,
               "modified_date_in_millis": 1578521007076
-            }""".formatted(lifecycleName);
+            }""", lifecycleName);
     }
 
     @SuppressWarnings("unchecked")

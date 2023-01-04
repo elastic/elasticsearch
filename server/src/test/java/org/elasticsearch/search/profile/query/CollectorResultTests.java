@@ -10,7 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -23,7 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public class CollectorResultTests extends AbstractSerializingTestCase<CollectorResult> {
+public class CollectorResultTests extends AbstractXContentSerializingTestCase<CollectorResult> {
     public static CollectorResult createTestItem(int depth) {
         String name = randomAlphaOfLengthBetween(5, 10);
         String reason = randomAlphaOfLengthBetween(5, 10);

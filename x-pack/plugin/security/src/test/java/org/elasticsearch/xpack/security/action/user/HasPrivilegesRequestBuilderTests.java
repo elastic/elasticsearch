@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -92,8 +93,8 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testParseValidJsonWithJustClusterPrivileges() throws Exception {
-        String json = """
-            { "cluster": [ "manage","%s","%s"] }""".formatted(ClusterHealthAction.NAME, ClusterStatsAction.NAME);
+        String json = Strings.format("""
+            { "cluster": [ "manage","%s","%s"] }""", ClusterHealthAction.NAME, ClusterStatsAction.NAME);
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);

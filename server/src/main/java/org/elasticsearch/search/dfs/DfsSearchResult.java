@@ -19,6 +19,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,6 +34,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
     private DfsKnnResults knnResults;
     private int maxDoc;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
@@ -55,6 +57,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             knnResults = in.readOptionalWriteable(DfsKnnResults::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
 
@@ -89,6 +94,11 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public DfsSearchResult profileResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
+        return this;
+    }
+
     public Term[] terms() {
         return terms;
     }
@@ -103,6 +113,10 @@ public class DfsSearchResult extends SearchPhaseResult {
 
     public DfsKnnResults knnResults() {
         return knnResults;
+    }
+
+    public SearchProfileDfsPhaseResult searchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
     }
 
     @Override
@@ -120,6 +134,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeOptionalWriteable(knnResults);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
     }
 

@@ -1,5 +1,0 @@
-pr: 87999
-summary: Fix unique realm name check to cover default realms
-area: Authentication
-type: bug
-issues: []

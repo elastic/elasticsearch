@@ -35,7 +35,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -90,7 +89,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "logs-*",
                     "metrics-*",
                     "traces-*",
-                    "synthetics-*",
                     ".logs-endpoint.diagnostic.collection-*",
                     ".logs-endpoint.action.responses-*"
                   ],
@@ -125,6 +123,18 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "maintenance"
                   ],
                   "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    "synthetics-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {
@@ -154,17 +164,21 @@ public class ServiceAccountIT extends ESRestTestCase {
                 {
                     "names": [
                         "search-*",
+                        ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
                         "enterprise-search-*",
                         "logs-app_search.analytics-default",
+                        "logs-elastic_analytics.events-*",
                         "logs-enterprise_search.api-default",
                         "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",
                         "logs-crawler-default",
+                        "logs-elastic_crawler-default",
                         "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default"
+                        "logs-workplace_search.content_events-default",
+                        ".elastic-connectors*"
                     ],
                     "privileges": [
                         "manage",
@@ -266,7 +280,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "token1", "file")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -313,9 +327,9 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity("""
+        refreshTokenRequest.setJsonEntity(Strings.format("""
             {"grant_type":"refresh_token","refresh_token":"%s"}
-            """.formatted(refreshToken));
+            """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
         assertOK(refreshTokenResponse);
     }
@@ -358,7 +372,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -505,8 +519,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity("""
-            {"ids":["%s"],"owner":true}""".formatted(apiKeyId1));
+        invalidateApiKeysRequest.setJsonEntity(Strings.format("""
+            {"ids":["%s"],"owner":true}""", apiKeyId1));
         invalidateApiKeysRequest.setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);

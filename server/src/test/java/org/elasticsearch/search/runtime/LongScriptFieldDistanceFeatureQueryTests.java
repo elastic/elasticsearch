@@ -17,10 +17,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -68,17 +70,18 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null);
+                SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
                     searchLookup,
                     null,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
                     public void execute() {
-                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
+                        for (Object timestamp : (List<?>) searchLookup.source().source().get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

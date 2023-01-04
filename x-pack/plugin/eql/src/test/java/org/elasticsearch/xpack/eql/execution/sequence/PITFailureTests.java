@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Timestamp;
@@ -78,6 +78,7 @@ public class PITFailureTests extends ESTestCase {
                 TimeValue.timeValueSeconds(30),
                 null,
                 123,
+                1,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -90,8 +91,7 @@ public class PITFailureTests extends ESTestCase {
                     emptyMap(),
                     new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
                     TimeValue.timeValueDays(5)
-                ),
-                x -> emptySet()
+                )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
             CircuitBreaker cb = new NoopCircuitBreaker("testcb");
@@ -108,9 +108,9 @@ public class PITFailureTests extends ESTestCase {
                 cb
             );
             QueryClient eqlClient = new PITAwareQueryClient(eqlSession);
-            List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>();
+            List<SequenceCriterion> criteria = new ArrayList<>();
             criteria.add(
-                new Criterion<>(
+                new SequenceCriterion(
                     0,
                     new BoxedQueryRequest(
                         () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(0),

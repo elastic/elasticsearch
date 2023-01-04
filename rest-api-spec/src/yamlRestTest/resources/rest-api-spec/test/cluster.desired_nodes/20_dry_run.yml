@@ -109,3 +109,25 @@ teardown:
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Nodes with ids [instance-000245] in positions [0] contain invalid settings" }
   - match: { error.suppressed.0.reason: "unknown setting [random_setting] please check that any required plugins are installed, or check the breaking changes documentation for removed settings" }
+
+
+---
+"Test misspelled dry run":
+  - do:
+      cluster.state: { }
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: { }
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: param
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        diy_run: "true"
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }

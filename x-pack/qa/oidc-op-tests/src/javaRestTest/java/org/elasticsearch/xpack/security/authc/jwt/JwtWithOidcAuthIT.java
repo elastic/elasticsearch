@@ -17,6 +17,7 @@ import com.nimbusds.openid.connect.sdk.OIDCScopeValue;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.TestMatchers;
@@ -65,14 +66,14 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         clientId = randomFrom(ALLOWED_AUDIENCES);
         redirectUri = "https://" + randomAlphaOfLength(4) + ".rp.example.com/" + randomAlphaOfLength(6);
         String clientSecret = randomAlphaOfLength(24);
-        String clientSetup = """
+        String clientSetup = Strings.format("""
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
               "preferred_client_id": "%s",
               "preferred_client_secret": "%s",
               "redirect_uris": [ "%s" ]
-            }""".formatted(clientId, clientSecret, redirectUri);
+            }""", clientId, clientSecret, redirectUri);
         registerClients(clientSetup);
     }
 
@@ -80,7 +81,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
     public void setupRoleMapping() throws Exception {
         try (var restClient = getElasticsearchClient()) {
             var client = new TestSecurityClient(restClient);
-            final String mappingJson = """
+            final String mappingJson = Strings.format("""
                 {
                   "roles": [ "%s" ],
                   "enabled": true,
@@ -91,7 +92,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
                     ]
                   }
                 }
-                """.formatted(ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
+                """, ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
             client.putRoleMapping(getTestName(), mappingJson);
         }
     }

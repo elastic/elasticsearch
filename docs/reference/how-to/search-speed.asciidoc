@@ -10,6 +10,7 @@ goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
 [discrete]
+// tag::readahead[]
 === Avoid page cache thrashing by using modest readahead values on Linux
 
 Search can cause a lot of randomized read I/O. When the underlying block
@@ -34,6 +35,7 @@ as a transient setting). We recommend a value of `128KiB` for readahead.
 WARNING: `blockdev` expects values in 512 byte sectors whereas `lsblk` reports
 values in `KiB`. As an example, to temporarily set readahead to `128KiB`
 for `/dev/nvme0n1`, specify `blockdev --setra 256 /dev/nvme0n1`.
+// end::readahead[]
 
 [discrete]
 === Use faster hardware
@@ -356,6 +358,7 @@ PUT index
 }
 --------------------------------------------------
 
+// tag::warm-fs-cache[]
 [discrete]
 === Warm up the filesystem cache
 
@@ -369,6 +372,7 @@ depending on the file extension using the
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
+// end::warm-fs-cache[]
 
 [discrete]
 === Use index sorting to speed up conjunctions
@@ -420,20 +424,22 @@ be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
 
+[discrete]
 === Tune your queries with the Search Profiler
 
-The {ref}/search-profile.html[Profile API] provides detailed information about 
+The {ref}/search-profile.html[Profile API] provides detailed information about
 how each component of your queries and aggregations impacts the time it takes
-to process the request. 
+to process the request.
 
 The {kibana-ref}/xpack-profiler.html[Search Profiler] in {kib}
-makes it easy to navigate and analyze the profile results and 
-give you insight into how to tune your queries to improve performance and reduce load. 
+makes it easy to navigate and analyze the profile results and
+give you insight into how to tune your queries to improve performance and reduce load.
 
-Because the Profile API itself adds significant overhead to the query, 
+Because the Profile API itself adds significant overhead to the query,
 this information is best used to understand the relative cost of the various
 query components. It does not provide a reliable measure of actual processing time.
 
+[discrete]
 [[faster-phrase-queries]]
 === Faster phrase queries with `index_phrases`
 
@@ -442,6 +448,7 @@ indexes 2-shingles and is automatically leveraged by query parsers to run phrase
 queries that don't have a slop. If your use-case involves running lots of phrase
 queries, this can speed up queries significantly.
 
+[discrete]
 [[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
@@ -450,6 +457,7 @@ indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.
 
+[discrete]
 [[faster-filtering-with-constant-keyword]]
 === Use `constant_keyword` to speed up filtering
 

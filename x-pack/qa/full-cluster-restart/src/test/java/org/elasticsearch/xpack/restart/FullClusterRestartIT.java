@@ -26,11 +26,10 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -43,7 +42,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -449,7 +447,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
                 bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
-                String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
+                String date = Strings.format("%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }
             bulk.append("\r\n");
@@ -468,7 +466,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 intervalType = "interval";
             }
 
-            createRollupJobRequest.setJsonEntity("""
+            createRollupJobRequest.setJsonEntity(Strings.format("""
                 {
                   "index_pattern": "rollup-*",
                   "rollup_index": "results-rollup",
@@ -486,7 +484,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                       "metrics": [ "min", "max", "sum" ]
                     }
                   ]
-                }""".formatted(intervalType));
+                }""", intervalType));
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -629,11 +627,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
             try (
                 XContentParser parser = xContentType.xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        response.getEntity().getContent()
-                    )
+                    .createParser(XContentParserConfiguration.EMPTY, response.getEntity().getContent())
             ) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
             }
@@ -817,14 +811,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void createUser(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
         Request request = new Request("PUT", "/_security/user/" + id);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
                "password" : "l0ng-r4nd0m-p@ssw0rd",
                "roles" : [ "admin", "other_role1" ],
                "full_name" : "%s",
                "email" : "%s@example.com",
                "enabled": true
-            }""".formatted(randomAlphaOfLength(5), id));
+            }""", randomAlphaOfLength(5), id));
         client().performRequest(request);
     }
 
@@ -992,7 +986,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
-        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
+        StringEntity templateJSON = new StringEntity(Strings.format("""
             {
               "index_patterns": "%s",
               "data_stream": {}

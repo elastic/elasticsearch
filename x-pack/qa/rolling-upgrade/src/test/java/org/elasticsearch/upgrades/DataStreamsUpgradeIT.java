@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Strings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -47,10 +48,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < 1000; i++) {
-                b.append("""
+                b.append(Strings.format("""
                     {"create":{"_index":"logs-foobar"}}
                     {"@timestamp":"2020-12-12","test":"value%s"}
-                    """.formatted(i));
+                    """, i));
             }
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");

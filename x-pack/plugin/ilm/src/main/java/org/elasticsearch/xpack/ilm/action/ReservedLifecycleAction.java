@@ -119,4 +119,9 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
 
         return result;
     }
+
+    @Override
+    public Collection<String> optionalDependencies() {
+        return List.of("snapshot_repositories");
+    }
 }

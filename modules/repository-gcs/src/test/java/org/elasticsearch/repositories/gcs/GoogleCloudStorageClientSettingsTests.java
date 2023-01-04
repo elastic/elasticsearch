@@ -13,6 +13,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -43,6 +44,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
@@ -87,6 +89,25 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final GoogleCloudStorageClientSettings expectedClientSettings = randomClient.v1().values().iterator().next();
         final String clientName = randomClient.v1().keySet().iterator().next();
         assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName));
+    }
+
+    public void testLoadInvalidCredential() throws Exception {
+        final List<Setting<?>> deprecationWarnings = new ArrayList<>();
+        final Settings.Builder settings = Settings.builder();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        final String clientName = randomBoolean() ? "default" : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        randomClient(clientName, settings, secureSettings, deprecationWarnings);
+        secureSettings.setFile(
+            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "invalid".getBytes(StandardCharsets.UTF_8)
+        );
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> loadCredential(settings.setSecureSettings(secureSettings).build(), clientName)
+            ).getMessage(),
+            equalTo("failed to load GCS client credentials from [gcs.client." + clientName + ".credentials_file]")
+        );
     }
 
     public void testProjectIdDefaultsToCredentials() throws Exception {
@@ -240,7 +261,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         credentialBuilder.setPrivateKeyId("private_key_id_" + clientName);
         credentialBuilder.setScopes(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
         final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
-        final String serviceAccount = """
+        final String serviceAccount = Strings.format("""
             {
               "type": "service_account",
               "project_id": "project_id_%s",
@@ -248,7 +269,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
               "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
               "client_email": "%s",
               "client_id": "id_%s"
-            }""".formatted(clientName, clientName, encodedPrivateKey, clientName, clientName);
+            }""", clientName, clientName, encodedPrivateKey, clientName, clientName);
         return Tuple.tuple(credentialBuilder.build(), serviceAccount.getBytes(StandardCharsets.UTF_8));
     }
 

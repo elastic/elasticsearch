@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.AfterClass;
@@ -92,9 +93,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         // create a test user
         final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
         createUserRequest.addParameter("refresh", "wait_for");
-        createUserRequest.setJsonEntity("""
+        createUserRequest.setJsonEntity(Strings.format("""
             {  "password": "%s",  "roles": [ "%s" ]}
-            """.formatted(LOCAL_TEST_USER_PASSWORD, roleName));
+            """, LOCAL_TEST_USER_PASSWORD, roleName));
         performSuperuserRequest(createUserRequest);
 
         // test user posts a document

@@ -4,18 +4,14 @@
 <titleabbrev>Health</titleabbrev>
 ++++
 
-An experimental API that returns the health status of an {es} cluster.
-
-This API is currently experimental for internal use by Elastic software only.
-
-NOTE: {cloud-only}
+An API that returns the health status of an {es} cluster.
 
 [[health-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/_health` +
+`GET /_health` +
 
-`GET /_internal/_health/<indicator>` +
+`GET /_health/<indicator>` +
 
 [[health-api-prereqs]]
 ==== {api-prereq-title}
@@ -46,6 +42,10 @@ A diagnosis contains a cause detailing a root cause analysis, an action containi
 of the steps to take to fix the problem, the list of affected resources (if applicable), and a detailed
 step by step troubleshooting guide to fix the diagnosed problem.
 
+NOTE: The health indicators perform root cause analysis of non-green health statuses. This can
+be computationally expensive when called frequently. When setting up automated polling of the API
+for health status set `verbose` to `false` to disable the more expensive analysis logic.
+
 [[health-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -64,6 +64,9 @@ step by step troubleshooting guide to fix the diagnosed problem.
   `shards_availability`::
       Reports health issues regarding shard assignments.
 
+  `disk`::
+      Reports health issues caused by lack of disk space.
+
   `ilm`::
       Reports health issues related to
       Indexing Lifecycle Management.
@@ -80,14 +83,16 @@ step by step troubleshooting guide to fix the diagnosed problem.
 [[health-api-query-params]]
 ==== {api-query-parms-title}
 
-`explain`::
+`verbose`::
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
     These details include additional troubleshooting metrics and sometimes a root cause analysis of a health status.
     Defaults to `true`.
 
-NOTE: Some health indicators perform root cause analysis of non-green health statuses. This can
-be computationally expensive when called frequently. When setting up automated polling of the API
-for health status set `explain` to `false` to disable the more expensive analysis logic.
+`size`::
+    (Optional, integer) The maximum number of affected resources to return.
+    As a diagnosis can return multiple types of affected resources this parameter will limit the number of resources returned for each type to the configured value (e.g. a diagnosis could return
+    `1000` affected indices and `1000` affected nodes).
+    Defaults to `1000`.
 
 [role="child_attributes"]
 [[health-api-response-body]]
@@ -149,7 +154,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
     (Optional, object) An object that contains additional information about the cluster that
     has lead to the current health status result. This data is unstructured, and each
     indicator returns <<health-api-response-details, a unique set of details>>. Details will not be calculated if the
-    `explain` property is set to false.
+    `verbose` property is set to false.
 
 `impacts`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
@@ -181,7 +186,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 `diagnosis`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
     diagnosis that encapsulate the cause of the health issue and an action to take in order to remediate the problem.
-    The diagnosis will not be calculated if the `explain` property is false.
+    The diagnosis will not be calculated if the `verbose` property is false.
 +
 .Properties of `diagnosis`
 [%collapsible%open]
@@ -262,14 +267,21 @@ details have contents and a structure that is unique to each indicator.
 ====
 
 `cluster_formation`::
-    (Optional, object) If there has been no elected master node recently, the node being queried attempts to
+    (Optional, array) If there has been no elected master node recently, the node being queried attempts to
     gather information about why the cluster has been unable to form, or why the node being queried has been
-    unable to join the cluster if it has formed.
+    unable to join the cluster if it has formed. This array could contain any entry for each master eligible
+    node's view of cluster formation.
 +
 .Properties of `cluster_formation`
 [%collapsible%open]
 ====
-`description`::
+`node_id`::
+    (string) The node id of a master-eligible node
+
+`name`::
+(Optional, string) The node name of a master-eligible node
+
+`cluster_formation_message`::
     (string) A detailed description explaining what went wrong with cluster formation, or why this node was
     unable to join the cluster if it has formed.
 ====
@@ -302,8 +314,28 @@ details have contents and a structure that is unique to each indicator.
     (int) The number of replica shards that are relocating because of a node shutdown operation.
 
 `started_replicas`::
-    (int) The number of replica shards that are active and available on the sysetm.
+    (int) The number of replica shards that are active and available on the system.
 
+[[health-api-response-details-disk]]
+===== disk
+
+`indices_with_readonly_block`::
+(int) The number of indices the system enforced a read-only index block (`index.blocks.read_only_allow_delete`) on
+because the cluster is running out of space.
+
+`nodes_with_enough_disk_space`::
+(int) The number of nodes that have enough available disk space to function.
+
+`nodes_over_high_watermark`::
+(int) The number of nodes that are running low on disk and it is likely that they will run out of space. Their disk usage
+has tripped the <<cluster-routing-watermark-high, high watermark threshold>>.
+
+`nodes_over_flood_stage_watermark`::
+(int) The number of nodes that have run out of disk. Their disk usage has tripped the <<cluster-routing-flood-stage, flood stage
+watermark threshold>>.
+
+`unknown_nodes`::
+(int) The number of nodes for which it was not possible to determine their disk health.
 
 [[health-api-response-details-repository-integrity]]
 ===== repository_integrity
@@ -338,12 +370,19 @@ details have contents and a structure that is unique to each indicator.
 `policies`::
     (int) The number of snapshot policies that the system is managing.
 
+`unhealthy_policies`::
+    (map) A detailed view on the policies that are considered unhealthy due to having
+    several consecutive unssuccesful invocations.
+    The `count` key represents the number of unhealthy policies (int).
+    The `invocations_since_last_success` key will report a map where the unhealthy policy
+    name is the key and it's corresponding number of failed invocations is the value.
+
 [[health-api-example]]
 ==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health
+GET _health
 --------------------------------------------------
 
 The API returns a response with all the indicators regardless
@@ -351,14 +390,14 @@ of current status.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/shards_availability
+GET _health/shards_availability
 --------------------------------------------------
 
 The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health?explain=false
+GET _health?verbose=false
 --------------------------------------------------
 
 The API returns a response with all health indicators but will

@@ -16,16 +16,19 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -46,7 +49,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -70,7 +73,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
 
         List<String> corruptedRepos = List.of("corrupted-repo");
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -81,12 +84,14 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            RepositoryIntegrityHealthIndicatorService.REPOSITORY_CORRUPTED_IMPACT_ID,
                             1,
                             "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, corruptedRepos))
+                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedRepos))))
                 )
             )
         );
@@ -97,7 +102,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -109,6 +114,42 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testLimitNumberOfAffectedResources() {
+        List<RepositoryMetadata> repos = Stream.iterate(0, n -> n + 1)
+            .limit(20)
+            .map(i -> createRepositoryMetadata("corrupted-repo" + i, true))
+            .toList();
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
+        var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
+
+        {
+            assertThat(
+                service.calculate(true, 10, HealthInfo.EMPTY_HEALTH_INFO).diagnosisList(),
+                equalTo(
+                    List.of(
+                        new Diagnosis(
+                            CORRUPTED_REPOSITORY,
+                            List.of(
+                                new Diagnosis.Resource(
+                                    Type.SNAPSHOT_REPOSITORY,
+                                    repos.stream().limit(10).map(RepositoryMetadata::name).toList()
+                                )
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        {
+            assertThat(
+                service.calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO).diagnosisList(),
+                equalTo(List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of())))))
+            );
+        }
+
     }
 
     private static ClusterState createClusterStateWith(RepositoriesMetadata metadata) {

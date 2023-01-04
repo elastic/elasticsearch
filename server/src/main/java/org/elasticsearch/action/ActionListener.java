@@ -16,6 +16,7 @@ import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -290,19 +291,28 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Converts a listener to a {@link BiConsumer} for compatibility with the {@link java.util.concurrent.CompletableFuture}
-     * api.
-     *
-     * @param listener that will be wrapped
-     * @param <Response> the type of the response
-     * @return a bi consumer that will complete the wrapped listener
+     * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
+     * {@link #onFailure}.
      */
-    static <Response> BiConsumer<Response, Exception> toBiConsumer(ActionListener<Response> listener) {
-        return (response, throwable) -> {
-            if (throwable == null) {
-                listener.onResponse(response);
-            } else {
-                listener.onFailure(throwable);
+    static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    delegate.onResponse(response);
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+
+            @Override
+            public String toString() {
+                return "wrapped{" + delegate + "}";
             }
         };
     }
@@ -436,15 +446,27 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        return new NotifyOnceListener<Response>() {
+        final var delegateRef = new AtomicReference<>(delegate);
+        return new ActionListener<>() {
             @Override
-            protected void innerOnResponse(Response response) {
-                delegate.onResponse(response);
+            public void onResponse(Response response) {
+                final var acquired = delegateRef.getAndSet(null);
+                if (acquired != null) {
+                    acquired.onResponse(response);
+                }
             }
 
             @Override
-            protected void innerOnFailure(Exception e) {
-                delegate.onFailure(e);
+            public void onFailure(Exception e) {
+                final var acquired = delegateRef.getAndSet(null);
+                if (acquired != null) {
+                    acquired.onFailure(e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "notifyOnce[" + delegate + "]";
             }
         };
     }

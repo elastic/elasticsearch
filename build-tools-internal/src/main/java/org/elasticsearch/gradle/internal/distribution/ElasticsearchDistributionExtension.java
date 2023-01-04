@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchDistributionExtension {
     private static final Pattern CONFIG_BIN_REGEX_PATTERN = Pattern.compile("([^\\/]+\\/)?(config|bin)\\/.*");
@@ -36,7 +36,7 @@ public class ElasticsearchDistributionExtension {
         return project.getConfigurations().detachedConfiguration(dep);
     }
 
-    public void copyModule(TaskProvider<AbstractCopyTask> copyTask, Project module) {
+    public void copyModule(TaskProvider<? extends AbstractCopyTask> copyTask, Project module) {
         copyTask.configure(sync -> {
             var moduleConfig = moduleZip(module);
             sync.dependsOn(moduleConfig);

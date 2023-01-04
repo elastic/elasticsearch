@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -102,18 +103,89 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                 )
             )
         );
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = randomBoolean()
+            ? Set.of()
+            : new LinkedHashSet<>(
+                Arrays.asList(
+                    new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            Arrays.asList("remote-index-1", "remote-index-2", "remote-index-3-*"),
+                            List.of("read"),
+                            new LinkedHashSet<>(
+                                Arrays.asList(
+                                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]),
+                                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(
+                                        new String[] { "*" },
+                                        new String[] { "private.*" }
+                                    )
+                                )
+                            ),
+                            new LinkedHashSet<>(
+                                List.of(
+                                    new BytesArray("{ \"term\": { \"access\": \"public\" } }"),
+                                    new BytesArray("{ \"term\": { \"access\": \"standard\" } }")
+                                )
+                            ),
+                            false
+                        ),
+                        new LinkedHashSet<>(List.of("remote-*"))
+                    ),
+                    new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            List.of("remote-index-4"),
+                            Collections.singleton("all"),
+                            Collections.emptySet(),
+                            Collections.emptySet(),
+                            true
+                        ),
+                        new LinkedHashSet<>(Arrays.asList("*", "remote-2"))
+                    )
+                )
+            );
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(
             ApplicationResourcePrivileges.builder().application("app01").privileges("read", "write").resources("*").build(),
             ApplicationResourcePrivileges.builder().application("app01").privileges("admin").resources("department/1").build(),
             ApplicationResourcePrivileges.builder().application("app02").privileges("all").resources("tenant/42", "tenant/99").build()
         );
         final Set<String> runAs = new LinkedHashSet<>(Arrays.asList("app-user-*", "backup-user"));
-        final GetUserPrivilegesResponse response = new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+        final GetUserPrivilegesResponse response = new GetUserPrivilegesResponse(
+            cluster,
+            conditionalCluster,
+            index,
+            application,
+            runAs,
+            remoteIndex
+        );
         XContentBuilder builder = jsonBuilder();
         listener.buildResponse(response, builder);
 
         String json = Strings.toString(builder);
-        assertThat(json, equalTo(XContentHelper.stripWhitespace("""
+        String remoteIndicesSection = remoteIndex.isEmpty() ? "" : """
+            , "remote_indices": [
+                {
+                  "names": [ "remote-index-1", "remote-index-2", "remote-index-3-*" ],
+                  "privileges": [ "read" ],
+                  "field_security": [
+                    {
+                      "grant": [ "*" ],
+                      "except": [ "private.*" ]
+                    },
+                    {
+                      "grant": [ "public.*" ]
+                    }
+                  ],
+                  "query": [ "{ \\"term\\": { \\"access\\": \\"public\\" } }", "{ \\"term\\": { \\"access\\": \\"standard\\" } }" ],
+                  "allow_restricted_indices": false,
+                  "clusters": [ "remote-*" ]
+                },
+                {
+                  "names": [ "remote-index-4" ],
+                  "privileges": [ "all" ],
+                  "allow_restricted_indices": true,
+                  "clusters": [ "*", "remote-2" ]
+                }
+              ]""";
+        assertThat(json, equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
               "global": [
@@ -171,8 +243,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                   "resources": [ "tenant/42", "tenant/99" ]
                 }
               ],
-              "run_as": [ "app-user-*", "backup-user" ]
-            }""")));
+              "run_as": [ "app-user-*", "backup-user" ]%s
+            }""", remoteIndicesSection))));
     }
-
 }

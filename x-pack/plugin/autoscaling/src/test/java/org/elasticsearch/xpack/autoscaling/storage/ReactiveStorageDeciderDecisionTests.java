@@ -52,7 +52,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +68,7 @@ import java.util.stream.StreamSupport;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
+import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -206,7 +206,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
-                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
+                .forEach(
+                    shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                )
         );
 
         do {
@@ -234,7 +236,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                     allocation.changes()
                                 )
                                 .v2(),
-                            allocation.changes()
+                            allocation.changes(),
+                            UNAVAILABLE_EXPECTED_SHARD_SIZE
                         )
                 )
         );
@@ -274,7 +277,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
-                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
+                .forEach(
+                    shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                )
         );
 
         verify(
@@ -509,16 +514,15 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 allocation.routingNodes(),
                 ShardRoutingState.INITIALIZING
             );
-            initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
             List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
 
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
             shards.stream()
                 .filter(Predicate.not(ShardRouting::primary))
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes()));
+                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             shards.stream()
                 .filter(ShardRouting::primary)
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes()));
+                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             SHARDS_ALLOCATOR.allocate(allocation);
 
             // ensure progress by only relocating a shard if we started more than one shard.
@@ -548,12 +552,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             boolean includeMemory = randomBoolean();
             boolean includeProcessors = randomBoolean();
             return AutoscalingCapacity.builder()
-                .total(
-                    randomByteSizeValue(),
-                    includeMemory ? randomByteSizeValue() : null,
-                    includeProcessors ? (float) randomInt(64) : null
-                )
-                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? (float) randomInt(64) : null)
+                .total(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? randomProcessors() : null)
+                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? randomProcessors() : null)
                 .build();
         } else {
             return null;

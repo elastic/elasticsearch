@@ -1,12 +1,14 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'enrich'
+    include '_common', 'bulk', 'indices', 'index', 'ingest.delete_pipeline', 'ingest.put_pipeline', 'enrich', 'get'
   }
   restTests {
     includeXpack 'enrich'
@@ -28,4 +30,5 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.4.0")
 }

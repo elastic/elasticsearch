@@ -18,6 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -71,7 +72,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configRoles() {
-        return """
+        return Strings.format("""
             %s
             anonymous:
               cluster: [ manage_token ]
@@ -79,7 +80,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
                 - names: '*'
                   privileges: [ READ ]
               run_as: [ test_user ]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     public void testAnonymousViaHttp() throws Exception {

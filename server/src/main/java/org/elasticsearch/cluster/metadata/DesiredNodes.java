@@ -249,6 +249,29 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         }
     }
 
+    public boolean equalsWithProcessorsCloseTo(DesiredNodes that) {
+        return that != null
+            && version == that.version
+            && Objects.equals(historyID, that.historyID)
+            && equalsNodesWithProcessorsCloseTo(that);
+    }
+
+    public boolean equalsNodesWithProcessorsCloseTo(DesiredNodes that) {
+        if (that == null || nodes.size() != that.nodes.size()) {
+            return false;
+        }
+
+        for (Map.Entry<String, DesiredNodeWithStatus> desiredNodeEntry : nodes.entrySet()) {
+            final DesiredNodeWithStatus desiredNodeWithStatus = desiredNodeEntry.getValue();
+            final DesiredNodeWithStatus otherDesiredNodeWithStatus = that.nodes.get(desiredNodeEntry.getKey());
+            if (desiredNodeWithStatus.equalsWithProcessorsCloseTo(otherDesiredNodeWithStatus) == false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

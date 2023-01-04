@@ -59,7 +59,14 @@ public class QlStatusResponseTests extends AbstractWireSerializingTestCase<QlSta
     public void testToXContent() throws IOException {
         QlStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = """
+            Object[] args = new Object[] {
+                response.getId(),
+                response.isRunning(),
+                response.isPartial(),
+                response.getStartTime() != null ? "\"start_time_in_millis\" : " + response.getStartTime() + "," : "",
+                response.getExpirationTime(),
+                response.getCompletionStatus() != null ? ", \"completion_status\" : " + response.getCompletionStatus().getStatus() : "" };
+            String expectedJson = Strings.format("""
                 {
                   "id" : "%s",
                   "is_running" : %s,
@@ -68,14 +75,7 @@ public class QlStatusResponseTests extends AbstractWireSerializingTestCase<QlSta
                   "expiration_time_in_millis" : %s
                   %s
                 }
-                """.formatted(
-                response.getId(),
-                response.isRunning(),
-                response.isPartial(),
-                response.getStartTime() != null ? "\"start_time_in_millis\" : " + response.getStartTime() + "," : "",
-                response.getExpirationTime(),
-                response.getCompletionStatus() != null ? ", \"completion_status\" : " + response.getCompletionStatus().getStatus() : ""
-            );
+                """, args);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
         }

@@ -7,8 +7,10 @@
  */
 
 module org.elasticsearch.transport.netty4 {
+    requires jdk.net;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;

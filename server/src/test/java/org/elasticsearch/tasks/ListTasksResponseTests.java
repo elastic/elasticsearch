@@ -12,9 +12,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -27,10 +31,19 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksResponse> {
+public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksResponseTests.ListTasksResponseWrapper> {
+
+    // ListTasksResponse doesn't directly implement ToXContent because it has multiple XContent representations, so we must wrap here
+    public record ListTasksResponseWrapper(ListTasksResponse in) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return ChunkedToXContent.wrapAsToXContent(in.groupedByNone()).toXContent(builder, params);
+        }
+    }
 
     public void testEmptyToString() {
         assertEquals("""
@@ -79,9 +92,9 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     }
 
     @Override
-    protected ListTasksResponse createTestInstance() {
+    protected ListTasksResponseWrapper createTestInstance() {
         // failures are tested separately, so we can test xcontent equivalence at least when we have no failures
-        return new ListTasksResponse(randomTasks(), Collections.emptyList(), Collections.emptyList());
+        return new ListTasksResponseWrapper(new ListTasksResponse(randomTasks(), Collections.emptyList(), Collections.emptyList()));
     }
 
     private static List<TaskInfo> randomTasks() {
@@ -93,8 +106,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     }
 
     @Override
-    protected ListTasksResponse doParseInstance(XContentParser parser) {
-        return ListTasksResponse.fromXContent(parser);
+    protected ListTasksResponseWrapper doParseInstance(XContentParser parser) {
+        return new ListTasksResponseWrapper(ListTasksResponse.fromXContent(parser));
     }
 
     @Override
@@ -109,7 +122,9 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
     }
 
     @Override
-    protected void assertEqualInstances(ListTasksResponse expectedInstance, ListTasksResponse newInstance) {
+    protected void assertEqualInstances(ListTasksResponseWrapper expectedInstanceWrapper, ListTasksResponseWrapper newInstanceWrapper) {
+        final var expectedInstance = expectedInstanceWrapper.in();
+        final var newInstance = newInstanceWrapper.in();
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.getTasks(), equalTo(expectedInstance.getTasks()));
         assertOnNodeFailures(newInstance.getNodeFailures(), expectedInstance.getNodeFailures());
@@ -149,7 +164,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<ListTasksResponse> instanceSupplier = ListTasksResponseTests::createTestInstanceWithFailures;
+        Supplier<ListTasksResponseWrapper> instanceSupplier = ListTasksResponseTests::createTestInstanceWithFailures;
         // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
         // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
@@ -165,11 +180,21 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             this::doParseInstance,
             this::assertEqualInstances,
             assertToXContentEquivalence,
-            ToXContent.EMPTY_PARAMS
+            EMPTY_PARAMS
         );
     }
 
-    private static ListTasksResponse createTestInstanceWithFailures() {
+    public void testChunkedEncoding() {
+        final var response = createTestInstanceWithFailures().in();
+        AbstractChunkedSerializingTestCase.assertChunkCount(response.groupedByNone(), o -> response.getTasks().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response.groupedByParent(), o -> response.getTaskGroups().size() + 2);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            response.groupedByNode(() -> DiscoveryNodes.EMPTY_NODES),
+            o -> 2 + response.getPerNodeTasks().values().stream().mapToInt(entry -> 2 + entry.size()).sum()
+        );
+    }
+
+    private static ListTasksResponseWrapper createTestInstanceWithFailures() {
         int numNodeFailures = randomIntBetween(0, 3);
         List<FailedNodeException> nodeFailures = new ArrayList<>(numNodeFailures);
         for (int i = 0; i < numNodeFailures; i++) {
@@ -180,6 +205,6 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         for (int i = 0; i < numTaskFailures; i++) {
             taskFailures.add(new TaskOperationFailure(randomAlphaOfLength(5), randomLong(), new IllegalStateException()));
         }
-        return new ListTasksResponse(randomTasks(), taskFailures, nodeFailures);
+        return new ListTasksResponseWrapper(new ListTasksResponse(randomTasks(), taskFailures, nodeFailures));
     }
 }

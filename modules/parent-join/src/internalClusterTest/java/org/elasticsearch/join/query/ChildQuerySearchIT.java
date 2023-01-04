@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -44,7 +45,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -844,11 +844,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         // index simple data
         int childId = 0;
         for (int i = 0; i < 10; i++) {
-            String parentId = String.format(Locale.ROOT, "p%03d", i);
+            String parentId = Strings.format("p%03d", i);
             createIndexRequest("test", "parent", parentId, null, "p_field", parentId).get();
             int j = childId;
             for (; j < childId + 50; j++) {
-                String childUid = String.format(Locale.ROOT, "c%03d", j);
+                String childUid = Strings.format("c%03d", j);
                 createIndexRequest("test", "child", childUid, parentId, "c_field", childUid).get();
             }
             childId = j;

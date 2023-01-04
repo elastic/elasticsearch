@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction.Request;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -117,13 +116,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     // package private for tests
     class PutShutdownNodeExecutor implements ClusterStateTaskExecutor<PutShutdownNodeTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<PutShutdownNodeTask>> taskContexts) throws Exception {
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(currentState).getAllNodeMetadataMap());
-            Predicate<String> nodeExistsPredicate = currentState.getNodes()::nodeExists;
+        public ClusterState execute(BatchExecutionContext<PutShutdownNodeTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
+            Predicate<String> nodeExistsPredicate = batchExecutionContext.initialState().getNodes()::nodeExists;
             boolean changed = false;
-            for (final var taskContext : taskContexts) {
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
@@ -133,11 +133,11 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 taskContext.success(() -> ackAndMaybeReroute(request, taskContext.getTask().listener(), reroute));
             }
             if (changed == false) {
-                return currentState;
+                return batchExecutionContext.initialState();
             }
-            return ClusterState.builder(currentState)
+            return ClusterState.builder(batchExecutionContext.initialState())
                 .metadata(
-                    Metadata.builder(currentState.metadata())
+                    Metadata.builder(batchExecutionContext.initialState().metadata())
                         .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
                 )
                 .build();

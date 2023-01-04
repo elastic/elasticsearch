@@ -76,6 +76,26 @@ referenced leader index. When this API returns, the follower index exists, and
   (Required, string) The <<remote-clusters,remote cluster>> containing
   the leader index.
 
+[[ccr-put-follow-request-body-data_stream_name]]`data_stream_name`::
+  (Optional, string) If the leader index is part of a <<data-streams,data stream>>, the name to
+  which the local data stream for the followed index should be renamed. For example, A request like:
+
+[source,console]
+--------------------------------------------------
+PUT /.ds-logs-mysql-default_copy-2022-01-01-000001/_ccr/follow
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : ".ds-logs-mysql-default-2022-01-01-000001",
+  "data_stream_name": "logs-mysql-default_copy"
+}
+--------------------------------------------------
+// TEST[skip:no setup]
+
+Replicates the leader index `.ds-logs-mysql-default-2022-01-01-000001` into the follower index
+`.ds-logs-mysql-default_copy-2022-01-01-000001` and will do so using the data stream
+`logs-mysql-default_copy`, as opposed to the original leader data stream name of
+`logs-mysql-default`.
+
 include::../follow-request-body.asciidoc[]
 
 [[ccr-put-follow-examples]]

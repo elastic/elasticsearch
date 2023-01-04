@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
@@ -234,6 +235,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91458")
     public void testBiDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -292,21 +294,21 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {"remote_cluster": "%s", "leader_index": "%s", "read_poll_timeout": "10ms"}
-            """.formatted(leaderCluster, leaderIndex));
+            """, leaderCluster, leaderIndex));
         assertOK(client.performRequest(request));
     }
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "leader_index_patterns": [ "%s" ],
               "remote_cluster": "%s",
               "follow_index_pattern": "copy-{{leader_index}}",
               "read_poll_timeout": "10ms"
-            }""".formatted(pattern, remoteCluster));
+            }""", pattern, remoteCluster));
         assertOK(client.performRequest(request));
     }
 

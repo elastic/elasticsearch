@@ -26,6 +26,14 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
     }
 
     @Override
+    protected SpanContainingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanContainingQueryBuilder) {
+            return new SpanContainingQueryBuilder((SpanContainingQueryBuilder) queryBuilder, (SpanContainingQueryBuilder) queryBuilder);
+        }
+        return new SpanContainingQueryBuilder(new SpanTermQueryBuilder("field", "value"), new SpanTermQueryBuilder("field", "value"));
+    }
+
+    @Override
     protected void doAssertLuceneQuery(SpanContainingQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(SpanContainingQuery.class));
     }

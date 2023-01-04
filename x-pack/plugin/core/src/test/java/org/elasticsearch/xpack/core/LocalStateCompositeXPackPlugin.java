@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -199,7 +200,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -215,7 +217,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 namedWriteableRegistry,
                 expressionResolver,
                 repositoriesServiceSupplier,
-                tracer
+                tracer,
+                allocationDeciders
             )
         );
 
@@ -234,7 +237,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         namedWriteableRegistry,
                         expressionResolver,
                         repositoriesServiceSupplier,
-                        tracer
+                        tracer,
+                        allocationDeciders
                     )
                 )
             );
@@ -725,6 +729,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
+            systemPlugins.size(),
             ActionListener.wrap(listenerResults -> {
                 // If the clean-up produced only one result, use that to pass along. In most
                 // cases it should be 1-1 mapping of feature to response. Passing back success
@@ -734,8 +739,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 } else {
                     finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
                 }
-            }, finalListener::onFailure),
-            systemPlugins.size()
+            }, finalListener::onFailure)
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
     }

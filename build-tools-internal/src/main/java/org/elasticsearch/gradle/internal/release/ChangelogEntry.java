@@ -21,8 +21,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * This class models the contents of a changelog YAML file. We validate it using a
- * JSON Schema, as well as some programmatic checks in {@link ValidateChangelogEntryTask}.
+ * This class models the contents of a changelog YAML file. We validate it using a JSON Schema.
  * <ul>
  *   <li><code>buildSrc/src/main/resources/changelog-schema.json</code></li>
  *   <li><a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a></li>

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
@@ -335,9 +336,9 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             .build();
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(settings);
-        builder.putMapping("""
+        builder.putMapping(Strings.format("""
             {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
-            """.formatted(policy.getMatchField(), policy.getType()));
+            """, policy.getMatchField(), policy.getType()));
         builder.putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName(name)).build());
         return Metadata.builder().put(builder).build();
     }

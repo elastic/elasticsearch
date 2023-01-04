@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +22,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
@@ -199,7 +199,7 @@ public class PriorityComparatorTests extends ESTestCase {
             }
             // else sometimes just use the defaults
 
-            indices[i] = IndexMetadata.builder(String.format(Locale.ROOT, "idx_%04d", i))
+            indices[i] = IndexMetadata.builder(Strings.format("idx_%04d", i))
                 .system(isSystem)
                 .settings(buildSettings(creationDate, priority))
                 .build();

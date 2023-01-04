@@ -17,146 +17,68 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.MemoizedSupplier;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
-
-public class SourceLookup implements Map<String, Object> {
-
-    private LeafReader reader;
-    private CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
+public class SourceLookup implements Source, Map<String, Object> {
+    private SourceProvider sourceProvider;
 
     private int docId = -1;
 
-    private BytesReference sourceAsBytes;
-    private Map<String, Object> source;
-    private XContentType sourceContentType;
+    public SourceLookup(SourceProvider sourceProvider) {
+        this.sourceProvider = sourceProvider;
+    }
 
+    @Override
     public XContentType sourceContentType() {
-        return sourceContentType;
+        return sourceProvider.sourceContentType();
     }
 
     public int docId() {
         return docId;
     }
 
-    /**
-     * Return the source as a map that will be unchanged when the lookup
-     * moves to a different document.
-     * <p>
-     * Important: This can lose precision on numbers with a decimal point. It
-     * converts numbers like {@code "n": 1234.567} to a {@code double} which
-     * only has 52 bits of precision in the mantissa. This will come up most
-     * frequently when folks write nanosecond precision dates as a decimal
-     * number.
-     */
+    @Override
     public Map<String, Object> source() {
-        if (source != null) {
-            return source;
-        }
-        if (sourceAsBytes != null) {
-            Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(sourceAsBytes);
-            sourceContentType = tuple.v1();
-            source = tuple.v2();
-            return source;
-        }
-        try {
-            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            fieldReader.accept(docId, sourceFieldVisitor);
-            BytesReference source = sourceFieldVisitor.source();
-            if (source == null) {
-                this.source = emptyMap();
-                this.sourceContentType = null;
-            } else {
-                Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(source);
-                this.sourceContentType = tuple.v1();
-                this.source = tuple.v2();
-            }
-        } catch (Exception e) {
-            throw new ElasticsearchParseException("failed to parse / load source", e);
-        }
-        return this.source;
+        return sourceProvider.source();
     }
 
-    private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
-        return XContentHelper.convertToMap(source, false);
-    }
-
-    /**
-     * Get the source as a {@link Map} of java objects.
-     * <p>
-     * Important: This can lose precision on numbers with a decimal point. It
-     * converts numbers like {@code "n": 1234.567} to a {@code double} which
-     * only has 52 bits of precision in the mantissa. This will come up most
-     * frequently when folks write nanosecond precision dates as a decimal
-     * number.
-     */
-    public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
-        return sourceAsMapAndType(source).v2();
+    public void setSourceProvider(SourceProvider sourceProvider) {
+        this.sourceProvider = sourceProvider;
     }
 
     public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-        // if we are called with the same document, don't invalidate source
-        if (this.reader == context.reader() && this.docId == docId) {
-            return;
-        }
-
-        // only reset reader and fieldReader when reader changes
-        if (this.reader != context.reader()) {
-            this.reader = context.reader();
-
-            // All the docs to fetch are adjacent but Lucene stored fields are optimized
-            // for random access and don't optimize for sequential access - except for merging.
-            // So we do a little hack here and pretend we're going to do merges in order to
-            // get better sequential access.
-            if (context.reader()instanceof SequentialStoredFieldsLeafReader lf) {
-                // Avoid eagerly loading the stored fields reader, since this can be expensive
-                Supplier<StoredFieldsReader> supplier = new MemoizedSupplier<>(lf::getSequentialStoredFieldsReader);
-                fieldReader = (d, v) -> supplier.get().visitDocument(d, v);
-            } else {
-                fieldReader = context.reader()::document;
-            }
-        }
-        this.source = null;
-        this.sourceAsBytes = null;
+        sourceProvider.setSegmentAndDocument(context, docId);
         this.docId = docId;
-    }
-
-    public void setSource(BytesReference source) {
-        this.sourceAsBytes = source;
-    }
-
-    public void setSourceContentType(XContentType sourceContentType) {
-        this.sourceContentType = sourceContentType;
-    }
-
-    public void setSource(Map<String, Object> source) {
-        this.source = source;
     }
 
     /**
      * Internal source representation, might be compressed....
      */
+    @Override
     public BytesReference internalSourceRef() {
-        return sourceAsBytes;
+        return sourceProvider.sourceAsBytes();
+    }
+
+    @Override
+    public Source filter(SourceFilter sourceFilter) {
+        return sourceFilter.filterMap(this);
     }
 
     /**
      * Checks if the source has been deserialized as a {@link Map} of java objects.
      */
     public boolean hasSourceAsMap() {
-        return source != null;
+        return sourceProvider.hasSourceAsMap();
     }
 
     /**
@@ -174,42 +96,24 @@ public class SourceLookup implements Map<String, Object> {
      * @return The list of found values or an empty list if none are found
      */
     public List<Object> extractRawValuesWithoutCaching(String path) {
-        if (source != null) {
-            return XContentMapValues.extractRawValues(path, source);
-        }
-        if (sourceAsBytes != null) {
-            return XContentMapValues.extractRawValues(
-                path,
-                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
-            );
-        }
-        try {
-            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            fieldReader.accept(docId, sourceFieldVisitor);
-            BytesReference source = sourceFieldVisitor.source();
-            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
-        } catch (Exception e) {
-            throw new ElasticsearchParseException("failed to parse / load source", e);
-        }
+        return sourceProvider.extractRawValuesWithoutCaching(path);
+    }
+
+    private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
+        return XContentHelper.convertToMap(source, false);
     }
 
     /**
-     * For the provided path, return its value in the source.
-     *
-     * Both array and object values can be returned.
-     *
-     * @param path the value's path in the source.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the source or 'null' if the path does not exist.
+     * Get the source as a {@link Map} of java objects.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      */
-    public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, source(), nullValue);
-    }
-
-    public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
+    public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
+        return sourceAsMapAndType(source).v2();
     }
 
     @Override
@@ -271,5 +175,252 @@ public class SourceLookup implements Map<String, Object> {
     @Override
     public void clear() {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * SourceProvider describes how SourceLookup will access the source.
+     */
+    public interface SourceProvider {
+        Map<String, Object> source();
+
+        XContentType sourceContentType();
+
+        BytesReference sourceAsBytes();
+
+        List<Object> extractRawValuesWithoutCaching(String path);
+
+        boolean hasSourceAsMap();
+
+        void setSegmentAndDocument(LeafReaderContext context, int docId);
+    }
+
+    /**
+     * Null source provider when we expect to be given a real source provider in the future.
+     * Exceptions expected to be primarily seen by scripts attempting to access synthetic source.
+     */
+    public static class NullSourceProvider implements SourceProvider {
+        @Override
+        public Map<String, Object> source() {
+            throw new IllegalArgumentException("no source available");
+        }
+
+        @Override
+        public XContentType sourceContentType() {
+            throw new IllegalArgumentException("no source available");
+        }
+
+        @Override
+        public BytesReference sourceAsBytes() {
+            throw new IllegalArgumentException("no source available");
+        }
+
+        @Override
+        public List<Object> extractRawValuesWithoutCaching(String path) {
+            throw new IllegalArgumentException("no source available");
+        }
+
+        @Override
+        public boolean hasSourceAsMap() {
+            return false;
+        }
+
+        @Override
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            // nothing to do
+        }
+    }
+
+    /**
+     * Provider for source using a given map and optional content type.
+     */
+    private static class MapSourceProvider implements SourceProvider {
+        private final Map<String, Object> source;
+        private final XContentType sourceContentType;
+
+        private MapSourceProvider(Map<String, Object> source) {
+            this.source = source;
+            this.sourceContentType = XContentType.JSON;
+        }
+
+        @Override
+        public Map<String, Object> source() {
+            return source;
+        }
+
+        @Override
+        public XContentType sourceContentType() {
+            return sourceContentType;
+        }
+
+        @Override
+        public BytesReference sourceAsBytes() {
+            throw new UnsupportedOperationException("source as bytes unavailable - empty or already parsed to map");
+        }
+
+        @Override
+        public List<Object> extractRawValuesWithoutCaching(String path) {
+            return XContentMapValues.extractRawValues(path, source);
+        }
+
+        @Override
+        public boolean hasSourceAsMap() {
+            return true;
+        }
+
+        @Override
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            //
+        }
+    }
+
+    /**
+     * Provider for source using given source bytes.
+     */
+    public static class BytesSourceProvider implements SourceProvider {
+        private BytesReference sourceAsBytes;
+        private Map<String, Object> source;
+        private XContentType sourceContentType;
+
+        public BytesSourceProvider(BytesReference sourceAsBytes) {
+            this.sourceAsBytes = sourceAsBytes;
+        }
+
+        void parseSource() {
+            Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(sourceAsBytes);
+            this.source = tuple.v2();
+            this.sourceContentType = tuple.v1();
+        }
+
+        @Override
+        public Map<String, Object> source() {
+            if (source == null) {
+                parseSource();
+            }
+            return source;
+        }
+
+        @Override
+        public XContentType sourceContentType() {
+            if (source == null) {
+                parseSource();
+            }
+            return sourceContentType;
+        }
+
+        @Override
+        public BytesReference sourceAsBytes() {
+            return sourceAsBytes;
+        }
+
+        @Override
+        public List<Object> extractRawValuesWithoutCaching(String path) {
+            if (source != null) {
+                return XContentMapValues.extractRawValues(path, source);
+            }
+            return XContentMapValues.extractRawValues(
+                path,
+                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
+            );
+        }
+
+        @Override
+        public boolean hasSourceAsMap() {
+            return source != null;
+        }
+
+        @Override
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            //
+        }
+    }
+
+    /**
+     * Provider for source using a fields visitor.
+     */
+    public static class ReaderSourceProvider implements SourceProvider {
+        private LeafReader reader;
+        private CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
+        private int docId = -1;
+
+        private SourceProvider sourceProvider;
+
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            // if we are called with the same document, don't invalidate source
+            if (this.reader == context.reader() && this.docId == docId) {
+                return;
+            }
+
+            // only reset reader and fieldReader when reader changes
+            if (this.reader != context.reader()) {
+                this.reader = context.reader();
+
+                // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                // for random access and don't optimize for sequential access - except for merging.
+                // So we do a little hack here and pretend we're going to do merges in order to
+                // get better sequential access.
+                if (context.reader()instanceof SequentialStoredFieldsLeafReader lf) {
+                    // Avoid eagerly loading the stored fields reader, since this can be expensive
+                    Supplier<StoredFieldsReader> supplier = new MemoizedSupplier<>(lf::getSequentialStoredFieldsReader);
+                    fieldReader = (d, v) -> supplier.get().visitDocument(d, v);
+                } else {
+                    fieldReader = context.reader()::document;
+                }
+            }
+            this.sourceProvider = null;
+            this.docId = docId;
+        }
+
+        @Override
+        public Map<String, Object> source() {
+            if (sourceProvider == null) {
+                readSourceBytes();
+            }
+            return sourceProvider.source();
+        }
+
+        private void readSourceBytes() {
+            try {
+                FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+                fieldReader.accept(docId, sourceFieldVisitor);
+                BytesReference sourceAsBytes = sourceFieldVisitor.source();
+                if (sourceAsBytes == null) {
+                    sourceProvider = new MapSourceProvider(Collections.emptyMap());
+                } else {
+                    sourceProvider = new BytesSourceProvider(sourceAsBytes);
+                    ((BytesSourceProvider) sourceProvider).parseSource();
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchParseException("failed to parse / load source", e);
+            }
+        }
+
+        @Override
+        public XContentType sourceContentType() {
+            if (sourceProvider == null) {
+                readSourceBytes();
+            }
+            return sourceProvider.sourceContentType();
+        }
+
+        @Override
+        public BytesReference sourceAsBytes() {
+            if (sourceProvider == null) {
+                readSourceBytes();
+            }
+            return sourceProvider.sourceAsBytes();
+        }
+
+        @Override
+        public List<Object> extractRawValuesWithoutCaching(String path) {
+            if (sourceProvider == null) {
+                readSourceBytes();
+            }
+            return sourceProvider.extractRawValuesWithoutCaching(path);
+        }
+
+        @Override
+        public boolean hasSourceAsMap() {
+            return sourceProvider != null && sourceProvider.hasSourceAsMap();
+        }
     }
 }

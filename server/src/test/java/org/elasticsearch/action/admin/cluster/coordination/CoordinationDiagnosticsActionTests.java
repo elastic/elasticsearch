@@ -16,6 +16,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.CoordinationDiagnosticsDetails;
@@ -46,7 +47,7 @@ public class CoordinationDiagnosticsActionTests extends ESTestCase {
             List.of(node1, node2),
             randomAlphaOfLengthBetween(0, 30),
             randomAlphaOfLengthBetween(0, 30),
-            randomAlphaOfLengthBetween(0, 30)
+            Map.of(randomAlphaOfLength(20), randomAlphaOfLengthBetween(0, 30))
         );
         CoordinationDiagnosticsResult result = new CoordinationDiagnosticsResult(
             randomFrom(CoordinationDiagnosticsStatus.values()),

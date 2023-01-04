@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -199,40 +200,41 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     }
 
     private static void createIndex(String index, boolean isDatastream) {
-        String mapping = """
-            {
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "%s": {
-                  "type": "boolean"
-                },
-                "%s": {
-                  "type": "double"
-                },
-                "%s": {
-                  "type": "unsigned_long"
-                },
-                "%s": {
-                  "type": "text"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                }
-              }
-            }""".formatted(
+        String mapping = Strings.format(
+            """
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "%s": {
+                      "type": "boolean"
+                    },
+                    "%s": {
+                      "type": "double"
+                    },
+                    "%s": {
+                      "type": "unsigned_long"
+                    },
+                    "%s": {
+                      "type": "text"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    }
+                  }
+                }""",
             BOOLEAN_FIELD,
             NUMERICAL_FIELD,
             DISCRETE_NUMERICAL_FIELD,

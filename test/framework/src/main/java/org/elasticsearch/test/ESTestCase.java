@@ -38,6 +38,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
@@ -71,6 +72,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -89,6 +91,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -128,6 +131,10 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.Provider;
+import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -217,6 +224,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
     public static final String FIPS_SYSPROP = "tests.fips.enabled";
+
+    private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -1018,7 +1027,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1226,8 +1235,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /**
@@ -1266,6 +1274,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**
@@ -1648,7 +1660,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),
@@ -1801,7 +1813,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
+            return Strings.format("%s: %s", level.name(), message);
         }
     }
 
@@ -1815,5 +1827,78 @@ public abstract class ESTestCase extends LuceneTestCase {
         final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
+    /**
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by deterministic LuceneTestCase.random().
+     * @return SecureRandom SHA1PRNG instance.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
+     */
+    public static SecureRandom secureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
+        return secureRandom(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by the input value.
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by the input value.
+     * @param seed Byte array to use for seeding the SecureRandom instance.
+     * @return SecureRandom SHA1PRNG or DEFAULT/BCFIPS instance, depending on FIPS mode.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
+     */
+    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException, NoSuchProviderException {
+        return inFipsJvm() ? secureRandomFips(seed) : secureRandomNonFips(seed);
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {
+        return secureRandomNonFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException {
+        return secureRandomFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomNonFips = SecureRandom.getInstance("SHA1PRNG"); // SHA1PRNG/SUN
+        secureRandomNonFips.setSeed(seed); // SHA1PRNG/SUN setSeed() is deterministic
+        return secureRandomNonFips;
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomFips = SecureRandom.getInstance("DEFAULT"); // DEFAULT/BCFIPS
+        if (WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.get() == null) {
+            WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.set(Boolean.TRUE);
+            final Provider provider = secureRandomFips.getProvider();
+            final String providerName = provider.getName();
+            final Logger logger = LogManager.getLogger(ESTestCase.class);
+            logger.warn(
+                "Returning a non-deterministic secureRandom for use with FIPS. "
+                    + "This may result in difficulty reproducing test failures with from a given a seed."
+            );
+        }
+        secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
+        return secureRandomFips;
     }
 }

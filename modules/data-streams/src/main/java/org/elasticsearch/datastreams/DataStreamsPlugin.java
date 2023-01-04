@@ -20,6 +20,7 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,7 +46,6 @@ import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettingProvider;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -100,10 +100,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        if (IndexSettings.isTimeSeriesModeEnabled() == false) {
-            return List.of();
-        }
-
         return List.of(TIME_SERIES_POLL_INTERVAL, LOOK_AHEAD_TIME);
     }
 
@@ -120,12 +116,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
-        if (IndexSettings.isTimeSeriesModeEnabled() == false) {
-            return List.of();
-        }
-
         var service = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
         this.service.set(service);
         return List.of(service);
@@ -153,12 +146,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
-                TimeValue timeSeriesPollInterval = service.get().pollInterval;
-                additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
-            });
-        }
+        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+            TimeValue timeSeriesPollInterval = service.get().pollInterval;
+            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+        });
 
         var createDsAction = new RestCreateDataStreamAction();
         var deleteDsAction = new RestDeleteDataStreamAction();

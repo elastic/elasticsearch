@@ -291,7 +291,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         // test expand_wildcards
         request = new RankEvalRequest(task, new String[] { "tes*" });
-        request.indicesOptions(IndicesOptions.fromParameters("none", null, null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
+        request.indicesOptions(IndicesOptions.fromParameters("none", "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
         details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());

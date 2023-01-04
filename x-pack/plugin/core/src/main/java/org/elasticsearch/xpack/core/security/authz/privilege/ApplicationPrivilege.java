@@ -43,16 +43,13 @@ public final class ApplicationPrivilege extends Privilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, Collections.singleton("none"));
 
     private final String application;
     private final String[] patterns;
 
-    public ApplicationPrivilege(String application, String privilegeName, String... patterns) {
-        this(application, Collections.singleton(privilegeName), patterns);
-    }
-
-    public ApplicationPrivilege(String application, Set<String> name, String... patterns) {
+    // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
+    ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         super(name, patterns);
         this.application = application;
         this.patterns = patterns;

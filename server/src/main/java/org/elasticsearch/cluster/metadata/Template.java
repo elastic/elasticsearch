@@ -126,7 +126,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            Settings.writeSettingsToStream(this.settings, out);
+            this.settings.writeTo(out);
         }
         if (this.mappings == null) {
             out.writeBoolean(false);

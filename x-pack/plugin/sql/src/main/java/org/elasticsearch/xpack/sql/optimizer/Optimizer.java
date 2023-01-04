@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -122,8 +121,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch(
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        var substitutions = new Batch<>(
             "Substitutions",
             Limiter.ONCE,
             new RewritePivot(),
@@ -131,9 +130,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new ReplaceAggregatesWithLiterals()
         );
 
-        Batch refs = new Batch("Replace References", Limiter.ONCE, new ReplaceReferenceAttributeWithSource());
+        var refs = new Batch<>("Replace References", Limiter.ONCE, new ReplaceReferenceAttributeWithSource());
 
-        Batch operators = new Batch(
+        var operators = new Batch<>(
             "Operator Optimization",
             // combining
             new CombineProjections(),
@@ -167,7 +166,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters()
         );
 
-        Batch aggregate = new Batch(
+        var aggregate = new Batch<>(
             "Aggregation Rewrite",
             new ReplaceMinMaxWithTopHits(),
             new ReplaceAggsWithMatrixStats(),
@@ -179,7 +178,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new ReplaceAggsWithPercentileRanks()
         );
 
-        Batch local = new Batch(
+        var local = new Batch<>(
             "Skip Elasticsearch",
             new SkipQueryOnLimitZero(),
             new SkipQueryForLiteralAggregations(),
@@ -189,7 +188,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PruneLiteralsInGroupBy()
         );
 
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE, CleanAliases.INSTANCE, new SetAsOptimized());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, CleanAliases.INSTANCE, new SetAsOptimized());
 
         return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
@@ -589,7 +588,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return rule(plan);
         }
 
-        @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             Map<Attribute, Alias> aliases = new LinkedHashMap<>();
             List<Attribute> attrs = new ArrayList<>();
@@ -1060,21 +1058,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class PercentileKey extends Tuple<Expression, PercentilesConfig> {
+    private record PercentileKey(Expression field, PercentilesConfig percentilesConfig) {
         PercentileKey(Percentile per) {
-            super(per.field(), per.percentilesConfig());
+            this(per.field(), per.percentilesConfig());
         }
 
         PercentileKey(PercentileRank per) {
-            super(per.field(), per.percentilesConfig());
-        }
-
-        private Expression field() {
-            return v1();
-        }
-
-        private PercentilesConfig percentilesConfig() {
-            return v2();
+            this(per.field(), per.percentilesConfig());
         }
     }
 
@@ -1271,7 +1261,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         public abstract LogicalPlan apply(LogicalPlan plan);
 
-        @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             return plan;
         }

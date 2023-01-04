@@ -15,15 +15,13 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.DocValues;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -48,6 +46,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -65,7 +65,6 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -77,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -245,7 +245,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -295,7 +295,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(context.buildFullName(name), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
+            return new KeywordFieldType(
+                context.buildFullName(name),
+                fieldType,
+                normalizer,
+                searchAnalyzer,
+                quoteAnalyzer,
+                this,
+                context.isSourceSynthetic()
+            );
         }
 
         @Override
@@ -314,6 +322,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
+                context.isSourceSynthetic(),
                 this
             );
         }
@@ -334,6 +343,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
+        private final boolean isSyntheticSource;
 
         public KeywordFieldType(
             String name,
@@ -341,7 +351,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer normalizer,
             NamedAnalyzer searchAnalyzer,
             NamedAnalyzer quoteAnalyzer,
-            Builder builder
+            Builder builder,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
@@ -357,6 +368,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
@@ -367,6 +379,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         public KeywordFieldType(String name) {
@@ -388,6 +401,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -398,6 +412,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         @Override
@@ -682,7 +697,50 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            failIfNoDocValues();
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (operation == FielddataOperation.SEARCH) {
+                failIfNoDocValues();
+                return fieldDataFromDocValues();
+            }
+            if (operation != FielddataOperation.SCRIPT) {
+                throw new IllegalStateException("unknown operation [" + operation.name() + "]");
+            }
+
+            if (hasDocValues()) {
+                return fieldDataFromDocValues();
+            }
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    KeywordDocValuesField::new
+                ) {
+                    @Override
+                    protected BytesRef storedToBytesRef(Object stored) {
+                        return (BytesRef) stored;
+                    }
+                };
+            }
+
+            Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                sourceValueFetcher(sourcePaths),
+                fieldDataContext.lookupSupplier().get().source(),
+                KeywordDocValuesField::new
+            );
+        }
+
+        private SortedSetOrdinalsIndexFieldData.Builder fieldDataFromDocValues() {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
@@ -698,7 +756,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -868,6 +930,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final Script script;
     private final ScriptCompiler scriptCompiler;
     private final Version indexCreatedVersion;
+    private final boolean storeIgnored;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -877,6 +940,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         KeywordFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean storeIgnored,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
@@ -892,6 +956,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.storeIgnored = storeIgnored;
     }
 
     @Override
@@ -901,15 +966,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value;
-        XContentParser parser = context.parser();
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            value = fieldType().nullValue;
-        } else {
-            value = parser.textOrNull();
-        }
-
-        indexValue(context, value);
+        final String value = context.parser().textOrNull();
+        indexValue(context, value == null ? fieldType().nullValue : value);
     }
 
     @Override
@@ -929,16 +987,21 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(name());
+            if (storeIgnored) {
+                // Save a copy of the field so synthetic source can load it
+                context.doc().add(new StoredField(originalName(), new BytesRef(value)));
+            }
             return;
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
-        if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), value);
-        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+
+        if (fieldType().isDimension()) {
+            context.getDimensions().addString(fieldType().name(), binaryValue);
+        }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
         // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
@@ -1030,6 +1093,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         return normalizerName != null;
     }
 
+    /**
+     * The name used to store "original" that have been ignored
+     * by {@link KeywordFieldType#ignoreAbove()} so that they can be rebuilt
+     * for synthetic source.
+     */
+    private String originalName() {
+        return name() + "._original";
+    }
+
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return syntheticFieldLoader(simpleName());
@@ -1038,16 +1110,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (fieldType().ignoreAbove() != Defaults.IGNORE_ABOVE) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
-            );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
@@ -1059,7 +1121,35 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
-        return new BytesSyntheticFieldLoader(name(), simpleName) {
+        if (fieldType.stored()) {
+            return new StringStoredFieldFieldLoader(
+                name(),
+                simpleName,
+                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
+            ) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    BytesRef ref = (BytesRef) value;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+            };
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field ["
+                    + name()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values and isn't stored"
+            );
+        }
+        return new SortedSetDocValuesSyntheticFieldLoader(
+            name(),
+            simpleName,
+            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
+            false
+        ) {
+
             @Override
             protected BytesRef convert(BytesRef value) {
                 return value;
@@ -1073,174 +1163,4 @@ public final class KeywordFieldMapper extends FieldMapper {
         };
     }
 
-    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
-        private final String name;
-        private final String simpleName;
-
-        public BytesSyntheticFieldLoader(String name, String simpleName) {
-            this.name = name;
-            this.simpleName = simpleName;
-        }
-
-        @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
-            if (dv.getValueCount() == 0) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
-            }
-            if (docIdsInLeaf.length == 1) {
-                /*
-                 * The singleton optimization is mostly about looking up ordinals
-                 * in sorted order and doesn't buy anything if there is only a single
-                 * document.
-                 */
-                return new ImmediateLeaf(dv);
-            }
-            SortedDocValues singleton = DocValues.unwrapSingleton(dv);
-            if (singleton != null) {
-                return singletonLeaf(singleton, docIdsInLeaf);
-            }
-            return new ImmediateLeaf(dv);
-        }
-
-        /**
-         * Load all ordinals for all docs up front and resolve to their string
-         * values in order. This should be much more disk-friendly than
-         * {@link ImmediateLeaf} because it resolves the ordinals in order and
-         * marginally more cpu friendly because it resolves the ordinals one time.
-         */
-        private Leaf singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
-            int[] ords = new int[docIdsInLeaf.length];
-            int found = 0;
-            for (int d = 0; d < docIdsInLeaf.length; d++) {
-                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
-                    ords[d] = -1;
-                    continue;
-                }
-                ords[d] = singleton.ordValue();
-                found++;
-            }
-            if (found == 0) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
-            }
-            int[] sortedOrds = ords.clone();
-            Arrays.sort(sortedOrds);
-            int unique = 0;
-            int prev = -1;
-            for (int ord : sortedOrds) {
-                if (ord != prev) {
-                    prev = ord;
-                    unique++;
-                }
-            }
-            int[] uniqueOrds = new int[unique];
-            BytesRef[] converted = new BytesRef[unique];
-            unique = 0;
-            prev = -1;
-            for (int ord : sortedOrds) {
-                if (ord != prev) {
-                    prev = ord;
-                    uniqueOrds[unique] = ord;
-                    converted[unique] = preserve(convert(singleton.lookupOrd(ord)));
-                    unique++;
-                }
-            }
-            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private int idx = -1;
-
-                @Override
-                public boolean empty() {
-                    return false;
-                }
-
-                @Override
-                public boolean advanceToDoc(int docId) throws IOException {
-                    idx++;
-                    if (docIdsInLeaf[idx] != docId) {
-                        throw new IllegalArgumentException(
-                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
-                        );
-                    }
-                    return ords[idx] >= 0;
-                }
-
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (ords[idx] < 0) {
-                        return;
-                    }
-                    int convertedIdx = Arrays.binarySearch(uniqueOrds, ords[idx]);
-                    if (convertedIdx < 0) {
-                        throw new IllegalStateException(
-                            "received unexpected ord [" + ords[idx] + "]. Expected " + Arrays.toString(uniqueOrds)
-                        );
-                    }
-                    BytesRef c = converted[convertedIdx];
-                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
-                }
-            };
-        }
-
-        /**
-         * Load ordinals in line with populating the doc and immediately
-         * convert from ordinals into {@link BytesRef}s.
-         */
-        private class ImmediateLeaf implements Leaf {
-            private final SortedSetDocValues dv;
-            private boolean hasValue;
-
-            ImmediateLeaf(SortedSetDocValues dv) {
-                this.dv = dv;
-            }
-
-            @Override
-            public boolean empty() {
-                return false;
-            }
-
-            @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return hasValue = dv.advanceExact(docId);
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (false == hasValue) {
-                    return;
-                }
-                long first = dv.nextOrd();
-                long next = dv.nextOrd();
-                if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                    BytesRef c = convert(dv.lookupOrd(first));
-                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
-                    return;
-                }
-                b.startArray(simpleName);
-                BytesRef c = convert(dv.lookupOrd(first));
-                b.utf8Value(c.bytes, c.offset, c.length);
-                c = convert(dv.lookupOrd(next));
-                b.utf8Value(c.bytes, c.offset, c.length);
-                while ((next = dv.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                    c = convert(dv.lookupOrd(next));
-                    b.utf8Value(c.bytes, c.offset, c.length);
-                }
-                b.endArray();
-            }
-        }
-
-        /**
-         * Convert a {@link BytesRef} read from the source into bytes to write
-         * to the xcontent. This shouldn't make a deep copy if the conversion
-         * process itself doesn't require one.
-         */
-        protected abstract BytesRef convert(BytesRef value);
-
-        /**
-         * Preserves {@link BytesRef bytes} returned by {@link #convert}
-         * to by written later. This should make a
-         * {@link BytesRef#deepCopyOf deep copy} if {@link #convert} didn't.
-         */
-        protected abstract BytesRef preserve(BytesRef value);
-    }
 }

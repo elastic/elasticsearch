@@ -22,6 +22,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -75,7 +76,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Override
     protected String configRoles() {
         // The definition of TEST_ROLE here is intentionally different than the definition in the superclass.
-        return """
+        return Strings.format("""
             %s:
               cluster: [ all ]
               indices:
@@ -105,7 +106,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
               indices:
                 - names: 'b'
                   privileges: [all]
-            """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+            """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
     }
 
     @Override

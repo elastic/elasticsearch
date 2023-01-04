@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -46,7 +47,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -167,11 +167,7 @@ public class FieldSortIT extends ESIntegTestCase {
                             "foo",
                             "bar",
                             "timeUpdated",
-                            "2014/07/"
-                                + String.format(Locale.ROOT, "%02d", i + 1)
-                                + " "
-                                + String.format(Locale.ROOT, "%02d", j + 1)
-                                + ":00:00"
+                            "2014/07/" + Strings.format("%02d", i + 1) + " " + Strings.format("%02d", j + 1) + ":00:00"
                         )
                 );
             }
@@ -196,10 +192,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("foo", "bar"))
-                        .must(
-                            QueryBuilders.rangeQuery("timeUpdated")
-                                .gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01")
-                        )
+                        .must(QueryBuilders.rangeQuery("timeUpdated").gte("2014/" + Strings.format("%02d", randomIntBetween(1, 7)) + "/01"))
                 )
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(scaledRandomIntBetween(1, docs))

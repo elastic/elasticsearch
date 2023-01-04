@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -86,12 +87,29 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Collections.unmodifiableList(parameters);
         }
 
-        @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            Version supportedVersion,
+            OnScriptError onScriptError
+        ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta);
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
+        }
+
+        @Override
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return createFieldType(name, factory, script, meta, Version.CURRENT, onScriptError);
         }
 
         @Override
@@ -105,10 +123,10 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
     }
 
-    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {
+    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter, Version supportedVersion) {
         Builder builder = new Builder(name);
         builder.format.setValue(dateTimeFormatter.pattern());
-        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE);
+        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE, supportedVersion);
     }
 
     private final DateFormatter dateTimeFormatter;
@@ -119,11 +137,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta

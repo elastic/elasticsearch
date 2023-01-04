@@ -11,6 +11,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -762,11 +763,11 @@ public class OsProbe {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+    OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
             refreshInterval,
             Runtime.getRuntime().availableProcessors(),
-            allocatedProcessors,
+            processors,
             Constants.OS_NAME,
             getPrettyName(),
             Constants.OS_ARCH,

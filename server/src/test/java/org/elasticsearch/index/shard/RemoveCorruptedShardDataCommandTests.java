@@ -137,8 +137,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         Condition<?> rolloverCondition = randomFrom(
             new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
             new MaxDocsCondition(randomNonNegativeLong()),
-            new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+            new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
             new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
 

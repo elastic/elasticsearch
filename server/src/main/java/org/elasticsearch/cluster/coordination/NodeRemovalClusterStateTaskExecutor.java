@@ -19,8 +19,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
-import java.util.List;
-
 public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
 
     private static final Logger logger = LogManager.getLogger(NodeRemovalClusterStateTaskExecutor.class);
@@ -32,11 +30,6 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         @Override
         public void onFailure(final Exception e) {
             logger.log(MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR, "unexpected failure during [node-left]", e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
 
         @Override
@@ -53,36 +46,37 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) throws Exception {
-        final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
+    public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
+        final ClusterState initialState = batchExecutionContext.initialState();
+        final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
         boolean removed = false;
-        for (final var taskContext : taskContexts) {
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
-            if (currentState.nodes().nodeExists(task.node())) {
+            if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 removed = true;
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
-            taskContext.success(() -> task.onClusterStateProcessed.run());
+            taskContext.success(task.onClusterStateProcessed::run);
         }
 
-        final ClusterState finalState;
+        if (removed == false) {
+            // no nodes to remove, keep the current cluster state
+            return initialState;
+        }
 
-        if (removed) {
-            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-            final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-            finalState = allocationService.disassociateDeadNodes(
+        try (var ignored = batchExecutionContext.dropHeadersContext()) {
+            // suppress deprecation warnings e.g. from reroute()
+
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
+            final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
                 true,
-                describeTasks(taskContexts.stream().map(TaskContext::getTask).toList())
+                describeTasks(batchExecutionContext.taskContexts().stream().map(TaskContext::getTask).toList())
             );
-        } else {
-            // no nodes to remove, keep the current cluster state
-            finalState = currentState;
         }
-
-        return finalState;
     }
 
     // visible for testing

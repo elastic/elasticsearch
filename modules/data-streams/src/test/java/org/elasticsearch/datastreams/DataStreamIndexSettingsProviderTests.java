@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -308,7 +310,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "backing index [%s] in tsdb mode doesn't have the [index.time_series.end_time] index setting".formatted(
+                Strings.format(
+                    "backing index [%s] in tsdb mode doesn't have the [index.time_series.end_time] index setting",
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1, twoHoursAgo.toEpochMilli())
                 )
             )
@@ -330,6 +333,159 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             null
         );
         assertThat(result.size(), equalTo(0));
+    }
+
+    public void testGenerateRoutingPathFromDynamicTemplate() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": "prometheus.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "host": {
+                            "properties": {
+                                "id": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+    }
+
+    public void testGenerateRoutingPathFromDynamicTemplate_templateWithNoPathMatch() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": "prometheus.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        {
+                            "strings_as_keyword": {
+                                "match_mapping_type": "string",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "ignore_above": 1024
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "host": {
+                            "properties": {
+                                "id": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+    }
+
+    public void testGenerateRoutingPathFromDynamicTemplate_nonKeywordTemplate() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": "prometheus.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        {
+                            "docker.cpu.core.*.pct": {
+                                "path_match": "docker.cpu.core.*.pct",
+                                "mapping": {
+                                    "coerce": true,
+                                    "type": "float"
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "host": {
+                            "properties": {
+                                "id": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+    }
+
+    private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+        Settings settings = Settings.EMPTY;
+
+        return provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping))
+        );
     }
 
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.GrantRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -49,18 +50,19 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         this.threadContext = threadContext;
     }
 
-    protected void executeWithGrantAuthentication(GrantRequest grantRequest, ActionListener<Authentication> listener) {
+    @Override
+    public final void doExecute(Task task, Request request, ActionListener<Response> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            final AuthenticationToken authenticationToken = grantRequest.getGrant().getAuthenticationToken();
+            final AuthenticationToken authenticationToken = request.getGrant().getAuthenticationToken();
             assert authenticationToken != null : "authentication token must not be null";
             if (authenticationToken == null) {
                 listener.onFailure(
-                    new ElasticsearchSecurityException("the grant type [{}] is not supported", grantRequest.getGrant().getType())
+                    new ElasticsearchSecurityException("the grant type [{}] is not supported", request.getGrant().getType())
                 );
                 return;
             }
 
-            final String runAsUsername = grantRequest.getGrant().getRunAsUsername();
+            final String runAsUsername = request.getGrant().getRunAsUsername();
 
             final ActionListener<Authentication> authenticationListener = ActionListener.wrap(authentication -> {
                 if (authentication.isRunAs()) {
@@ -73,12 +75,15 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                     } else {
                         // Authentication can be run-as even when runAsUsername is null.
                         // This can happen when the authentication itself is a run-as client-credentials token.
-                        assert runAsUsername != null || "access_token".equals(grantRequest.getGrant().getType());
+                        assert runAsUsername != null || "access_token".equals(request.getGrant().getType());
                         authorizationService.authorize(
                             authentication,
                             AuthenticateAction.NAME,
-                            new AuthenticateRequest(effectiveUsername),
-                            ActionListener.wrap(ignore2 -> listener.onResponse(authentication), listener::onFailure)
+                            AuthenticateRequest.INSTANCE,
+                            ActionListener.wrap(
+                                ignore2 -> doExecuteWithGrantAuthentication(task, request, authentication, listener),
+                                listener::onFailure
+                            )
                         );
                     }
                 } else {
@@ -88,7 +93,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                             new ElasticsearchStatusException("the provided grant credentials do not support run-as", RestStatus.BAD_REQUEST)
                         );
                     } else {
-                        listener.onResponse(authentication);
+                        doExecuteWithGrantAuthentication(task, request, authentication, listener);
                     }
                 }
             }, listener::onFailure);
@@ -98,7 +103,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
             }
             authenticationService.authenticate(
                 actionName,
-                grantRequest,
+                request,
                 authenticationToken,
                 ActionListener.runBefore(authenticationListener, authenticationToken::clearCredentials)
             );
@@ -106,4 +111,11 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
             listener.onFailure(e);
         }
     }
+
+    protected abstract void doExecuteWithGrantAuthentication(
+        Task task,
+        Request request,
+        Authentication authentication,
+        ActionListener<Response> listener
+    );
 }

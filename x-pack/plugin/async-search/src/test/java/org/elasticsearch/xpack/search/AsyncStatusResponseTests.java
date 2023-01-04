@@ -78,7 +78,19 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     public void testToXContent() throws IOException {
         AsyncStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = """
+            Object[] args = new Object[] {
+                response.getId(),
+                response.isRunning(),
+                response.isPartial(),
+                response.getStartTime(),
+                response.getExpirationTime(),
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getSkippedShards(),
+                response.getFailedShards(),
+                response.getCompletionStatus() == null ? "" : Strings.format("""
+                    ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+            String expectedJson = Strings.format("""
                 {
                   "id" : "%s",
                   "is_running" : %s,
@@ -93,19 +105,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                    }
                   %s
                 }
-                """.formatted(
-                response.getId(),
-                response.isRunning(),
-                response.isPartial(),
-                response.getStartTime(),
-                response.getExpirationTime(),
-                response.getTotalShards(),
-                response.getSuccessfulShards(),
-                response.getSkippedShards(),
-                response.getFailedShards(),
-                response.getCompletionStatus() == null ? "" : """
-                    ,"completion_status" : %s""".formatted(response.getCompletionStatus().getStatus())
-            );
+                """, args);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
         }

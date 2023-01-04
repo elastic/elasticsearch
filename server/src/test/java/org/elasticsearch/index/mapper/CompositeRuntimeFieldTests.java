@@ -16,6 +16,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -32,10 +33,11 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == CompositeFieldScript.CONTEXT) {
-            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup) -> ctx -> new CompositeFieldScript(
+            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup, onScriptError) -> ctx -> new CompositeFieldScript(
                 fieldName,
                 params,
                 searchLookup,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -51,7 +53,13 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             };
         }
         if (context == LongFieldScript.CONTEXT) {
-            return (T) (LongFieldScript.Factory) (field, params, lookup) -> ctx -> new LongFieldScript(field, params, lookup, ctx) {
+            return (T) (LongFieldScript.Factory) (field, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
+                field,
+                params,
+                lookup,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
 
@@ -334,7 +342,10 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(Arrays.asList(doc1.rootDoc(), doc2.rootDoc())), reader -> {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
-                (mft, lookupSupplier) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier)).build(null, null)
+                (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                    new FieldDataContext("test", lookupSupplier, mapperService.mappingLookup()::sourcePaths, fdo)
+                ).build(null, null),
+                new SourceLookup.ReaderSourceProvider()
             );
 
             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(reader.leaves().get(0));

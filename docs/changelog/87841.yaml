@@ -1,6 +1,0 @@
-pr: 87841
-summary: Remove any existing `read_only_allow_delete` index blocks when `cluster.routing.allocation.disk.threshold_enabled` is set to `false`
-area: Allocation
-type: bug
-issues:
-  - 86383

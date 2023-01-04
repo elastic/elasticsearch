@@ -1,0 +1,64 @@
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: "Downsample ILM validations added in 8.5.0"
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test downsample in hot phase without rollover":
+  - skip:
+      version: " - 8.4.99"
+      reason: "Downsample ILM validations added in 8.5.0"
+
+  - do:
+      catch: /the \[downsample\] action\(s\) may not be used in the \[hot\] phase without an accompanying \[rollover\] action/
+      ilm.put_lifecycle:
+        policy: "bad_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "min_age": "0s",
+                  "actions": {
+                    "downsample": {
+                      "fixed_interval": "3h"
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+---
+"Test downsampling in multiple phases with the same interval":
+  - do:
+      catch: /Downsampling interval \[3h\] for phase \[cold\] must be greater than the interval \[3h\] for phase \[warm\]/
+      ilm.put_lifecycle:
+        policy: "bad_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "min_age": "10s",
+                  "actions": {
+                    "downsample": {
+                      "fixed_interval": "3h"
+                    }
+                  }
+                },
+                "cold": {
+                  "min_age": "30s",
+                  "actions": {
+                    "downsample": {
+                      "fixed_interval": "3h"
+                    }
+                  }
+                }
+              }
+            }
+          }

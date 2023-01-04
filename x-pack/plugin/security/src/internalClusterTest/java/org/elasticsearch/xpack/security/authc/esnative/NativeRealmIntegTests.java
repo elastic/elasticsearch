@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -432,10 +433,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(
                 "any cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
-                    .build()
-                    .cluster()
-                    .check("cluster:admin/foo", request, authentication)
+                Role.buildFromRoleDescriptor(
+                    getRolesResponse.roles()[0],
+                    new FieldPermissionsCache(Settings.EMPTY),
+                    EMPTY_RESTRICTED_INDICES
+                ).cluster().check("cluster:admin/foo", request, authentication)
             );
 
             preparePutRole("test_role").cluster("none")
@@ -453,10 +455,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
             assertFalse(
                 "no cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
-                    .build()
-                    .cluster()
-                    .check("cluster:admin/bar", request, authentication)
+                Role.buildFromRoleDescriptor(
+                    getRolesResponse.roles()[0],
+                    new FieldPermissionsCache(Settings.EMPTY),
+                    EMPTY_RESTRICTED_INDICES
+                ).cluster().check("cluster:admin/bar", request, authentication)
             );
         }
     }
@@ -743,11 +746,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // authenticate should work
         AuthenticateResponse authenticateResponse = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
-        ).execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username)).get();
-        assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
-        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("reserved"));
-        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), equalTo("reserved"));
-        assertNull(authenticateResponse.authentication().getLookedUpBy());
+        ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).get();
+        assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getAuthenticatingSubject().getRealm().getName(), equalTo("reserved"));
+        assertThat(authenticateResponse.authentication().getAuthenticatingSubject().getRealm().getType(), equalTo("reserved"));
+        assertFalse(authenticateResponse.authentication().isRunAs());
     }
 
     public void testOperationsOnReservedRoles() throws Exception {

@@ -11,11 +11,14 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
 import org.elasticsearch.plugins.spi.TestService;
@@ -26,18 +29,19 @@ import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,10 +49,12 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -144,8 +150,7 @@ public class PluginsServiceTests extends ESTestCase {
             "false"
         );
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        final String expected = String.format(
-            Locale.ROOT,
+        final String expected = Strings.format(
             "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
             removing
         );
@@ -382,12 +387,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testExistingMandatoryInstalledPlugin() throws IOException {
-        // This test opens a child classloader, reading a jar under the test temp
-        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
-        // occurs the jar is deleted while the classloader is still open. However, on
-        // windows, files cannot be deleted when they are still open by a process.
-        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
-        final Path pathHome = createTempDir();
+        final Path pathHome = createTempDir(getTestName());
         final Path plugins = pathHome.resolve("plugins");
         final Path fake = plugins.resolve("fake");
 
@@ -411,7 +411,8 @@ public class PluginsServiceTests extends ESTestCase {
         }
 
         final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
-        newPluginsService(settings);
+        var pluginsService = newPluginsService(settings);
+        closePluginLoaders(pluginsService);
     }
 
     public void testPluginFromParentClassLoader() throws IOException {
@@ -709,6 +710,190 @@ public class PluginsServiceTests extends ESTestCase {
         var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
 
         assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
+    }
+
+    public void testDeprecatedPluginInterface() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("deprecated-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeSimplePluginDescriptor(plugin, "deprecated-plugin", "p.DeprecatedPlugin");
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
+            package p;
+            import org.elasticsearch.plugins.*;
+            public class DeprecatedPlugin extends Plugin implements NetworkPlugin {}
+            """)));
+
+        var pluginService = newPluginsService(settings);
+        try {
+            assertWarnings(
+                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements "
+                    + "deprecated plugin interface NetworkPlugin. "
+                    + "This plugin interface will be removed in a future release."
+            );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    public void testDeprecatedPluginMethod() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("deprecated-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeSimplePluginDescriptor(plugin, "deprecated-plugin", "p.DeprecatedPlugin");
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
+            package p;
+            import java.util.Map;
+            import org.elasticsearch.plugins.*;
+            import org.elasticsearch.cluster.coordination.ElectionStrategy;
+            public class DeprecatedPlugin extends Plugin implements DiscoveryPlugin {
+                @Override
+                public Map<String, ElectionStrategy> getElectionStrategies() {
+                    return Map.of();
+                }
+            }
+            """)));
+
+        var pluginService = newPluginsService(settings);
+        try {
+            assertWarnings(
+                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
+                    + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
+            );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    public void testStablePluginLoading() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("stable-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeStablePluginProperties(
+            plugin,
+            "description",
+            "description",
+            "name",
+            "stable-plugin",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version")
+        );
+
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            import java.util.Map;
+            import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+            import org.elasticsearch.plugin.api.NamedComponent;
+            import java.io.Reader;
+            @NamedComponent( "a_name")
+            public class A  implements CharFilterFactory {
+                 @Override
+                public Reader create(Reader reader) {
+                    return reader;
+                }
+            }
+            """)));
+        Path namedComponentFile = plugin.resolve("named_components.json");
+        Files.writeString(namedComponentFile, """
+            {
+              "org.elasticsearch.plugin.analysis.api.CharFilterFactory": {
+                "a_name": "p.A"
+              }
+            }
+            """);
+
+        var pluginService = newPluginsService(settings);
+        try {
+            Map<String, Plugin> stringPluginMap = pluginService.pluginMap();
+            assertThat(stringPluginMap.get("stable-plugin"), instanceOf(StablePluginPlaceHolder.class));
+
+            PluginsAndModules info = pluginService.info();
+            List<PluginRuntimeInfo> pluginInfos = info.getPluginInfos();
+            assertEquals(pluginInfos.size(), 1);
+            assertThat(pluginInfos.get(0).descriptor().getName(), equalTo("stable-plugin"));
+            assertThat(pluginInfos.get(0).descriptor().isStable(), is(true));
+
+            // check ubermodule classloader usage
+            Collection<PluginInfo> stablePluginInfos = pluginService.getStablePluginRegistry()
+                .getPluginInfosForExtensible("org.elasticsearch.plugin.analysis.api.CharFilterFactory");
+            assertThat(stablePluginInfos, hasSize(1));
+            ClassLoader stablePluginClassLoader = stablePluginInfos.stream().findFirst().orElseThrow().loader();
+            assertThat(stablePluginClassLoader, instanceOf(UberModuleClassLoader.class));
+
+            if (CharFilterFactory.class.getModule().isNamed() == false) {
+                // test frameworks run with stable api classes on classpath, so we
+                // have no choice but to let our class read the unnamed module that
+                // owns the stable api classes
+                ((UberModuleClassLoader) stablePluginClassLoader).addReadsSystemClassLoaderUnnamedModule();
+            }
+
+            Class<?> stableClass = stablePluginClassLoader.loadClass("p.A");
+            assertThat(stableClass.getModule().getName(), equalTo("synthetic.stable.plugin"));
+            // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    public void testCanCreateAClassLoader() {
+        assertEquals(
+            "access denied (\"java.lang.RuntimePermission\" \"createClassLoader\")",
+            expectThrows(AccessControlException.class, () -> new Loader(this.getClass().getClassLoader())).getMessage()
+        );
+        var loader = PrivilegedOperations.supplierWithCreateClassLoader(() -> new Loader(this.getClass().getClassLoader()));
+        assertEquals(this.getClass().getClassLoader(), loader.getParent());
+    }
+
+    public void testToModuleName() {
+        assertThat(PluginsService.toModuleName("module.name"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module-name"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module-name1"), equalTo("module.name1"));
+        assertThat(PluginsService.toModuleName("1module-name"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module-name!"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module!@#name!"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("!module-name!"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module_name"), equalTo("module_name"));
+        assertThat(PluginsService.toModuleName("-module-name-"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("_module_name"), equalTo("_module_name"));
+        assertThat(PluginsService.toModuleName("_"), equalTo("_"));
+    }
+
+    static final class Loader extends ClassLoader {
+        Loader(ClassLoader parent) {
+            super(parent);
+        }
+    }
+
+    // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
+    static void closePluginLoaders(PluginsService pluginService) {
+        for (var lp : pluginService.plugins()) {
+            if (lp.loader()instanceof URLClassLoader urlClassLoader) {
+                try {
+                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                } catch (IOException unexpected) {
+                    throw new UncheckedIOException(unexpected);
+                }
+            }
+            if (lp.loader()instanceof UberModuleClassLoader loader) {
+                try {
+                    PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

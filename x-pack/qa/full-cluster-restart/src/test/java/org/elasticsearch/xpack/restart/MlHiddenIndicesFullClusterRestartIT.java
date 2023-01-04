@@ -14,6 +14,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -163,7 +164,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig = """
+        String jobConfig = Strings.format("""
             {
                 "job_id": "%s",
                 "analysis_config": {
@@ -174,7 +175,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     }]
                 },
                 "data_description": {}
-            }""".formatted(jobId);
+            }""", jobId);
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
         putJobRequest.setJsonEntity(jobConfig);

@@ -10,10 +10,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus> {
+public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<SnapshotStatus> {
 
     public void testToString() throws Exception {
         SnapshotsInProgress.State state = randomFrom(SnapshotsInProgress.State.values());
@@ -54,35 +56,14 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
             case FAILURE -> failedShards++;
         }
 
-        String expected = """
-            {
-              "snapshot" : "test-snap",
-              "repository" : "test-repo",
-              "uuid" : "%s",
-              "state" : "%s",
-              "include_global_state" : %s,
-              "shards_stats" : {
-                "initializing" : %s,
-                "started" : %s,
-                "finalizing" : %s,
-                "done" : %s,
-                "failed" : %s,
-                "total" : %s
-              },
-              "stats" : {
-                "incremental" : {
-                  "file_count" : 0,
-                  "size_in_bytes" : 0
-                },
-                "total" : {
-                  "file_count" : 0,
-                  "size_in_bytes" : 0
-                },
-                "start_time_in_millis" : 0,
-                "time_in_millis" : 0
-              },
-              "indices" : {
-                "%s" : {
+        String expected = Strings.format(
+            """
+                {
+                  "snapshot" : "test-snap",
+                  "repository" : "test-repo",
+                  "uuid" : "%s",
+                  "state" : "%s",
+                  "include_global_state" : %s,
                   "shards_stats" : {
                     "initializing" : %s,
                     "started" : %s,
@@ -103,9 +84,16 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
                     "start_time_in_millis" : 0,
                     "time_in_millis" : 0
                   },
-                  "shards" : {
+                  "indices" : {
                     "%s" : {
-                      "stage" : "%s",
+                      "shards_stats" : {
+                        "initializing" : %s,
+                        "started" : %s,
+                        "finalizing" : %s,
+                        "done" : %s,
+                        "failed" : %s,
+                        "total" : %s
+                      },
                       "stats" : {
                         "incremental" : {
                           "file_count" : 0,
@@ -117,12 +105,27 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
                         },
                         "start_time_in_millis" : 0,
                         "time_in_millis" : 0
+                      },
+                      "shards" : {
+                        "%s" : {
+                          "stage" : "%s",
+                          "stats" : {
+                            "incremental" : {
+                              "file_count" : 0,
+                              "size_in_bytes" : 0
+                            },
+                            "total" : {
+                              "file_count" : 0,
+                              "size_in_bytes" : 0
+                            },
+                            "start_time_in_millis" : 0,
+                            "time_in_millis" : 0
+                          }
+                        }
                       }
                     }
                   }
-                }
-              }
-            }""".formatted(
+                }""",
             uuid,
             state.toString(),
             includeGlobalState,
@@ -178,5 +181,10 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Writeable.Reader<SnapshotStatus> instanceReader() {
+        return SnapshotStatus::new;
     }
 }

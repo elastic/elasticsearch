@@ -29,13 +29,13 @@
               _id: id_1
               dynamic_templates:
                 location: location
-          - { "location": [ -71.34, 41.12 ]}
+          - { "location": "41.12,-71.34"}
           - index:
               _index: test_index
               _id: id_2
               dynamic_templates:
                 location: location
-          - { "location": "41.12,-71.34"}
+          - { "location": [ -71.34, 41.12 ]}
   - match: { errors: false }
   - match: { items.0.index.result: created }
   - match: { items.1.index.result: created }

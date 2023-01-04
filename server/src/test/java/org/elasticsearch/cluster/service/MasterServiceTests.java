@@ -903,8 +903,10 @@ public class MasterServiceTests extends ESTestCase {
 
             final ActionListener<ClusterState> publishListener;
             final String responseHeaderValue;
+            final boolean expectFailure;
 
-            Task(String responseHeaderValue, ActionListener<ClusterState> publishListener) {
+            Task(boolean expectFailure, String responseHeaderValue, ActionListener<ClusterState> publishListener) {
+                this.expectFailure = expectFailure;
                 this.responseHeaderValue = responseHeaderValue;
                 this.publishListener = publishListener;
             }
@@ -920,6 +922,8 @@ public class MasterServiceTests extends ESTestCase {
 
         final var testResponseHeaderName = "test-response-header";
 
+        final String exceptionMessage = "simulated";
+
         final var executor = new ClusterStateTaskExecutor<Task>() {
             @Override
             @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
@@ -928,7 +932,11 @@ public class MasterServiceTests extends ESTestCase {
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         threadPool.getThreadContext().addResponseHeader(testResponseHeaderName, taskContext.getTask().responseHeaderValue);
                     }
-                    taskContext.success(taskContext.getTask().publishListener::onResponse);
+                    if (taskContext.getTask().expectFailure) {
+                        taskContext.onFailure(new ElasticsearchException(exceptionMessage));
+                    } else {
+                        taskContext.success(taskContext.getTask().publishListener::onResponse);
+                    }
                 }
                 return ClusterState.builder(batchExecutionContext.initialState()).build();
             }
@@ -971,9 +979,11 @@ public class MasterServiceTests extends ESTestCase {
                     final var testContextHeaderValue = randomAlphaOfLength(10);
                     final var testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
-                    final var task = new Task(testResponseHeaderValue, new ActionListener<>() {
+                    final var expectFailure = randomBoolean();
+                    final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
+                            assertFalse(expectFailure);
                             assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
                             assertSame(publishedState.get(), clusterState);
@@ -982,7 +992,12 @@ public class MasterServiceTests extends ESTestCase {
 
                         @Override
                         public void onFailure(Exception e) {
-                            throw new AssertionError(e);
+                            assertTrue(expectFailure);
+                            assertThat(e, instanceOf(ElasticsearchException.class));
+                            assertThat(e.getMessage(), equalTo(exceptionMessage));
+                            assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
+                            assertNotNull(publishedState.get());
+                            publishSuccessCountdown.countDown();
                         }
                     });
 
@@ -999,7 +1014,6 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
 
-            final String exceptionMessage = "simulated";
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
                 publishListener.onFailure(new FailedToCommitClusterStateException(exceptionMessage));
@@ -1013,7 +1027,8 @@ public class MasterServiceTests extends ESTestCase {
                     final String testContextHeaderValue = randomAlphaOfLength(10);
                     final String testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
-                    final var task = new Task(testResponseHeaderValue, new ActionListener<>() {
+                    final var expectFailure = randomBoolean();
+                    final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             throw new AssertionError("should not succeed");
@@ -1023,7 +1038,11 @@ public class MasterServiceTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
-                            assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                            if (expectFailure) {
+                                assertThat(e, instanceOf(ElasticsearchException.class));
+                            } else {
+                                assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                            }
                             assertThat(e.getMessage(), equalTo(exceptionMessage));
                             publishFailureCountdown.countDown();
                         }

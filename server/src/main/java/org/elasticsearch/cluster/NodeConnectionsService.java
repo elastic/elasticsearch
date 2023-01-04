@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -219,6 +220,13 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
 
+        // all access to these fields is synchronized
+        private ActionListener<Void> pendingListener;
+        private boolean connectionInProgress;
+
+        // placeholder listener for a fire-and-forget connection attempt
+        private static final ActionListener<Void> NOOP = ActionListener.noop();
+
         ConnectionTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
         }
@@ -229,57 +237,97 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         Runnable connect(ActionListener<Void> listener) {
             return () -> {
-                final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
+                registerListener(listener);
+                doConnect();
+            };
+        }
 
-                if (alreadyConnected) {
-                    logger.trace("refreshing connection to {}", discoveryNode);
-                } else {
-                    logger.debug("connecting to {}", discoveryNode);
+        private synchronized void registerListener(ActionListener<Void> listener) {
+            if (listener == null) {
+                pendingListener = pendingListener == null ? NOOP : pendingListener;
+            } else if (pendingListener == null || pendingListener == NOOP) {
+                pendingListener = listener;
+            } else if (pendingListener instanceof ListenableFuture<Void> listenableFuture) {
+                listenableFuture.addListener(listener);
+            } else {
+                var wrapper = new ListenableFuture<Void>();
+                wrapper.addListener(pendingListener);
+                wrapper.addListener(listener);
+                pendingListener = wrapper;
+            }
+        }
+
+        private synchronized ActionListener<Void> acquireListener() {
+            // Avoid concurrent connection attempts because they don't necessarily complete in order otherwise, and out-of-order completion
+            // might mean we end up disconnected from a node even though we triggered a call to connect() after all close() calls had
+            // finished.
+            if (connectionInProgress == false) {
+                var listener = pendingListener;
+                if (listener != null) {
+                    pendingListener = null;
+                    connectionInProgress = true;
+                    return listener;
+                }
+            }
+            return null;
+        }
+
+        private synchronized void releaseListener() {
+            assert connectionInProgress;
+            connectionInProgress = false;
+        }
+
+        private void doConnect() {
+            var listener = acquireListener();
+            if (listener == null) {
+                return;
+            }
+
+            final boolean alreadyConnected = transportService.nodeConnected(discoveryNode);
+
+            if (alreadyConnected) {
+                logger.trace("refreshing connection to {}", discoveryNode);
+            } else {
+                logger.debug("connecting to {}", discoveryNode);
+            }
+
+            // It's possible that connectionRef is a reference to an older connection that closed out from under us, but that something else
+            // has opened a fresh connection to the node. Therefore we always call connectToNode() and update connectionRef.
+            transportService.connectToNode(discoveryNode, ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable connectionReleasable) {
+                    if (alreadyConnected) {
+                        logger.trace("refreshed connection to {}", discoveryNode);
+                    } else {
+                        logger.debug("connected to {}", discoveryNode);
+                    }
+                    consecutiveFailureCount.set(0);
+                    setConnectionRef(connectionReleasable);
+
+                    final boolean isActive;
+                    synchronized (mutex) {
+                        isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
+                    }
+                    if (isActive == false) {
+                        logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
+                        setConnectionRef(null);
+                    }
+                    listener.onResponse(null);
                 }
 
-                // It's possible that connectionRef is a reference to an older connection that closed out from under us, but that something
-                // else has opened a fresh connection to the node. Therefore we always call connectToNode() and update connectionRef.
-                transportService.connectToNode(discoveryNode, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Releasable connectionReleasable) {
-                        if (alreadyConnected) {
-                            logger.trace("refreshed connection to {}", discoveryNode);
-                        } else {
-                            logger.debug("connected to {}", discoveryNode);
-                        }
-                        consecutiveFailureCount.set(0);
-                        setConnectionRef(connectionReleasable);
-
-                        final boolean isActive;
-                        synchronized (mutex) {
-                            isActive = targetsByNode.get(discoveryNode) == ConnectionTarget.this;
-                        }
-                        if (isActive == false) {
-                            logger.debug("connected to stale {} - releasing stale connection", discoveryNode);
-                            setConnectionRef(null);
-                        }
-                        if (listener != null) {
-                            listener.onResponse(null);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
-                        // only warn every 6th failure
-                        final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
-                        logger.log(
-                            level,
-                            () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount),
-                            e
-                        );
-                        setConnectionRef(null);
-                        if (listener != null) {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
-            };
+                @Override
+                public void onFailure(Exception e) {
+                    final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
+                    // only warn every 6th failure
+                    final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
+                    logger.log(level, () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount), e);
+                    setConnectionRef(null);
+                    listener.onFailure(e);
+                }
+            }, () -> {
+                releaseListener();
+                transportService.getThreadPool().generic().execute(this::doConnect);
+            }));
         }
 
         void disconnect() {

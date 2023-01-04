@@ -97,12 +97,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                         Thread.currentThread().interrupt();
                         return;
                     }
-                    logger.info(
-                        "onRemoved task {} matchedTasks {}, nodeOperationFiredOff {}",
-                        task.getId(),
-                        matchedTasks.stream().map(Task::getId).toList(),
-                        nodeOperationFiredOff
-                    );
                     matchedTasks.remove(task);
                     if (matchedTasks.isEmpty() && nodeOperationFiredOff.compareAndSet(false, true)) {
                         try {

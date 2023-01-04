@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -162,7 +163,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     public void testWithValidPasswordHash() throws IOException {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = formatted("""
+        final String json = Strings.format("""
             {
               "password_hash": "%s",
               "roles": []
@@ -186,7 +187,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             userHasher = getFastStoredHashAlgoForTests();
         }
         final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = formatted("""
+        final String json = Strings.format("""
             {
               "password_hash": "%s",
               "roles": []

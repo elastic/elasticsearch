@@ -15,7 +15,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContent {
+public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final DesiredBalanceStats stats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;

@@ -146,7 +146,7 @@ public class ClusterStateTests extends ESTestCase {
         );
         builder.endObject();
 
-        assertEquals(XContentHelper.stripWhitespace(formatted("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "clusterUUID",
               "version": 0,
@@ -377,7 +377,7 @@ public class ClusterStateTests extends ESTestCase {
         writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -605,7 +605,7 @@ public class ClusterStateTests extends ESTestCase {
         writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -857,7 +857,7 @@ public class ClusterStateTests extends ESTestCase {
         writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 25);
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,

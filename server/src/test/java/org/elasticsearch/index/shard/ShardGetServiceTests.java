@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -131,7 +132,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
 
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(formatted("""
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
             {
               "properties": {
                 "foo": {

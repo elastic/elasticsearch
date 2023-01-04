@@ -96,6 +96,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             true,
             false,
             false,
+            false,
             false
         );
         PARSER.declareObjectArray(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);

@@ -599,6 +599,12 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * Reads an optional byte array. It's effectively the same as readByteArray, except
+     * it supports null.
+     * @return a byte array or null
+     * @throws IOException
+     */
     @Nullable
     public byte[] readOptionalByteArray() throws IOException {
         if (readBoolean()) {

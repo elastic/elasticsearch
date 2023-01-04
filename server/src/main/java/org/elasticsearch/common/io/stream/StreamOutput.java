@@ -538,7 +538,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a string array, for nullable string, writes false.
+     * Writes a byte array, for null arrays it writes false.
+     * @param array an array or null
      */
     public void writeOptionalByteArray(@Nullable byte[] array) throws IOException {
         if (array == null) {

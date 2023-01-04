@@ -57,6 +57,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.health.HealthIndicatorService.MAX_AFFECTED_RESOURCES_COUNT;
 import static org.elasticsearch.health.ImpactArea.DEPLOYMENT_MANAGEMENT;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.INDICES_WITH_READONLY_BLOCK;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_FLOOD_STAGE_WATERMARK;
@@ -961,6 +962,34 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             }
         }
 
+    }
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(DiskHealthIndicatorService.NAME, equalTo("disk"));
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createDataNodeDiagnosis(0, List.of()).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes")
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createNonDataNodeDiagnosis(
+                HealthStatus.RED,
+                List.of(),
+                MAX_AFFECTED_RESOURCES_COUNT,
+                true
+            ).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity_master_nodes")
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createNonDataNodeDiagnosis(
+                HealthStatus.RED,
+                List.of(),
+                MAX_AFFECTED_RESOURCES_COUNT,
+                false
+            ).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity")
+        );
     }
 
     private Set<DiscoveryNode> createNodesWithAllRoles() {

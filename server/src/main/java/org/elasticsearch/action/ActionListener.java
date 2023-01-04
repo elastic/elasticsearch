@@ -294,10 +294,10 @@ public interface ActionListener<Response> {
      * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
      * {@link #onFailure}.
      */
-    static <Response, BaseResponse extends Response> ActionListener<BaseResponse> wrap(ActionListener<Response> delegate) {
+    static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
         return new ActionListener<>() {
             @Override
-            public void onResponse(BaseResponse response) {
+            public void onResponse(Response response) {
                 try {
                     delegate.onResponse(response);
                 } catch (Exception e) {

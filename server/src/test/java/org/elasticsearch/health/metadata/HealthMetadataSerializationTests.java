@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
 import java.util.List;
@@ -101,5 +102,9 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
 
     private HealthMetadata mutate(HealthMetadata base) {
         return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ignored -> 1);
     }
 }

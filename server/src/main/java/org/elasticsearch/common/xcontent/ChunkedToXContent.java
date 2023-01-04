@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Iterator;
 
 /**
@@ -29,17 +30,32 @@ public interface ChunkedToXContent {
     Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
 
     /**
-     * Wraps the given instance in a {@link ToXContentObject} that will fully serialize the instance when serialized.
+     * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized.
      * @param chunkedToXContent instance to wrap
-     * @return x-content object
+     * @return x-content instance
      */
-    static ToXContentObject wrapAsXContentObject(ChunkedToXContent chunkedToXContent) {
-        return (builder, params) -> {
-            Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
-            while (serialization.hasNext()) {
-                serialization.next().toXContent(builder, params);
+    static ToXContent wrapAsToXContent(ChunkedToXContent chunkedToXContent) {
+        return new ToXContent() {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
+                while (serialization.hasNext()) {
+                    serialization.next().toXContent(builder, params);
+                }
+                return builder;
             }
-            return builder;
+
+            @Override
+            public boolean isFragment() {
+                return chunkedToXContent.isFragment();
+            }
         };
+    }
+
+    /**
+     * @return true if this instances serializes as an x-content fragment. See {@link ToXContentObject} for additional details.
+     */
+    default boolean isFragment() {
+        return true;
     }
 }

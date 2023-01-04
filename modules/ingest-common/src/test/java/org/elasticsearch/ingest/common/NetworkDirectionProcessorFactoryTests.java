@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_DEST_IP;
 import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_SOURCE_IP;
 import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
@@ -56,7 +55,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         assertThat(networkProcessor.getDestinationIpField(), equalTo(destIpField));
         assertThat(networkProcessor.getTargetField(), equalTo(targetField));
         assertThat(networkProcessor.getInternalNetworks().size(), greaterThan(0));
-        assertThat(networkProcessor.getInternalNetworks().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("10.0.0.0/8"));
+        assertThat(networkProcessor.getInternalNetworks().get(0).newInstance(Map.of()).execute(), equalTo("10.0.0.0/8"));
         assertThat(networkProcessor.getIgnoreMissing(), equalTo(ignoreMissing));
     }
 

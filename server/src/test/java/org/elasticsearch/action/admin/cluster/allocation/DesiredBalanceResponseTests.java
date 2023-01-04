@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -106,7 +107,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
 
         Map<String, Object> json = createParser(
-            ChunkedToXContent.wrapAsXContentObject(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
         assertEquals(Set.of("stats", "routing_table"), json.keySet());
 
@@ -156,14 +157,10 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         }
     }
 
-    public void testToChunkedXContent() {
-        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
-        var toXContentChunked = response.toXContentChunked(ToXContent.EMPTY_PARAMS);
-        int chunks = 0;
-        while (toXContentChunked.hasNext()) {
-            toXContentChunked.next();
-            chunks++;
-        }
-        assertEquals(response.getRoutingTable().size() + 2, chunks);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new DesiredBalanceResponse(randomStats(), randomRoutingTable()),
+            response -> response.getRoutingTable().size() + 2
+        );
     }
 }

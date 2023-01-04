@@ -254,8 +254,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             final StepListener<Collection<NodeResponse>> readsCompleteStep = new StepListener<>();
             readNodesListener = new GroupedActionListener<>(
-                new ThreadedActionListener<>(logger, transportService.getThreadPool(), ThreadPool.Names.SNAPSHOT, readsCompleteStep, false),
-                earlyReadNodes.size() + readNodes.size()
+                earlyReadNodes.size() + readNodes.size(),
+                new ThreadedActionListener<>(logger, transportService.getThreadPool(), ThreadPool.Names.SNAPSHOT, readsCompleteStep, false)
             );
 
             // The order is important in this chain: if writing fails then we may never even start all the reads, and we want to cancel

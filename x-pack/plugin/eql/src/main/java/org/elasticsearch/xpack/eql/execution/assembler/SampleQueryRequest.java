@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -15,9 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;

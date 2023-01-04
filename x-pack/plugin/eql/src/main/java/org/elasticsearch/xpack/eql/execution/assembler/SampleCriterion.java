@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.aggregations.bucket.composite.InternalComposite.InternalBucket;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite.InternalBucket;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 
 import java.util.ArrayList;

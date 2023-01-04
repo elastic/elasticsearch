@@ -67,7 +67,7 @@
               _index: test_index
               _id: id_3
           - { "my_location": "41.12,-71.34" } # matches the field name defined in the `my_location` template
-          - index:
+          - create:
               _index: test_index
               _id: id_4
               dynamic_templates:

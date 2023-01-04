@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests that snapshot restore behaves correctly when we have file based settings that reserve part of the
  * cluster state
  */
+@LuceneTestCase.SuppressFileSystems("*")
 public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -259,7 +261,6 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         String masterNode = internalCluster().getMasterName();
 
         var savedClusterState = setupClusterStateListener(masterNode);
-        FileSettingsService fs = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
         logger.info("--> write some file based settings, putting some reserved state");
         writeJSONFile(masterNode, testFileSettingsJSON);
@@ -331,5 +332,4 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                 )
         );
     }
-
 }

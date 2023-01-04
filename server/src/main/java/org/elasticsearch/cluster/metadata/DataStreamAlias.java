@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -38,6 +41,7 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
     public static final ParseField WRITE_DATA_STREAM_FIELD = new ParseField("write_data_stream");
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
+    private static final Logger logger = LogManager.getLogger(DataStreamAlias.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStreamAlias, String> PARSER = new ConstructingObjectParser<>(
@@ -65,7 +69,6 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     private final String name;
     private final List<String> dataStreams;
     private final String writeDataStream;
-
     private final Map<String, CompressedXContent> dataStreamToFilterMap;
 
     private DataStreamAlias(
@@ -121,7 +124,21 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         this.name = in.readString();
         this.dataStreams = in.readStringList();
         this.writeDataStream = in.readOptionalString();
-        this.dataStreamToFilterMap = in.readMap(StreamInput::readString, CompressedXContent::readCompressedString);
+        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            this.dataStreamToFilterMap = in.readMap(StreamInput::readString, CompressedXContent::readCompressedString);
+        } else {
+            this.dataStreamToFilterMap = new HashMap<>();
+            CompressedXContent filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
+            if (filter != null) {
+                logger.info(
+                    "Reading in DataStreamAlias {} from before 8.7.0, which did not correctly associate filters with DataStreams.",
+                    name
+                );
+                for (String dataStream : dataStreams) {
+                    dataStreamToFilterMap.put(dataStream, filter);
+                }
+            }
+        }
     }
 
     /**
@@ -338,7 +355,21 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        out.writeMap(dataStreamToFilterMap, StreamOutput::writeString, (out1, filter) -> filter.writeTo(out1));
+        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            out.writeMap(dataStreamToFilterMap, StreamOutput::writeString, (out1, filter) -> filter.writeTo(out1));
+        } else {
+            if (dataStreamToFilterMap.isEmpty()) {
+                out.writeBoolean(false);
+            } else {
+                // Versions before 8.7 incorrectly only allowed a single filter for all datastreams, and randomly dropped all others:
+                logger.info(
+                    "Sending DataStreamAlias {} to a node with version earlier than 8.7.0. Versions before 8.7.0 do not support "
+                        + "separate filters for each DataStream.",
+                    name
+                );
+                dataStreamToFilterMap.values().iterator().next().writeTo(out);
+            }
+        }
     }
 
     @Override

@@ -405,6 +405,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             hasXPack = null;
+            hasShutdown = null;
             nodeVersions = null;
         }
     }

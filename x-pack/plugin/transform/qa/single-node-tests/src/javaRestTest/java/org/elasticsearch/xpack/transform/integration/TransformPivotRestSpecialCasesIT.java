@@ -72,7 +72,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -144,7 +144,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         }
 
         final StringBuilder bulk = new StringBuilder();
-        bulk.append(formatted("""
+        bulk.append(Strings.format("""
             {"index":{"_index":"%s"}}
             {"host":"host-1","cpu": 22}
             {"index":{"_index":"%s"}}
@@ -162,7 +162,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             """, indexName, indexName, indexName, indexName, indexName, indexName, indexName));
 
         // missing value for cpu
-        bulk.append(formatted("""
+        bulk.append(Strings.format("""
             {"index":{"_index":"%s"}}
             {"host":"host-3"}
 
@@ -174,7 +174,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -299,7 +299,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         String transformIndex = "empty-terms-agg-key";
         String transformId = "empty-terms-agg-key";
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
-        final String config = formatted("""
+        final String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -363,7 +363,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
     private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount)
         throws Exception {
         String transformIndex = transformId;
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"

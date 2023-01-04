@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.format("""
             {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""", precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -31,7 +32,7 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.format("""
             {"field":"my_loc", "precision":"%s", "size": "500", "shard_size": "550"}
             """, precision));
         XContentParser.Token token = stParser.nextToken();
@@ -71,7 +72,7 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidBounds() throws Exception {
         Rectangle bbox = GeometryTestUtils.randomRectangle();
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.format("""
             {
               "field": "my_loc",
               "precision": 5,

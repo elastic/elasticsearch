@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -309,7 +310,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                formatted(
+                Strings.format(
                     "backing index [%s] in tsdb mode doesn't have the [index.time_series.end_time] index setting",
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1, twoHoursAgo.toEpochMilli())
                 )

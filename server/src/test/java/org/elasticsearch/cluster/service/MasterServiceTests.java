@@ -942,10 +942,12 @@ public class MasterServiceTests extends ESTestCase {
             }
         };
 
+        final var blockedState = new AtomicReference<ClusterState>();
         final var executionBarrier = new CyclicBarrier(2);
         final ClusterStateUpdateTask blockMasterTask = new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                assertTrue(blockedState.compareAndSet(null, currentState));
                 executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                 executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
                 return currentState;
@@ -963,9 +965,13 @@ public class MasterServiceTests extends ESTestCase {
 
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
+            final var stateBeforeSuccess = blockedState.get();
+            assertNotNull(stateBeforeSuccess);
 
             final AtomicReference<ClusterState> publishedState = new AtomicReference<>();
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                assertSame(stateBeforeSuccess, clusterStatePublicationEvent.getOldState());
+                assertNotSame(stateBeforeSuccess, clusterStatePublicationEvent.getNewState());
                 assertTrue(publishedState.compareAndSet(null, clusterStatePublicationEvent.getNewState()));
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
                 publishListener.onResponse(null);
@@ -980,6 +986,7 @@ public class MasterServiceTests extends ESTestCase {
                     final var testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
                     final var expectFailure = randomBoolean();
+                    final var taskComplete = new AtomicBoolean();
                     final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
@@ -987,6 +994,8 @@ public class MasterServiceTests extends ESTestCase {
                             assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
                             assertSame(publishedState.get(), clusterState);
+                            assertNotSame(stateBeforeSuccess, publishedState.get());
+                            assertTrue(taskComplete.compareAndSet(false, true));
                             publishSuccessCountdown.countDown();
                         }
 
@@ -997,6 +1006,8 @@ public class MasterServiceTests extends ESTestCase {
                             assertThat(e.getMessage(), equalTo(exceptionMessage));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
                             assertNotNull(publishedState.get());
+                            assertNotSame(stateBeforeSuccess, publishedState.get());
+                            assertTrue(taskComplete.compareAndSet(false, true));
                             publishSuccessCountdown.countDown();
                         }
                     });
@@ -1011,10 +1022,17 @@ public class MasterServiceTests extends ESTestCase {
 
             // failure case: submit some tasks, possibly in different contexts, and verify that the expected listener is completed
 
+            assertNotNull(blockedState.getAndSet(null));
+            assertNotNull(publishedState.getAndSet(null));
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
+            final var stateBeforeFailure = blockedState.get();
+            assertNotNull(stateBeforeFailure);
 
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                assertSame(stateBeforeFailure, clusterStatePublicationEvent.getOldState());
+                assertNotSame(stateBeforeFailure, clusterStatePublicationEvent.getNewState());
+                assertTrue(publishedState.compareAndSet(null, clusterStatePublicationEvent.getNewState()));
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
                 publishListener.onFailure(new FailedToCommitClusterStateException(exceptionMessage));
             });
@@ -1028,6 +1046,7 @@ public class MasterServiceTests extends ESTestCase {
                     final String testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
                     final var expectFailure = randomBoolean();
+                    final var taskComplete = new AtomicBoolean();
                     final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
@@ -1044,6 +1063,9 @@ public class MasterServiceTests extends ESTestCase {
                                 assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
                             }
                             assertThat(e.getMessage(), equalTo(exceptionMessage));
+                            assertNotNull(publishedState.get());
+                            assertNotSame(stateBeforeFailure, publishedState.get());
+                            assertTrue(taskComplete.compareAndSet(false, true));
                             publishFailureCountdown.countDown();
                         }
                     });

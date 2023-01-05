@@ -23,7 +23,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -31,7 +30,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -76,16 +74,30 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        final var envWithSecurity = new AtomicReference<>(env);
-        try (SecureSettings secrets = secureSettingsLoader(env).load(env.settings(), env.configFile(), terminal, (s, c) -> {
-            // Auto-configure security.
-            // TODO: The current auto-configure command is KeyStoreWrapper specific, we need to make that depend on the configuration
-            envWithSecurity.set(autoConfigureSecurity(terminal, options, processInfo, envWithSecurity.get(), c));
-        })) {
+        String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
+        Command autoConfigureCommand = loadTool("auto-configure-node", autoConfigLibs);
+        assert autoConfigureCommand instanceof EnvironmentAwareCommand;
+
+        try (
+            var loadedSecrets = secureSettingsLoader(env).load(
+                env,
+                terminal,
+                processInfo,
+                options,
+                autoConfigureCommand,
+                enrollmentTokenOption
+            )
+        ) {
+            // if loading the secrets did any auto-configuration of the node, update the environment
+            // with the additional options the auto-configuration produced.
+            if (loadedSecrets.options().isPresent()) {
+                env = createEnv(loadedSecrets.options().get(), processInfo);
+            }
+
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
 
-            ServerArgs args = createArgs(options, envWithSecurity.get(), secrets, processInfo);
+            ServerArgs args = createArgs(options, env, loadedSecrets.secrets(), processInfo);
             this.server = startServer(terminal, processInfo, args);
         }
 
@@ -123,53 +135,6 @@ class ServerCli extends EnvironmentAwareCommand {
         if (Files.exists(log4jConfig) == false) {
             throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
         }
-    }
-
-    private Environment autoConfigureSecurity(
-        Terminal terminal,
-        OptionSet options,
-        ProcessInfo processInfo,
-        Environment env,
-        SecureString keystorePassword
-    ) throws Exception {
-        String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command cmd = loadTool("auto-configure-node", autoConfigLibs);
-        assert cmd instanceof EnvironmentAwareCommand;
-        @SuppressWarnings("raw")
-        var autoConfigNode = (EnvironmentAwareCommand) cmd;
-        final String[] autoConfigArgs;
-        if (options.has(enrollmentTokenOption)) {
-            autoConfigArgs = new String[] { "--enrollment-token", options.valueOf(enrollmentTokenOption) };
-        } else {
-            autoConfigArgs = new String[0];
-        }
-        OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
-
-        boolean changed = true;
-        try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
-            autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
-        } catch (UserException e) {
-            boolean okCode = switch (e.exitCode) {
-                // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
-                // e.g. the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
-                case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP -> true;
-                default -> false;
-            };
-            if (options.has(enrollmentTokenOption) == false && okCode) {
-                // we still want to print the error, just don't fail startup
-                if (e.getMessage() != null) {
-                    terminal.errorPrintln(e.getMessage());
-                }
-                changed = false;
-            } else {
-                throw e;
-            }
-        }
-        if (changed) {
-            // reload settings since auto security changed them
-            env = createEnv(options, processInfo);
-        }
-        return env;
     }
 
     private void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {

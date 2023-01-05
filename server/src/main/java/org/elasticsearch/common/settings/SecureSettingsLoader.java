@@ -8,19 +8,41 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.cli.Terminal;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 
-import java.nio.file.Path;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.env.Environment;
+
+import java.util.Optional;
 
 /**
  * An interface for implementing {@link SecureSettings} loaders, that is, implementations that create, initialize and load
  * secrets stores.
  */
 public interface SecureSettingsLoader {
-    SecureSettings load(
-        Settings nodeSettings,
-        Path configFile,
+    LoadedSecrets load(
+        Environment environment,
         Terminal terminal,
-        AutoConfigureConsumer<SecureSettings, SecureString, Exception> autoConfigure
+        ProcessInfo processInfo,
+        OptionSet options,
+        Command autoConfigureCommand,
+        OptionSpec<String> enrollmentTokenOption
     ) throws Exception;
+
+    /**
+     * The secure settings loader will materialize the secrets in memory, however secure settings
+     * loader are allowed to modify the supplied environment options and return an updated version. This happens
+     * when we auto-configure security on Elasticsearch start.
+     * @param secrets the in-memory loaded secrets
+     * @param options optionally, modified options by auto-configuration of the node
+     */
+    record LoadedSecrets(SecureSettings secrets, Optional<OptionSet> options) implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            secrets.close();
+        }
+    }
 }

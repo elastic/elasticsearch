@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -126,7 +125,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 > freq2);
     }
 
-    public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
+    public void testRejectMultiValuedFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "rank_feature").endObject();
             b.startObject("foo").startObject("properties");

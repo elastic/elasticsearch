@@ -18,6 +18,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTestCase {
 
@@ -152,7 +153,8 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         }));
 
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
-        assertThat(e.getMessage(), equalTo("[-1:-1] failed to parse: Error executing script on field [message_error]"));
+        assertThat(e.getMessage(), equalTo("[-1:-1] Error executing script on field [message_error]"));
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 
     public final void testMultipleValues() throws IOException {

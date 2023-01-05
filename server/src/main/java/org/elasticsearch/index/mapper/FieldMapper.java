@@ -29,6 +29,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
@@ -259,7 +260,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if ("continue".equals(onScriptError)) {
                 documentParserContext.addIgnoredField(name());
             } else {
-                throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
+                throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error executing script on field [" + name() + "]", e);
             }
         }
     }

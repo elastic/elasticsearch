@@ -127,7 +127,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 > freq2);
     }
 
-    public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
+    public void testRejectMultiValuedFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "rank_features").endObject();
             b.startObject("foo").startObject("properties");

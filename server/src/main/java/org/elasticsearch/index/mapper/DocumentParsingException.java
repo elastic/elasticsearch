@@ -8,16 +8,33 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParseException;
 
-public class DocumentParsingException extends XContentParseException {
+import java.io.IOException;
+
+public class DocumentParsingException extends ElasticsearchException {
 
     public DocumentParsingException(XContentLocation location, String message) {
-        super(location, message);
+        super(message(location, message));
     }
 
     public DocumentParsingException(XContentLocation location, String message, Exception cause) {
-        super(location, message, cause);
+        super(message(location, message), cause);
+    }
+
+    public DocumentParsingException(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
+    }
+
+    private static String message(XContentLocation location, String message) {
+        return "[" + location + "] " + message;
     }
 }

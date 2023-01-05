@@ -590,9 +590,9 @@ public class IndexShardRoutingTable {
                     seenPrimary = true;
                 }
             }
-            // We should be able to return seenPrimary here, but in tests there are many routing tables with no primary (e.g. empty) so for
-            // now we leniently allow there to be no primary as well. TODO fix those tests and stop being lenient here.
-            return true;
+            // We should be able to return seenPrimary here, but in tests there are many empty routing tables so for now we leniently allow
+            // this case too. TODO fix those tests and stop being lenient here.
+            return shards.isEmpty() || seenPrimary;
         }
 
         static boolean noAssignedReplicaWithoutActivePrimary(List<ShardRouting> shards) {

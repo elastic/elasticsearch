@@ -21,11 +21,16 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
     private static DoubleFieldScript.Factory factory(Consumer<DoubleFieldScript> executor) {
         return new DoubleFieldScript.Factory() {
             @Override
-            public DoubleFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public DoubleFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new DoubleFieldScript.LeafFactory() {
                     @Override
                     public DoubleFieldScript newInstance(LeafReaderContext ctx) {
-                        return new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new DoubleFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

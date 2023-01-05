@@ -50,6 +50,10 @@ This tool has a number of modes:
   {es}. This may sometimes allow you to downgrade to an earlier version of
   {es}.
 
+:tool-name: node
+include::cli-jvm-options.asciidoc[]
+:!tool-name:
+
 [[node-tool-repurpose]]
 [discrete]
 ==== Changing the role of a node

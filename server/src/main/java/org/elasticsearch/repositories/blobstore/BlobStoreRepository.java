@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -274,7 +275,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         "metadata",
         METADATA_NAME_FORMAT,
         (repoName, parser) -> Metadata.fromXContent(parser),
-        ChunkedToXContent::wrapAsXContentObject
+        ChunkedToXContent::wrapAsToXContent
     );
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
@@ -964,7 +965,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
                 listener.onRepositoryDataWritten(updatedRepoData);
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(ActionListener.wrap(listener::onDone), 2);
+                final ActionListener<Void> afterCleanupsListener = new CountDownActionListener(2, listener::onDone);
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
@@ -978,10 +979,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
             writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(), ActionListener.wrap(newRepoData -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(ActionListener.wrap(() -> {
+                final ActionListener<Void> afterCleanupsListener = new CountDownActionListener(2, () -> {
                     listener.onRepositoryDataWritten(newRepoData);
                     listener.onDone();
-                }), 2);
+                });
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, afterCleanupsListener);
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);
@@ -1043,8 +1044,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // Listener that flattens out the delete results for each index
         final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetadataListener = new GroupedActionListener<>(
-            onAllShardsCompleted.map(res -> res.stream().flatMap(Collection::stream).toList()),
-            indices.size()
+            indices.size(),
+            onAllShardsCompleted.map(res -> res.stream().flatMap(Collection::stream).toList())
         );
 
         for (IndexId indexId : indices) {
@@ -1058,8 +1059,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .map(id -> oldRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
                 .collect(Collectors.toSet());
             final ActionListener<Integer> allShardCountsListener = new GroupedActionListener<>(
-                shardCountListener,
-                indexMetaGenerations.size()
+                indexMetaGenerations.size(),
+                shardCountListener
             );
             final BlobContainer indexContainer = indexContainer(indexId);
             for (String indexMetaGeneration : indexMetaGenerations) {
@@ -1088,8 +1089,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index
                 final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener = new GroupedActionListener<>(
-                    deleteIndexMetadataListener,
-                    shardCount
+                    shardCount,
+                    deleteIndexMetadataListener
                 );
                 for (int shardId = 0; shardId < shardCount; shardId++) {
                     final int finalShardId = shardId;
@@ -1188,13 +1189,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData newRepoData,
         ActionListener<DeleteResult> listener
     ) {
-        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
+        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(2, ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             for (DeleteResult result : deleteResults) {
                 deleteResult = deleteResult.add(result);
             }
             listener.onResponse(deleteResult);
-        }, listener::onFailure), 2);
+        }, listener::onFailure));
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
@@ -1414,7 +1415,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexMetaIdentifiers = null;
             }
 
-            final ActionListener<Void> allMetaListener = new GroupedActionListener<>(ActionListener.wrap(v -> {
+            final ActionListener<Void> allMetaListener = new CountDownActionListener(2 + indices.size(), ActionListener.wrap(v -> {
                 final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
@@ -1437,7 +1438,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }, onUpdateFailure)
                 );
-            }, onUpdateFailure), 2 + indices.size());
+            }, onUpdateFailure));
 
             // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
             // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
@@ -3152,7 +3153,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         int numberOfFiles,
         ActionListener<Collection<Void>> listener
     ) {
-        return new GroupedActionListener<>(listener, numberOfFiles).delegateResponse((l, e) -> {
+        return new GroupedActionListener<>(numberOfFiles, listener).delegateResponse((l, e) -> {
             files.clear(); // Stop uploading the remaining files if we run into any exception
             l.onFailure(e);
         });

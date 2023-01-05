@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.eql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
-import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -41,7 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
 
 public class AnalyzerTests extends ESTestCase {
 
@@ -265,7 +263,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer();
         EqlParser parser = new EqlParser();
         LogicalPlan plan = parser.createStatement(eql);
         return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));

@@ -13,9 +13,10 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.ArrayList;
@@ -43,15 +44,12 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             0,
             Collections.emptyList()
         );
-        var serialization = response.toXContentChunked(EMPTY_PARAMS);
         try (XContentBuilder builder = jsonBuilder()) {
-            while (serialization.hasNext()) {
-                serialization.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-            }
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, EMPTY_PARAMS);
         }
     }
 
-    public void testSerializesOneChunkPerIndex() {
+    public void testChunking() {
         final int indices = randomIntBetween(1, 10);
         final List<ShardRouting> routings = new ArrayList<>(indices);
         for (int i = 0; i < indices; i++) {
@@ -61,19 +59,15 @@ public class IndicesSegmentResponseTests extends ESTestCase {
         SortField sortField = new SortField("foo", SortField.Type.STRING);
         sortField.setMissingValue(SortField.STRING_LAST);
         segment.segmentSort = new Sort(sortField);
-        IndicesSegmentResponse response = new IndicesSegmentResponse(
-            routings.stream().map(routing -> new ShardSegments(routing, List.of(segment))).toArray(ShardSegments[]::new),
-            indices,
-            indices,
-            0,
-            Collections.emptyList()
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new IndicesSegmentResponse(
+                routings.stream().map(routing -> new ShardSegments(routing, List.of(segment))).toArray(ShardSegments[]::new),
+                indices,
+                indices,
+                0,
+                Collections.emptyList()
+            ),
+            response -> response.getIndices().size() + 4
         );
-        int chunks = 0;
-        final var iterator = response.toXContentChunked(EMPTY_PARAMS);
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunks++;
-        }
-        assertEquals(indices + 4, chunks);
     }
 }

@@ -16,7 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SharedBytes;
-import org.elasticsearch.blobcache.shared.FrozenCacheService.FrozenCacheFile;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.FrozenCacheFile;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;

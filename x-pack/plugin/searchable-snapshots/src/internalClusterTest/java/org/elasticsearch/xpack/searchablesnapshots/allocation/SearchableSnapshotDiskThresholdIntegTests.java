@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
@@ -223,7 +223,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         } else {
             otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
                 .put(
-                    FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                    SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
                     ByteSizeValue.ofBytes(Math.min(indicesStoresSizes.values().stream().mapToLong(value -> value).sum(), 5 * 1024L * 1024L))
                 );
         }

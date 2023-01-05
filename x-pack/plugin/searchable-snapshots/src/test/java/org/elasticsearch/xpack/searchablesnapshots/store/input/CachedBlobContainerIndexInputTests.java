@@ -11,7 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
@@ -102,7 +102,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final Path shardDir = randomShardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
-                final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
+                final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
@@ -121,7 +121,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                         cacheDir,
                         shardPath,
                         threadPool,
-                        frozenCacheService
+                        sharedBlobCacheService
                     )
                 ) {
                     RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
@@ -143,7 +143,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                         assertArrayEquals(input, output);
                     }
                 } finally {
-                    frozenCacheService.close();
+                    sharedBlobCacheService.close();
                 }
 
                 if (blobContainer instanceof CountingBlobContainer) {
@@ -211,7 +211,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
-            final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
+            final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
@@ -227,7 +227,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     cacheDir,
                     shardPath,
                     threadPool,
-                    frozenCacheService
+                    sharedBlobCacheService
                 )
             ) {
                 RecoveryState recoveryState = createRecoveryState(randomBoolean());
@@ -251,7 +251,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     }
                 }
             } finally {
-                frozenCacheService.close();
+                sharedBlobCacheService.close();
                 assertThreadPoolNotBusy(threadPool);
             }
         }

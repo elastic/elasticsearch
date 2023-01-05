@@ -18,7 +18,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.CacheFile;
 import org.elasticsearch.blobcache.common.CacheKey;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -135,27 +135,27 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     /**
-     * @return a new {@link FrozenCacheService} instance configured with default settings
+     * @return a new {@link SharedBlobCacheService} instance configured with default settings
      */
-    protected FrozenCacheService defaultFrozenCacheService() {
-        return new FrozenCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
+    protected SharedBlobCacheService defaultFrozenCacheService() {
+        return new SharedBlobCacheService(nodeEnvironment, Settings.EMPTY, threadPool);
     }
 
-    protected FrozenCacheService randomFrozenCacheService() {
+    protected SharedBlobCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
+            cacheSettings.put(SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
-        return new FrozenCacheService(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
+        return new SharedBlobCacheService(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
     }
 
     /**
@@ -170,12 +170,12 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         );
     }
 
-    protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
-        return new FrozenCacheService(
+    protected SharedBlobCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
+        return new SharedBlobCacheService(
             singlePathNodeEnvironment,
             Settings.builder()
-                .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool
         );

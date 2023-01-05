@@ -40,7 +40,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -647,8 +647,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final CacheService cacheService = defaultCacheService();
                 releasables.add(cacheService);
                 cacheService.start();
-                final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
-                releasables.add(frozenCacheService);
+                final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
+                releasables.add(sharedBlobCacheService);
 
                 try (
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
@@ -669,7 +669,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         cacheDir,
                         shardPath,
                         threadPool,
-                        frozenCacheService
+                        sharedBlobCacheService
                     )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
@@ -752,7 +752,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
-            final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
+            final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
@@ -773,7 +773,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     cacheDir,
                     shardPath,
                     threadPool,
-                    frozenCacheService
+                    sharedBlobCacheService
                 )
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
@@ -807,7 +807,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
                 }
             } finally {
-                frozenCacheService.close();
+                sharedBlobCacheService.close();
                 assertThreadPoolNotBusy(threadPool);
             }
         }

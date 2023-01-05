@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,11 +33,11 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final Supplier<CacheService> cacheServiceSupplier;
-    private final Supplier<FrozenCacheService> frozenCacheServiceSupplier;
+    private final Supplier<SharedBlobCacheService> frozenCacheServiceSupplier;
 
     public SearchableSnapshotIndexFoldersDeletionListener(
         Supplier<CacheService> cacheServiceSupplier,
-        Supplier<FrozenCacheService> frozenCacheServiceSupplier
+        Supplier<SharedBlobCacheService> frozenCacheServiceSupplier
     ) {
         this.cacheServiceSupplier = Objects.requireNonNull(cacheServiceSupplier);
         this.frozenCacheServiceSupplier = Objects.requireNonNull(frozenCacheServiceSupplier);
@@ -70,9 +70,9 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        final FrozenCacheService frozenCacheService = this.frozenCacheServiceSupplier.get();
-        assert frozenCacheService != null : "frozen cache service not initialized";
-        frozenCacheService.markShardAsEvictedInCache(
+        final SharedBlobCacheService sharedBlobCacheService = this.frozenCacheServiceSupplier.get();
+        assert sharedBlobCacheService != null : "frozen cache service not initialized";
+        sharedBlobCacheService.markShardAsEvictedInCache(
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
             SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
             shardId

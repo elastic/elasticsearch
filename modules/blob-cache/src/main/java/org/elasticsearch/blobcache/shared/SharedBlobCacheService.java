@@ -61,7 +61,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class FrozenCacheService implements Releasable {
+public class SharedBlobCacheService implements Releasable {
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -230,7 +230,7 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(FrozenCacheService.class);
+    private static final Logger logger = LogManager.getLogger(SharedBlobCacheService.class);
 
     private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
 
@@ -263,7 +263,7 @@ public class FrozenCacheService implements Releasable {
     private final LongAdder evictCount = new LongAdder();
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
+    public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         long totalFsSize;
         try {

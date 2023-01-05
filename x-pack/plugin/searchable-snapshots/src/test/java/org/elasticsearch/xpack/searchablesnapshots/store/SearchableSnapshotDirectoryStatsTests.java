@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.common.SharedBytes;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -607,7 +607,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     private void executeTestCase(
         final CacheService cacheService,
-        final FrozenCacheService frozenCacheService,
+        final SharedBlobCacheService sharedBlobCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
@@ -649,7 +649,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         try (
             CacheService ignored = cacheService;
-            FrozenCacheService ignored2 = frozenCacheService;
+            SharedBlobCacheService ignored2 = sharedBlobCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
@@ -664,7 +664,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheDir,
                 shardPath,
                 threadPool,
-                frozenCacheService
+                sharedBlobCacheService
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {

@@ -11,7 +11,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -106,17 +106,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
-            builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
+            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
         }
         builder.put(
-            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+            SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                 : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -124,7 +124,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))

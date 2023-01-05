@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.blobcache.shared.FrozenCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -25,7 +25,7 @@ public abstract class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSea
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (DiscoveryNode.canContainData(otherSettings)) {
             builder.put(
-                FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
                 rarely()
                     ? randomBoolean()
                         ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()

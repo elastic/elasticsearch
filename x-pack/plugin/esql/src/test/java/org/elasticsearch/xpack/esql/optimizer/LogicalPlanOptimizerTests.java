@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -424,6 +426,182 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
         assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
         assertNullLiteral(rule.rule(new Length(EMPTY, Literal.NULL)));
+    }
+
+    public void testPruneSortBeforeStats() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | where emp_no > 10
+            | stats x = avg(languages) by gender""");
+
+        var limit = as(plan, Limit.class);
+        var stats = as(limit.child(), Aggregate.class);
+        var filter = as(stats.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testDontPruneSortWithLimitBeforeStats() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | limit 100
+            | stats x = avg(languages) by gender""");
+
+        var limit = as(plan, Limit.class);
+        var stats = as(limit.child(), Aggregate.class);
+        var limit2 = as(stats.child(), Limit.class);
+        var orderBy = as(limit2.child(), OrderBy.class);
+        as(orderBy.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderBy() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | sort languages""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("languages", "emp_no")
+        );
+        as(orderBy.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughEval() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | eval x = languages + 1
+            | sort x""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        var eval = as(orderBy.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughEvalWithTwoDefs() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | eval x = languages + 1, y = languages + 2
+            | sort x""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        var eval = as(orderBy.child(), Eval.class);
+        assertThat(eval.fields().stream().map(NamedExpression::name).toList(), contains("x", "y"));
+        as(eval.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | project languages, emp_no
+            | sort languages""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("languages", "emp_no")
+        );
+        as(orderBy.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughProjectWithAlias() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | project l = languages, emp_no
+            | sort l""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("languages", "emp_no")
+        );
+        as(orderBy.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughFilter() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | where emp_no > 10
+            | sort languages""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("languages", "emp_no")
+        );
+        var filter = as(orderBy.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testCombineLimitWithOrderByThroughFilterAndEval() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort languages
+            | eval x = emp_no / 2
+            | where x > 20
+            | sort x
+            | limit 10""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var filter = as(orderBy.child(), Filter.class);
+        var eval = as(filter.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    public void testCombineMultipleOrderByAndLimits() {
+        // expected plan:
+        // from test
+        // | sort languages, emp_no
+        // | limit 100
+        // | where languages > 1
+        // | sort emp_no, salary
+        // | limit 10000
+        // | project l = languages, emp_no, salary
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | project l = languages, emp_no, salary
+            | sort l
+            | limit 100
+            | sort salary
+            | where l > 1
+            | sort emp_no""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("emp_no", "salary"));
+        var filter = as(orderBy.child(), Filter.class);
+        var limit2 = as(filter.child(), Limit.class);
+        var orderBy2 = as(limit2.child(), OrderBy.class);
+        assertThat(
+            orderBy2.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("languages", "emp_no")
+        );
+        as(orderBy2.child(), EsRelation.class);
     }
 
     private LogicalPlan optimizedPlan(String query) {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,7 +75,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PruneFilters(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
-            new PushDownAndCombineFilters()
+            new PushDownAndCombineFilters(),
+            new PushDownEval(),
+            new PushDownAndCombineOrderBy(),
+            new PruneOrderByBeforeStats()
         );
 
         var local = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
@@ -254,9 +259,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
             } else if (child instanceof Project project) {
                 // resolve aliases and push down
-                AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
-                project.forEachExpression(Alias.class, a -> { aliasesBuilder.put(a.toAttribute(), a.child()); });
-                AttributeMap<Expression> aliases = aliasesBuilder.build();
+                var aliases = aliases(project);
 
                 var conditionWithResolvedAliases = filter.condition().transformUp(ReferenceAttribute.class, r -> aliases.resolve(r, r));
                 plan = project.replaceChild(filter.with(project.child(), conditionWithResolvedAliases));
@@ -289,5 +292,89 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             }
             return plan;
         }
+    }
+
+    /**
+     * Pushes Evals past OrderBys. Although it seems arbitrary whether the OrderBy or the Eval is executed first,
+     * this transformation ensures that OrderBys only separated by an eval can be combined by PushDownAndCombineOrderBy.
+     *
+     * E.g.:
+     *
+     * ... | sort a | eval x = b + 1 | sort x
+     *
+     * becomes
+     *
+     * ... | eval x = b + 1 | sort a | sort x
+     *
+     * Ordering the evals before the orderBys has the advantage that it's always possible to order the plans like this.
+     * E.g., in the example above it would not be possible to put the eval after the two orderBys.
+     */
+    protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            LogicalPlan child = eval.child();
+
+            // TODO: combine with CombineEval from https://github.com/elastic/elasticsearch-internal/pull/511 when merged
+            if (child instanceof OrderBy orderBy) {
+                return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
+            }
+
+            return eval;
+        }
+    }
+
+    protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy orderBy) {
+            LogicalPlan child = orderBy.child();
+
+            if (child instanceof OrderBy childOrder) {
+                // combine orders
+                return new OrderBy(orderBy.source(), childOrder.child(), CollectionUtils.combine(orderBy.order(), childOrder.order()));
+            } else if (child instanceof Project project) {
+                // resolve aliases and push down
+                var aliases = aliases(project);
+
+                var orderWithResolvedAliases = orderBy.order()
+                    .stream()
+                    .map(o -> (Order) o.transformUp(ReferenceAttribute.class, r -> aliases.resolve(r, r)))
+                    .toList();
+                return project.replaceChild(new OrderBy(orderBy.source(), project.child(), orderWithResolvedAliases));
+            }
+
+            return orderBy;
+        }
+    }
+
+    static class PruneOrderByBeforeStats extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate agg) {
+            OrderBy order = findPullableOrderBy(agg.child());
+
+            LogicalPlan p = agg;
+            if (order != null) {
+                p = agg.transformDown(OrderBy.class, o -> o == order ? order.child() : o);
+            }
+            return p;
+        }
+
+        private static OrderBy findPullableOrderBy(LogicalPlan plan) {
+            OrderBy pullable = null;
+            if (plan instanceof OrderBy o) {
+                pullable = o;
+            } else if (plan instanceof Filter || plan instanceof Eval || plan instanceof Project) {
+                pullable = findPullableOrderBy(((UnaryPlan) plan).child());
+            }
+            return pullable;
+        }
+
+    }
+
+    private static AttributeMap<Expression> aliases(LogicalPlan node) {
+        AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
+        node.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
+        return aliases.build();
     }
 }

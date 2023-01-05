@@ -1,0 +1,5 @@
+pr: 92709
+summary: Upgrade t-digest and `HdrHistogram` library versions
+area: Aggregations
+type: upgrade
+issues: []

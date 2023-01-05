@@ -27,14 +27,18 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
 
 public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
+
+    protected Random random = new Random(17);
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
@@ -44,6 +48,12 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new PercentilesAggregationBuilder("tdigest_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
+    }
+
+    private double[] makeDoubleArray(int size, int bound) {
+        double[] values = new double[size];
+        Arrays.setAll(values, i -> random.nextDouble(bound));
+        return values;
     }
 
     @Override
@@ -79,14 +89,14 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     public void testSomeMatchesBinaryDocValues() throws IOException {
         testCase(
             new FieldExistsQuery("number"),
-            iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 }))); },
+            iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", makeDoubleArray(100_000, 100)))); },
             hdr -> {
                 // assertEquals(4L, hdr.state.getTotalCount());
-                double approximation = 0.05d;
-                assertEquals(15.0d, hdr.percentile(25), approximation);
-                assertEquals(30.0d, hdr.percentile(50), approximation);
-                assertEquals(50.0d, hdr.percentile(75), approximation);
-                assertEquals(60.0d, hdr.percentile(99), approximation);
+                double approximation = 1.0d;
+                assertEquals(25.0d, hdr.percentile(25), approximation);
+                assertEquals(50.0d, hdr.percentile(50), approximation);
+                assertEquals(75.0d, hdr.percentile(75), approximation);
+                assertEquals(99.0d, hdr.percentile(100), approximation);
                 assertTrue(AggregationInspectionHelper.hasValue(hdr));
             }
         );
@@ -94,17 +104,17 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {
         testCase(new FieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
-            iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
-            iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
-            iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
+            iw.addDocument(singleton(histogramFieldDocValues("number", makeDoubleArray(25_000, 100))));
+            iw.addDocument(singleton(histogramFieldDocValues("number", makeDoubleArray(25_000, 100))));
+            iw.addDocument(singleton(histogramFieldDocValues("number", makeDoubleArray(25_000, 100))));
+            iw.addDocument(singleton(histogramFieldDocValues("number", makeDoubleArray(25_000, 100))));
         }, hdr -> {
             // assertEquals(16L, hdr.state.getTotalCount());
-            double approximation = 0.05d;
-            assertEquals(15.0d, hdr.percentile(25), approximation);
-            assertEquals(30.0d, hdr.percentile(50), approximation);
-            assertEquals(50.0d, hdr.percentile(75), approximation);
-            assertEquals(60.0d, hdr.percentile(99), approximation);
+            double approximation = 1.0d;
+            assertEquals(25.0d, hdr.percentile(25), approximation);
+            assertEquals(50.0d, hdr.percentile(50), approximation);
+            assertEquals(75.0d, hdr.percentile(75), approximation);
+            assertEquals(99.0d, hdr.percentile(99), approximation);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });
     }

@@ -85,6 +85,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
             // pass the testName as table for debugging purposes (in case the underlying reader is missing)
             ResultSet expected = executeCsvQuery(csv, testName);
             ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
+            System.out.println(testCase.query);
             assertResults(expected, elasticResults);
         }
     }

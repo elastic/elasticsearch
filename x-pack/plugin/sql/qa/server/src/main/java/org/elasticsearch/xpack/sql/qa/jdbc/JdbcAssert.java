@@ -303,7 +303,7 @@ public class JdbcAssert {
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {
-                        assertEquals(msg, (double) expectedObject, (double) actualObject, lenientFloatingNumbers ? 1d : 0.0d);
+                        assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
                     } else if (type == Types.OTHER) {

@@ -1355,9 +1355,25 @@ setups['reviews'] = '''
           index: reviews
           refresh: true
           body: |
+            {"index": {"_id": "0"}}
+            {"product": "widget-foo", "rating": 4}
             {"index": {"_id": "1"}}
             {"product": "widget-foo", "rating": 1}
             {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+            {"index": {"_id": "3"}}
+            {"product": "widget-foo", "rating": 2}
+            {"index": {"_id": "4"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "5"}}
+            {"product": "widget-foo", "rating": 4}
+            {"index": {"_id": "6"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "7"}}
+            {"product": "widget-foo", "rating": 2}
+            {"index": {"_id": "8"}}
+            {"product": "widget-foo", "rating": 5}
+            {"index": {"_id": "9"}}
             {"product": "widget-foo", "rating": 5}
 '''
 setups['remote_cluster'] = setups['host'] + '''

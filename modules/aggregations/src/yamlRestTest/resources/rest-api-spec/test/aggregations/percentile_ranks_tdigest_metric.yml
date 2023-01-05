@@ -41,17 +41,21 @@ basic:
             percentile_ranks_int:
               percentile_ranks:
                 field: int
-                values: [50, 99]
+                values: [50, 100, 150, 200]
             percentile_ranks_double:
               percentile_ranks:
                 field: double
-                values: [50, 99]
+                values: [50, 100, 150, 200]
 
   - match: { hits.total.value: 4 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 37.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 61.5, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 25.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.100\\.0: { value: 50.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.150\\.0: { value: 75.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.200\\.0: { value: 100.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 25.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.100\\.0: { value: 50.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.150\\.0: { value: 75.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.200\\.0: { value: 100.0, error: 0.1 } }
 
 ---
 filtered:
@@ -70,15 +74,21 @@ filtered:
             percentile_ranks_int:
               percentile_ranks:
                 field: int
-                values: [50]
+                values: [50, 100, 150, 200]
             percentile_ranks_double:
               percentile_ranks:
                 field: double
-                values: [50]
+                values: [50, 100, 150, 200]
 
   - match: { hits.total.value: 3 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 16.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 16.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 0.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.100\\.0: { value: 33.3, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.150\\.0: { value: 66.6, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_int.values.200\\.0: { value: 100.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 0.0, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.100\\.0: { value: 33.3, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.150\\.0: { value: 66.6, error: 0.1 } }
+  - close_to: { aggregations.percentile_ranks_double.values.200\\.0: { value: 100.0, error: 0.1 } }
 
 ---
 missing field with missing param:
@@ -97,9 +107,9 @@ missing field with missing param:
                 values: [50, 99]
 
   - match: { hits.total.value: 4 }
-  - close_to: { aggregations.percentile_ranks_missing.values.50\\.0: { value: 100.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_missing.values.99\\.0: { value: 100.0, error: 1} }
- 
+  - close_to: { aggregations.percentile_ranks_missing.values.50\\.0: { value: 100.0, error: 0.1} }
+  - close_to: { aggregations.percentile_ranks_missing.values.99\\.0: { value: 100.0, error: 0.1} }
+
 ---
 missing field without missing param:
   - do:
@@ -169,12 +179,15 @@ non-keyed test:
             percentile_ranks_int:
               percentile_ranks:
                 field: int
-                values: [50, 99]
+                values: [50, 100, 150, 200]
                 keyed: false
 
   - match: { hits.total.value: 4 }
-  - match: { aggregations.percentile_ranks_int.values.0.key: 50}
-  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 37.0, error: 1} }
-  - match: { aggregations.percentile_ranks_int.values.1.key: 99}
-  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 61.5, error: 1} }
-
+  - match: { aggregations.percentile_ranks_int.values.0.key: 50 }
+  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 25.0, error: 0.1 } }
+  - match: { aggregations.percentile_ranks_int.values.1.key: 100 }
+  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 50.0, error: 0.1 } }
+  - match: { aggregations.percentile_ranks_int.values.2.key: 150 }
+  - close_to: { aggregations.percentile_ranks_int.values.2.value: { value: 75.0, error: 0.1 } }
+  - match: { aggregations.percentile_ranks_int.values.3.key: 200 }
+  - close_to: { aggregations.percentile_ranks_int.values.3.value: { value: 100.0, error: 0.1 } }

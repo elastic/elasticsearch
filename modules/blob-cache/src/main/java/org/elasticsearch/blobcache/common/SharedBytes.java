@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
+package org.elasticsearch.blobcache.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,7 +52,7 @@ public class SharedBytes extends AbstractRefCounted {
     private final IntConsumer writeBytes;
     private final IntConsumer readBytes;
 
-    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
+    public SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
         throws IOException {
         this.numRegions = numRegions;
         this.regionSize = regionSize;
@@ -107,7 +108,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
 
-    IO getFileChannel(int sharedBytesPos) {
+    public IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
         return ios.compute(sharedBytesPos, (p, io) -> {
             if (io == null || io.tryIncRef() == false) {
@@ -128,7 +129,7 @@ public class SharedBytes extends AbstractRefCounted {
         });
     }
 
-    long getPhysicalOffset(long chunkPosition) {
+    public long getPhysicalOffset(long chunkPosition) {
         long physicalOffset = chunkPosition * regionSize;
         assert physicalOffset <= numRegions * regionSize;
         return physicalOffset;

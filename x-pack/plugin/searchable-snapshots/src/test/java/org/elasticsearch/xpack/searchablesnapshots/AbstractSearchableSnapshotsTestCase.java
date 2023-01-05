@@ -69,9 +69,9 @@ import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static org.elasticsearch.blobcache.common.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.blobcache.common.SharedBytes.pageAligned;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.PAGE_SIZE;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 

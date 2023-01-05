@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.blobcache.common.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

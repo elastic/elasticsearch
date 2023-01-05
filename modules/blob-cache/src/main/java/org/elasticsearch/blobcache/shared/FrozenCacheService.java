@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
+package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,7 +14,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.blobcache.common.SharedBytes;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -35,9 +40,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -58,8 +60,6 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
 
@@ -302,18 +302,18 @@ public class FrozenCacheService implements Releasable {
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
     }
 
-    static long calculateCacheSize(Settings settings, long totalFsSize) {
+    public static long calculateCacheSize(Settings settings, long totalFsSize) {
         return SHARED_CACHE_SIZE_SETTING.get(settings)
             .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
             .getBytes();
     }
 
     public int getRangeSize() {
-        return toIntBytes(rangeSize.getBytes());
+        return BlobCacheUtils.toIntBytes(rangeSize.getBytes());
     }
 
     public int getRecoveryRangeSize() {
-        return toIntBytes(recoveryRangeSize.getBytes());
+        return BlobCacheUtils.toIntBytes(recoveryRangeSize.getBytes());
     }
 
     private int getRegion(long position) {

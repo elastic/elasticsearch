@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.common.SharedBytes;
+import org.elasticsearch.blobcache.shared.FrozenCacheService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTe
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
@@ -136,7 +137,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             Path cacheDir
         ) {
             super(
-                () -> TestUtils.singleBlobContainer(fileInfo.partName(0), fileData),
+                () -> BlobCacheTestUtils.singleBlobContainer(fileInfo.partName(0), fileData),
                 () -> new BlobStoreIndexShardSnapshot("_snapshot_id", 0L, List.of(fileInfo), 0L, 0L, 0, 0L),
                 new TestUtils.SimpleBlobStoreCacheService(),
                 "_repository",

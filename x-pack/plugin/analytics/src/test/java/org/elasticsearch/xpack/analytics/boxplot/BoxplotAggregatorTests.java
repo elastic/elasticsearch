@@ -107,7 +107,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
             assertEquals(2, boxplot.getQ1(), 0);
-            assertEquals(3.5, boxplot.getQ2(), 0);
+            assertEquals(4, boxplot.getQ2(), 0);
             assertEquals(5, boxplot.getQ3(), 0);
         });
     }
@@ -124,7 +124,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
             assertEquals(2, boxplot.getQ1(), 0);
-            assertEquals(3.5, boxplot.getQ2(), 0);
+            assertEquals(4, boxplot.getQ2(), 0);
             assertEquals(5, boxplot.getQ3(), 0);
         });
     }
@@ -142,7 +142,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
             assertEquals(2, boxplot.getQ1(), 0);
-            assertEquals(3.5, boxplot.getQ2(), 0);
+            assertEquals(4, boxplot.getQ2(), 0);
             assertEquals(5, boxplot.getQ3(), 0);
         });
     }
@@ -160,7 +160,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
             assertEquals(2, boxplot.getQ1(), 0);
-            assertEquals(3.5, boxplot.getQ2(), 0);
+            assertEquals(4, boxplot.getQ2(), 0);
             assertEquals(5, boxplot.getQ3(), 0);
         });
     }
@@ -277,7 +277,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(1, boxplot.getMin(), 0);
             assertEquals(3, boxplot.getMax(), 0);
             assertEquals(1, boxplot.getQ1(), 0);
-            assertEquals(2, boxplot.getQ2(), 0);
+            assertEquals(3, boxplot.getQ2(), 0);
             assertEquals(3, boxplot.getQ3(), 0);
 
             assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("boxplot"));
@@ -293,7 +293,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(21, boxplot.getMin(), 0);
             assertEquals(23, boxplot.getMax(), 0);
             assertEquals(21, boxplot.getQ1(), 0);
-            assertEquals(22, boxplot.getQ2(), 0);
+            assertEquals(23, boxplot.getQ2(), 0);
             assertEquals(23, boxplot.getQ3(), 0);
         }, new AggTestConfig(histogram, fieldType));
     }
@@ -312,14 +312,14 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalBoxplot>) boxplot -> {
             assertEquals(1, boxplot.getMin(), 0);
             assertEquals(5, boxplot.getMax(), 0);
-            assertEquals(1.75, boxplot.getQ1(), 0);
-            assertEquals(3, boxplot.getQ2(), 0);
-            assertEquals(4.25, boxplot.getQ3(), 0);
+            assertEquals(2.0, boxplot.getQ1(), 0);
+            assertEquals(3.0, boxplot.getQ2(), 0);
+            assertEquals(4.0, boxplot.getQ3(), 0);
             assertEquals("0001.0", boxplot.getMinAsString());
             assertEquals("0005.0", boxplot.getMaxAsString());
-            assertEquals("0001.8", boxplot.getQ1AsString());
+            assertEquals("0002.0", boxplot.getQ1AsString());
             assertEquals("0003.0", boxplot.getQ2AsString());
-            assertEquals("0004.2", boxplot.getQ3AsString());
+            assertEquals("0004.0", boxplot.getQ3AsString());
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
@@ -362,7 +362,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(8, boxplot.getMax(), 0);
             assertEquals(2, boxplot.getQ1(), 0);
-            assertEquals(5, boxplot.getQ2(), 0);
+            assertEquals(8, boxplot.getQ2(), 0);
             assertEquals(8, boxplot.getQ3(), 0);
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }

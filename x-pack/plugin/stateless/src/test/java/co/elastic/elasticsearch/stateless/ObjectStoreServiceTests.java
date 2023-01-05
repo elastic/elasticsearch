@@ -15,25 +15,25 @@ public class ObjectStoreServiceTests extends ESTestCase {
     public void testNoBucket() {
         ObjectStoreType type = randomFrom(ObjectStoreType.values());
         Settings.Builder builder = Settings.builder();
-        builder.put(ObjectStoreService.TYPE.getKey(), type.name());
-        expectThrows(IllegalArgumentException.class, () -> ObjectStoreService.TYPE.get(builder.build()));
+        builder.put(ObjectStoreService.TYPE_SETTING.getKey(), type.name());
+        expectThrows(IllegalArgumentException.class, () -> ObjectStoreService.TYPE_SETTING.get(builder.build()));
     }
 
     public void testObjectStoreSettingsNoClient() {
         ObjectStoreType type = randomFrom(S3, GCS, AZURE);
         Settings.Builder builder = Settings.builder();
-        builder.put(ObjectStoreService.TYPE.getKey(), type.name());
-        builder.put(ObjectStoreService.BUCKET.getKey(), randomAlphaOfLength(5));
-        expectThrows(IllegalArgumentException.class, () -> ObjectStoreService.TYPE.get(builder.build()));
+        builder.put(ObjectStoreService.TYPE_SETTING.getKey(), type.name());
+        builder.put(ObjectStoreService.BUCKET_SETTING.getKey(), randomAlphaOfLength(5));
+        expectThrows(IllegalArgumentException.class, () -> ObjectStoreService.TYPE_SETTING.get(builder.build()));
     }
 
     public void testFSSettings() {
         String bucket = randomAlphaOfLength(5);
         Settings.Builder builder = Settings.builder();
-        builder.put(ObjectStoreService.TYPE.getKey(), FS.name());
-        builder.put(ObjectStoreService.BUCKET.getKey(), bucket);
+        builder.put(ObjectStoreService.TYPE_SETTING.getKey(), FS.name());
+        builder.put(ObjectStoreService.BUCKET_SETTING.getKey(), bucket);
         // no throw
-        ObjectStoreType objectStoreType = ObjectStoreService.TYPE.get(builder.build());
+        ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
         Settings settings = objectStoreType.repositorySettings(bucket, null);
         assertThat(settings.keySet().size(), Matchers.equalTo(1));
         assertThat(settings.get("location"), Matchers.equalTo(bucket));
@@ -49,11 +49,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
         String bucket = randomAlphaOfLength(5);
         String client = randomAlphaOfLength(5);
         Settings.Builder builder = Settings.builder();
-        builder.put(ObjectStoreService.TYPE.getKey(), type.name());
-        builder.put(ObjectStoreService.BUCKET.getKey(), bucket);
-        builder.put(ObjectStoreService.CLIENT.getKey(), client);
+        builder.put(ObjectStoreService.TYPE_SETTING.getKey(), type.name());
+        builder.put(ObjectStoreService.BUCKET_SETTING.getKey(), bucket);
+        builder.put(ObjectStoreService.CLIENT_SETTING.getKey(), client);
         // check no throw
-        ObjectStoreType objectStoreType = ObjectStoreService.TYPE.get(builder.build());
+        ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
         Settings settings = objectStoreType.repositorySettings(bucket, client);
         assertThat(settings.keySet().size(), Matchers.equalTo(2));
         assertThat(settings.get(bucketName), Matchers.equalTo(bucket));

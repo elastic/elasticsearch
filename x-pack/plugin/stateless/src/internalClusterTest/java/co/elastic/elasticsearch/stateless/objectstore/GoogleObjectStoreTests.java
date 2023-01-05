@@ -33,9 +33,9 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
         final Settings.Builder settings = super.nodeSettings();
         settings.put("gcs.client.test.endpoint", httpServerUrl());
         settings.put("gcs.client.test.token_uri", httpServerUrl() + "/token");
-        settings.put(ObjectStoreService.TYPE.getKey(), ObjectStoreService.ObjectStoreType.GCS);
-        settings.put(ObjectStoreService.BUCKET.getKey(), "bucket");
-        settings.put(ObjectStoreService.CLIENT.getKey(), "test");
+        settings.put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.GCS);
+        settings.put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket");
+        settings.put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
 
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
         final String serviceAccountString = new String(serviceAccount, StandardCharsets.UTF_8);

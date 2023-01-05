@@ -978,6 +978,10 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void onPublishFailure(FailedToCommitClusterStateException e) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
+                assert failure != null;
+                var taskFailure = failure;
+                failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+                failure.addSuppressed(taskFailure);
                 notifyFailure();
                 return;
             }

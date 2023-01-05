@@ -77,6 +77,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -922,7 +923,7 @@ public class MasterServiceTests extends ESTestCase {
 
         final var testResponseHeaderName = "test-response-header";
 
-        final String exceptionMessage = "simulated";
+        final var taskFailedExceptionMessage = "simulated task failure";
 
         final var executor = new ClusterStateTaskExecutor<Task>() {
             @Override
@@ -933,7 +934,7 @@ public class MasterServiceTests extends ESTestCase {
                         threadPool.getThreadContext().addResponseHeader(testResponseHeaderName, taskContext.getTask().responseHeaderValue);
                     }
                     if (taskContext.getTask().expectFailure) {
-                        taskContext.onFailure(new ElasticsearchException(exceptionMessage));
+                        taskContext.onFailure(new ElasticsearchException(taskFailedExceptionMessage));
                     } else {
                         taskContext.success(taskContext.getTask().publishListener::onResponse);
                     }
@@ -1003,7 +1004,7 @@ public class MasterServiceTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             assertTrue(expectFailure);
                             assertThat(e, instanceOf(ElasticsearchException.class));
-                            assertThat(e.getMessage(), equalTo(exceptionMessage));
+                            assertThat(e.getMessage(), equalTo(taskFailedExceptionMessage));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
                             assertNotNull(publishedState.get());
                             assertNotSame(stateBeforeSuccess, publishedState.get());
@@ -1029,12 +1030,14 @@ public class MasterServiceTests extends ESTestCase {
             final var stateBeforeFailure = blockedState.get();
             assertNotNull(stateBeforeFailure);
 
+            final var publicationFailedExceptionMessage = "simulated publication failure";
+
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
                 assertSame(stateBeforeFailure, clusterStatePublicationEvent.getOldState());
                 assertNotSame(stateBeforeFailure, clusterStatePublicationEvent.getNewState());
                 assertTrue(publishedState.compareAndSet(null, clusterStatePublicationEvent.getNewState()));
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-                publishListener.onFailure(new FailedToCommitClusterStateException(exceptionMessage));
+                publishListener.onFailure(new FailedToCommitClusterStateException(publicationFailedExceptionMessage));
             });
 
             toSubmit = between(1, 10);
@@ -1057,12 +1060,14 @@ public class MasterServiceTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
+                            assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                            assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
                             if (expectFailure) {
-                                assertThat(e, instanceOf(ElasticsearchException.class));
-                            } else {
-                                assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                                assertThat(e.getSuppressed().length, greaterThan(0));
+                                var suppressed = e.getSuppressed()[0];
+                                assertThat(suppressed, instanceOf(ElasticsearchException.class));
+                                assertThat(suppressed.getMessage(), equalTo(taskFailedExceptionMessage));
                             }
-                            assertThat(e.getMessage(), equalTo(exceptionMessage));
                             assertNotNull(publishedState.get());
                             assertNotSame(stateBeforeFailure, publishedState.get());
                             assertTrue(taskComplete.compareAndSet(false, true));

@@ -524,7 +524,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
 
-        Exception exception = expectThrows(DocumentParsingException.class, () -> client().prepareIndex("test").setSource("obj.runtime", "value").get());
+        Exception exception = expectThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex("test").setSource("obj.runtime", "value").get()
+        );
         assertThat(
             exception.getMessage(),
             containsString("object mapping for [obj.runtime] tried to parse field [runtime] as object, but found a concrete value")

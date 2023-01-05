@@ -643,18 +643,18 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setStep("check-migration")
             .setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""");
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
@@ -703,18 +703,18 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setStep("migrate")
             .setPhaseDefinition("""
                 {
-                        "policy" : "my-policy",
-                        "phase_definition" : {
-                          "min_age" : "20m",
-                          "actions" : {
-                            "set_priority" : {
-                              "priority" : 150
-                            }
-                          }
-                        },
-                        "version" : 1,
-                        "modified_date_in_millis" : 1578521007076
-                      }""");
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 

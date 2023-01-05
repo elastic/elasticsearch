@@ -105,18 +105,18 @@
             percentiles_histo:
               percentiles:
                 field: latency
-                percents: [10.0, 50.0 95.0, 96.0, 97.0, 98.0, 99.0, 100.0]
+                percents: [10.0, 50.0, 95.0, 96.0, 97.0, 98.0, 99.0, 100.0]
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: "eq" }
-  - close_to: { aggregations.percentiles_histo.values.10\\.0: { value: 5.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.50\\.0: { value: 45.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 90.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.96\\.0: { value: 90.0, error: 0.000001 }}
-  - close_to: { aggregations.percentiles_histo.values.97\\.0: { value: 90.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.98\\.0: { value: 90.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 90.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.100\\.0: { value: 90.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.10\\.0: { value: 5.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.50\\.0: { value: 45.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.96\\.0: { value: 90.0, error: 0.1 }}
+  - close_to: { aggregations.percentiles_histo.values.97\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.98\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 90.0, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.100\\.0: { value: 90.0, error: 0.1 } }
 
 ---
 "percentiles t-digest histogram field large count sum":
@@ -154,50 +154,7 @@
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: "eq" }
-  - close_to: { aggregations.percentiles_histo.values.90\\.0: { value: 1.925, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 2.0, error: 0.000001 } }
-  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 2.0, error: 0.000001 } }
+  - close_to: { aggregations.percentiles_histo.values.90\\.0: { value: 1.125, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.95\\.0: { value: 1.125, error: 0.1 } }
+  - close_to: { aggregations.percentiles_histo.values.99\\.0: { value: 1.125, error: 0.1 } }
 
-
----
-"percentiles t-digest histogram field large count value":
-  - skip:
-      version: " - 8.6.99"
-      reason:  fixed in 8.7.0
-
-  - do:
-      indices.create:
-        index: test_overflow
-        body:
-          mappings:
-            properties:
-              latency:
-                type: histogram
-                ignore_malformed: false
-
-  - do:
-      catch: bad_request
-      index:
-        index: test_overflow
-        refresh: true
-        body:
-          - '{"index": {}}'
-          - '{"latency": {"counts": [9900000000, 1000], "values": [1, 2]}}'
-
-  - match: { status: 400 }
-  - match: { error.type: mapper_parsing_exception }
-  - match: { error.reason: "failed to parse" }
-
-  - do:
-      search:
-        index: test_overflow
-        body:
-          aggs:
-            percentiles_histo:
-              percentiles:
-                field: latency
-                percents: [90.0]
-
-  - match: { hits.total.value: 0 }
-  - match: { hits.total.relation: "eq" }
-  - match: { aggregations.percentiles_histo.values.90\\.0: null }

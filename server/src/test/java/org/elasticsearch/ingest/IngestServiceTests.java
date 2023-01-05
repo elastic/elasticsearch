@@ -46,6 +46,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -1136,20 +1137,34 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteFailure() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
+        IngestService ingestService = createWithProcessors(
+            Map.of(
+                "mock",
+                (factories, tag, description, config) -> processor,
+                "set",
+                (factories, tag, description, config) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
+            )
+        );
+        PutPipelineRequest putRequest1 = new PutPipelineRequest(
+            "_id1",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        // given that set -> fail() above, it's a failure if a document executes against this pipeline
+        PutPipelineRequest putRequest2 = new PutPipelineRequest(
+            "_id2",
+            new BytesArray("{\"processors\": [{\"set\" : {}}]}"),
             XContentType.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
-            .setPipeline("_id")
-            .setFinalPipeline("_none");
+            .setPipeline("_id1")
+            .setFinalPipeline("_id2");
         doThrow(new RuntimeException()).when(processor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         @SuppressWarnings("unchecked")
@@ -1849,7 +1864,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
         var value = randomAlphaOfLength(5);
-        var pipelineString = formatted("""
+        var pipelineString = Strings.format("""
             {"processors": [{"set" : {"field": "_field", "value": "%s"}}]}
             """, value);
         testUpdatingPipeline(pipelineString);
@@ -1974,10 +1989,7 @@ public class IngestServiceTests extends ESTestCase {
 
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
-        assertThat(
-            e.getMessage(),
-            equalTo(String.format(Locale.ROOT, "cannot update pipeline [%s] with the same version [%s]", pipelineId, version))
-        );
+        assertThat(e.getMessage(), equalTo(Strings.format("cannot update pipeline [%s] with the same version [%s]", pipelineId, version)));
     }
 
     public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {
@@ -2057,7 +2069,6 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);

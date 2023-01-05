@@ -259,7 +259,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -275,7 +275,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -289,7 +290,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -305,7 +306,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -319,7 +321,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -335,7 +337,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -858,7 +861,8 @@ public abstract class EngineTestCase extends ESTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
             System::nanoTime,
-            indexCommitListener
+            indexCommitListener,
+            false
         );
     }
 
@@ -896,7 +900,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 

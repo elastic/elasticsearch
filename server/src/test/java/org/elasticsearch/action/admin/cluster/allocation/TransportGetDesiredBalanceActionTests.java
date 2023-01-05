@@ -115,11 +115,17 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build();
+                .numberOfReplicas(0);
+            if (randomBoolean()) {
+                indexMetadataBuilder.indexWriteLoadForecast(randomDoubleBetween(0.0, 8.0, true));
+            }
+            if (randomBoolean()) {
+                indexMetadataBuilder.shardSizeInBytesForecast(randomLongBetween(0, 1024));
+            }
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
             Index index = indexMetadata.getIndex();
             metadataBuilder.put(indexMetadata, false);
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
@@ -218,7 +224,8 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             for (var shardDesiredBalance : shardsMap.entrySet()) {
                 DesiredBalanceResponse.DesiredShards desiredShard = shardDesiredBalance.getValue();
                 int shardId = shardDesiredBalance.getKey();
-                IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(index, shardId);
+                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
                 for (int idx = 0; idx < indexShardRoutingTable.size(); idx++) {
                     ShardRouting shard = indexShardRoutingTable.shard(idx);
                     DesiredBalanceResponse.ShardView shardView = desiredShard.current().get(idx);
@@ -228,7 +235,16 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                     assertEquals(shard.relocatingNodeId(), shardView.relocatingNode());
                     assertEquals(shard.index().getName(), shardView.index());
                     assertEquals(shard.shardId().id(), shardView.shardId());
-                    assertEquals(shard.allocationId(), shardView.allocationId());
+                    var forecastedWriteLoad = TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(indexMetadata);
+                    assertEquals(
+                        forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null,
+                        shardView.forecastedWriteLoad()
+                    );
+                    var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+                    assertEquals(
+                        forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null,
+                        shardView.forecastedShardSizeInBytes()
+                    );
                     Set<String> desiredNodeIds = Optional.ofNullable(shardAssignments.get(shard.shardId()))
                         .map(ShardAssignment::nodeIds)
                         .orElse(Set.of());

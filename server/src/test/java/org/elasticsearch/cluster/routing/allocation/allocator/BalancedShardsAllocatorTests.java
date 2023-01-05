@@ -18,8 +18,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -196,7 +194,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testRebalanceImprovesTheBalanceOfTheShards() {
         var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int node = 0; node < 3; node++) {
-            discoveryNodesBuilder.add(createNode("node-" + node));
+            discoveryNodesBuilder.add(newNode("node-" + node));
         }
 
         var metadataBuilder = Metadata.builder();
@@ -373,18 +371,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .metadata(metadataBuilder)
             .routingTable(routingTableBuilder)
             .build();
-    }
-
-    private static DiscoveryNode createNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
     }
 
     private void addIndex(

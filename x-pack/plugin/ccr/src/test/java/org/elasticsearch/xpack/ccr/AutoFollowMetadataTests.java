@@ -80,9 +80,4 @@ public class AutoFollowMetadataTests extends AbstractChunkedSerializingTestCase<
     protected Writeable.Reader<AutoFollowMetadata> instanceReader() {
         return AutoFollowMetadata::new;
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

@@ -8,12 +8,12 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -39,10 +39,10 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected DesiredBalanceResponse createTestInstance() {
-        return new DesiredBalanceResponse(randomStats(), randomClusterBalanceStats(), randomRoutingTable());
+        return new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable());
     }
 
-    private DesiredBalanceStats randomStats() {
+    private DesiredBalanceStats randomDesiredBalanceStats() {
         return new DesiredBalanceStats(
             randomNonNegativeLong(),
             randomBoolean(),
@@ -99,7 +99,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                                     randomBoolean(),
                                     shardId,
                                     indexName,
-                                    AllocationId.newInitializing()
+                                    randomBoolean() ? randomDouble() : null,
+                                    randomBoolean() ? randomLong() : null
                                 )
                             )
                             .toList(),
@@ -121,7 +122,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) throws IOException {
         return switch (randomInt(3)) {
             case 0 -> new DesiredBalanceResponse(
-                randomValueOtherThan(instance.getStats(), this::randomStats),
+                randomValueOtherThan(instance.getStats(), this::randomDesiredBalanceStats),
                 instance.getClusterBalanceStats(),
                 instance.getRoutingTable()
             );
@@ -141,10 +142,14 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
-        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomClusterBalanceStats(), randomRoutingTable());
+        DesiredBalanceResponse response = new DesiredBalanceResponse(
+            randomDesiredBalanceStats(),
+            randomClusterBalanceStats(),
+            randomRoutingTable()
+        );
 
         Map<String, Object> json = createParser(
-            ChunkedToXContent.wrapAsXContentObject(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
         assertEquals(Set.of("stats", "cluster_balance_stats", "routing_table"), json.keySet());
 
@@ -216,6 +221,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("relocating_node_is_desired"), shardView.relocatingNodeIsDesired());
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
+                    assertEquals(jsonShard.get("forecasted_write_load"), shardView.forecastedWriteLoad());
+                    assertEquals(jsonShard.get("forecasted_shard_size_in_bytes"), shardView.forecastedShardSizeInBytes());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");
@@ -228,14 +235,10 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         }
     }
 
-    public void testToChunkedXContent() {
-        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomClusterBalanceStats(), randomRoutingTable());
-        var toXContentChunked = response.toXContentChunked(ToXContent.EMPTY_PARAMS);
-        int chunks = 0;
-        while (toXContentChunked.hasNext()) {
-            toXContentChunked.next();
-            chunks++;
-        }
-        assertEquals(2 + response.getRoutingTable().size(), chunks);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable()),
+            response -> response.getRoutingTable().size() + 2
+        );
     }
 }

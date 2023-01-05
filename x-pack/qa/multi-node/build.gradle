@@ -2,16 +2,5 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  rolesFile file('roles.yml')
-  user username: "test-user", password: "x-pack-test-password", role: "test"
-  user username: "super-user", password: "x-pack-super-password"
+  clusterModules project(xpackModule('rollup'))
 }

@@ -8,20 +8,16 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -36,8 +32,6 @@ import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.InvalidMappedField;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -45,12 +39,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.singletonList;
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
@@ -206,45 +200,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static List<Attribute> resolveAgainstList(
-        UnresolvedAttribute u,
-        Collection<Attribute> attrList,
-        Holder<Set<String>> lazyNames
-    ) {
-        return resolveAgainstList(u, attrList, lazyNames, false);
-    }
+    public static List<Attribute> resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, Holder<Set<String>> lazyNames) {
+        var matches = maybeResolveAgainstList(u, attrList, false, true);
 
-    private static List<Attribute> resolveAgainstList(
-        UnresolvedAttribute u,
-        Collection<Attribute> attrList,
-        Holder<Set<String>> lazyNames,
-        boolean allowCompound
-    ) {
-        List<Attribute> matches = new ArrayList<>();
-
-        // first take into account the qualified version
-        boolean qualified = u.qualifier() != null;
-
-        var name = u.name();
-        for (Attribute attribute : attrList) {
-            if (attribute.synthetic() == false) {
-                boolean match = qualified ? Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
-                // if the field is unqualified
-                // first check the names directly
-                    (Regex.simpleMatch(name, attribute.name())
-                        // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
-                        || Regex.simpleMatch(name, attribute.qualifiedName()));
-                if (match) {
-                    matches.add(attribute);
-                }
-            }
-        }
-
-        var isPattern = Regex.isSimpleMatchPattern(name);
         // none found - add error message
         if (matches.isEmpty()) {
             UnresolvedAttribute unresolved;
-            if (isPattern) {
+            var name = u.name();
+            if (Regex.isSimpleMatchPattern(name)) {
                 unresolved = u.withUnresolvedMessage(format(null, "No match found for [{}]", name));
             } else {
                 var names = lazyNames.get();
@@ -264,98 +227,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return singletonList(unresolved);
         }
 
-        // found exact match or multiple if pattern
-        if (matches.size() == 1 || isPattern) {
-            // only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(e -> handleSpecialFields(u, e.withLocation(u.source()), allowCompound));
-            return matches;
-        }
-
-        // report ambiguity
-        List<String> refs = matches.stream().sorted((a, b) -> {
-            int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
-            int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
-            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.qualifiedName().compareTo(b.qualifiedName()));
-        })
-            .map(
-                a -> "line "
-                    + a.sourceLocation().toString().substring(1)
-                    + " ["
-                    + (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name())
-                    + "]"
-            )
-            .collect(toList());
-
-        return singletonList(
-            u.withUnresolvedMessage(
-                "Reference [" + u.qualifiedName() + "] is ambiguous (to disambiguate use quotes or qualifiers); " + "matches any of " + refs
-            )
-        );
+        return matches;
     }
 
-    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
-        // if it's a object/compound type, keep it unresolved with a nice error message
-        if (named instanceof FieldAttribute fa) {
-
-            // incompatible mappings
-            if (fa.field() instanceof InvalidMappedField) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] due to ambiguities being " + ((InvalidMappedField) fa.field()).errorMessage()
-                );
-            }
-            // unsupported types
-            else if (DataTypes.isUnsupported(fa.dataType())) {
-                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
-                if (unsupportedField.hasInherited()) {
-                    named = u.withUnresolvedMessage(
-                        "Cannot use field ["
-                            + fa.name()
-                            + "] with unsupported type ["
-                            + unsupportedField.getOriginalType()
-                            + "] in hierarchy (field ["
-                            + unsupportedField.getInherited()
-                            + "])"
-                    );
-                } else {
-                    named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]"
-                    );
-                }
-            }
-            // compound fields
-            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields"
-                );
-            }
-        }
-        return named;
-    }
-
-    @Experimental
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
-                if (uf.analyzed()) {
-                    return uf;
-                }
-
-                String name = uf.name();
-
-                if (uf.childrenResolved() == false) {
-                    return uf;
-                }
-
-                String functionName = context.functionRegistry().resolveAlias(name);
-                if (context.functionRegistry().functionExists(functionName) == false) {
-                    return uf.missing(functionName, context.functionRegistry().listFunctions());
-                }
-                FunctionDefinition def = context.functionRegistry().resolveFunction(functionName);
-                Function f = uf.buildResolved(context.configuration(), def);
-                return f;
-            });
+            return plan.transformExpressionsUp(
+                UnresolvedFunction.class,
+                uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
+            );
         }
     }
 

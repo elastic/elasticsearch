@@ -260,13 +260,6 @@ public class DeploymentManager {
         Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
-        assert ((EsThreadPoolExecutor) executorServiceForProcess).getPoolSize() % 3 == 0
-            : "Thread pool size ["
-                + ((EsThreadPoolExecutor) executorServiceForProcess).getPoolSize()
-                + "] should be a multiple of 3. Num contexts = ["
-                + processContextByAllocation.size()
-                + "]";
-
         var processContext = getProcessContext(task, listener::onFailure);
         if (processContext == null) {
             // error reporting handled in the call to getProcessContext

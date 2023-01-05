@@ -33,7 +33,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * should do that instead.
      * <p>
      * Returning {@code batchExecutionContext.initialState()} is an important and useful optimisation in most cases, but note that this
-     * fast-path exposes APIs to the risk of dirty reads in the vicinity of a master failover: a node {@code N} that handles such a no-op
+     * fast-path exposes APIs to the risk of stale reads in the vicinity of a master failover: a node {@code N} that handles such a no-op
      * task batch does not verify with its peers that it's still the master, and if it's not the master then another node {@code M} may
      * already have become master and updated the state in a way that would be inconsistent with the response that {@code N} sends back to
      * clients.

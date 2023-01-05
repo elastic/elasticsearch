@@ -10,6 +10,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -26,7 +27,7 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
         final String index = "index-" + getTestName();
         {
             final Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipeline);
-            putPipeline.setJsonEntity(formatted("""
+            putPipeline.setJsonEntity(Strings.format("""
                 {
                   "description": "Test pipeline (%s)",
                   "processors": [ { "set_security_user": { "field": "user" } } ]

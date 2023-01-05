@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -27,7 +28,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -57,7 +57,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "DEBUG",
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.pytorch" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "DEBUG"
@@ -129,7 +129,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected void putModelDefinition(String modelId, String base64EncodedModel, long unencodedModelSize) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        String body = String.format(Locale.ROOT, """
+        String body = Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", unencodedModelSize, base64EncodedModel);
         request.setJsonEntity(body);
         client().performRequest(request);
@@ -143,7 +143,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        request.setJsonEntity(Strings.format("""
             { "vocabulary": [%s] }
             """, quotedWords));
         client().performRequest(request);
@@ -244,23 +244,23 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         return client().performRequest(request);
     }
 
     protected Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         return client().performRequest(request);
     }
 
     protected Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
+        request.setJsonEntity(Strings.format("""
             {
               "docs": [ { "input": "%s" } ],
               "inference_config": {
@@ -272,19 +272,19 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    protected Response semanticSearch(String index, String queryText, String modelId, String denseVectorFieldName) throws IOException {
+    protected Response semanticSearch(String index, String modelText, String modelId, String denseVectorFieldName) throws IOException {
         Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        request.setJsonEntity(Strings.format("""
             {
               "model_id": "%s",
-              "query_string": "%s",
+              "model_text": "%s",
               "knn": {
                   "field": "%s",
                   "k": 5,
                   "num_candidates": 10
               }
-            }""", modelId, queryText, denseVectorFieldName));
+            }""", modelId, modelText, denseVectorFieldName));
         return client().performRequest(request);
     }
 
@@ -297,14 +297,14 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     ) throws IOException {
         Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
-        String termsFilter = String.format(Locale.ROOT, """
+        String termsFilter = Strings.format("""
             {"term": {"filter_field": "%s"}}
             """, filter);
 
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        request.setJsonEntity(Strings.format("""
             {
               "model_id": "%s",
-              "query_string": "%s",
+              "model_text": "%s",
               "knn": {
                   "field": "%s",
                   "k": 5,
@@ -319,10 +319,10 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         throws IOException {
         Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        request.setJsonEntity(Strings.format("""
             {
               "model_id": "%s",
-              "query_string": "%s",
+              "model_text": "%s",
               "knn": {
                   "field": "%s",
                   "k": 5,
@@ -371,7 +371,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     protected void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
         client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
         Request search = new Request("POST", ".ml-notifications-*/_search");
-        search.setJsonEntity(String.format(Locale.ROOT, """
+        search.setJsonEntity(Strings.format("""
             {
                 "size": 100,
                 "query": {

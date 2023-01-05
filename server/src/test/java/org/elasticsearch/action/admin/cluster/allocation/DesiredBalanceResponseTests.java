@@ -7,10 +7,11 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -70,7 +71,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                                     randomBoolean(),
                                     shardId,
                                     indexName,
-                                    AllocationId.newInitializing()
+                                    randomBoolean() ? randomDouble() : null,
+                                    randomBoolean() ? randomLong() : null
                                 )
                             )
                             .toList(),
@@ -104,7 +106,9 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     public void testToXContent() throws IOException {
         DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
 
-        Map<String, Object> json = createParser(response.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)).map();
+        Map<String, Object> json = createParser(
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+        ).map();
         assertEquals(Set.of("stats", "routing_table"), json.keySet());
 
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
@@ -141,6 +145,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("relocating_node_is_desired"), shardView.relocatingNodeIsDesired());
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
+                    assertEquals(jsonShard.get("forecasted_write_load"), shardView.forecastedWriteLoad());
+                    assertEquals(jsonShard.get("forecasted_shard_size_in_bytes"), shardView.forecastedShardSizeInBytes());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");
@@ -151,5 +157,12 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 assertEquals(jsonDesired.get("ignored"), desiredShards.desired().ignored());
             }
         }
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new DesiredBalanceResponse(randomStats(), randomRoutingTable()),
+            response -> response.getRoutingTable().size() + 2
+        );
     }
 }

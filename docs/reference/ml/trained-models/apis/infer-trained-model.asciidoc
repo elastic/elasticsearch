@@ -12,8 +12,6 @@ by {dfanalytics} or imported.
 NOTE: For model deployments with caching enabled, results may be returned 
 directly from the {infer} cache.
 
-beta::[]
-
 [[infer-trained-model-request]]
 == {api-request-title}
 
@@ -488,7 +486,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 =======
 ======
 =====
-`text_similarity`::::
+`text_similarity`:::
 (Object, optional)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
 +

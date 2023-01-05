@@ -198,7 +198,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             randomArray(3, ConfigurableClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3)))
         );
         final Set<GetUserPrivilegesResponse.Indices> index = Sets.newHashSet(
-            randomArray(5, GetUserPrivilegesResponse.Indices[]::new, this::randomIndices)
+            randomArray(5, GetUserPrivilegesResponse.Indices[]::new, () -> randomIndices(true))
         );
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(
             randomArray(
@@ -217,7 +217,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                 randomArray(
                     5,
                     GetUserPrivilegesResponse.RemoteIndices[]::new,
-                    () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(), randomStringSet(6))
+                    () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(false), randomStringSet(6))
                 )
             )
             : Set.of();
@@ -225,13 +225,13 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex);
     }
 
-    private GetUserPrivilegesResponse.Indices randomIndices() {
+    private GetUserPrivilegesResponse.Indices randomIndices(boolean allowMultipleFlsDlsDefinitions) {
         return new GetUserPrivilegesResponse.Indices(
             randomStringSet(6),
             randomStringSet(8),
             Sets.newHashSet(
                 randomArray(
-                    3,
+                    allowMultipleFlsDlsDefinitions ? 3 : 1,
                     FieldGrantExcludeGroup[]::new,
                     () -> new FieldGrantExcludeGroup(
                         generateRandomStringArray(3, 5, false, false),
@@ -239,7 +239,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                     )
                 )
             ),
-            randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet()),
+            randomStringSet(allowMultipleFlsDlsDefinitions ? 3 : 1).stream().map(BytesArray::new).collect(Collectors.toSet()),
             randomBoolean()
         );
     }

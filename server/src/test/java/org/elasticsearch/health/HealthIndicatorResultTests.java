@@ -10,6 +10,7 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,7 +71,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
 
-        result.toXContentChunked().forEachRemaining(xcontent -> {
+        result.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
             try {
                 xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             } catch (IOException e) {
@@ -106,7 +107,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
 
             if (diagnosis1.affectedResources() != null) {
                 XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
-                diagnosis1.toXContentChunked().forEachRemaining(xcontent -> {
+                diagnosis1.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
                     try {
                         xcontent.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
                     } catch (IOException e) {
@@ -131,7 +132,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
             expectedDiagnosis2.put("help_url", diagnosis2.definition().helpURL());
             if (diagnosis2.affectedResources() != null) {
                 XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
-                diagnosis2.toXContentChunked().forEachRemaining(xcontent -> {
+                diagnosis2.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
                     try {
                         xcontent.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
                     } catch (IOException e) {
@@ -198,13 +199,6 @@ public class HealthIndicatorResultTests extends ESTestCase {
 
         // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
         // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
-        int chunksExpected = 12;
-        var iterator = result.toXContentChunked();
-        int chunksSeen = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunksSeen++;
-        }
-        assertEquals(chunksExpected, chunksSeen);
+        AbstractChunkedSerializingTestCase.assertChunkCount(result, ignored -> 12);
     }
 }

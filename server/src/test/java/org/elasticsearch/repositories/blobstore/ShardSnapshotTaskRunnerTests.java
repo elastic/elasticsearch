@@ -11,7 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,10 +72,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
                 finishedShardSnapshots.incrementAndGet();
             } else {
                 expectedFileSnapshotTasks.addAndGet(filesToUpload);
-                ActionListener<Void> uploadListener = new GroupedActionListener<>(
-                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet),
-                    filesToUpload
-                );
+                ActionListener<Void> uploadListener = new CountDownActionListener(filesToUpload, finishedShardSnapshots::incrementAndGet);
                 for (int i = 0; i < filesToUpload; i++) {
                     taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
                 }
@@ -137,7 +133,6 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             null,
             IndexShardSnapshotStatus.newInitializing(null),
             Version.CURRENT,
-            Collections.emptyMap(),
             startTime,
             ActionListener.noop()
         );

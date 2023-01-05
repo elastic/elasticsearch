@@ -7,24 +7,29 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class DesiredBalanceResponse extends ActionResponse implements ToXContentObject {
+public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final DesiredBalanceStats stats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
@@ -56,26 +61,21 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(Iterators.single((builder, p) -> {
+            builder.startObject();
             builder.startObject("stats");
-            stats.toXContent(builder, params);
+            stats.toXContent(builder, p);
             builder.endObject();
-        }
-        {
-            builder.startObject("routing_table");
-            for (Map.Entry<String, Map<Integer, DesiredShards>> indexEntry : routingTable.entrySet()) {
-                builder.startObject(indexEntry.getKey());
-                for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
-                    builder.field(String.valueOf(shardEntry.getKey()));
-                    shardEntry.getValue().toXContent(builder, params);
-                }
-                builder.endObject();
+            return builder.startObject("routing_table");
+        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
+            builder.startObject(indexEntry.getKey());
+            for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
+                builder.field(String.valueOf(shardEntry.getKey()));
+                shardEntry.getValue().toXContent(builder, p);
             }
-            builder.endObject();
-        }
-        return builder.endObject();
+            return builder.endObject();
+        }).iterator(), Iterators.single((builder, p) -> builder.endObject().endObject()));
     }
 
     public DesiredBalanceStats getStats() {
@@ -139,21 +139,42 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
         boolean relocatingNodeIsDesired,
         int shardId,
         String index,
-        AllocationId allocationId
+        @Nullable Double forecastedWriteLoad,
+        @Nullable Long forecastedShardSizeInBytes
     ) implements Writeable, ToXContentObject {
 
+        private static final Version ADD_FORECASTS_VERSION = Version.V_8_7_0;
+
         public static ShardView from(StreamInput in) throws IOException {
-            return new ShardView(
-                ShardRoutingState.fromValue(in.readByte()),
-                in.readBoolean(),
-                in.readOptionalString(),
-                in.readBoolean(),
-                in.readOptionalString(),
-                in.readBoolean(),
-                in.readVInt(),
-                in.readString(),
-                in.readOptionalWriteable(AllocationId::new)
-            );
+            if (in.getVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
+                return new ShardView(
+                    ShardRoutingState.fromValue(in.readByte()),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readVInt(),
+                    in.readString(),
+                    in.readOptionalDouble(),
+                    in.readOptionalLong()
+                );
+            } else {
+                var shardView = new ShardView(
+                    ShardRoutingState.fromValue(in.readByte()),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readVInt(),
+                    in.readString(),
+                    null,
+                    null
+                );
+                in.readOptionalWriteable(AllocationId::new);
+                return shardView;
+            }
         }
 
         @Override
@@ -166,7 +187,12 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
             out.writeBoolean(relocatingNodeIsDesired);
             out.writeVInt(shardId);
             out.writeString(index);
-            out.writeOptionalWriteable(allocationId);
+            if (out.getVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
+                out.writeOptionalDouble(forecastedWriteLoad);
+                out.writeOptionalLong(forecastedShardSizeInBytes);
+            } else {
+                out.writeMissingWriteable(AllocationId.class);
+            }
         }
 
         @Override
@@ -180,6 +206,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ToXContent
                 .field("relocating_node_is_desired", relocatingNodeIsDesired)
                 .field("shard_id", shardId)
                 .field("index", index)
+                .field("forecasted_write_load", forecastedWriteLoad)
+                .field("forecasted_shard_size_in_bytes", forecastedShardSizeInBytes)
                 .endObject();
         }
     }

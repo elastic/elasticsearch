@@ -9,7 +9,6 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -40,7 +39,6 @@ import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91597")
 public class HealthRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
@@ -49,7 +47,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
     }
 
     public void testHealthRestCancellation() throws Exception {
-        runTest(new Request(HttpGet.METHOD_NAME, "/_internal/_health"));
+        runTest(new Request(HttpGet.METHOD_NAME, "/_health"));
     }
 
     private void runTest(Request request) throws Exception {
@@ -113,7 +111,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             try {
                 operationBlock.acquire();
             } catch (InterruptedException e) {

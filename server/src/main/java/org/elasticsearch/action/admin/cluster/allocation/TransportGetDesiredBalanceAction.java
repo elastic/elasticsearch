@@ -11,14 +11,15 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
@@ -34,11 +35,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
+import java.util.OptionalLong;
 
 public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceResponse> {
 
     @Nullable
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
+    private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
     public TransportGetDesiredBalanceAction(
@@ -47,7 +51,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ShardsAllocator shardsAllocator
+        ShardsAllocator shardsAllocator,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         super(
             GetDesiredBalanceAction.NAME,
@@ -60,9 +65,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             DesiredBalanceResponse::from,
             ThreadPool.Names.MANAGEMENT
         );
-        this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator
-            ? (DesiredBalanceShardsAllocator) shardsAllocator
-            : null;
+        this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator ? allocator : null;
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     @Override
@@ -72,13 +76,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ClusterState state,
         ActionListener<DesiredBalanceResponse> listener
     ) throws Exception {
-        String allocatorName = ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.get(state.metadata().settings());
-        if (allocatorName.equals(ClusterModule.DESIRED_BALANCE_ALLOCATOR) == false || desiredBalanceShardsAllocator == null) {
-            listener.onFailure(
-                new ResourceNotFoundException(
-                    "Expected the shard balance allocator to be `desired_balance`, but got `" + allocatorName + "`"
-                )
-            );
+        if (desiredBalanceShardsAllocator == null) {
+            listener.onFailure(new ResourceNotFoundException("Desired balance allocator is not in use, no desired balance found"));
             return;
         }
 
@@ -90,12 +89,15 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
+            IndexMetadata indexMetadata = state.metadata().index(indexRoutingTable.getIndex());
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
                 ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shardRoutingTable.shardId());
                 List<DesiredBalanceResponse.ShardView> shardViews = new ArrayList<>();
                 for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
                     ShardRouting shard = shardRoutingTable.shard(idx);
+                    OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(indexMetadata);
+                    OptionalLong forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
                     shardViews.add(
                         new DesiredBalanceResponse.ShardView(
                             shard.state(),
@@ -110,7 +112,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                                 && shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
                             shard.shardId().id(),
                             shard.getIndexName(),
-                            shard.allocationId()
+                            forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null,
+                            forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null
                         )
                     );
                 }

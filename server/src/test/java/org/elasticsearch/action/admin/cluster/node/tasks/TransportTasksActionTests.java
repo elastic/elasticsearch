@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -889,14 +890,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     private Map<String, Object> serialize(ListTasksResponse response, boolean byParents) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
         if (byParents) {
             DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();
-            response.toXContentGroupedByNode(builder, ToXContent.EMPTY_PARAMS, nodes);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByNode(() -> nodes)).toXContent(builder, ToXContent.EMPTY_PARAMS);
         } else {
-            response.toXContentGroupedByParents(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByParent()).toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
-        builder.endObject();
         builder.flush();
         logger.info(Strings.toString(builder));
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();

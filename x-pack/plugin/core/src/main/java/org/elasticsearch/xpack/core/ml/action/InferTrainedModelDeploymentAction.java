@@ -138,7 +138,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
                 skipQueue = in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
                 textInput = in.readOptionalString();
             } else {
                 textInput = null;
@@ -214,7 +214,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
                 out.writeBoolean(skipQueue);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
                 out.writeOptionalString(textInput);
             }
         }
@@ -312,7 +312,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Response(StreamInput in) throws IOException {
             super(in);
             results = in.readNamedWriteable(InferenceResults.class);
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
                 tookMillis = in.readVLong();
             }
         }
@@ -329,7 +329,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeNamedWriteable(results);
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
                 out.writeVLong(tookMillis);
             }
         }

@@ -303,9 +303,13 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, buildFormatter())
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(
+                    name,
+                    script.get().getParams(),
+                    lookup,
+                    buildFormatter(),
+                    OnScriptError.FAIL
+                ).newInstance(ctx).runForDoc(doc, consumer::accept);
         }
 
         @Override

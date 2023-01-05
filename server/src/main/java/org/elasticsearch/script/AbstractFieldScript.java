@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 
@@ -71,12 +72,19 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     protected final String fieldName;
     protected final Supplier<Source> source;
     private final Map<String, Object> params;
+    private final OnScriptError onScriptError;
 
-    public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        this(fieldName, params, new DocValuesDocReader(searchLookup, ctx));
+    public AbstractFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        LeafReaderContext ctx,
+        OnScriptError onScriptError
+    ) {
+        this(fieldName, params, new DocValuesDocReader(searchLookup, ctx), onScriptError);
     }
 
-    private AbstractFieldScript(String fieldName, Map<String, Object> params, DocReader docReader) {
+    private AbstractFieldScript(String fieldName, Map<String, Object> params, DocReader docReader, OnScriptError onScriptError) {
         super(docReader);
         this.fieldName = fieldName;
         this.source = docReader.source();
@@ -84,6 +92,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         params.put("_source", this.source);
         params.put("_fields", docReader.docAsMap().get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.onScriptError = onScriptError;
     }
 
     /**
@@ -134,6 +143,25 @@ public abstract class AbstractFieldScript extends DocBasedScript {
                     MAX_VALUES
                 )
             );
+        }
+    }
+
+    protected abstract void prepareExecute();
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        prepareExecute();
+        setDocument(docId);
+        try {
+            execute();
+        } catch (Exception e) {
+            if (onScriptError == OnScriptError.CONTINUE) {
+                // ignore
+            } else {
+                throw e;
+            }
         }
     }
 

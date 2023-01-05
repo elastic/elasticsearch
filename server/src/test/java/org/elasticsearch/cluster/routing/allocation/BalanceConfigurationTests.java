@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
@@ -255,8 +257,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + threshold)));
 
         for (RoutingNode node : nodes) {
-            assertThat(node.shardsWithState(STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-            assertThat(node.shardsWithState(STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+            assertThat(node.numberOfShardsWithState(STARTED), greaterThanOrEqualTo(minAvgNumberOfShards));
+            assertThat(node.numberOfShardsWithState(STARTED), lessThanOrEqualTo(maxAvgNumberOfShards));
         }
     }
 
@@ -277,8 +279,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         for (String index : routingTable.indicesRouting().keySet()) {
             for (RoutingNode node : nodes) {
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+                assertThat(Math.toIntExact(node.shardsWithState(index, STARTED).count()), greaterThanOrEqualTo(minAvgNumberOfShards));
+                assertThat(Math.toIntExact(node.shardsWithState(index, STARTED).count()), lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
     }
@@ -289,12 +291,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.3);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
         ClusterSettings service = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        BalancedShardsAllocator allocator = new BalancedShardsAllocator(
-            settings.build(),
-            service,
-            WriteLoadForecaster.DEFAULT,
-            EmptyClusterInfoService.INSTANCE
-        );
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service, WriteLoadForecaster.DEFAULT);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));

@@ -32,9 +32,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         return super.nodeSettings().put("s3.client.test.endpoint", httpServerUrl())
             .put("insecure.s3.client.test.access_key", "test_access_key")
             .put("insecure.s3.client.test.secret_key", "test_secret_key")
-            .put(ObjectStoreService.TYPE.getKey(), ObjectStoreService.ObjectStoreType.S3)
-            .put(ObjectStoreService.BUCKET.getKey(), "bucket")
-            .put(ObjectStoreService.CLIENT.getKey(), "test");
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.S3)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
     }
 
 }

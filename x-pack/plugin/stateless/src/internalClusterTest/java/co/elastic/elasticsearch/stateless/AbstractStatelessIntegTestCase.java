@@ -29,8 +29,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     protected Settings.Builder nodeSettings() {
         return Settings.builder()
             .put(Stateless.STATELESS_ENABLED.getKey(), true)
-            .put(ObjectStoreService.TYPE.getKey(), ObjectStoreService.ObjectStoreType.FS)
-            .put(ObjectStoreService.BUCKET.getKey(), getTestName() + "_bucket");
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), getTestName() + "_bucket");
     }
 
     protected String startIndexNode() {

@@ -1,14 +1,19 @@
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -22,6 +27,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -39,6 +46,7 @@ import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -50,9 +58,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      * This setting refers to the destination of the blobs in the object store.
      * Depending on the underlying object store type, it may be a bucket (for S3 or GCP), a location (for FS), or a container (for Azure).
      */
-    public static final Setting<String> BUCKET = Setting.simpleString("stateless.object_store.bucket", Setting.Property.NodeScope);
+    public static final Setting<String> BUCKET_SETTING = Setting.simpleString("stateless.object_store.bucket", Setting.Property.NodeScope);
 
-    public static final Setting<String> CLIENT = Setting.simpleString("stateless.object_store.client", Setting.Property.NodeScope);
+    public static final Setting<String> CLIENT_SETTING = Setting.simpleString("stateless.object_store.client", Setting.Property.NodeScope);
 
     public enum ObjectStoreType {
         FS((bucket, builder) -> builder.put("location", bucket), (client, builder) -> {}, false),
@@ -91,8 +99,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    private static final List<Setting<?>> TYPE_VALIDATOR_SETTINGS_LIST = List.of(BUCKET, CLIENT);
-    public static final Setting<ObjectStoreType> TYPE = Setting.enumSetting(
+    private static final List<Setting<?>> TYPE_VALIDATOR_SETTINGS_LIST = List.of(BUCKET_SETTING, CLIENT_SETTING);
+    public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
         ObjectStoreType.class,
         "stateless.object_store.type",
         ObjectStoreType.FS,
@@ -102,15 +110,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
             @Override
             public void validate(final ObjectStoreType value, final Map<Setting<?>, Object> settings, boolean isPresent) {
-                final String bucket = (String) settings.get(BUCKET);
-                final String client = (String) settings.get(CLIENT);
+                final String bucket = (String) settings.get(BUCKET_SETTING);
+                final String client = (String) settings.get(CLIENT_SETTING);
                 if (bucket.isEmpty()) {
-                    throw new IllegalArgumentException("setting " + BUCKET.getKey() + " must be set for an object store of type " + value);
+                    throw new IllegalArgumentException(
+                        "setting " + BUCKET_SETTING.getKey() + " must be set for an object store of type " + value
+                    );
                 }
                 if (value.needsClient()) {
                     if (client.isEmpty()) {
                         throw new IllegalArgumentException(
-                            "setting " + CLIENT.getKey() + " must be set for an object store of type " + value
+                            "setting " + CLIENT_SETTING.getKey() + " must be set for an object store of type " + value
                         );
                     }
                 }
@@ -141,11 +151,22 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private BlobStoreRepository objectStore;
 
+    private final Client client;
+    private final ClusterService clusterService;
+
     @Inject
-    public ObjectStoreService(Settings settings, Supplier<RepositoriesService> repositoriesServiceSupplier, ThreadPool threadPool) {
+    public ObjectStoreService(
+        Settings settings,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool = threadPool;
+        this.client = client;
+        this.clusterService = clusterService;
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
@@ -176,9 +197,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
-        ObjectStoreType type = TYPE.get(settings);
-        String bucket = BUCKET.get(settings);
-        String client = CLIENT.get(settings);
+        ObjectStoreType type = TYPE_SETTING.get(settings);
+        String bucket = BUCKET_SETTING.get(settings);
+        String client = CLIENT_SETTING.get(settings);
 
         return new RepositoryMetadata(Stateless.NAME, type.toString(), type.repositorySettings(bucket, client));
     }
@@ -193,9 +214,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         this.permits.release(UPLOAD_PERMITS);
         logger.info(
             "started object store service with type [{}], bucket [{}], client [{}]",
-            TYPE.get(settings),
-            BUCKET.get(settings),
-            CLIENT.get(settings)
+            TYPE_SETTING.get(settings),
+            BUCKET_SETTING.get(settings),
+            CLIENT_SETTING.get(settings)
         );
     }
 
@@ -280,8 +301,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         public void run() {
             boolean success = false;
             try {
-                final Collection<String> files = reference.getFileNames();
-                logger.trace("{} uploading commit [{}] with [{}] new files", shardId, generation, files.size());
+                final Collection<String> additionalFiles = reference.getAdditionalFiles();
+                logger.trace("{} uploading commit [{}] with [{}] additional files", shardId, generation, additionalFiles.size());
 
                 // this listener releases the reference on the index commit and a permit once all commit files are uploaded
                 final ActionListener<Collection<FileUploadTask.Result>> releaseCommitlistener = ActionListener.runBefore(
@@ -297,6 +318,28 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                                 results.stream().mapToLong(FileUploadTask.Result::length).reduce(Math::addExact).getAsLong()
                             )
                         );
+
+                        Map<String, StoreFileMetadata> commitAdditionalFiles = results.stream()
+                            .collect(
+                                Collectors.toUnmodifiableMap(
+                                    result -> result.name(),
+                                    result -> new StoreFileMetadata(
+                                        result.name(),
+                                        result.length(),
+                                        result.checksum(),
+                                        Version.LATEST.toString()
+                                    )
+                                )
+                            );
+
+                        NewCommitNotificationRequest request = new NewCommitNotificationRequest(
+                            shardId,
+                            true,
+                            reference.getPrimaryTerm(),
+                            generation,
+                            commitAdditionalFiles
+                        );
+                        client.execute(NewCommitNotificationAction.INSTANCE, request);
                     }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
                     () -> IOUtils.close(reference, releasable)
                 );
@@ -308,8 +351,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 // be able to access a consistent set of commit files (assuming read after write consistency).
                 final BlobContainer blobContainer = getBlobContainer(shardId, reference.getPrimaryTerm());
 
-                if (files.size() == 1) {
-                    assert files.stream().allMatch(f -> f.startsWith(IndexFileNames.SEGMENTS)) : files;
+                if (additionalFiles.size() == 1) {
+                    assert additionalFiles.stream().allMatch(f -> f.startsWith(IndexFileNames.SEGMENTS)) : additionalFiles;
                     uploadTaskRunner.enqueueTask(
                         new FileUploadTask(
                             shardId,
@@ -325,10 +368,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         )
                     );
                 } else {
-                    final CountDown countDown = new CountDown(files.size() - 1);
-                    assert files.stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).count() == 1L : files;
-                    var groupedListener = new GroupedActionListener<>(files.size(), releaseCommitlistener);
-                    files.stream()
+                    final CountDown countDown = new CountDown(additionalFiles.size() - 1);
+                    assert additionalFiles.stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).count() == 1L : additionalFiles;
+                    var groupedListener = new GroupedActionListener<>(additionalFiles.size(), releaseCommitlistener);
+                    additionalFiles.stream()
                         .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
                         .forEach(
                             file -> uploadTaskRunner.enqueueTask(
@@ -403,7 +446,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             // TODO Are there situations where we need to abort an upload?
 
             Result result = null;
-            try (IndexInput input = directory.openChecksumInput(name, IOContext.READONCE)) {
+            try (ChecksumIndexInput input = directory.openChecksumInput(name, IOContext.READONCE)) {
                 final long length = input.length();
                 var before = threadPool.relativeTimeInMillis();
                 blobContainer.writeBlob(name, new InputStreamIndexInput(input, length), length, false);
@@ -418,7 +461,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                result = new Result(name, length, after - before);
+                result = new Result(name, length, Store.digestToString(input.getChecksum()), after - before);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 listener.onFailure(e);
@@ -429,6 +472,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             }
         }
 
-        record Result(String name, long length, long elapsedInMillis) {}
+        record Result(String name, long length, String checksum, long elapsedInMillis) {}
     }
 }

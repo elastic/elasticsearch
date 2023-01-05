@@ -1,5 +1,7 @@
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
@@ -9,6 +11,8 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +41,7 @@ import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
@@ -49,6 +54,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -59,7 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
-public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPlugin {
+public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -86,6 +92,11 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
     }
 
     @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(NewCommitNotificationAction.INSTANCE, TransportNewCommitNotificationAction.class));
+    }
+
+    @Override
     public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,
@@ -101,7 +112,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool);
+        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, client, clusterService);
         this.objectStoreService.set(objectStoreService);
         return List.of(objectStoreService);
     }
@@ -110,9 +121,9 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
     public List<Setting<?>> getSettings() {
         return List.of(
             STATELESS_ENABLED,
-            ObjectStoreService.TYPE,
-            ObjectStoreService.BUCKET,
-            ObjectStoreService.CLIENT,
+            ObjectStoreService.TYPE_SETTING,
+            ObjectStoreService.BUCKET_SETTING,
+            ObjectStoreService.CLIENT_SETTING,
             IndexEngine.INDEX_FLUSH_INTERVAL_SETTING,
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT
         );

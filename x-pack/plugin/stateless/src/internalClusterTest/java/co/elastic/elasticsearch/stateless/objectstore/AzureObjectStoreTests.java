@@ -39,9 +39,9 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
         Settings.Builder settings = super.nodeSettings().put("azure.client.test.endpoint_suffix", endpoint)
             .put("insecure.azure.client.test.account", accountName)
-            .put(ObjectStoreService.TYPE.getKey(), ObjectStoreService.ObjectStoreType.AZURE)
-            .put(ObjectStoreService.BUCKET.getKey(), "container")
-            .put(ObjectStoreService.CLIENT.getKey(), "test");
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.AZURE)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "container")
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
 
         if (randomBoolean()) {
             settings = settings.put("insecure.azure.client.test.key", key);

@@ -98,15 +98,16 @@ public class BulkProcessor2Tests extends ESTestCase {
             }
         };
 
-        try (
-            BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, threadPool)
-                .setMaxNumberOfRetries(maxAttempts)
-                .setFlushInterval(TimeValue.timeValueMillis(1))
-                .build()
-        ) {
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(consumer, listener, threadPool)
+            .setMaxNumberOfRetries(maxAttempts)
+            .setFlushInterval(TimeValue.timeValueMillis(1))
+            .build();
+        try {
             bulkProcessor.add(new IndexRequest());
             assertTrue(countDownLatch.await(5, TimeUnit.MINUTES));
             assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
+        } finally {
+            bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
         }
 
         assertThat(attemptRef.get(), equalTo(maxAttempts));
@@ -177,7 +178,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             null,
             threadPool
         );
-        try (bulkProcessor) {
+        try {
             IndexRequest indexRequest = new IndexRequest();
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
                 bulkProcessor.add(indexRequest);
@@ -234,7 +235,10 @@ public class BulkProcessor2Tests extends ESTestCase {
                     )
                 );
             }
+        } finally {
+            bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
         }
+
         assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         // count total docs after processor is closed since there may have been partial batches that are flushed on close.
         assertEquals(docCount.get(), maxDocuments);
@@ -277,7 +281,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
             threadPool
         );
-        try (bulkProcessor) {
+        try {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             IndexRequest indexRequest = new IndexRequest();
@@ -309,6 +313,8 @@ public class BulkProcessor2Tests extends ESTestCase {
             }
             executorService.shutdown();
             executorService.awaitTermination(10, TimeUnit.SECONDS);
+        } finally {
+            bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
         }
         assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
 
@@ -379,7 +385,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             null,
             threadPool
         );
-        try (bulkProcessor) {
+        try {
             IndexRequest indexRequest = new IndexRequest();
             boolean rejectedRequests = false;
             for (int i = 0; i < maxDocuments; i++) {
@@ -391,6 +397,8 @@ public class BulkProcessor2Tests extends ESTestCase {
                 }
             }
             assertThat(rejectedRequests, equalTo(true));
+        } finally {
+            bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
         }
         assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         consumerExecutor.shutdown();

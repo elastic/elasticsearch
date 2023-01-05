@@ -93,7 +93,7 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
         }, client().threadPool()).setBulkActions(1).setMaxNumberOfRetries(maxRetries).build();
         indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
-        bulkProcessor.close();
+        bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
         assertThat(successfulResponses.size() + failedResponses.size(), equalTo(numberOfAsyncOps));
         // validate all responses
         boolean rejectedAfterAllRetries = false;

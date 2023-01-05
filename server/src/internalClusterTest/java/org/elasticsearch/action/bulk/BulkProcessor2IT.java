@@ -49,14 +49,13 @@ public class BulkProcessor2IT extends ESIntegTestCase {
         BulkProcessor2TestListener listener = new BulkProcessor2TestListener(latch);
 
         int numDocs = randomIntBetween(10, 100);
-        try (
-            BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
-                // let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setBulkActions(numDocs)
-                .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-                .build()
-        ) {
+        BulkProcessor2 processor = BulkProcessor2.builder(client()::bulk, listener, client().threadPool())
+            // let's make sure that the bulk action limit trips, one single execution will index all the documents
+            .setBulkActions(numDocs)
+            .setFlushInterval(TimeValue.timeValueHours(24))
+            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .build();
+        try {
 
             MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
@@ -68,6 +67,8 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             assertResponseItems(listener.bulkItems, numDocs);
             assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
             assertThat(processor.getTotalBytesInFlight(), equalTo(0L));
+        } finally {
+            processor.awaitClose(1, TimeUnit.SECONDS);
         }
     }
 
@@ -90,7 +91,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setFlushInterval(TimeValue.timeValueHours(24))
             .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
             .build();
-        try (processor) {
+        try {
 
             multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
@@ -100,6 +101,8 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             assertThat(listener.afterCounts.get(), equalTo(expectedBulkActions));
             assertThat(listener.bulkFailures.size(), equalTo(0));
             assertThat(listener.bulkItems.size(), equalTo(numDocs - numDocs % bulkActions));
+        } finally {
+            processor.awaitClose(1, TimeUnit.SECONDS);
         }
 
         closeLatch.await();
@@ -173,7 +176,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setFlushInterval(TimeValue.timeValueHours(24))
             .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
             .build();
-        try (processor) {
+        try {
 
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
@@ -190,6 +193,8 @@ public class BulkProcessor2IT extends ESIntegTestCase {
                     );
                 }
             }
+        } finally {
+            processor.awaitClose(1, TimeUnit.SECONDS);
         }
 
         closeLatch.await();

@@ -34,12 +34,15 @@ class Retry2 {
     private static final Logger logger = LogManager.getLogger(Retry2.class);
     private final int maxNumberOfRetries;
     /**
-     * Once awaitClose() has been called this is set to true. Any new requests that come in (whether via withBackoff() or a retry) will
-     * be rejected by sending EsRejectedExecutionExceptions to their listeners.
+     * Once awaitClose() has been called this is set to true. Any new requests that come in (whether via consumeRequestWithRetries() or a
+     * retry) will be rejected by sending EsRejectedExecutionExceptions to their listeners.
      */
     private boolean isClosing = false;
     /*
-     * We register in-flight calls with this Phaser so that we know whether there are any still in flight when we call awaitClose().
+     * We register in-flight calls with this Phaser so that we know whether there are any still in flight when we call awaitClose(). The
+     * phaser is initialized with 1 party intentionally. This is because if the number of parties goes over 0 and then back down to 0 the
+     * phaser is automatically terminated. Since we're tracking the number of in flight calls to Elasticsearch we expect this to happen
+     * often. Putting an initial party in here makes sure that the phaser is never terminated before we're ready for it.
      */
     private final Phaser inFlightRequestsPhaser = new Phaser(1);
 
@@ -111,12 +114,17 @@ class Retry2 {
 
     /**
      * This method makes an attempt to wait for any outstanding requests to complete. Any new requests that come in after this method has
-     * been called (whether via withBackoff() or a retry) will be rejected by sending EsRejectedExecutionExceptions to their listeners.
+     * been called (whether via consumeRequestWithRetries() or a retry) will be rejected by sending EsRejectedExecutionExceptions to their
+     * listeners.
      * @param timeout
      * @param unit
      */
     void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
         isClosing = true;
+        /*
+         * This removes the party that was placed in the phaser at initialization so that the phaser will terminate once all in-flight
+         * requests have been completed (i.e. this makes it possible that the number of parties can become 0).
+         */
         inFlightRequestsPhaser.arriveAndDeregister();
         inFlightRequestsPhaser.awaitAdvanceInterruptibly(0, timeout, unit);
     }

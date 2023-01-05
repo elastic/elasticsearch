@@ -348,10 +348,70 @@ public final class H3 {
      * Returns the neighbor indexes.
      *
      * @param h3 Origin index
-     * @return All neighbor indexes from the origin
+     *  @return All neighbor indexes from the origin
      */
     public static long[] hexRing(long h3) {
-        return HexRing.hexRing(h3);
+        final long[] ring = new long[hexRingSize(h3)];
+        for (int i = 0; i < ring.length; i++) {
+            ring[i] = hexRingPosToH3(h3, i);
+            assert ring[i] >= 0;
+        }
+        return ring;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3 Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(long h3) {
+        return H3Index.H3_is_pentagon(h3) ? 5 : 6;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3Address Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(String h3Address) {
+        return hexRingSize(stringToH3(h3Address));
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3 Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static long hexRingPosToH3(long h3, int ringPos) {
+        if (ringPos < 2) {
+            return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[ringPos].digit());
+        }
+        if (H3Index.H3_is_pentagon(h3)) {
+            if (ringPos > 4) {
+                throw new IllegalArgumentException("invalid ring position");
+            }
+            return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[ringPos + 1].digit());
+        } else {
+            if (ringPos > 5) {
+                throw new IllegalArgumentException("invalid ring position");
+            }
+            return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[ringPos].digit());
+        }
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3Address Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static String hexRingPosToH3(String h3Address, int ringPos) {
+        return h3ToString(hexRingPosToH3(stringToH3(h3Address), ringPos));
     }
 
     /**

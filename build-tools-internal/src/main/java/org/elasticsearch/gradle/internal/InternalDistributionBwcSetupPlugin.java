@@ -111,30 +111,32 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             "assemble"
         );
 
-        // Create build tasks for stable plugin jars for compatibility testing
-        String stableAnalysisPluginProjectDir = "libs/plugin-analysis-api";
+        for (StableApiProject stableApiProject : resolveStableProjects()) {
 
-        DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
-            new File(
-                checkoutDir.get(),
-                stableAnalysisPluginProjectDir
-                    + "/build/distributions/elasticsearch-plugin-analysis-api-"
-                    + bwcVersion.get()
-                    + "-SNAPSHOT.jar"
-            ),
-            null
-        );
+            DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
+                new File(
+                    checkoutDir.get(),
+                    stableApiProject.projectDir()
+                        + "/build/distributions/"
+                        + stableApiProject.name()
+                        + "-"
+                        + bwcVersion.get()
+                        + "-SNAPSHOT.jar"
+                ),
+                null
+            );
 
-        createBuildBwcTask(
-            bwcSetupExtension,
-            project,
-            bwcVersion,
-            "elasticsearch-plugin-analysis-api",
-            "libs/elasticsearch-plugin-analysis-api",
-            stableAnalysisPluginProjectArtifact,
-            buildBwcTaskProvider,
-            "assemble"
-        );
+            createBuildBwcTask(
+                bwcSetupExtension,
+                project,
+                bwcVersion,
+                stableApiProject.name(),
+                "libs/" + stableApiProject.name(),
+                stableAnalysisPluginProjectArtifact,
+                buildBwcTaskProvider,
+                "assemble"
+            );
+        }
     }
 
     private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
@@ -222,6 +224,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             }
             return new DistributionProject(name, baseDir, bwcVersion, classifier, extension, checkoutDir);
         }).collect(Collectors.toList());
+    }
+
+    record StableApiProject(String name, String projectDir) {}
+
+    private static List<StableApiProject> resolveStableProjects() {
+        // TODO: How do we retrieve these programmatically?
+        return List.of(
+            new StableApiProject("elasticsearch-plugin-analysis-api", "libs/plugin-analysis-api"),
+            new StableApiProject("elasticsearch-plugin-api", "libs/plugin-api"),
+            new StableApiProject("elasticsearch-logging", "libs/logging")
+        );
     }
 
     private static String buildBwcTaskName(String projectName) {

@@ -9,14 +9,14 @@ import java.util.stream.Collectors
 import static java.util.Arrays.stream
 
 configurations {
-  stableAnalysisPluginApi
+  stableApi
 }
 
 BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString("8.5.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
   def baseName = "v${bwcVersion}"
 
   BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-  Configuration stableApiConfiguration = configurations.create("stableAnalysisPluginApi${baseName}") {
+  Configuration stableApiConfiguration = configurations.create("stableApi${baseName}") {
     // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
     transitive = false
   }
@@ -24,26 +24,28 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
 
   if (unreleasedVersion) {
     // For unreleased snapshot versions, build them from source
-    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcElasticsearchPluginAnalysisApi'))
+    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named(ext.buildBwcName))
+    // TODO: is there a way to derive this from the project name instead?
+    // libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name)))
   } else {
     // For released versions, download it
-    libDependency = "org.elasticsearch:elasticsearch-plugin-analysis-api:${bwcVersion}"
+    libDependency = "org.elasticsearch:" + project.name + ":${bwcVersion}"
   }
 
   dependencies {
-    "stableAnalysisPluginApi${baseName}"(libDependency)
+    "stableApi${baseName}"(libDependency)
   }
 
   tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
-    dependsOn configurations."stableAnalysisPluginApi${baseName}"
+    dependsOn configurations."stableApi${baseName}"
     // TODO: "normalize" input with a classpath resolution strategy
-    oldJar.fileProvider(project.provider(() -> configurations."stableAnalysisPluginApi${baseName}".singleFile))
+    oldJar.fileProvider(project.provider(() -> configurations."stableApi${baseName}".singleFile))
     newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
   }
 }
 
-private static String stableApiCheckTaskName(String projectName) {
-  return "stable"
+private static String buildBwcTaskName(String projectName) {
+  return "buildBwc"
   + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
     .collect(Collectors.joining());
 }

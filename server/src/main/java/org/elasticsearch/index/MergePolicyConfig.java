@@ -126,12 +126,24 @@ public final class MergePolicyConfig {
     public enum Type {
         UNSET {
             @Override
-            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {
-                if (isTimeSeriesIndex) {
-                    // TieredMergePolicy is better than LogByteSizeMergePolicy at computing cheaper merges, but it does so by allowing
-                    // itself to merge non-adjacent segments. An important property we get when only merging adjacent segments and data gets
-                    // indexed in order is that segments have non-overlapping time ranges. This means that a range query on the time field
-                    // will only partially match 2 segments at most, and other segments will either fully match or not match at all.
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
+                if (isTimeBasedIndex) {
+                    // With time-based data, it's important that the merge policy only merges adjacent segments, so that segments end up
+                    // with non-overlapping time ranges if data gets indexed in order. This makes queries more efficient, as range filters
+                    // on the timestamp are more likely to either fully match a segment or not match it at all, which Lucene handles more
+                    // efficiently than a partially matching segment. This also plays nicely with the fact that recent data is more heavily
+                    // queried than older data, so some segments are more likely to not get touched at all by queries if they don't
+                    // intersect with the query's range.
+
+                    // The downside of only doing adjacent merges is that it may result in slightly less efficient merging if there is a lot
+                    // of variance in the size of flushes. Allowing merges of non-adjacent segments also makes it possible to reclaim
+                    // deletes a bit more efficiently by merging together segments that have the most deletes, even though they might not be
+                    // adjacent. But overall, the benefits of only doing adjacent merging exceed the downsides for time-based data.
+
+                    // LogByteSizeMergePolicy is similar to TieredMergePolicy, as it also tries to organize segments into tiers of
+                    // exponential sizes. The main difference is that it never merges non-adjacent segments, which is an interesting
+                    // property for time-based data as described above.
+
                     return config.logByteSizeMergePolicy;
                 } else {
                     return config.tieredMergePolicy;
@@ -140,13 +152,13 @@ public final class MergePolicyConfig {
         },
         TIERED {
             @Override
-            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
                 return config.tieredMergePolicy;
             }
         },
         LOG_BYTE_SIZE {
             @Override
-            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeriesIndex) {
+            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
                 return config.logByteSizeMergePolicy;
             }
         };
@@ -265,12 +277,7 @@ public final class MergePolicyConfig {
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
         tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-        // Note: max merge MB has different semantics on LogByteSizeMergePolicy: it's the maximum size for a segment to be considered for a
-        // merge, ie. max input segment size, while for TieredMergePolicy, it's the max output segment size. Also LogByteSizeMergePolicy
-        // doesn't try to pack as many segments together as necessary to get as close as possible to the max merged segment size. To
-        // account for that, we divide the max segment size by 2, and in practice, the maximum segment size in an index will be somewhere in
-        // [maxMergedSegment / 2, maxMergedSegment * 5] (assuming a merge factor of 10).
-        logByteSizeMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac() / 2);
+        logByteSizeMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac());
     }
 
     void setMaxMergesAtOnce(int maxMergeAtOnce) {
@@ -318,11 +325,11 @@ public final class MergePolicyConfig {
     }
 
     @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
-    MergePolicy getMergePolicy(boolean isTimeSeriesIndex) {
+    MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
         if (mergesEnabled == false) {
             return NoMergePolicy.INSTANCE;
         }
-        return mergePolicyType.getMergePolicy(this, isTimeSeriesIndex);
+        return mergePolicyType.getMergePolicy(this, isTimeBasedIndex);
     }
 
     private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {

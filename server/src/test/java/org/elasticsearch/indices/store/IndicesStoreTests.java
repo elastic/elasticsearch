@@ -42,11 +42,6 @@ public class IndicesStoreTests extends ESTestCase {
         localNode = new DiscoveryNode("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     }
 
-    public void testShardCanBeDeletedNoShardRouting() {
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
-        assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
-    }
-
     public void testShardCanBeDeletedNoShardStarted() {
         final var numShardCopies = randomInt(3);
         final var shardId = new ShardId("test", "_na_", 0);

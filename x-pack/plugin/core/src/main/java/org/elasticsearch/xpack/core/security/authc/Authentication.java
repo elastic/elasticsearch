@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -90,6 +91,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
 public final class Authentication implements ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
+    private static final Version VERSION_AUTHENTICATION_TYPE = Version.fromString("6.7.0");
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
     public static final Version VERSION_REALM_DOMAINS = Version.V_8_2_0;
@@ -141,8 +143,14 @@ public final class Authentication implements ToXContentObject {
         assert innerUser != null || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
 
         final Version version = in.getVersion();
-        type = AuthenticationType.values()[in.readVInt()];
-        final Map<String, Object> metadata = in.readMap();
+        final Map<String, Object> metadata;
+        if (version.onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
+            type = AuthenticationType.values()[in.readVInt()];
+            metadata = in.readMap();
+        } else {
+            type = AuthenticationType.REALM;
+            metadata = Map.of();
+        }
         if (innerUser != null) {
             authenticatingSubject = new Subject(innerUser, authenticatedBy, version, metadata);
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
@@ -469,8 +477,20 @@ public final class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        out.writeVInt(type.ordinal());
-        out.writeGenericMap(getAuthenticatingSubject().getMetadata());
+        final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
+        if (out.getVersion().onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
+            out.writeVInt(type.ordinal());
+            out.writeGenericMap(metadata);
+        } else {
+            assert type == AuthenticationType.REALM && metadata.isEmpty()
+                : Strings.format(
+                    "authentication with version [%s] must have authentication type %s and empty metadata, but got [%s] and [%s]",
+                    out.getVersion(),
+                    AuthenticationType.REALM,
+                    type,
+                    metadata
+                );
+        }
     }
 
     /**

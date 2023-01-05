@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
@@ -481,6 +482,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 IndexLifecycleMetadata.TYPE,
                 IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new
             ),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, LifecycleOperationMetadata.TYPE, LifecycleOperationMetadata::new),
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                LifecycleOperationMetadata.TYPE,
+                LifecycleOperationMetadata.LifecycleOperationMetadataDiff::new
+            ),
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
@@ -546,7 +553,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // Archive
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new),
             // TSDB Downsampling
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new)
+            new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new),
+            // Health API usage
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new)
         );
     }
 

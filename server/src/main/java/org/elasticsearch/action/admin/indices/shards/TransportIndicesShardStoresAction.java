@@ -38,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.AsyncShardFetch;
-import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
@@ -161,11 +160,8 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             if (shards.isEmpty()) {
                 listener.onResponse(new IndicesShardStoresResponse());
             } else {
-                // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-                Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
                 for (Tuple<ShardId, String> shard : shards) {
-                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), lister);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
+                    new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2()).fetchData(nodes, Collections.<String>emptySet());
                 }
             }
         }
@@ -186,14 +182,8 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
         private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
 
-            InternalAsyncFetch(
-                Logger logger,
-                String type,
-                ShardId shardId,
-                String customDataPath,
-                Lister<? extends BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> action
-            ) {
-                super(logger, type, shardId, customDataPath, action);
+            InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
+                super(logger, type, shardId, customDataPath);
             }
 
             @Override
@@ -237,6 +227,16 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                     return Map.copyOf(v);
                 });
                 listener.onResponse(new IndicesShardStoresResponse(Map.copyOf(indicesStatuses), List.copyOf(failures)));
+            }
+
+            @Override
+            protected void list(
+                ShardId shardId,
+                String customDataPath,
+                DiscoveryNode[] nodes,
+                ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
+            ) {
+                listStartedShards(shardId, customDataPath, nodes, listener);
             }
 
             private AllocationStatus getAllocationStatus(String index, int shardID, DiscoveryNode node) {

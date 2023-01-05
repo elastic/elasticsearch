@@ -17,7 +17,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 /**
  * A response for a get index action.
  */
-public class GetIndexResponse extends ActionResponse implements ChunkedToXContent {
+public class GetIndexResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private Map<String, MappingMetadata> mappings = Map.of();
     private Map<String, List<AliasMetadata>> aliases = Map.of();

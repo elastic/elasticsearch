@@ -197,7 +197,7 @@ public final class GeoTileUtils {
     /**
      * Parse geotile String hash format in "zoom/x/y" into an array of integers
      */
-    private static int[] parseHash(String hashAsString) {
+    public static int[] parseHash(String hashAsString) {
         final String[] parts = hashAsString.split("/", 4);
         if (parts.length != 3) {
             throw new IllegalArgumentException(

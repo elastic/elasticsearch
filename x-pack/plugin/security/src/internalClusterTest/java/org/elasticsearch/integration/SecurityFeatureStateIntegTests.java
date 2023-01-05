@@ -17,13 +17,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
-import java.util.Locale;
 
 import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.hamcrest.Matchers.containsString;
@@ -93,7 +93,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         // create a test user
         final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
         createUserRequest.addParameter("refresh", "wait_for");
-        createUserRequest.setJsonEntity(String.format(Locale.ROOT, """
+        createUserRequest.setJsonEntity(Strings.format("""
             {  "password": "%s",  "roles": [ "%s" ]}
             """, LOCAL_TEST_USER_PASSWORD, roleName));
         performSuperuserRequest(createUserRequest);

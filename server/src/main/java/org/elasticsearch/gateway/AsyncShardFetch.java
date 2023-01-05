@@ -49,36 +49,21 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Releasable {
 
-    /**
-     * An action that lists the relevant shard data that needs to be fetched.
-     */
-    public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, @Nullable String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
-    }
-
     protected final Logger logger;
     protected final String type;
     protected final ShardId shardId;
     protected final String customDataPath;
-    private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(
-        Logger logger,
-        String type,
-        ShardId shardId,
-        String customDataPath,
-        Lister<? extends BaseNodesResponse<T>, T> action
-    ) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
         this.logger = logger;
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
-        this.action = (Lister<BaseNodesResponse<T>, T>) action;
     }
 
     @Override
@@ -307,7 +292,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
-        action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
+        list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 assert assertSameNodes(response);
@@ -335,6 +320,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
         });
     }
+
+    protected abstract void list(
+        ShardId shardId,
+        @Nullable String customDataPath,
+        DiscoveryNode[] nodes,
+        ActionListener<BaseNodesResponse<T>> listener
+    );
 
     /**
      * The result of a fetch operation. Make sure to first check {@link #hasData()} before

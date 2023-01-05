@@ -212,9 +212,4 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
         }
         return new IndexLifecycleMetadata(policies, mode);
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

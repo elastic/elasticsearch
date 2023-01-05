@@ -47,7 +47,7 @@ public class JoinStatusTests extends ESTestCase {
                 return new JoinStatus(
                     originalJoinStatus.remoteNode(),
                     originalJoinStatus.term(),
-                    randomAlphaOfLengthBetween(0, 30),
+                    randomValueOtherThan(originalJoinStatus.message(), () -> randomAlphaOfLengthBetween(0, 30)),
                     originalJoinStatus.age()
                 );
             }
@@ -55,8 +55,8 @@ public class JoinStatusTests extends ESTestCase {
                 return new JoinStatus(
                     originalJoinStatus.remoteNode(),
                     originalJoinStatus.term(),
-                    randomAlphaOfLength(30),
-                    randomNonNegativeTimeValue()
+                    originalJoinStatus.message(),
+                    randomValueOtherThan(originalJoinStatus.age(), this::randomNonNegativeTimeValue)
                 );
             }
             case 4 -> {

@@ -339,6 +339,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
         return actions;
     }
 

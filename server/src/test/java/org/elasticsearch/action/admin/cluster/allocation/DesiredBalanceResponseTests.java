@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -72,7 +71,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                                     randomBoolean(),
                                     shardId,
                                     indexName,
-                                    AllocationId.newInitializing()
+                                    randomBoolean() ? randomDouble() : null,
+                                    randomBoolean() ? randomLong() : null
                                 )
                             )
                             .toList(),
@@ -145,6 +145,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("relocating_node_is_desired"), shardView.relocatingNodeIsDesired());
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
+                    assertEquals(jsonShard.get("forecasted_write_load"), shardView.forecastedWriteLoad());
+                    assertEquals(jsonShard.get("forecasted_shard_size_in_bytes"), shardView.forecastedShardSizeInBytes());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");

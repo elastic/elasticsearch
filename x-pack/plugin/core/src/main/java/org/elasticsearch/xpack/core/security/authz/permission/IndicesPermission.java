@@ -162,25 +162,41 @@ public final class IndicesPermission {
         return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
     }
 
+    /**
+     * This encapsulates the authorization test for resources.
+     * There is an additional test for resources that are missing or that are not a datastream or a backing index.
+     */
     public static class IsResourceAuthorizedPredicate {
 
         private final StringMatcher resourceNameMatcher;
         private final StringMatcher additionalNonDatastreamNameMatcher;
 
-        private IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
+        // public for tests
+        public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
             this.resourceNameMatcher = resourceNameMatcher;
             this.additionalNonDatastreamNameMatcher = additionalNonDatastreamNameMatcher;
         }
 
+        /**
+         * Authorization test for resources.
+         * An additional predicate tests datastreams and backing indices, apart from the regular predicate that tests all resource types.
+         */
         public final boolean test(IndexAbstraction indexAbstraction) {
             return resourceNameMatcher.test(indexAbstraction.getName())
                 || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstraction.getName()));
         }
 
+        /**
+         * Authorization test for a resource name when the resource does not exist (e.g. the authorization test for creating an index).
+         */
         public final boolean testMissingResource(String name) {
             return resourceNameMatcher.test(name) || additionalNonDatastreamNameMatcher.test(name);
         }
 
+        /**
+         * Given another {@link IsResourceAuthorizedPredicate}, return a new one that is equivalent to the conjunction of that other one
+         * and this current one.
+         */
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
             StringMatcher andedResourceNameMatcher = this.resourceNameMatcher.and(other.resourceNameMatcher);
             StringMatcher andedAdditionalNonDatastreamNameMatcher = (this.resourceNameMatcher.and(other.additionalNonDatastreamNameMatcher))

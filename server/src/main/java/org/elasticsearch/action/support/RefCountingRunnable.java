@@ -77,6 +77,8 @@ public final class RefCountingRunnable implements Releasable {
     /**
      * Acquire a reference to this object and return an action which releases it. The delegate {@link Runnable} is called when all its
      * references have been released.
+     *
+     * Callers must take care to close the returned resource exactly once. This deviates from the contract of {@link java.io.Closeable}.
      */
     public Releasable acquire() {
         if (refCounted.tryIncRef()) {
@@ -96,7 +98,9 @@ public final class RefCountingRunnable implements Releasable {
     }
 
     /**
-     * Release a reference to this object, and execute the delegate {@link Runnable} if there are no other references.
+     * Release the original reference to this object, which executes the delegate {@link Runnable} if there are no other references.
+     *
+     * Callers must take care to close this resource exactly once. This deviates from the contract of {@link java.io.Closeable}.
      */
     @Override
     public void close() {

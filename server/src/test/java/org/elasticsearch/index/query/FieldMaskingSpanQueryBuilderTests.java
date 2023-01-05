@@ -14,6 +14,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "%s" : {
                 "query" : {
@@ -87,7 +88,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testJsonWithTopLevelBoost() throws IOException {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "%s" : {
                 "query" : {

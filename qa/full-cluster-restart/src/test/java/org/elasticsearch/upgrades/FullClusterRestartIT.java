@@ -569,7 +569,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testRollover() throws IOException {
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
-            createIndex.setJsonEntity(formatted("""
+            createIndex.setJsonEntity(Strings.format("""
                 {
                   "aliases": {
                     "%s_write": {}
@@ -995,7 +995,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
-        addRoutingSettings.setJsonEntity(formatted("""
+        addRoutingSettings.setJsonEntity(Strings.format("""
             {"persistent": {"cluster.routing.allocation.exclude.test_attr": "%s"}}
             """, getOldClusterVersion()));
         client().performRequest(addRoutingSettings);
@@ -1296,7 +1296,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         int extras = between(1, 100);
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < extras; i++) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_id":"%s"}}
                 {"test":"test"}
                 """, count + i));

@@ -491,7 +491,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(fromStreamSecond.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
 
         assertEquals(wrapper.getString("string_setting"), fromStreamSecond.getString("string_setting"));
-        assertTrue(fromStreamSecond.hasPassword());
+        assertEquals(fromFile.hasPassword(), fromStreamSecond.hasPassword());
     }
 
     private byte[] toByteArray(final InputStream is) throws IOException {

@@ -114,7 +114,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.dependsOn(integTestDistro, modulesConfiguration);
             registerDistributionInputs(task, integTestDistro);
 
+            // Enable parallel execution for these tests since each test gets its own cluster
             task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+
+            // Disable test failure reporting since this stuff is now captured in build scans
+            task.getExtensions().getExtraProperties().set("dumpOutputOnFailure", false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");

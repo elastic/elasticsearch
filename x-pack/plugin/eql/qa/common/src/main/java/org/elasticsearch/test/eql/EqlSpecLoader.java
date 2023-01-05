@@ -121,6 +121,7 @@ public class EqlSpecLoader {
 
             arr = table.getList("join_keys");
             spec.joinKeys(arr != null ? arr.toArray(new String[0]) : new String[0]);
+            spec.maxSamplesPerKey(getInteger(table, "max_samples_per_key"));
             validateAndAddSpec(testSpecs, spec, uniqueTestNames);
         }
 

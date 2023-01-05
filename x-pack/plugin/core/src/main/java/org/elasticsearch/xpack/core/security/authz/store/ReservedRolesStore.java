@@ -768,7 +768,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "logs-*",
                         "synthetics-*",
                         "traces-*",
-                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/",
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default.*)/",
                         ".logs-endpoint.action.responses-*",
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
@@ -820,9 +820,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
-                        "metrics-endpoint.metadata_current_default",
-                        ".metrics-endpoint.metadata_current_default",
-                        ".metrics-endpoint.metadata_united_default"
+                        "metrics-endpoint.metadata_current_default*",
+                        ".metrics-endpoint.metadata_current_default*",
+                        ".metrics-endpoint.metadata_united_default*"
                     )
                     .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
@@ -845,7 +845,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
+                    .indices("logs-cloud_security_posture.findings_latest-default*", "logs-cloud_security_posture.scores-default*")
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build() },
             null,

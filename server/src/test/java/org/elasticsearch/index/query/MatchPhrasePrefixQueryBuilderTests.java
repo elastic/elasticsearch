@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,7 +69,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = formatted("""
+        String contentString = Strings.format("""
             {
                 "match_phrase_prefix" : {
                     "%s" : "%s"

@@ -396,9 +396,4 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         }
         return new Assignment(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

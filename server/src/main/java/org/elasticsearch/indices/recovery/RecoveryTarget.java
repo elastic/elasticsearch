@@ -495,7 +495,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final Store store = store();
             store.incRef();
             try {
-                store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                if (DiscoveryNode.isStateless(indexShard.indexSettings().getNodeSettings()) == false
+                    || indexShard.routingEntry().primary()) {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                }
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),
                     globalCheckpoint,

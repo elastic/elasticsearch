@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -263,7 +264,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
     public void testDocumentWithBlankFieldName() {
         Exception e = expectThrows(
-            Exception.class,
+            DocumentParsingException.class,
             () -> { client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet(); }
         );
         assertThat(e.getMessage(), containsString("failed to parse"));

@@ -24,6 +24,7 @@ import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -74,13 +75,13 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
-    private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String INDEX = RandomStrings.randomAsciiLettersOfLength(random(), 10).toLowerCase(Locale.ROOT);
+    private final String FIELD = RandomStrings.randomAsciiLettersOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+        return List.of(InternalSettingsPlugin.class);
     }
 
     public void testTieBreak() throws Exception {
@@ -381,7 +382,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     /**
      * Suggestions run on an empty index should return a suggest element as part of the response. See #42473 for details.
      */
-    public void testSuggestEmptyIndex() throws IOException, InterruptedException {
+    public void testSuggestEmptyIndex() throws IOException {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);
 
@@ -430,7 +431,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         createIndexAndMapping(completionMappingBuilder);
 
         Exception e = expectThrows(
-            Exception.class,
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -489,7 +490,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         createIndexAndMapping(completionMappingBuilder);
 
         Exception e = expectThrows(
-            Exception.class,
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -513,7 +514,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         String weight = String.valueOf(Long.MAX_VALUE - 4);
 
         Exception e = expectThrows(
-            Exception.class,
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(
@@ -1120,7 +1121,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 )
                 .get();
             fail("Expected Exception");
-        } catch (Exception e) {
+        } catch (DocumentParsingException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
@@ -1177,13 +1178,13 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void assertSuggestions(String suggestion, String... suggestions) {
-        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
+        String suggestionName = RandomStrings.randomAsciiLettersOfLength(random(), 10);
         CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion(FIELD).text(suggestion).size(10);
         assertSuggestions(suggestionName, suggestionBuilder, suggestions);
     }
 
     public void assertSuggestionsNotInOrder(String suggestString, String... suggestions) {
-        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
+        String suggestionName = RandomStrings.randomAsciiLettersOfLength(random(), 10);
         SearchResponse searchResponse = client().prepareSearch(INDEX)
             .suggest(
                 new SuggestBuilder().addSuggestion(suggestionName, SuggestBuilders.completionSuggestion(FIELD).text(suggestString).size(10))
@@ -1399,7 +1400,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
         Exception e = expectThrows(
-            Exception.class,
+            DocumentParsingException.class,
             () -> client().prepareIndex(INDEX)
                 .setId("1")
                 .setSource(

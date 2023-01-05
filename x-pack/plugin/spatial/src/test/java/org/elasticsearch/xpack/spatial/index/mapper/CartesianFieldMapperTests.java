@@ -113,17 +113,7 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
             () -> mapper2.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
-        assertThat(getRootCause(e).getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
-    }
-
-    private static Throwable getRootCause(Throwable t) {
-        Throwable rootCause = t;
-        Throwable cause = t.getCause();
-        while (cause != null && cause != rootCause) {
-            rootCause = cause;
-            cause = cause.getCause();
-        }
-        return rootCause;
+        assertThat(e.getRootCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
     }
 
     public void testZValueGeoJSON() throws IOException {

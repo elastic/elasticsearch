@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
@@ -262,7 +263,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      * Tasks belonging to the same shard are ordered by commit generation. Tasks belonging to different shards are ordered by the commit
      * enqueue time (also for file upload tasks).
      */
-    private abstract static class UploadTask implements Comparable<UploadTask>, Runnable {
+    private abstract static class UploadTask extends AbstractRunnable implements Comparable<UploadTask> {
 
         protected final ShardId shardId;
         protected final long generation;
@@ -298,7 +299,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void run() {
+        public void onFailure(Exception e) {
+            IOUtils.closeWhileHandlingException(reference, releasable);
+            logFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
             boolean success = false;
             try {
                 final Collection<String> additionalFiles = reference.getAdditionalFiles();
@@ -403,13 +410,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 }
                 success = true;
             } catch (Exception e) {
-                logger.error(() -> format("%s failed to upload commit [%s] to object store", shardId, generation), e);
+                logFailure(e);
                 assert false : e;
             } finally {
                 if (success == false) {
                     IOUtils.closeWhileHandlingException(reference, releasable);
                 }
             }
+        }
+
+        private void logFailure(Exception e) {
+            logger.error(() -> format("%s failed to upload commit [%s] to object store", shardId, generation), e);
         }
     }
 
@@ -440,7 +451,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void run() {
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
             // TODO Retry
             // TODO Rate limit or some type of throttling?
             // TODO Are there situations where we need to abort an upload?
@@ -464,7 +480,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 result = new Result(name, length, Store.digestToString(input.getChecksum()), after - before);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
-                listener.onFailure(e);
+                onFailure(e);
             } finally {
                 if (result != null) {
                     listener.onResponse(result);

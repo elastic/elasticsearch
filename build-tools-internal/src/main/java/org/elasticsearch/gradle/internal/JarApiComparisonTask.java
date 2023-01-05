@@ -28,6 +28,20 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 
+/**
+ * This implementation of a jar API comparison uses the "javap" tool to compare
+ * the "signatures" of two different jars. We assume that calling out to javap
+ * is not too expensive at this stage of the stable API project. We also assume
+ * that for every public class, method, and field, javap will print a consistent
+ * single line. This should let us make string comparisons, rather than having
+ * to parse the output of javap.
+ * </p>
+ * While the above assumptions appear to hold, they are not guaranteed, and hence
+ * brittle. We could overcome these problems with an ASM implementation of the
+ * Jar Scanner.
+ * </p>
+ * We also assume that we will not be comparing multi-version JARs.
+ */
 public abstract class JarApiComparisonTask extends DefaultTask {
 
     @TaskAction
@@ -59,6 +73,10 @@ public abstract class JarApiComparisonTask extends DefaultTask {
             return path;
         }
 
+        /**
+         * Get a list of class names contained in this jar by looking for file names
+         * that end in ".class"
+         */
         List<String> classNames() throws IOException {
             Pattern classEnding = Pattern.compile(".*\\.class$");
             try (JarFile jf = new JarFile(this.path)) {
@@ -66,11 +84,17 @@ public abstract class JarApiComparisonTask extends DefaultTask {
             }
         }
 
-        public List<String> disassembleFromJar(String filepath, String classpath) {
-            String location = "jar:file://" + getPath() + "!/" + filepath;
+        /**
+         * Given a path to a file in the jar, get the output of javap as a list of strings.
+         */
+        public List<String> disassembleFromJar(String fileInJarPath, String classpath) {
+            String location = "jar:file://" + getPath() + "!/" + fileInJarPath;
             return disassemble(location, getPath(), classpath);
         }
 
+        /**
+         * Invoke javap on a class file, optionally providing a module path or class path
+         */
         static List<String> disassemble(String location, String modulePath, String classpath) {
             ProcessBuilder pb = new ProcessBuilder();
             List<String> command = new ArrayList<>();
@@ -102,10 +126,17 @@ public abstract class JarApiComparisonTask extends DefaultTask {
             }
         }
 
+        /**
+         * Given the output of the javap command, that is, the disassembled class file,
+         * return a set of signatures for all public classes, methods, and fields.
+         */
         public static Set<String> signaturesSet(List<String> javapOutput) {
             return javapOutput.stream().filter(s -> s.matches("^\\s*public.*")).collect(Collectors.toSet());
         }
 
+        /**
+         * Given a disassembled module-info.class, return all unqualified exports.
+         */
         public static Set<String> moduleInfoSignaturesSet(List<String> javapOutput) {
             return javapOutput.stream()
                 .filter(s -> s.matches("^\\s*exports.*"))
@@ -113,7 +144,9 @@ public abstract class JarApiComparisonTask extends DefaultTask {
                 .collect(Collectors.toSet());
         }
 
-        // NEXT: we have all the pieces, so we can create a signatures map of classname -> set of public elements
+        /**
+         * Iterate over classes and gather signatures.
+         */
         public Map<String, Set<String>> jarSignature() throws IOException {
             return this.classNames().stream().collect(Collectors.toMap(s -> s, s -> {
                 List<String> disassembled = disassembleFromJar(s, null);
@@ -124,6 +157,19 @@ public abstract class JarApiComparisonTask extends DefaultTask {
             }));
         }
 
+        /**
+         * Comparison: The signatures are maps of class names to public class, field, or method
+         * declarations.
+         * </p>
+         * First, we check that the new jar signature contains all the same classes
+         * as the old jar signature. If not, we return an error.
+         * </p>
+         * Second, we iterate over the signature for each class. If a signature from the old
+         * jar is absent in the new jar, we add it to our list of errors.
+         * </p>
+         * Note that it is fine for the new jar to have additional elements, as this
+         * is backwards compatible.
+         */
         public static void compareSignatures(Map<String, Set<String>> oldSignature, Map<String, Set<String>> newSignature) {
             Set<String> deletedClasses = new HashSet<>(oldSignature.keySet());
             deletedClasses.removeAll(newSignature.keySet());

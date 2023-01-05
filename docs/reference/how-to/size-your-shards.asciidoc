@@ -418,7 +418,7 @@ have larger mappings and be less search-efficient.
 [[shard-sizing-considerations]]
 === Sizing considerations
 
-Keep the following things in mind when building your sharding strategy.
+Keep the following things in mind when sizing your shards.
 
 [discrete]
 [[single-thread-per-shard]]

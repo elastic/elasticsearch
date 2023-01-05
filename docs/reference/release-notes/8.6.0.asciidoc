@@ -39,6 +39,7 @@ Graph::
 
 Health::
 * Don't account for the unassigned reason when diagnosing NO_VALID_SHARD_COPY {es-pull}92416[#92416]
+* Fix NPE when evaluating the disk health for non-data nodes {es-pull}92643[#92643]
 * Use https in the short URLs for the `shards_availability` indicator {es-pull}92310[#92310]
 
 Indices APIs::
@@ -77,6 +78,7 @@ Monitoring::
 
 Network::
 * Clean up on exception while chunking XContent {es-pull}92024[#92024]
+* Fix Chunked APIs sending incorrect responses to HEAD requests {es-pull}92042[#92042] (issue: {es-issue}92032[#92032])
 * Reject connection attempts while closing {es-pull}92465[#92465]
 
 SQL::
@@ -84,6 +86,10 @@ SQL::
 
 Search::
 * Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
+* Fix timing bug with DFS profiling {es-pull}92421[#92421]
+
+Snapshot/Restore::
+* Simplify and optimize deduplication of `RepositoryData` for a non-caching repository instance {es-pull}91851[#91851] (issue: {es-issue}89952[#89952])
 
 Store::
 * Fix numOpenOutputs and modCount in ByteSizeCachingDirectory {es-pull}92440[#92440] (issue: {es-issue}92434[#92434])

@@ -498,6 +498,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,

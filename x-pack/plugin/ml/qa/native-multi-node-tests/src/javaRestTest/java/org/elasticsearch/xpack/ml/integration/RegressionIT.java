@@ -898,7 +898,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
-        String mapping = formatted("""
+        String mapping = Strings.format("""
             {
               "properties": {
                 "@timestamp": {

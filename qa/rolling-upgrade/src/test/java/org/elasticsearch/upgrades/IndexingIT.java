@@ -135,7 +135,7 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
-        String b = formatted("""
+        String b = Strings.format("""
             {"create": {"_index": "%s"}}
             {"f1": "v"}
             """, indexName);
@@ -325,7 +325,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         long delta = TimeUnit.SECONDS.toMillis(20);
         double value = (timeStart - TSDB_TIMES[0]) / TimeUnit.SECONDS.toMillis(20) * rate;
         for (long t = timeStart; t < timeEnd; t += delta) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index": {"_index": "tsdb"}}
                 {"@timestamp": %s, "dim": "%s", "value": %s}
                 """, t, dim, value));

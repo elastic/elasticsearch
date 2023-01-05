@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 plugins {
     id("elasticsearch.internal-cluster-test")
 }

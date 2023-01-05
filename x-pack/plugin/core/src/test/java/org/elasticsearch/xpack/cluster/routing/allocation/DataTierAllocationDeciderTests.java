@@ -186,7 +186,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     clusterState,
                     node,
                     Decision.Type.NO,
-                    formatted(
+                    org.elasticsearch.core.Strings.format(
                         "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
                         tierPreference
                     )

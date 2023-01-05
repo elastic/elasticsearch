@@ -72,7 +72,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private Map<String, Object> captureBytes(Grok grok, byte[] utf8, int offset, int length) {
-        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
+        MapExtracter extracter = new MapExtracter(grok.captureConfig());
         if (grok.match(utf8, offset, length, extracter)) {
             return extracter.result();
         }

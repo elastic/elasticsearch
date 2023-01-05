@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,6 +41,11 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
 
     public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
     public static final ParseField WRITE_DATA_STREAM_FIELD = new ParseField("write_data_stream");
+    /*
+     * Before 8.7.0, we incorrectly only kept one filter for all DataStreams in the DataStreamAlias. This field remains here so that we can
+     * read old cluster states during an upgrade. We never write XContent with this field as of 8.7.0.
+     */
+    public static final ParseField OLD_FILTER_FIELD = new ParseField("filter");
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     private static final Logger logger = LogManager.getLogger(DataStreamAlias.class);
 
@@ -47,12 +53,48 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     private static final ConstructingObjectParser<DataStreamAlias, String> PARSER = new ConstructingObjectParser<>(
         "data_stream_alias",
         false,
-        (args, name) -> new DataStreamAlias(name, (List<String>) args[0], (Map<String, CompressedXContent>) args[2], (String) args[1])
+        (args, name) -> {
+            /*
+             * If we are reading an older cluster state from disk we have to support reading in the single filter that was used before
+             * 8.7.0. In this case the new dataStreamsToFilters map will be null. So we write a new dataStreamsToFilters using the existing
+             * filter value for all DataStreams in order to carry forward the previously-existing behavior.
+             */
+            Map<String, CompressedXContent> dataStreamsToFilters = (Map<String, CompressedXContent>) args[3];
+            CompressedXContent oldFilter = (CompressedXContent) args[2];
+            List<String> dataStreamNames = (List<String>) args[0];
+            if (dataStreamsToFilters == null && oldFilter != null && dataStreamNames != null) {
+                logger.info(
+                    "Reading in DataStreamAlias {} with a pre-8.7.0-style DataStream filter and using it for all DataStreams in "
+                        + "the DataStreamAlias",
+                    name
+                );
+                dataStreamsToFilters = new HashMap<>();
+                for (String dataStreamName : dataStreamNames) {
+                    dataStreamsToFilters.put(dataStreamName, oldFilter);
+                }
+            }
+            if (dataStreamsToFilters == null) {
+                dataStreamsToFilters = Map.of();
+            }
+            return new DataStreamAlias(name, dataStreamNames, dataStreamsToFilters, (String) args[1]);
+        }
     );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), DATA_STREAMS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), WRITE_DATA_STREAM_FIELD);
+        // Note: This field is not used in 8.7.0 and higher:
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT || p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(p.binaryValue());
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().map(p.mapOrdered());
+                return new CompressedXContent(BytesReference.bytes(builder));
+            } else {
+                assert false : "unexpected token [" + p.currentToken() + " ]";
+                return null;
+            }
+        }, OLD_FILTER_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(HashMap::new, xContentParser -> {
             if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT || p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return new CompressedXContent(p.binaryValue());
@@ -69,7 +111,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     private final String name;
     private final List<String> dataStreams;
     private final String writeDataStream;
-    private final Map<String, CompressedXContent> dataStreamToFilterMap;
+    // package-private for testing
+    final Map<String, CompressedXContent> dataStreamToFilterMap;
 
     private DataStreamAlias(
         String name,
@@ -361,7 +404,11 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             if (dataStreamToFilterMap.isEmpty()) {
                 out.writeBoolean(false);
             } else {
-                // Versions before 8.7 incorrectly only allowed a single filter for all datastreams, and randomly dropped all others:
+                /*
+                 * Versions before 8.7 incorrectly only allowed a single filter for all datastreams, and randomly dropped all others. We
+                 * replicate that buggy behavior here if we have to write to an older node because there is no way to send multipole
+                 * filters to an older node.
+                 */
                 logger.info(
                     "Sending DataStreamAlias {} to a node with version earlier than 8.7.0. Versions before 8.7.0 do not support "
                         + "separate filters for each DataStream.",

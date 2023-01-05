@@ -227,7 +227,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
-        putPipeline();
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -241,6 +240,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
+        putPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()

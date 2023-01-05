@@ -214,7 +214,7 @@ public class MasterService extends AbstractLifecycleComponent {
             logger.debug("failing [{}]: local node is no longer master", summary);
             for (ExecutionResult<T> executionResult : executionResults) {
                 executionResult.onBatchFailure(new NotMasterException("no longer master"));
-                executionResult.notifyOnFailure();
+                executionResult.notifyFailure();
             }
             return;
         }
@@ -224,10 +224,6 @@ public class MasterService extends AbstractLifecycleComponent {
             previousClusterState,
             executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
         );
-        // fail all tasks that have failed
-        for (final var executionResult : executionResults) {
-            executionResult.notifyOnFailure();
-        }
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
@@ -957,7 +953,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void onPublishSuccess(ClusterState newClusterState) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
-                assert failure != null;
+                notifyFailure();
                 return;
             }
             try (ThreadContext.StoredContext ignored = threadContextSupplier.get()) {
@@ -974,7 +970,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void onClusterStateUnchanged(ClusterState clusterState) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
-                assert failure != null;
+                notifyFailure();
                 return;
             }
             try (ThreadContext.StoredContext ignored = threadContextSupplier.get()) {
@@ -992,6 +988,10 @@ public class MasterService extends AbstractLifecycleComponent {
         void onPublishFailure(FailedToCommitClusterStateException e) {
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
+                var taskFailure = failure;
+                failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+                failure.addSuppressed(taskFailure);
+                notifyFailure();
                 return;
             }
             try (ThreadContext.StoredContext ignored = threadContextSupplier.get()) {
@@ -1003,9 +1003,20 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
+        void notifyFailure() {
+            assert failure != null;
+            try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
+                restoreResponseHeaders();
+                getTask().onFailure(failure);
+            } catch (Exception inner) {
+                inner.addSuppressed(failure);
+                logger.error("exception thrown by listener notifying of failure", inner);
+            }
+        }
+
         ContextPreservingAckListener getContextPreservingAckListener() {
             assert incomplete() == false;
-            if (clusterStateAckListener == null) {
+            if (clusterStateAckListener == null || failure != null) {
                 return null;
             } else {
                 return new ContextPreservingAckListener(clusterStateAckListener, threadContextSupplier, this::restoreResponseHeaders);
@@ -1015,18 +1026,6 @@ public class MasterService extends AbstractLifecycleComponent {
         @Override
         public String toString() {
             return "ExecutionResult[" + task + "]";
-        }
-
-        void notifyOnFailure() {
-            if (failure != null) {
-                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
-                    restoreResponseHeaders();
-                    getTask().onFailure(failure);
-                } catch (Exception inner) {
-                    inner.addSuppressed(failure);
-                    logger.error("exception thrown by listener notifying of failure", inner);
-                }
-            }
         }
     }
 

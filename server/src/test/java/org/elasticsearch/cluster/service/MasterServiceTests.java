@@ -84,6 +84,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -919,8 +920,10 @@ public class MasterServiceTests extends ESTestCase {
 
             final ActionListener<ClusterState> publishListener;
             final String responseHeaderValue;
+            final boolean expectFailure;
 
-            Task(String responseHeaderValue, ActionListener<ClusterState> publishListener) {
+            Task(boolean expectFailure, String responseHeaderValue, ActionListener<ClusterState> publishListener) {
+                this.expectFailure = expectFailure;
                 this.responseHeaderValue = responseHeaderValue;
                 this.publishListener = publishListener;
             }
@@ -936,6 +939,8 @@ public class MasterServiceTests extends ESTestCase {
 
         final var testResponseHeaderName = "test-response-header";
 
+        final var taskFailedExceptionMessage = "simulated task failure";
+
         final var executor = new ClusterStateTaskExecutor<Task>() {
             @Override
             @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
@@ -944,16 +949,22 @@ public class MasterServiceTests extends ESTestCase {
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         threadPool.getThreadContext().addResponseHeader(testResponseHeaderName, taskContext.getTask().responseHeaderValue);
                     }
-                    taskContext.success(taskContext.getTask().publishListener::onResponse);
+                    if (taskContext.getTask().expectFailure) {
+                        taskContext.onFailure(new ElasticsearchException(taskFailedExceptionMessage));
+                    } else {
+                        taskContext.success(taskContext.getTask().publishListener::onResponse);
+                    }
                 }
                 return ClusterState.builder(batchExecutionContext.initialState()).build();
             }
         };
 
+        final var blockedState = new AtomicReference<ClusterState>();
         final var executionBarrier = new CyclicBarrier(2);
         final ClusterStateUpdateTask blockMasterTask = new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                assertTrue(blockedState.compareAndSet(null, currentState));
                 executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                 executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
                 return currentState;
@@ -973,9 +984,13 @@ public class MasterServiceTests extends ESTestCase {
 
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
+            final var stateBeforeSuccess = blockedState.get();
+            assertNotNull(stateBeforeSuccess);
 
             final AtomicReference<ClusterState> publishedState = new AtomicReference<>();
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                assertSame(stateBeforeSuccess, clusterStatePublicationEvent.getOldState());
+                assertNotSame(stateBeforeSuccess, clusterStatePublicationEvent.getNewState());
                 assertTrue(publishedState.compareAndSet(null, clusterStatePublicationEvent.getNewState()));
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
                 publishListener.onResponse(null);
@@ -989,18 +1004,30 @@ public class MasterServiceTests extends ESTestCase {
                     final var testContextHeaderValue = randomAlphaOfLength(10);
                     final var testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
-                    final var task = new Task(testResponseHeaderValue, new ActionListener<>() {
+                    final var expectFailure = randomBoolean();
+                    final var taskComplete = new AtomicBoolean();
+                    final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
+                            assertFalse(expectFailure);
                             assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
                             assertSame(publishedState.get(), clusterState);
+                            assertNotSame(stateBeforeSuccess, publishedState.get());
+                            assertTrue(taskComplete.compareAndSet(false, true));
                             publishSuccessCountdown.countDown();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            throw new AssertionError(e);
+                            assertTrue(expectFailure);
+                            assertThat(e, instanceOf(ElasticsearchException.class));
+                            assertThat(e.getMessage(), equalTo(taskFailedExceptionMessage));
+                            assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
+                            assertNotNull(publishedState.get());
+                            assertNotSame(stateBeforeSuccess, publishedState.get());
+                            assertTrue(taskComplete.compareAndSet(false, true));
+                            publishSuccessCountdown.countDown();
                         }
                     });
 
@@ -1013,13 +1040,21 @@ public class MasterServiceTests extends ESTestCase {
 
             // failure case: submit some tasks, possibly in different contexts, and verify that the expected listener is completed
 
+            assertNotNull(blockedState.getAndSet(null));
+            assertNotNull(publishedState.getAndSet(null));
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
+            final var stateBeforeFailure = blockedState.get();
+            assertNotNull(stateBeforeFailure);
 
-            final String exceptionMessage = "simulated";
+            final var publicationFailedExceptionMessage = "simulated publication failure";
+
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                assertSame(stateBeforeFailure, clusterStatePublicationEvent.getOldState());
+                assertNotSame(stateBeforeFailure, clusterStatePublicationEvent.getNewState());
+                assertTrue(publishedState.compareAndSet(null, clusterStatePublicationEvent.getNewState()));
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-                publishListener.onFailure(new FailedToCommitClusterStateException(exceptionMessage));
+                publishListener.onFailure(new FailedToCommitClusterStateException(publicationFailedExceptionMessage));
             });
 
             toSubmit = between(1, 10);
@@ -1030,7 +1065,9 @@ public class MasterServiceTests extends ESTestCase {
                     final String testContextHeaderValue = randomAlphaOfLength(10);
                     final String testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
-                    final var task = new Task(testResponseHeaderValue, new ActionListener<>() {
+                    final var expectFailure = randomBoolean();
+                    final var taskComplete = new AtomicBoolean();
+                    final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             throw new AssertionError("should not succeed");
@@ -1041,7 +1078,16 @@ public class MasterServiceTests extends ESTestCase {
                             assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                             assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
                             assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
-                            assertThat(e.getMessage(), equalTo(exceptionMessage));
+                            assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
+                            if (expectFailure) {
+                                assertThat(e.getSuppressed().length, greaterThan(0));
+                                var suppressed = e.getSuppressed()[0];
+                                assertThat(suppressed, instanceOf(ElasticsearchException.class));
+                                assertThat(suppressed.getMessage(), equalTo(taskFailedExceptionMessage));
+                            }
+                            assertNotNull(publishedState.get());
+                            assertNotSame(stateBeforeFailure, publishedState.get());
+                            assertTrue(taskComplete.compareAndSet(false, true));
                             publishFailureCountdown.countDown();
                         }
                     });

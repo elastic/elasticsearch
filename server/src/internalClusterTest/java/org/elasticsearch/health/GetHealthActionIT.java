@@ -35,11 +35,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -233,13 +231,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     assertThat(stats.get(label), greaterThanOrEqualTo(4L));
                 } else {
                     expectThrows(IllegalArgumentException.class, () -> stats.get(label));
-                }
-                Set<HealthStatus> expectedStatuses = new HashSet<>();
-                expectedStatuses.add(ilmIndicatorStatus);
-                expectedStatuses.add(mostSevereHealthStatus);
-                assertThat(response.getStatuses(), equalTo(expectedStatuses));
-                if (mostSevereHealthStatus != HealthStatus.GREEN || ilmIndicatorStatus != HealthStatus.GREEN) {
-                    assertThat(response.getIndicators().isEmpty(), equalTo(mostSevereHealthStatus == HealthStatus.GREEN));
                 }
             }
 

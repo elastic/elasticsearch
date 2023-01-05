@@ -10,6 +10,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -28,7 +29,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = formatted("""
+        final String mapping = Strings.format("""
             {
               "dynamic_templates": [
                 {

@@ -1,0 +1,49 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions
+import org.elasticsearch.gradle.internal.JarApiComparisonTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+import java.util.stream.Collectors
+
+import static java.util.Arrays.stream
+
+configurations {
+  stableAnalysisPluginApi
+}
+
+BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString("8.5.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
+  def baseName = "v${bwcVersion}"
+
+  BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+  Configuration stableApiConfiguration = configurations.create("stableAnalysisPluginApi${baseName}") {
+    // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
+    transitive = false
+  }
+  Object libDependency = null
+
+  if (unreleasedVersion) {
+    // For unreleased snapshot versions, build them from source
+    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcElasticsearchPluginAnalysisApi'))
+  } else {
+    // For released versions, download it
+    libDependency = "org.elasticsearch:elasticsearch-plugin-analysis-api:${bwcVersion}"
+  }
+
+  dependencies {
+    "stableAnalysisPluginApi${baseName}"(libDependency)
+  }
+
+  tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
+    dependsOn configurations."stableAnalysisPluginApi${baseName}"
+    // TODO: "normalize" input with a classpath resolution strategy
+    oldJar.fileProvider(project.provider(() -> configurations."stableAnalysisPluginApi${baseName}".singleFile))
+    newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
+  }
+}
+
+private static String stableApiCheckTaskName(String projectName) {
+  return "stable"
+  + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
+    .collect(Collectors.joining());
+}

@@ -69,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction.MAX_REQUESTS_PER_NODE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -278,6 +279,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public void testThrottling() {
+        final var shardCount = between(MAX_REQUESTS_PER_NODE, MAX_REQUESTS_PER_NODE * 5);
         final var replicaCount = between(0, 2);
         setState(
             clusterService,
@@ -288,7 +290,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                             new IndexMetadata.Builder("test").settings(
                                 Settings.builder()
                                     .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put(SETTING_NUMBER_OF_SHARDS, 25)
+                                    .put(SETTING_NUMBER_OF_SHARDS, shardCount)
                                     .put(SETTING_NUMBER_OF_REPLICAS, replicaCount)
                             )
                         )
@@ -300,7 +302,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         PlainActionFuture<BaseBroadcastResponse> future = PlainActionFuture.newFuture();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices("test"), future);
 
-        final var maxOutstandingRequests = clusterService.state().nodes().getDataNodes().size() * 10;
+        final var maxOutstandingRequests = clusterService.state().nodes().getDataNodes().size() * MAX_REQUESTS_PER_NODE;
         assertThat(broadcastReplicationAction.capturedShardRequests.size(), equalTo(maxOutstandingRequests));
         assertFalse(future.isDone());
         final boolean[] handled = new boolean[clusterService.state().metadata().index("test").getNumberOfShards()];
@@ -323,9 +325,9 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         var response = future.actionGet(10, TimeUnit.SECONDS);
-        assertEquals(25 * (replicaCount + 1), response.getTotalShards());
+        assertEquals(shardCount * (replicaCount + 1), response.getTotalShards());
         assertEquals(successes * (replicaCount + 1), response.getSuccessfulShards());
-        assertEquals((25 - successes) * (replicaCount + 1), response.getFailedShards());
+        assertEquals((shardCount - successes) * (replicaCount + 1), response.getFailedShards());
     }
 
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<

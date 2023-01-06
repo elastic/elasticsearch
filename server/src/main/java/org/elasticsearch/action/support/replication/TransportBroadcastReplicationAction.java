@@ -49,6 +49,8 @@ public abstract class TransportBroadcastReplicationAction<
     ShardRequest extends ReplicationRequest<ShardRequest>,
     ShardResponse extends ReplicationResponse> extends HandledTransportAction<Request, Response> {
 
+    static int MAX_REQUESTS_PER_NODE = 10; // The REFRESH threadpool maxes out at 10 by default so this is enough to keep everyone busy.
+
     private final ActionType<ShardResponse> replicatedBroadcastShardAction;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -81,7 +83,7 @@ public abstract class TransportBroadcastReplicationAction<
         ThrottledIterator.run(
             shardIds(request, clusterState),
             context::processShard,
-            clusterState.nodes().getDataNodes().size() * 10,
+            clusterState.nodes().getDataNodes().size() * MAX_REQUESTS_PER_NODE,
             () -> {},
             context::finish
         );

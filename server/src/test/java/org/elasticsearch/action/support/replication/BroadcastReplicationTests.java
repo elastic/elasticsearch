@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -20,10 +21,16 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
@@ -62,6 +69,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -210,14 +220,14 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(2 * numShards, succeeded, failed, response.get(), Exception.class);
     }
 
-    public void testNoShards() throws InterruptedException, ExecutionException, IOException {
+    public void testNoShards() {
         setState(clusterService, stateWithNoShard());
         logger.debug("--> using initial state:\n{}", clusterService.state());
         BaseBroadcastResponse response = executeAndAssertImmediateResponse(broadcastReplicationAction, new DummyBroadcastRequest());
         assertBroadcastResponse(0, 0, 0, response, null);
     }
 
-    public void testShardsList() throws InterruptedException, ExecutionException {
+    public void testShardsIteratorOneShard() {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState clusterState = state(
@@ -227,9 +237,95 @@ public class BroadcastReplicationTests extends ESTestCase {
             ShardRoutingState.UNASSIGNED
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        List<ShardId> shards = broadcastReplicationAction.shards(new DummyBroadcastRequest().indices(shardId.getIndexName()), clusterState);
-        assertThat(shards.size(), equalTo(1));
-        assertThat(shards.get(0), equalTo(shardId));
+        var shards = broadcastReplicationAction.shardIds(new DummyBroadcastRequest().indices(shardId.getIndexName()), clusterState);
+        assertTrue(shards.hasNext());
+        assertEquals(shardId, shards.next());
+        assertFalse(shards.hasNext());
+    }
+
+    public void testShardsIterator() {
+        final var metadataBuilder = Metadata.builder();
+        final var indexCount = between(1, 5);
+        for (int i = 0; i < indexCount; i++) {
+            metadataBuilder.put(
+                new IndexMetadata.Builder("index-" + i).settings(
+                    Settings.builder()
+                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(SETTING_NUMBER_OF_SHARDS, between(1, 3))
+                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, 2))
+                )
+            );
+        }
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+        final var allIndexNames = clusterState.metadata().indices().keySet();
+        final var indexNames = randomSubsetOf(between(1, indexCount), allIndexNames).toArray(Strings.EMPTY_ARRAY);
+
+        final var expectedShards = new HashSet<ShardId>();
+        for (final var indexName : indexNames) {
+            final var indexMetadata = clusterState.metadata().index(indexName);
+            for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                expectedShards.add(new ShardId(indexMetadata.getIndex(), i));
+            }
+        }
+
+        final var actualShards = new HashSet<ShardId>();
+        final var iterator = broadcastReplicationAction.shardIds(new DummyBroadcastRequest().indices(indexNames), clusterState);
+        while (iterator.hasNext()) {
+            actualShards.add(iterator.next());
+        }
+
+        assertEquals(expectedShards, actualShards);
+    }
+
+    public void testThrottling() {
+        final var replicaCount = between(0, 2);
+        setState(
+            clusterService,
+            ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .put(
+                            new IndexMetadata.Builder("test").settings(
+                                Settings.builder()
+                                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(SETTING_NUMBER_OF_SHARDS, 25)
+                                    .put(SETTING_NUMBER_OF_REPLICAS, replicaCount)
+                            )
+                        )
+                )
+                .nodes(DiscoveryNodes.builder().add(new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT)))
+                .build()
+        );
+
+        PlainActionFuture<BaseBroadcastResponse> future = PlainActionFuture.newFuture();
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices("test"), future);
+
+        final var maxOutstandingRequests = clusterService.state().nodes().getDataNodes().size() * 10;
+        assertThat(broadcastReplicationAction.capturedShardRequests.size(), equalTo(maxOutstandingRequests));
+        assertFalse(future.isDone());
+        final boolean[] handled = new boolean[clusterService.state().metadata().index("test").getNumberOfShards()];
+
+        var successes = 0;
+        while (broadcastReplicationAction.capturedShardRequests.isEmpty() == false) {
+            assertThat(broadcastReplicationAction.capturedShardRequests.size(), lessThanOrEqualTo(maxOutstandingRequests));
+            final var request = randomFrom(broadcastReplicationAction.capturedShardRequests);
+            assertTrue(broadcastReplicationAction.capturedShardRequests.remove(request));
+            assertFalse(handled[request.v1().id()]);
+            handled[request.v1().id()] = true;
+            if (randomBoolean()) {
+                successes += 1;
+                ReplicationResponse replicationResponse = new ReplicationResponse();
+                replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(replicaCount + 1, replicaCount + 1));
+                request.v2().onResponse(replicationResponse);
+            } else {
+                request.v2().onFailure(new ElasticsearchException("unexpected"));
+            }
+        }
+
+        var response = future.actionGet(10, TimeUnit.SECONDS);
+        assertEquals(25 * (replicaCount + 1), response.getTotalShards());
+        assertEquals(successes * (replicaCount + 1), response.getSuccessfulShards());
+        assertEquals((25 - successes) * (replicaCount + 1), response.getFailedShards());
     }
 
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<
@@ -254,13 +350,9 @@ public class BroadcastReplicationTests extends ESTestCase {
                 null,
                 actionFilters,
                 indexNameExpressionResolver,
-                null
+                null,
+                ThreadPool.Names.SAME
             );
-        }
-
-        @Override
-        protected ReplicationResponse newShardResponse() {
-            return new ReplicationResponse();
         }
 
         @Override

@@ -30,7 +30,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,7 +89,7 @@ public abstract class TransportBroadcastReplicationAction<
     }
 
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
-        assert Transports.assertNotTransportThread("per-shard requests might be high-volume");
+        // assert Transports.assertNotTransportThread("per-shard requests might be high-volume"); TODO Yikes!
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);

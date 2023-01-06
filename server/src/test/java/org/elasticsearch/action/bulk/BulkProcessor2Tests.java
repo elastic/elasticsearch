@@ -192,7 +192,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     Successful Bulks: %s
                     Failed Bulks: %ds
                     """;
-                String formattedMessage = formatted(
+                String formattedMessage = String.format(
                     message,
                     expectedExecutions.get(),
                     requestCount.get(),
@@ -221,7 +221,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     Concurrent Bulk Requests: %s
                     """;
                 fail(
-                    formatted(
+                    String.format(
                         message,
                         expectedExecutions,
                         requestCount.get(),
@@ -334,7 +334,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 Concurrent Bulk Requests: %d
                 """;
             fail(
-                formatted(
+                String.format(
                     message,
                     requestCount.get(),
                     successCount.get(),

@@ -298,3 +298,21 @@ For static settings, you need to create a new index with the correct settings.
 Next, you can reindex the data into that index. For data streams, refer to
 <<change-static-index-setting-for-a-data-stream,Change a static index setting
 for a data stream>>.
+
+[discrete]
+[[troubleshooting-slow-searches]]
+=== Find Slow Queries
+
+<<index-modules-slowlog,Slowlogs>> can help pinpoint slow performing search 
+requests. Enabling <<auditing-settings,Audit Logging>> on top can help determine 
+query source. The following is commonly used, only short-term `elasticsearch.yml` 
+settings to trace queries:
+
+[source,console]
+----
+xpack.security.audit.enabled: true
+xpack.security.audit.logfile.events.include: _all
+xpack.security.audit.logfile.events.emit_request_body: true
+----
+
+See also <<https://www.elastic.co/blog/advanced-tuning-finding-and-fixing-slow-elasticsearch-queries,Advanced tuning: finding and fixing slow Elasticsearch queries>>.

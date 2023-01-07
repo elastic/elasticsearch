@@ -41,8 +41,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -117,6 +119,95 @@ public class InboundHandlerTests extends ESTestCase {
             assertEquals('E', ping.get(0));
             assertEquals(6, ping.length());
         }
+    }
+
+    private static class RefCountedTestRequest extends TestRequest {
+
+        private final AtomicInteger references;
+
+        RefCountedTestRequest(String value, AtomicInteger references) {
+            super(value);
+            this.references = references;
+        }
+
+        RefCountedTestRequest(StreamInput in, AtomicInteger references) throws IOException {
+            super(in);
+            this.references = references;
+        }
+
+        @Override
+        public void incRef() {
+            references.incrementAndGet();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            references.incrementAndGet();
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            references.decrementAndGet();
+            return true;
+        }
+    }
+
+    public void testRequestDecRef() throws Exception {
+        String action = "test-request";
+        int headerSize = TcpHeader.headerSize(version);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger references = new AtomicInteger();
+
+        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+            @Override
+            public void handleResponse(TestResponse response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                latch.countDown();
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        }, null, action));
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
+            action,
+            in -> new RefCountedTestRequest(in, references),
+            taskManager,
+            (request, channel, task) -> {
+            },
+            ThreadPool.Names.GENERIC,
+            false,
+            true,
+            Tracer.NOOP
+        );
+        requestHandlers.registerHandler(registry);
+        String requestValue = randomAlphaOfLength(10);
+        OutboundMessage.Request request = new OutboundMessage.Request(
+            threadPool.getThreadContext(),
+            new RefCountedTestRequest(requestValue, references),
+            version,
+            action,
+            requestId,
+            false,
+            null
+        );
+
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
+        BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
+        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
+        requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
+        handler.inboundMessage(channel, requestMessage);
+
+        latch.await(10, TimeUnit.SECONDS);
+        assertEquals(0, references.get());
     }
 
     public void testRequestAndResponse() throws Exception {

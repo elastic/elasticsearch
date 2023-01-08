@@ -51,7 +51,7 @@ public class ExpressionListTests extends ESTestCase {
                 Expression expression = expressionIterator.next();
                 assertThat(expression.isExclusion(), is(false));
                 assertThat(expression.isWildcard(), is(false));
-                assertThat(expression.toString(), is(expressionString));
+                assertThat(expression.get(), is(expressionString));
                 assertThat(expressionIterator.hasNext(), is(false));
             }
         }
@@ -75,7 +75,7 @@ public class ExpressionListTests extends ESTestCase {
             Expression expression = expressionIterator.next();
             assertThat(expression.isExclusion(), is(false));
             assertThat(expression.isWildcard(), is(true));
-            assertThat(expression.toString(), is(wildcardTest));
+            assertThat(expression.get(), is(wildcardTest));
             assertThat(expressionIterator.hasNext(), is(false));
         }
     }
@@ -105,7 +105,7 @@ public class ExpressionListTests extends ESTestCase {
             } else {
                 assertThat(expression.isWildcard(), is(true));
             }
-            assertThat(expression.toString(), is(expressionList.get(i++)));
+            assertThat(expression.get(), is(expressionList.get(i++)));
         }
     }
 
@@ -134,7 +134,7 @@ public class ExpressionListTests extends ESTestCase {
                 } else {
                     assertThat(expression.isWildcard(), is(false));
                 }
-                assertThat(expression.toString(), is(wildcardExpression.get(i++)));
+                assertThat(expression.get(), is(wildcardExpression.get(i++)));
             }
         }
     }
@@ -161,7 +161,7 @@ public class ExpressionListTests extends ESTestCase {
             for (Expression expression : expressionList) {
                 assertThat(expression.isWildcard(), is(false));
                 assertThat(expression.isExclusion(), is(false));
-                assertThat(expression.toString(), is(wildcardExpression.get(i++)));
+                assertThat(expression.get(), is(wildcardExpression.get(i++)));
             }
         }
     }
@@ -192,15 +192,15 @@ public class ExpressionListTests extends ESTestCase {
             if (i == wildcardPos) {
                 assertThat(expression.isWildcard(), is(true));
                 assertThat(expression.isExclusion(), is(false));
-                assertThat(expression.toString(), is(exclusionExpression.get(i++)));
+                assertThat(expression.get(), is(exclusionExpression.get(i++)));
             } else if (i == exclusionPos) {
                 assertThat(expression.isExclusion(), is(true));
                 assertThat(expression.isWildcard(), is(exclusionExpression.get(i).contains("*")));
-                assertThat(expression.toString(), is(exclusionExpression.get(i++).substring(1)));
+                assertThat(expression.get(), is(exclusionExpression.get(i++).substring(1)));
             } else {
                 assertThat(expression.isWildcard(), is(false));
                 assertThat(expression.isExclusion(), is(false));
-                assertThat(expression.toString(), is(exclusionExpression.get(i++)));
+                assertThat(expression.get(), is(exclusionExpression.get(i++)));
             }
         }
     }
@@ -228,9 +228,9 @@ public class ExpressionListTests extends ESTestCase {
                 assertThat(expression.isExclusion(), is(isExclusion));
                 assertThat(expression.isWildcard(), is(exclusionExpression.v1().get(i).contains("*")));
                 if (isExclusion) {
-                    assertThat(expression.toString(), is(exclusionExpression.v1().get(i++).substring(1)));
+                    assertThat(expression.get(), is(exclusionExpression.v1().get(i++).substring(1)));
                 } else {
-                    assertThat(expression.toString(), is(exclusionExpression.v1().get(i++)));
+                    assertThat(expression.get(), is(exclusionExpression.v1().get(i++)));
                 }
             }
         }

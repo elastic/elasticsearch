@@ -348,7 +348,7 @@ public final class H3 {
      * Returns the neighbor indexes.
      *
      * @param h3 Origin index
-     *  @return All neighbor indexes from the origin
+     * @return All neighbor indexes from the origin
      */
     public static long[] hexRing(long h3) {
         final long[] ring = new long[hexRingSize(h3)];

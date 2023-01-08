@@ -387,20 +387,12 @@ public final class H3 {
      * @return the actual neighbour at the given position
      */
     public static long hexRingPosToH3(long h3, int ringPos) {
-        if (ringPos < 2) {
-            return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[ringPos].digit());
+        // for pentagons, we skip direction at position 2
+        final int pos = H3Index.H3_is_pentagon(h3) && ringPos >= 2 ? ringPos + 1 : ringPos;
+        if (ringPos < 0 || ringPos > 5) {
+            throw new IllegalArgumentException("invalid ring position");
         }
-        if (H3Index.H3_is_pentagon(h3)) {
-            if (ringPos > 4) {
-                throw new IllegalArgumentException("invalid ring position");
-            }
-            return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[ringPos + 1].digit());
-        } else {
-            if (ringPos > 5) {
-                throw new IllegalArgumentException("invalid ring position");
-            }
-            return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[ringPos].digit());
-        }
+        return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[pos].digit());
     }
 
     /**

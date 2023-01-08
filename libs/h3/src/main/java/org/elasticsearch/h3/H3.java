@@ -389,7 +389,7 @@ public final class H3 {
     public static long hexRingPosToH3(long h3, int ringPos) {
         // for pentagons, we skip direction at position 2
         final int pos = H3Index.H3_is_pentagon(h3) && ringPos >= 2 ? ringPos + 1 : ringPos;
-        if (ringPos < 0 || ringPos > 5) {
+        if (pos < 0 || pos > 5) {
             throw new IllegalArgumentException("invalid ring position");
         }
         return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[pos].digit());

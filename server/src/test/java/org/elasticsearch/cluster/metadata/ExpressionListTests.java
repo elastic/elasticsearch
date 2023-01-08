@@ -10,8 +10,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ExpressionIterable;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ExpressionIterable.Expression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ExpressionList;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ExpressionList.Expression;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,35 +24,29 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExpressionIterableTests extends ESTestCase {
+public class ExpressionListTests extends ESTestCase {
 
     public void testEmpty() {
-        ExpressionIterable expressionIterable = new ExpressionIterable(
-            getContextWithOptions(getExpandWildcardsIndicesOptions()),
-            List.of()
-        );
-        assertThat(expressionIterable.iterator().hasNext(), is(false));
-        assertThat(expressionIterable.hasWildcard(), is(false));
-        expressionIterable = new ExpressionIterable(getContextWithOptions(getNoExpandWildcardsIndicesOptions()), List.of());
-        assertThat(expressionIterable.iterator().hasNext(), is(false));
-        assertThat(expressionIterable.hasWildcard(), is(false));
+        ExpressionList expressionList = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), List.of());
+        assertThat(expressionList.iterator().hasNext(), is(false));
+        assertThat(expressionList.hasWildcard(), is(false));
+        expressionList = new ExpressionList(getContextWithOptions(getNoExpandWildcardsIndicesOptions()), List.of());
+        assertThat(expressionList.iterator().hasNext(), is(false));
+        assertThat(expressionList.hasWildcard(), is(false));
     }
 
     public void testExplicitSingleNameExpression() {
         for (IndicesOptions indicesOptions : List.of(getExpandWildcardsIndicesOptions(), getNoExpandWildcardsIndicesOptions())) {
             for (String expressionString : List.of("non_wildcard", "-non_exclusion")) {
-                ExpressionIterable expressionIterable = new ExpressionIterable(
-                    getContextWithOptions(indicesOptions),
-                    List.of(expressionString)
-                );
-                assertThat(expressionIterable.hasWildcard(), is(false));
+                ExpressionList expressionList = new ExpressionList(getContextWithOptions(indicesOptions), List.of(expressionString));
+                assertThat(expressionList.hasWildcard(), is(false));
                 if (randomBoolean()) {
-                    expressionIterable = new ExpressionIterable(getContextWithOptions(indicesOptions), List.of(expressionString));
+                    expressionList = new ExpressionList(getContextWithOptions(indicesOptions), List.of(expressionString));
                 }
-                Iterator<Expression> expressionIterator = expressionIterable.iterator();
+                Iterator<Expression> expressionIterator = expressionList.iterator();
                 assertThat(expressionIterator.hasNext(), is(true));
                 if (randomBoolean()) {
-                    expressionIterator = expressionIterable.iterator();
+                    expressionIterator = expressionList.iterator();
                 }
                 Expression expression = expressionIterator.next();
                 assertThat(expression.isExclusion(), is(false));
@@ -65,21 +59,18 @@ public class ExpressionIterableTests extends ESTestCase {
 
     public void testWildcardSingleExpression() {
         for (String wildcardTest : List.of("*", "a*", "*b", "a*b", "a-*b", "a*-b", "-*", "-a*", "-*b", "**", "*-*")) {
-            ExpressionIterable expressionIterable = new ExpressionIterable(
+            ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getExpandWildcardsIndicesOptions()),
                 List.of(wildcardTest)
             );
-            assertThat(expressionIterable.hasWildcard(), is(true));
+            assertThat(expressionList.hasWildcard(), is(true));
             if (randomBoolean()) {
-                expressionIterable = new ExpressionIterable(
-                    getContextWithOptions(getExpandWildcardsIndicesOptions()),
-                    List.of(wildcardTest)
-                );
+                expressionList = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), List.of(wildcardTest));
             }
-            Iterator<Expression> expressionIterator = expressionIterable.iterator();
+            Iterator<Expression> expressionIterator = expressionList.iterator();
             assertThat(expressionIterator.hasNext(), is(true));
             if (randomBoolean()) {
-                expressionIterator = expressionIterable.iterator();
+                expressionIterator = expressionList.iterator();
             }
             Expression expression = expressionIterator.next();
             assertThat(expression.isExclusion(), is(false));
@@ -101,13 +92,10 @@ public class ExpressionIterableTests extends ESTestCase {
                 expressionList.add(item);
             }
         }
-        ExpressionIterable expressionIterable = new ExpressionIterable(
-            getContextWithOptions(getExpandWildcardsIndicesOptions()),
-            expressionList
-        );
+        ExpressionList expressionIterable = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), expressionList);
         assertThat(expressionIterable.hasWildcard(), is(true));
         if (randomBoolean()) {
-            expressionIterable = new ExpressionIterable(getContextWithOptions(getExpandWildcardsIndicesOptions()), expressionList);
+            expressionIterable = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), expressionList);
         }
         int i = 0;
         for (Expression expression : expressionIterable) {
@@ -130,16 +118,16 @@ public class ExpressionIterableTests extends ESTestCase {
             List.of("*", "a*", "*b"),
             List.of("-*", "a", "b*")
         )) {
-            ExpressionIterable expressionIterable = new ExpressionIterable(
+            ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getExpandWildcardsIndicesOptions()),
                 wildcardExpression
             );
-            assertThat(expressionIterable.hasWildcard(), is(true));
+            assertThat(expressionList.hasWildcard(), is(true));
             if (randomBoolean()) {
-                expressionIterable = new ExpressionIterable(getContextWithOptions(getExpandWildcardsIndicesOptions()), wildcardExpression);
+                expressionList = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), wildcardExpression);
             }
             int i = 0;
-            for (Expression expression : expressionIterable) {
+            for (Expression expression : expressionList) {
                 assertThat(expression.isExclusion(), is(false));
                 if (wildcardExpression.get(i).contains("*")) {
                     assertThat(expression.isWildcard(), is(true));
@@ -161,19 +149,16 @@ public class ExpressionIterableTests extends ESTestCase {
             List.of("-", "a", "c*"),
             List.of("*", "a*", "*b")
         )) {
-            ExpressionIterable expressionIterable = new ExpressionIterable(
+            ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getNoExpandWildcardsIndicesOptions()),
                 wildcardExpression
             );
-            assertThat(expressionIterable.hasWildcard(), is(false));
+            assertThat(expressionList.hasWildcard(), is(false));
             if (randomBoolean()) {
-                expressionIterable = new ExpressionIterable(
-                    getContextWithOptions(getNoExpandWildcardsIndicesOptions()),
-                    wildcardExpression
-                );
+                expressionList = new ExpressionList(getContextWithOptions(getNoExpandWildcardsIndicesOptions()), wildcardExpression);
             }
             int i = 0;
-            for (Expression expression : expressionIterable) {
+            for (Expression expression : expressionList) {
                 assertThat(expression.isWildcard(), is(false));
                 assertThat(expression.isExclusion(), is(false));
                 assertThat(expression.toString(), is(wildcardExpression.get(i++)));
@@ -198,15 +183,12 @@ public class ExpressionIterableTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 3); i++) {
             exclusionExpression.add(randomAlphaOfLengthBetween(0, 5));
         }
-        ExpressionIterable expressionIterable = new ExpressionIterable(
-            getContextWithOptions(getExpandWildcardsIndicesOptions()),
-            exclusionExpression
-        );
+        ExpressionList expressionList = new ExpressionList(getContextWithOptions(getExpandWildcardsIndicesOptions()), exclusionExpression);
         if (randomBoolean()) {
-            assertThat(expressionIterable.hasWildcard(), is(true));
+            assertThat(expressionList.hasWildcard(), is(true));
         }
         int i = 0;
-        for (Expression expression : expressionIterable) {
+        for (Expression expression : expressionList) {
             if (i == wildcardPos) {
                 assertThat(expression.isWildcard(), is(true));
                 assertThat(expression.isExclusion(), is(false));
@@ -233,15 +215,15 @@ public class ExpressionIterableTests extends ESTestCase {
             new Tuple<>(List.of("a", "-b", "-*", "-b", "*", "-b"), List.of(false, false, false, true, false, true)),
             new Tuple<>(List.of("-a", "*d", "-a", "-*b", "-b", "--"), List.of(false, false, true, true, true, true))
         )) {
-            ExpressionIterable expressionIterable = new ExpressionIterable(
+            ExpressionList expressionList = new ExpressionList(
                 getContextWithOptions(getExpandWildcardsIndicesOptions()),
                 exclusionExpression.v1()
             );
             if (randomBoolean()) {
-                assertThat(expressionIterable.hasWildcard(), is(true));
+                assertThat(expressionList.hasWildcard(), is(true));
             }
             int i = 0;
-            for (Expression expression : expressionIterable) {
+            for (Expression expression : expressionList) {
                 boolean isExclusion = exclusionExpression.v2().get(i);
                 assertThat(expression.isExclusion(), is(isExclusion));
                 assertThat(expression.isWildcard(), is(exclusionExpression.v1().get(i).contains("*")));

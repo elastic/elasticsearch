@@ -1142,15 +1142,15 @@ public class IndexNameExpressionResolver {
          * </ol>
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
-            ExpressionIterable expressionIterable = new ExpressionIterable(context, expressions);
-            // fast exist if there are no wildcards to evaluate
-            if (expressionIterable.hasWildcard() == false) {
+            ExpressionList expressionList = new ExpressionList(context, expressions);
+            // fast exit if there are no wildcards to evaluate
+            if (expressionList.hasWildcard() == false) {
                 return expressions;
             }
             Set<String> result = new HashSet<>();
-            for (ExpressionIterable.Expression expression : expressionIterable) {
+            for (ExpressionList.Expression expression : expressionList) {
                 if (expression.isWildcard()) {
-                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression.toString());
+                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression.get());
                     Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
                     AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
                     if (context.getOptions().allowNoIndices() == false) {
@@ -1163,13 +1163,13 @@ public class IndexNameExpressionResolver {
                         matchingOpenClosedNames.forEachOrdered(result::add);
                     }
                     if (emptyWildcardExpansion.get()) {
-                        throw notFoundException(expression.toString());
+                        throw notFoundException(expression.get());
                     }
                 } else {
                     if (expression.isExclusion()) {
-                        result.remove(expression.toString());
+                        result.remove(expression.get());
                     } else {
-                        result.add(expression.toString());
+                        result.add(expression.get());
                     }
                 }
             }
@@ -1344,7 +1344,7 @@ public class IndexNameExpressionResolver {
 
         public static List<String> resolve(Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
-            for (ExpressionIterable.Expression expression : new ExpressionIterable(context, expressions)) {
+            for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 result.add(resolveExpression(expression, context::getStartTime));
             }
             return result;
@@ -1354,12 +1354,12 @@ public class IndexNameExpressionResolver {
             return resolveExpression(expression, System::currentTimeMillis);
         }
 
-        static String resolveExpression(ExpressionIterable.Expression expression, LongSupplier getTime) {
-            // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
+        static String resolveExpression(ExpressionList.Expression expression, LongSupplier getTime) {
             if (expression.isExclusion()) {
-                return "-" + resolveExpression(expression.toString(), getTime);
+                // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
+                return "-" + resolveExpression(expression.get(), getTime);
             } else {
-                return resolveExpression(expression.toString(), getTime);
+                return resolveExpression(expression.get(), getTime);
             }
         }
 
@@ -1517,10 +1517,10 @@ public class IndexNameExpressionResolver {
 
         public static List<String> filter(Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
-            for (ExpressionIterable.Expression expression : new ExpressionIterable(context, expressions)) {
+            for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 validateAliasOrIndex(expression);
-                if (expression.isWildcard() || expression.isExclusion() || ensureAliasOrIndexExists(context, expression.toString())) {
-                    result.add(expression.isExclusion() ? "-" + expression : expression.toString());
+                if (expression.isWildcard() || expression.isExclusion() || ensureAliasOrIndexExists(context, expression.get())) {
+                    result.add(expression.expression());
                 }
             }
             return result;
@@ -1558,59 +1558,35 @@ public class IndexNameExpressionResolver {
             return true;
         }
 
-        private static void validateAliasOrIndex(ExpressionIterable.Expression expression) {
-            if (expression.isExclusion()) {
-                return;
-            }
-            if (Strings.isEmpty(expression.toString())) {
-                throw notFoundException(expression.toString());
+        private static void validateAliasOrIndex(ExpressionList.Expression expression) {
+            if (Strings.isEmpty(expression.expression())) {
+                throw notFoundException(expression.expression());
             }
             // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
             // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
             // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
             // if the expression can't be found.
-            if (expression.toString().charAt(0) == '_') {
-                throw new InvalidIndexNameException(expression.toString(), "must not start with '_'.");
+            if (expression.expression().charAt(0) == '_') {
+                throw new InvalidIndexNameException(expression.expression(), "must not start with '_'.");
             }
         }
     }
 
     /**
-     * Used to iterate the expression list and work out which expression item is a wildcard or an exclusion.
+     * Used to iterate expression lists and work out which expression item is a wildcard or an exclusion.
      */
-    public static final class ExpressionIterable implements Iterable<ExpressionIterable.Expression> {
-        private final List<String> expressions;
-        private final int indexOfFirstWildcard;
+    public static final class ExpressionList implements Iterable<ExpressionList.Expression> {
+        private final List<Expression> expressionsList;
+        private final boolean hasWildcard;
 
-        public final class Expression {
-            private final int idx;
-
-            Expression(int idx) {
-                assert idx >= 0;
-                assert idx < ExpressionIterable.this.expressions.size();
-                this.idx = idx;
-            }
-
-            @Override
-            public String toString() {
+        public record Expression(String expression, boolean isWildcard, boolean isExclusion) {
+            public String get() {
                 if (isExclusion()) {
-                    // drop the leading "-" if exclusion
-                    return get().substring(1);
+                    // drop the leading "-" if exclusion because it is easier for callers to handle it like this
+                    return expression().substring(1);
                 } else {
-                    return get();
+                    return expression();
                 }
-            }
-
-            public boolean isWildcard() {
-                return idx >= ExpressionIterable.this.indexOfFirstWildcard && IndexNameExpressionResolver.isWildcard(get());
-            }
-
-            public boolean isExclusion() {
-                return idx > ExpressionIterable.this.indexOfFirstWildcard && get().startsWith("-");
-            }
-
-            private String get() {
-                return ExpressionIterable.this.expressions.get(this.idx);
             }
         }
 
@@ -1618,46 +1594,32 @@ public class IndexNameExpressionResolver {
          * Creates the expression iterable that can be used to easily check which expression item is a wildcard or an exclusion (or both).
          * The {@param context} is used to check if wildcards ought to be considered or not.
          */
-        public ExpressionIterable(Context context, List<String> expressions) {
-            this.expressions = expressions;
-            if (context.getOptions().expandWildcardExpressions()) {
-                this.indexOfFirstWildcard = findIndexOfFirstWildcard(expressions);
-            } else {
-                this.indexOfFirstWildcard = expressions.size();
+        public ExpressionList(Context context, List<String> expressionStrings) {
+            List<Expression> expressionsList = new ArrayList<>(expressionStrings.size());
+            boolean wildcardSeen = false;
+            for (String expressionString : expressionStrings) {
+                boolean isExclusion = expressionString.startsWith("-") && wildcardSeen;
+                if (context.getOptions().expandWildcardExpressions() && isWildcard(expressionString)) {
+                    wildcardSeen = true;
+                    expressionsList.add(new Expression(expressionString, true, isExclusion));
+                } else {
+                    expressionsList.add(new Expression(expressionString, false, isExclusion));
+                }
             }
+            this.expressionsList = expressionsList;
+            this.hasWildcard = wildcardSeen;
         }
 
         /**
          * Returns {@code true} if the expression contains any wildcard and the options allow wildcard expansion
          */
         public boolean hasWildcard() {
-            return this.indexOfFirstWildcard < this.expressions.size();
+            return this.hasWildcard;
         }
 
         @Override
-        public Iterator<ExpressionIterable.Expression> iterator() {
-            return new Iterator<>() {
-                private int idx = 0;
-
-                @Override
-                public boolean hasNext() {
-                    return idx < ExpressionIterable.this.expressions.size();
-                }
-
-                @Override
-                public Expression next() {
-                    return new Expression(idx++);
-                }
-            };
-        }
-
-        private static int findIndexOfFirstWildcard(List<String> expressions) {
-            for (int i = 0; i < expressions.size(); i++) {
-                if (isWildcard(expressions.get(i))) {
-                    return i;
-                }
-            }
-            return expressions.size();
+        public Iterator<ExpressionList.Expression> iterator() {
+            return expressionsList.iterator();
         }
     }
 

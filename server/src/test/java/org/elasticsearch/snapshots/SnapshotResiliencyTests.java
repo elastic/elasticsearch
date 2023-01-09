@@ -222,6 +222,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
+// TODO fix:
 public class SnapshotResiliencyTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;

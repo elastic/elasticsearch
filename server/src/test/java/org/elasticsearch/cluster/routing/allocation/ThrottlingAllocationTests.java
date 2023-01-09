@@ -225,7 +225,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(5));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(0));
-        assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node2"), 3);
+        assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node2"), 3);// TODO fix
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node3"), 2);
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 0);
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 5);

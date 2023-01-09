@@ -319,6 +319,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         });
     }
 
+    // TODO fix, flaky: `java.lang.AssertionError: elasticsearch[test][clusterApplierService#updateTask][T#1] not in
+    // [masterService#updateTask] nor a test thread`
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override

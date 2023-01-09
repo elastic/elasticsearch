@@ -753,7 +753,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         logger.debug("reroute and check that nothing has changed");
         ClusterState resultState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
-        assertThat(resultState, equalTo(clusterState));
+        assertThat(resultState, equalTo(clusterState));// TODO fix
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(1));

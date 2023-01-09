@@ -150,7 +150,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
             randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(settings),
+            createShardsAllocator(settings),
             clusterInfoService,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
@@ -172,7 +172,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
             randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             gatewayAllocator,
-            new BalancedShardsAllocator(settings),
+            createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );

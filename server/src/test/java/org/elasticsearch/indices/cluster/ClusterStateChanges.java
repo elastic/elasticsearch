@@ -397,7 +397,7 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason");
+    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(

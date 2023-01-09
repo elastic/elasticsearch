@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,25 +41,25 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         final DiscoveryNodes withNode = DiscoveryNodes.builder(withoutNode).add(discoveryNode).build();
 
-        assertThat(joinReasonService.getJoinReason(discoveryNode, CANDIDATE), equalTo("completing election"));
-        assertThat(joinReasonService.getJoinReason(discoveryNode, LEADER), equalTo("joining"));
+        assertThat(joinReasonService.getJoinReason(discoveryNode, CANDIDATE), matches("completing election"));
+        assertThat(joinReasonService.getJoinReason(discoveryNode, LEADER), matches("joining"));
 
         joinReasonService.onClusterStateApplied(withoutNode);
 
-        assertThat(joinReasonService.getJoinReason(discoveryNode, CANDIDATE), equalTo("completing election"));
-        assertThat(joinReasonService.getJoinReason(discoveryNode, LEADER), equalTo("joining"));
+        assertThat(joinReasonService.getJoinReason(discoveryNode, CANDIDATE), matches("completing election"));
+        assertThat(joinReasonService.getJoinReason(discoveryNode, LEADER), matches("joining"));
 
         joinReasonService.onClusterStateApplied(withNode);
 
-        assertThat(joinReasonService.getJoinReason(discoveryNode, CANDIDATE), equalTo("completing election"));
-        assertThat(joinReasonService.getJoinReason(discoveryNode, LEADER), equalTo("rejoining"));
+        assertThat(joinReasonService.getJoinReason(discoveryNode, CANDIDATE), matches("completing election"));
+        assertThat(joinReasonService.getJoinReason(discoveryNode, LEADER), matches("rejoining"));
 
         joinReasonService.onClusterStateApplied(withoutNode);
         currentTimeMillis.addAndGet(1234L);
 
         assertThat(
             joinReasonService.getJoinReason(discoveryNode, LEADER),
-            equalTo("joining, removed [1.2s/1234ms] ago by [" + master.getName() + "]")
+            matches("joining, removed [1.2s/1234ms] ago by [" + master.getName() + "]")
         );
 
         joinReasonService.onNodeRemoved(discoveryNode, "test removal");
@@ -66,7 +67,7 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         assertThat(
             joinReasonService.getJoinReason(discoveryNode, LEADER),
-            equalTo("joining, removed [5.5s/5555ms] ago with reason [test removal]")
+            matches("joining, removed [5.5s/5555ms] ago with reason [test removal]")
         );
 
         joinReasonService.onClusterStateApplied(withNode);
@@ -74,14 +75,14 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         assertThat(
             joinReasonService.getJoinReason(discoveryNode, LEADER),
-            equalTo("joining, removed [0ms] ago by [" + master.getName() + "], [2] total removals")
+            matches("joining, removed [0ms] ago by [" + master.getName() + "], [2] total removals")
         );
 
         joinReasonService.onNodeRemoved(discoveryNode, "second test removal");
 
         assertThat(
             joinReasonService.getJoinReason(discoveryNode, LEADER),
-            equalTo("joining, removed [0ms] ago with reason [second test removal], [2] total removals")
+            matches("joining, removed [0ms] ago with reason [second test removal], [2] total removals")
         );
 
         final DiscoveryNode rebootedNode = new DiscoveryNode(
@@ -98,7 +99,7 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         assertThat(
             joinReasonService.getJoinReason(rebootedNode, LEADER),
-            equalTo("joining after restart, removed [0ms] ago with reason [second test removal]")
+            matches("joining after restart, removed [0ms] ago with reason [second test removal]")
         );
 
         final DiscoveryNodes withRebootedNode = DiscoveryNodes.builder(withoutNode).add(rebootedNode).build();
@@ -108,7 +109,7 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         assertThat(
             joinReasonService.getJoinReason(rebootedNode, LEADER),
-            equalTo("joining, removed [0ms] ago with reason [third test removal]")
+            matches("joining, removed [0ms] ago with reason [third test removal]")
         );
 
         joinReasonService.onClusterStateApplied(withRebootedNode);
@@ -117,7 +118,7 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         assertThat(
             joinReasonService.getJoinReason(rebootedNode, LEADER),
-            equalTo("joining, removed [0ms] ago with reason [fourth test removal], [2] total removals")
+            matches("joining, removed [0ms] ago with reason [fourth test removal], [2] total removals")
         );
 
         joinReasonService.onClusterStateApplied(withRebootedNode);
@@ -126,12 +127,12 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         assertThat(
             joinReasonService.getJoinReason(discoveryNode, LEADER),
-            equalTo("joining, removed [0ms] ago by [" + master.getName() + "]")
+            matches("joining, removed [0ms] ago by [" + master.getName() + "]")
         );
 
         assertThat(
             joinReasonService.getJoinReason(rebootedNode, LEADER),
-            equalTo("joining after restart, removed [0ms] ago by [" + master.getName() + "]")
+            matches("joining after restart, removed [0ms] ago by [" + master.getName() + "]")
         );
     }
 
@@ -178,11 +179,11 @@ public class JoinReasonServiceTests extends ESTestCase {
 
         // remove almost enough other nodes and verify that we're still tracking the target node
         joinReasonService.onClusterStateApplied(almostCleanupNodes);
-        assertThat(joinReasonService.getJoinReason(targetNode, LEADER), equalTo("joining, removed [1ms] ago with reason [test]"));
+        assertThat(joinReasonService.getJoinReason(targetNode, LEADER), matches("joining, removed [1ms] ago with reason [test]"));
 
         // remove one more node to trigger the cleanup and forget about the target node
         joinReasonService.onClusterStateApplied(cleanupNodes);
-        assertThat(joinReasonService.getJoinReason(targetNode, LEADER), equalTo("joining"));
+        assertThat(joinReasonService.getJoinReason(targetNode, LEADER), matches("joining"));
     }
 
     private DiscoveryNode randomDiscoveryNode() {
@@ -199,4 +200,9 @@ public class JoinReasonServiceTests extends ESTestCase {
             Version.CURRENT
         );
     }
+
+    private static Matcher<JoinReason> matches(String message) {
+        return equalTo(new JoinReason(message));
+    }
+
 }

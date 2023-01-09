@@ -11,7 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -68,13 +68,10 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
         public void snapshotShard(SnapshotShardContext context) {
             int filesToUpload = randomIntBetween(0, 10);
-            if (filesToUpload == 0) {
-                finishedShardSnapshots.incrementAndGet();
-            } else {
-                expectedFileSnapshotTasks.addAndGet(filesToUpload);
-                ActionListener<Void> uploadListener = new CountDownActionListener(filesToUpload, finishedShardSnapshots::incrementAndGet);
+            expectedFileSnapshotTasks.addAndGet(filesToUpload);
+            try (var refs = new RefCountingRunnable(finishedShardSnapshots::incrementAndGet)) {
                 for (int i = 0; i < filesToUpload; i++) {
-                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
+                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, refs.acquireListener());
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,8 +99,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  *  </ul>
  *
  * <p>
- *  See {@code JoinTaskExecutor} and {@code TransportUpdateDesiredNodesAction} for more details about
- *  desired nodes status tracking.
+ *  See {@link NodeJoinExecutor} and {@link TransportUpdateDesiredNodesAction} for more details about desired nodes status tracking.
  * </p>
  *
  * <p>

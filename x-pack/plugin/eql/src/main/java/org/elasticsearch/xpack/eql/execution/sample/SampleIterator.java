@@ -57,6 +57,7 @@ public class SampleIterator implements Executable {
     final List<Sample> samples;
     private final int fetchSize;
     private final Limit limit;
+    private final int maxSamplesPerKey;
     private long startTime;
 
     // ---------- CIRCUIT BREAKER -----------
@@ -84,7 +85,14 @@ public class SampleIterator implements Executable {
      */
     private long previousTotalPageSize = 0;
 
-    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, Limit limit, CircuitBreaker circuitBreaker) {
+    public SampleIterator(
+        QueryClient client,
+        List<SampleCriterion> criteria,
+        int fetchSize,
+        Limit limit,
+        CircuitBreaker circuitBreaker,
+        int maxSamplesPerKey
+    ) {
         this.client = client;
         this.criteria = criteria;
         this.maxCriteria = criteria.size();
@@ -92,6 +100,7 @@ public class SampleIterator implements Executable {
         this.samples = new ArrayList<>();
         this.limit = limit;
         this.circuitBreaker = circuitBreaker;
+        this.maxSamplesPerKey = maxSamplesPerKey;
     }
 
     @Override
@@ -194,7 +203,7 @@ public class SampleIterator implements Executable {
             // take each filter query and add to it a filter by join keys with the corresponding values
             for (SampleCriterion criterion : criteria) {
                 SampleQueryRequest r = criterion.finalQuery();
-                r.singleKeyPair(compositeKeyValues, maxCriteria);
+                r.singleKeyPair(compositeKeyValues, maxCriteria, maxSamplesPerKey);
                 searches.add(prepareRequest(r.searchSource(), false, EMPTY_ARRAY));
             }
             sampleKeys.add(new SequenceKey(compositeKeyValues.toArray()));
@@ -213,8 +222,8 @@ public class SampleIterator implements Executable {
                     sample.add(hits);
                 }
                 if (docGroupsCounter == maxCriteria) {
-                    List<SearchHit> match = matchSample(sample, maxCriteria);
-                    if (match != null) {
+                    List<List<SearchHit>> matches = matchSamples(sample, maxCriteria, maxSamplesPerKey);
+                    for (List<SearchHit> match : matches) {
                         if (samples.size() < limit.limit()) {
                             samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
                         }
@@ -314,34 +323,40 @@ public class SampleIterator implements Executable {
      * [doc1, doc1, doc3]
      * there is no solution.
      */
-    static List<SearchHit> matchSample(List<List<SearchHit>> hits, int hitsCount) {
+    static List<List<SearchHit>> matchSamples(List<List<SearchHit>> hits, int hitsCount, int maxSamplesPerKey) {
         if (hits.size() < hitsCount) {
             return null;
         }
-        List<SearchHit> result = new ArrayList<>(hitsCount);
-        if (match(0, hits, result, hitsCount)) {
-            return result;
-        }
-        return null;
+        List<List<SearchHit>> result = new ArrayList<>(maxSamplesPerKey);
+        match(0, hits, result, new ArrayList<>(hitsCount), hitsCount, maxSamplesPerKey);
+        return result;
     }
 
-    private static boolean match(int currentCriterion, List<List<SearchHit>> hits, List<SearchHit> result, int hitsCount) {
+    private static void match(
+        int currentCriterion,
+        List<List<SearchHit>> hits,
+        List<List<SearchHit>> result,
+        List<SearchHit> partial,
+        int hitsCount,
+        int maxSamplesPerKey
+    ) {
         for (SearchHit o : hits.get(currentCriterion)) {
-            if (result.contains(o) == false) {
-                result.add(o);
+            if (partial.contains(o) == false) {
+                partial.add(o);
                 if (currentCriterion == hitsCount - 1) {
-                    return true;
+                    result.add(new ArrayList<>(partial));
+                    if (maxSamplesPerKey == result.size()) {
+                        return;
+                    }
                 } else {
-                    if (match(currentCriterion + 1, hits, result, hitsCount)) {
-                        return true;
+                    match(currentCriterion + 1, hits, result, partial, hitsCount, maxSamplesPerKey);
+                    if (maxSamplesPerKey == result.size()) {
+                        return;
                     }
                 }
+                partial.remove(partial.size() - 1);
             }
         }
-        if (result.size() > 0) {
-            result.remove(result.get(result.size() - 1));
-        }
-        return false;
     }
 
     private void addMemory(long bytes, String label) {

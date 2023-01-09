@@ -44,7 +44,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -529,7 +528,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         // parameterize the messages
         assertEquals(
             attachment.getWarnings(),
-            WARNINGS.values().stream().map(s -> String.format(Locale.ROOT, s, reportId)).collect(Collectors.toSet())
+            WARNINGS.values().stream().map(s -> Strings.format(s, reportId)).collect(Collectors.toSet())
         );
 
         Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
@@ -610,7 +609,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         // parameterize the messages
         assertEquals(
             attachment.getWarnings(),
-            customWarnings.values().stream().map(s -> String.format(Locale.ROOT, s, reportId)).collect(Collectors.toSet())
+            customWarnings.values().stream().map(s -> Strings.format(s, reportId)).collect(Collectors.toSet())
         );
         // ensure the reportId is parameterized in
         attachment.getWarnings().forEach(s -> { assertThat(s, containsString(reportId)); });

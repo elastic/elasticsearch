@@ -4,18 +4,14 @@
 <titleabbrev>Health</titleabbrev>
 ++++
 
-An experimental API that returns the health status of an {es} cluster.
-
-This API is currently experimental for internal use by Elastic software only.
-
-NOTE: {cloud-only}
+An API that returns the health status of an {es} cluster.
 
 [[health-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/_health` +
+`GET /_health` +
 
-`GET /_internal/_health/<indicator>` +
+`GET /_health/<indicator>` +
 
 [[health-api-prereqs]]
 ==== {api-prereq-title}
@@ -386,7 +382,7 @@ watermark threshold>>.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health
+GET _health
 --------------------------------------------------
 
 The API returns a response with all the indicators regardless
@@ -394,14 +390,14 @@ of current status.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/shards_availability
+GET _health/shards_availability
 --------------------------------------------------
 
 The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health?verbose=false
+GET _health?verbose=false
 --------------------------------------------------
 
 The API returns a response with all health indicators but will

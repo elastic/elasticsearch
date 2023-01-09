@@ -47,6 +47,8 @@ public class CompositeRuntimeField implements RuntimeField {
             }
         });
 
+        private final FieldMapper.Parameter<String> onScriptError = FieldMapper.Parameter.onScriptErrorParam(m -> m.onScriptError, script);
+
         private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<Map<String, Object>>(
             "fields",
             false,
@@ -66,6 +68,7 @@ public class CompositeRuntimeField implements RuntimeField {
             List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
             parameters.add(script);
             parameters.add(fields);
+            parameters.add(onScriptError);
             return Collections.unmodifiableList(parameters);
         }
 
@@ -73,7 +76,8 @@ public class CompositeRuntimeField implements RuntimeField {
         protected RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parent,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            OnScriptError onScriptError
         ) {
             throw new IllegalArgumentException("Composite field [" + name + "] cannot be a child of composite field [" + parent + "]");
         }
@@ -81,11 +85,15 @@ public class CompositeRuntimeField implements RuntimeField {
         @Override
         protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
             CompositeFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), CompositeFieldScript.CONTEXT);
-            Function<RuntimeField.Builder, RuntimeField> builder = b -> b.createChildRuntimeField(
-                parserContext,
-                name,
-                lookup -> factory.newFactory(name, script.get().getParams(), lookup)
-            );
+            Function<RuntimeField.Builder, RuntimeField> builder = b -> {
+                OnScriptError onScriptError = OnScriptError.fromString(this.onScriptError.get());
+                return b.createChildRuntimeField(
+                    parserContext,
+                    name,
+                    lookup -> factory.newFactory(name, script.get().getParams(), lookup, onScriptError),
+                    onScriptError
+                );
+            };
             Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
                 new HashMap<>(fields.getValue()),
                 parserContext,

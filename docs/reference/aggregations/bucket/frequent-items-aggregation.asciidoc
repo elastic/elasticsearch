@@ -146,27 +146,28 @@ example.
 -------------------------------------------------
 POST /kibana_sample_data_ecommerce/_async_search
 {
-  "size": 0,
-  "aggs": {
-    "my_agg": {
-      "frequent_items": {
-        "minimum_set_size": 3,
-        "fields": [
-          { "field": "category.keyword" }, 
-          { "field": 
-            "geoip.city_name",
-              "exclude": "other"
-          }
-        ],
-        "size": 3,
-        "terms": {
-          "field": "products.discount_amount",
-          "include": 0
-          }
-        }
+   "size":0,
+   "aggs":{
+      "my_agg":{
+         "frequent_items":{
+            "minimum_set_size":3,
+            "fields":[
+               {
+                  "field":"category.keyword"
+               },
+               {
+                  "field":"geoip.city_name",
+                  "exclude":"other"
+               }
+            ],
+            "size":3,
+            "terms":{
+               "field":"products.discount_amount",
+               "include":0
+            }
+         }
       }
-    }
-  }
+   }
 }
 -------------------------------------------------
 // TEST[skip:setup kibana sample data]

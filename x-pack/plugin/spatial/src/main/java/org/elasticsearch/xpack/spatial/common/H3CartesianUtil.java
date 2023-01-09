@@ -184,12 +184,20 @@ public final class H3CartesianUtil {
         double minLon = Double.POSITIVE_INFINITY;
         double maxLat = Double.NEGATIVE_INFINITY;
         double maxLon = Double.NEGATIVE_INFINITY;
+        double maxNegLon = Double.NEGATIVE_INFINITY;
+        double minPosLon = Double.POSITIVE_INFINITY;
         for (int i = 0; i < boundary.numPoints(); i++) {
-            final LatLng latLng = boundary.getLatLon(i);
-            minLat = Math.min(minLat, latLng.getLatDeg());
-            minLon = Math.min(minLon, latLng.getLonDeg());
-            maxLat = Math.max(maxLat, latLng.getLatDeg());
-            maxLon = Math.max(maxLon, latLng.getLonDeg());
+            final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(boundary.getLatLon(i).getLonDeg()));
+            final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg()));
+            minLat = Math.min(minLat, lat);
+            minLon = Math.min(minLon, lon);
+            maxLat = Math.max(maxLat, lat);
+            maxLon = Math.max(maxLon, lon);
+            if (lon < 0) {
+                maxNegLon = Math.max(maxNegLon, lon);
+            } else {
+                minPosLon = Math.min(minPosLon, lon);
+            }
         }
         final int res = H3.getResolution(h3);
         if (h3 == NORTH[res]) {
@@ -197,7 +205,7 @@ public final class H3CartesianUtil {
         } else if (h3 == SOUTH[res]) {
             return new org.elasticsearch.geometry.Rectangle(-180d, 180d, maxLat, -90d);
         } else if (maxLon - minLon > 180d) {
-            return new org.elasticsearch.geometry.Rectangle(maxLon, minLon, maxLat, minLat);
+            return new org.elasticsearch.geometry.Rectangle(minPosLon, maxNegLon, maxLat, minLat);
         } else {
             return new org.elasticsearch.geometry.Rectangle(minLon, maxLon, maxLat, minLat);
         }

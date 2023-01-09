@@ -563,13 +563,9 @@ GET /my-index*/_eql/search
 ----
 // TEST[continued]
 
-The response’s `hits.sequences` property contains up to 10 samples. Use the
-`size` parameter to get a smaller or larger set of samples. Pipes are not
-supported for sample queries.
-
-Each sample has a unique set of `join_keys` and an array with one matching event
-for each of the filters. Events are returned in the order of the filters they
-match:
+By default, the response’s `hits.sequences` property contains up to 10 samples.
+Each sample has a set of `join_keys` and an array with one matching event for
+each of the filters. Events are returned in the order of the filters they match:
 
 [source,console-result]
 ----
@@ -853,6 +849,31 @@ for `os` or `op_sys`, as well as for `host`. For example:
 
 <1> The events in this sample have a value of `doom` for `host` and a value of
 `redhat` for `os` or `op_sys`.
+
+By default, the response of a sample query contains up to 10 samples, with one
+sample per unique set of join keys. Use the `size` parameter to get a smaller or
+larger set of samples. To retrieve more than one sample per set of join keys,
+use the `max_samples_per_key` parameter. Pipes are not supported for sample
+queries. 
+
+[source,console]
+----
+GET /my-index*/_eql/search
+{
+  "max_samples_per_key": 2,     <1>
+  "size": 20,                   <2>
+  "query": """
+    sample
+      [any where uptime > 0]   by host,os
+      [any where port > 100]   by host,op_sys
+      [any where bool == true] by host,os
+  """
+}
+----
+// TEST[continued]
+
+<1> Retrieve up to 2 samples per set of join keys.
+<2> Retrieve up to 20 samples in total.
 
 [discrete]
 [[retrieve-selected-fields]]

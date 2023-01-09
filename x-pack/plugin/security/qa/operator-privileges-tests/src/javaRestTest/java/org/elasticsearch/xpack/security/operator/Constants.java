@@ -347,6 +347,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/eql",
         "cluster:monitor/xpack/usage/frozen_indices",
         "cluster:monitor/xpack/usage/graph",
+        "cluster:monitor/xpack/usage/health_api",
         "cluster:monitor/xpack/usage/ilm",
         "cluster:monitor/xpack/usage/logstash",
         "cluster:monitor/xpack/usage/ml",

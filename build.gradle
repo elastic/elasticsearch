@@ -363,3 +363,10 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }
+allprojects {
+  repositories {
+    maven {
+      url "https://oss.sonatype.org/content/repositories/snapshots"
+    }
+  }
+}

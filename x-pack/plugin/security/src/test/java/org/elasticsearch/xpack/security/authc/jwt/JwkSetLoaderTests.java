@@ -35,6 +35,7 @@ import static org.mockito.Mockito.when;
 
 public class JwkSetLoaderTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92745")
     public void testConcurrentReloadWillBeQueuedAndShareTheResults() throws IOException, InterruptedException {
         final Path tempDir = createTempDir();
         final Path path = tempDir.resolve("jwkset.json");

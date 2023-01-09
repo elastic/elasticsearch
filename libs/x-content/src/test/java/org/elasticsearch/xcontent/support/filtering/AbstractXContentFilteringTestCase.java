@@ -352,6 +352,24 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
+    public void testArrayWithEmptyArrayInInclude() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startArray()
+                .endArray()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
     public void testArrayWithLastObjectSkipped() throws IOException {
         testFilter(
             builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
@@ -371,23 +389,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
-    public void testArrayWithEmptyArrayInInclude() throws IOException {
-        testFilter(
-            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
-            builder -> builder.startObject()
-                    .startArray("foo")
-                        .startObject()
-                        .field("bar", "baz")
-                        .endObject()
-                        .startArray()
-                        .endArray()
-                    .endArray()
-                .endObject(),
-            singleton("foo.bar"),
-            emptySet(),
-            true
-        );
-    }
     protected abstract void assertFilterResult(XContentBuilder expected, XContentBuilder actual);
 
     protected abstract XContentType getXContentType();

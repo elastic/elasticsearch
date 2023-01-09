@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdate
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.coordination.JoinReason;
 import org.elasticsearch.cluster.coordination.JoinTask;
 import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
 import org.elasticsearch.cluster.coordination.NodeLeftExecutor;
@@ -396,7 +397,7 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    private static final String DUMMY_REASON = "dummy reason";
+    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason");
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(

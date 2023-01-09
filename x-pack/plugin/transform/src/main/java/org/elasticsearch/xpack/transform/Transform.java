@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.transform.action.TransportResetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportTriggerTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestResetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestTriggerTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
@@ -190,7 +193,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestUpdateTransformAction(),
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
-            new RestResetTransformAction()
+            new RestResetTransformAction(),
+            new RestTriggerTransformAction()
         );
     }
 
@@ -209,6 +213,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
             new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
+            new ActionHandler<>(TriggerTransformAction.INSTANCE, TransportTriggerTransformAction.class),
 
             // internal, no rest endpoint
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),

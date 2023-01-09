@@ -1,0 +1,38 @@
+{
+  "transform.trigger_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/trigger-transform.html",
+      "description":"Triggers a transform."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept":[ "application/json"],
+      "content_type":["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/{transform_id}/_trigger",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "required":true,
+              "description":"The id of the transform."
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the trigger"
+      }
+    }
+  }
+}

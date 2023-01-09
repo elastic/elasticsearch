@@ -10,5 +10,6 @@
 * <<reset-transform>>
 * <<start-transform>>
 * <<stop-transform>>
+* <<trigger-transform>>
 * <<update-transform>>
 * <<upgrade-transforms>>

@@ -138,6 +138,18 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
+"Test trigger on an already started transform":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.trigger_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
 "Verify start transform creates destination index with appropriate mapping":
   - do:
       transform.start_transform:

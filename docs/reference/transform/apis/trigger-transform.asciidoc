@@ -1,0 +1,63 @@
+[role="xpack"]
+[testenv="basic"]
+[[trigger-transform]]
+= Trigger {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Trigger {transform}</titleabbrev>
+++++
+
+Triggers a {transform}.
+
+[[trigger-transform-request]]
+== {api-request-title}
+
+`POST _transform/<transform_id>/_trigger`
+
+[[trigger-transform-prereqs]]
+== {api-prereq-title}
+
+* Requires the `manage_transform` cluster privilege. This privilege is included
+in the `transform_admin` built-in role.
+
+[trigger-transform-desc]]
+== {api-description-title}
+
+If you trigger a {transform}, it will process the new data instantly,
+without waiting for the configured `frequency` interval.
+After trigger API is called, the transform will be processed again at
+`now + frequency` unless trigger API is called again in the meantime.
+
+[[trigger-transform-path-parms]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+[[trigger-transform-query-parms]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+[[trigger-transform-examples]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _transform/ecommerce_transform/_trigger
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+When the {transform} is triggered, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

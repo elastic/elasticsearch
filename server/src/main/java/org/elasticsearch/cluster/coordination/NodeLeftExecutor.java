@@ -19,9 +19,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
-public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
+public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecutor.Task> {
 
-    private static final Logger logger = LogManager.getLogger(NodeRemovalClusterStateTaskExecutor.class);
+    private static final Logger logger = LogManager.getLogger(NodeLeftExecutor.class);
 
     private final AllocationService allocationService;
 
@@ -41,7 +41,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         }
     }
 
-    public NodeRemovalClusterStateTaskExecutor(AllocationService allocationService) {
+    public NodeLeftExecutor(AllocationService allocationService) {
         this.allocationService = allocationService;
     }
 
@@ -52,13 +52,21 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
+            final String reason;
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 removed = true;
+                reason = task.reason();
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
+                reason = null;
             }
-            taskContext.success(task.onClusterStateProcessed::run);
+            taskContext.success(() -> {
+                if (reason != null) {
+                    logger.info("node-left: [{}] with reason [{}]", task.node().descriptionWithoutAttributes(), reason);
+                }
+                task.onClusterStateProcessed.run();
+            });
         }
 
         if (removed == false) {

@@ -25,6 +25,7 @@ import java.io.IOException;
  *
  */
 @SuppressForbidden(reason = "reference counting is required here")
+public
 class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
 
     /**
@@ -34,7 +35,7 @@ class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectory
      *
      * @param reader            the directoryReader to use for future reopens
      */
-    ElasticsearchReaderManager(ElasticsearchDirectoryReader reader) {
+    public ElasticsearchReaderManager(ElasticsearchDirectoryReader reader) {
         this.current = reader;
     }
 

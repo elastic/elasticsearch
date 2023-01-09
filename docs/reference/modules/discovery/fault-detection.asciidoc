@@ -66,9 +66,9 @@ breaks added to make it easier to read):
 
 [source,text]
 ----
-[2022-03-21T11:02:35,513][INFO ][o.e.c.c.NodeLeftExecutor] [instance-0000000000] node-left:
-    removed [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}]
-    with reason [test reason]
+[2022-03-21T11:02:35,513][INFO ][o.e.c.c.NodeLeftExecutor] [instance-0000000000]
+    node-left: [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{aNlyORLASam1ammv2DzYXA}{172.27.47.21}{172.27.47.21:19054}{m}]
+    with reason [disconnected]
 ----
 
 This message says that the `NodeLeftExecutor` on the elected master
@@ -79,8 +79,8 @@ breaks added to make it easier to read):
 
 [source,text]
 ----
-[2022-03-21T11:02:59,892][INFO ][o.e.c.c.NodeJoinExecutor] [instance-0000000000] node-join:
-    added [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{UNw_RuazQCSBskWZV8ID_w}{172.27.47.21}{172.27.47.21:19054}{m}]
+[2022-03-21T11:02:59,892][INFO ][o.e.c.c.NodeJoinExecutor] [instance-0000000000]
+    node-join: [{instance-0000000004}{bfcMDTiDRkietFb9v_di7w}{UNw_RuazQCSBskWZV8ID_w}{172.27.47.21}{172.27.47.21:19054}{m}]
     with reason [joining after restart, removed [24s] ago with reason [disconnected]]
 ----
 

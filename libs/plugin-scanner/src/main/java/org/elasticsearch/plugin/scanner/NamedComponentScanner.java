@@ -39,7 +39,6 @@ public class NamedComponentScanner {
 
     // scope for testing
     public void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) throws IOException {
-        // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
         Files.createDirectories(outputFile.getParent());
 
         try (OutputStream outputStream = Files.newOutputStream(outputFile)) {

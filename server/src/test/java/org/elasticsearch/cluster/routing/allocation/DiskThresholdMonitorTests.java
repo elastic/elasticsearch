@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -121,10 +122,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         ) {
 
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
 
@@ -216,10 +217,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
 
@@ -276,7 +277,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
                 throw new AssertionError("unexpected");
             }
         };
@@ -472,13 +473,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
         indicesToMarkReadOnly.set(null);
@@ -564,13 +565,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
         // When free disk on any of node1 or node2 goes below the flood watermark, then apply index block on indices not having the block
@@ -807,13 +808,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
         indicesToMarkReadOnly.set(null);
@@ -1051,8 +1052,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
-                listener.onResponse(null);
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+                onCompletion.close();
             }
 
             @Override

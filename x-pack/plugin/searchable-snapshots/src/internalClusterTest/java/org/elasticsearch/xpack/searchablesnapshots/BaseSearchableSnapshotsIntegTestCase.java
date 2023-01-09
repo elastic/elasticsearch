@@ -351,6 +351,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     }
 
     public static class LicensedSnapshotBasedRecoveriesPlugin extends SnapshotBasedRecoveriesPlugin {
+
+        public LicensedSnapshotBasedRecoveriesPlugin(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public boolean isLicenseEnabled() {
             return true;

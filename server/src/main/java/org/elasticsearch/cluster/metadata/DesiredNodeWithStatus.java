@@ -47,7 +47,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
             ),
             // An unknown status is expected during upgrades to versions >= STATUS_TRACKING_SUPPORT_VERSION
             // the desired node status would be populated when a node in the newer version is elected as
-            // master, the desired nodes status update happens in JoinTaskExecutor.
+            // master, the desired nodes status update happens in NodeJoinExecutor.
             args[6] == null ? Status.PENDING : (Status) args[6]
         )
     );
@@ -84,7 +84,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
             // since it's impossible to know if a node that was supposed to
             // join the cluster, it joined. The status will be updated
             // once the master node is upgraded to a version >= STATUS_TRACKING_SUPPORT_VERSION
-            // in JoinTaskExecutor or when the desired nodes are upgraded to a new version.
+            // in NodeJoinExecutor or when the desired nodes are upgraded to a new version.
             status = Status.PENDING;
         }
         return new DesiredNodeWithStatus(desiredNode, status);

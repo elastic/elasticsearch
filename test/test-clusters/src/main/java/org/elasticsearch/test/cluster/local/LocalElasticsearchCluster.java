@@ -56,6 +56,12 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
     }
 
     @Override
+    public void restart(boolean forcibly) {
+        checkHandle();
+        handle.restart(forcibly);
+    }
+
+    @Override
     public boolean isStarted() {
         checkHandle();
         return handle.isStarted();

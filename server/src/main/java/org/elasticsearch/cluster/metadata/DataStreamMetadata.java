@@ -117,7 +117,12 @@ public class DataStreamMetadata implements Metadata.Custom {
         DataStreamAlias alias = dataStreamAliases.get(aliasName);
         if (alias == null) {
             String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-            alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
+            alias = new DataStreamAlias(
+                aliasName,
+                List.of(dataStream),
+                writeDataStream,
+                filterAsMap == null ? null : Map.of(dataStream, filterAsMap)
+            );
         } else {
             DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
             if (copy == alias) {

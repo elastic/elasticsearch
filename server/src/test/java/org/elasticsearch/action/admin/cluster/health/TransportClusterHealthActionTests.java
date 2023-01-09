@@ -72,20 +72,21 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             .build();
 
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
-        IntStream.range(0, between(1, 30))
-            .forEach(
-                i -> shardRoutingStates.add(
-                    randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)
-                )
-            );
-        IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
-        Randomness.shuffle(shardRoutingStates);
+        if (initializingShards == 1 && randomBoolean()) {
+            shardRoutingStates.add(ShardRoutingState.INITIALIZING);
+            IntStream.range(0, between(0, 30)).forEach(i -> shardRoutingStates.add(ShardRoutingState.UNASSIGNED));
+        } else {
+            IntStream.range(0, between(0, 30))
+                .forEach(
+                    i -> shardRoutingStates.add(
+                        randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)
+                    )
+                );
+            IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
+            Randomness.shuffle(shardRoutingStates);
 
-        // primary can not be unassigned, otherwise replicas can't in initializing or relocating state.
-        // (assertion in RoutingNodes disallows this)
-        if (shardRoutingStates.get(0) == ShardRoutingState.UNASSIGNED) {
-            // Don't randomly pick ShardRoutingState.UNASSIGNED, since that already has randomly been inserted based on initializingShards
-            shardRoutingStates.set(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
+            // primary must be active, otherwise replicas can't in initializing or relocating state.
+            shardRoutingStates.add(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
 
         final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);

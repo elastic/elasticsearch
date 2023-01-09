@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,7 +50,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -804,7 +804,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         try (
             XContentParser parser = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, String.format(Locale.ROOT, composableTemplate, "template_1"))
+                .createParser(XContentParserConfiguration.EMPTY, Strings.format(composableTemplate, "template_1"))
         ) {
             var request = action.fromXContent(parser).composableTemplates().get(0);
             assertTrue(
@@ -817,7 +817,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         try (
             XContentParser parser = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, String.format(Locale.ROOT, composableTemplate, "template_2"))
+                .createParser(XContentParserConfiguration.EMPTY, Strings.format(composableTemplate, "template_2"))
         ) {
             var request = action.fromXContent(parser).composableTemplates().get(0);
             // this should just work, no failure
@@ -829,7 +829,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         final String conflictingTemplateName = "validate_template";
 
         // Reserve the validate_template name in the reserved metadata
-        String composableTemplate = String.format(Locale.ROOT, """
+        String composableTemplate = Strings.format("""
             {
               "composable_index_templates": {
                 "%s": {

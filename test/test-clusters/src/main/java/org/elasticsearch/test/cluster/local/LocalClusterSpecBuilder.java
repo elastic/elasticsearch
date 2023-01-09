@@ -9,7 +9,7 @@
 package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.resource.TextResource;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.function.Consumer;
 
@@ -50,9 +50,9 @@ public interface LocalClusterSpecBuilder extends LocalSpecBuilder<LocalClusterSp
     LocalClusterSpecBuilder user(String username, String password, String role);
 
     /**
-     * Register a roles file with cluster via the supplied {@link TextResource}.
+     * Register a roles file with cluster via the supplied {@link Resource}.
      */
-    LocalClusterSpecBuilder rolesFile(TextResource rolesFile);
+    LocalClusterSpecBuilder rolesFile(Resource rolesFile);
 
     ElasticsearchCluster build();
 }

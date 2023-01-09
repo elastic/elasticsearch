@@ -10,6 +10,7 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -17,7 +18,6 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -48,7 +48,7 @@ public class OsProbeTests extends ESTestCase {
                 if (prettyName != null) {
                     final String quote = randomFrom("\"", "'", "");
                     final String space = randomFrom(" ", "");
-                    final String prettyNameLine = String.format(Locale.ROOT, "PRETTY_NAME=%s%s%s%s", quote, prettyName, quote, space);
+                    final String prettyNameLine = Strings.format("PRETTY_NAME=%s%s%s%s", quote, prettyName, quote, space);
                     return Arrays.asList("NAME=" + randomAlphaOfLength(16), prettyNameLine);
                 } else {
                     return Collections.singletonList("NAME=" + randomAlphaOfLength(16));

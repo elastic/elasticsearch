@@ -53,6 +53,7 @@ public final class EqlTestUtils {
         TimeValue.timeValueSeconds(30),
         null,
         123,
+        1,
         "",
         new TaskId("test", 123),
         null
@@ -69,6 +70,7 @@ public final class EqlTestUtils {
             null,
             new TimeValue(randomNonNegativeLong()),
             randomIndicesOptions(),
+            randomIntBetween(1, 1000),
             randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),

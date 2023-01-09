@@ -31,6 +31,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -193,6 +194,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     Failed Bulks: %ds
                     """;
                 String formattedMessage = String.format(
+                    Locale.ROOT,
                     message,
                     expectedExecutions.get(),
                     requestCount.get(),
@@ -222,6 +224,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     """;
                 fail(
                     String.format(
+                        Locale.ROOT,
                         message,
                         expectedExecutions,
                         requestCount.get(),
@@ -335,6 +338,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                 """;
             fail(
                 String.format(
+                    Locale.ROOT,
                     message,
                     requestCount.get(),
                     successCount.get(),

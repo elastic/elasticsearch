@@ -321,17 +321,18 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         strategy = createAllocationService(clusterInfo2, createDiskThresholdDecider(diskSettings));
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
-
-        // Now the replica should be able to initialize
-        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
+        // Now the replica should be able to initialize
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
+
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
         logShardStates(clusterState);
-        // Assert that we're able to start the primary and replica, since they were both initializing
+        // Assert that we're able to start the replica
         assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
         // Assert that node1 got a single shard (the primary), even though its disk usage is too high
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
@@ -647,10 +648,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
-        // shards should be initializing
-        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(4));
+        // primaries should be initializing
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        // replicas should now be initializing
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
+
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logShardStates(clusterState);
@@ -1245,7 +1251,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     ) {
         return new AllocationService(
             new AllocationDeciders(
-                Stream.concat(Stream.of(createSameShardAllocationDecider(Settings.EMPTY)), Stream.of(allocationDeciders)).toList()
+                Stream.concat(
+                    Stream.of(createSameShardAllocationDecider(Settings.EMPTY), new ReplicaAfterPrimaryActiveAllocationDecider()),
+                    Stream.of(allocationDeciders)
+                ).toList()
             ),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),

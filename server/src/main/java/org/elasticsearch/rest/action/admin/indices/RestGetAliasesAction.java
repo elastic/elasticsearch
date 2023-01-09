@@ -168,8 +168,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
                             if (entry.getKey().equals(alias.getWriteDataStream())) {
                                 builder.field("is_write_index", true);
                             }
-                            if (alias.getFilter() != null) {
-                                builder.field("filter", XContentHelper.convertToMap(alias.getFilter().uncompressed(), true).v2());
+                            if (alias.getFilter(entry.getKey()) != null) {
+                                builder.field(
+                                    "filter",
+                                    XContentHelper.convertToMap(alias.getFilter(entry.getKey()).uncompressed(), true).v2()
+                                );
                             }
                             builder.endObject();
                         }

@@ -297,21 +297,21 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
         }
 
         boolean within = false;
-        if (edgeIntersectsQuery(aX, aY, bX, bY, false)) {
+        if (edgeIntersectsQuery(aX, aY, bX, bY, ab)) {
             if (ab) {
                 return GeoRelation.QUERY_CROSSES;
             }
             within = true;
         }
 
-        if (edgeIntersectsQuery(bX, bY, cX, cY, false)) {
+        if (edgeIntersectsQuery(bX, bY, cX, cY, bc)) {
             if (bc) {
                 return GeoRelation.QUERY_CROSSES;
             }
             within = true;
         }
 
-        if (edgeIntersectsQuery(cX, cY, aX, aY, false)) {
+        if (edgeIntersectsQuery(cX, cY, aX, aY, ca)) {
             if (ca) {
                 return GeoRelation.QUERY_CROSSES;
             }

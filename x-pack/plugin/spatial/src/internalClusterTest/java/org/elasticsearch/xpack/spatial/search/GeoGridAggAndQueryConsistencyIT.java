@@ -88,9 +88,53 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92551")
     public void testGeoShapeGeoHex() throws IOException {
         doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
+    }
+
+    public void testKnownIssueWithCellLeftOfDatelineTouchingPolygonOnRightOfDateline() throws IOException {
+        XContentBuilder xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("geometry")
+            .field("type", "geo_shape")
+            .endObject()
+            .endObject()
+            .endObject();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
+
+        BulkRequestBuilder builder = client().prepareBulk();
+        builder.add(
+            new IndexRequest("test").source("{\"geometry\" : \"BBOX (179.99999, 180.0, -11.29550, -11.29552)\"}", XContentType.JSON)
+        );
+        builder.add(
+            new IndexRequest("test").source("{\"geometry\" : \"BBOX (-180.0, -179.99999, -11.29550, -11.29552)\"}", XContentType.JSON)
+        );
+
+        assertFalse(builder.get().hasFailures());
+        client().admin().indices().prepareRefresh("test").get();
+
+        GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(-11.29550, 179.999992), new GeoPoint(-11.29552, -179.999992));
+
+        GeoGridAggregationBuilder builderPoint = new GeoHexGridAggregationBuilder("geometry").field("geometry")
+            .precision(15)
+            .setGeoBoundingBox(boundingBox)
+            .size(256 * 256);
+        SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
+        InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
+        for (InternalGeoGridBucket bucket : gridPoint.getBuckets()) {
+            assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
+            QueryBuilder queryBuilder = new GeoGridQueryBuilder("geometry").setGridId(
+                GeoGridQueryBuilder.Grid.GEOHEX,
+                bucket.getKeyAsString()
+            );
+            response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
+            assertThat(
+                "Bucket " + bucket.getKeyAsString(),
+                response.getHits().getTotalHits().value,
+                Matchers.equalTo(bucket.getDocCount())
+            );
+        }
     }
 
     private void doTestGeohashGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {

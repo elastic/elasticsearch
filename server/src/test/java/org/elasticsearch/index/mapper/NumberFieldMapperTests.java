@@ -12,7 +12,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -302,8 +301,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     public void testTimeSeriesIndexDefault() throws Exception {
         var randomMetricType = randomFrom(TimeSeriesParams.MetricType.values());
-        var indexSettings = getIndexSettingsBuilder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
         var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
             minimalMapping(b);

@@ -108,7 +108,10 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean useTSDBDocValuesFormat(final String field) {
-        return isTimeSeriesModeIndex() && isNotSpecialField(field) && (isCounterMetricType(field) || isTimestampField(field));
+        return IndexSettings.isTimeSeriesModeEnabled()
+            && isTimeSeriesModeIndex()
+            && isNotSpecialField(field)
+            && (isCounterMetricType(field) || isTimestampField(field));
     }
 
     private boolean isTimeSeriesModeIndex() {

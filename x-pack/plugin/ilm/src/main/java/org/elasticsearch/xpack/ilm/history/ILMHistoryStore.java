@@ -35,7 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
@@ -208,8 +207,6 @@ public class ILMHistoryStore implements Closeable {
         } catch (InterruptedException e) {
             logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
             Thread.currentThread().interrupt();
-        } catch (TimeoutException e) {
-            logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
         }
     }
 }

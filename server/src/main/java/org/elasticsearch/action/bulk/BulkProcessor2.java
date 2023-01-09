@@ -25,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
@@ -237,7 +236,7 @@ public class BulkProcessor2 {
      * @param unit    The time unit of the {@code timeout} argument
      * @throws InterruptedException If the current thread is interrupted
      */
-    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException {
+    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         synchronized (mutex) {
             if (closed) {
                 return;

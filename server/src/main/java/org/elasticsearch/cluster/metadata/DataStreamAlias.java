@@ -64,8 +64,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             List<String> dataStreamNames = (List<String>) args[0];
             if (dataStreamsToFilters == null && oldFilter != null && dataStreamNames != null) {
                 logger.info(
-                    "Reading in DataStreamAlias {} with a pre-8.7.0-style DataStream filter and using it for all DataStreams in "
-                        + "the DataStreamAlias",
+                    "Reading in data stream alias [{}] with a pre-8.7.0-style data stream filter and using it for all data streams in "
+                        + "the data stream alias",
                     name
                 );
                 dataStreamsToFilters = new HashMap<>();
@@ -173,10 +173,10 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             this.dataStreamToFilterMap = new HashMap<>();
             CompressedXContent filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
             if (filter != null) {
-                logger.info(
-                    "Reading in DataStreamAlias {} from before 8.7.0, which did not correctly associate filters with DataStreams.",
-                    name
-                );
+                /*
+                 * Here we're reading in a DataStreamAlias from before 8.7.0, which did not correctly associate filters with DataStreams.
+                 * So we associated the same filter with all DataStreams in the alias to replicate the old behavior.
+                 */
                 for (String dataStream : dataStreams) {
                     dataStreamToFilterMap.put(dataStream, filter);
                 }
@@ -409,11 +409,6 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
                  * replicate that buggy behavior here if we have to write to an older node because there is no way to send multipole
                  * filters to an older node.
                  */
-                logger.info(
-                    "Sending DataStreamAlias {} to a node with version earlier than 8.7.0. Versions before 8.7.0 do not support "
-                        + "separate filters for each DataStream.",
-                    name
-                );
                 dataStreamToFilterMap.values().iterator().next().writeTo(out);
             }
         }

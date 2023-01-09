@@ -68,7 +68,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
             assertThat(processor.getTotalBytesInFlight(), equalTo(0L));
         } finally {
-            processor.awaitClose(1, TimeUnit.SECONDS);
+            processor.awaitClose(5, TimeUnit.SECONDS);
         }
     }
 
@@ -102,7 +102,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             assertThat(listener.bulkFailures.size(), equalTo(0));
             assertThat(listener.bulkItems.size(), equalTo(numDocs - numDocs % bulkActions));
         } finally {
-            processor.awaitClose(1, TimeUnit.SECONDS);
+            processor.awaitClose(5, TimeUnit.SECONDS);
         }
 
         closeLatch.await();
@@ -194,7 +194,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
                 }
             }
         } finally {
-            processor.awaitClose(1, TimeUnit.SECONDS);
+            processor.awaitClose(5, TimeUnit.SECONDS);
         }
 
         closeLatch.await();

@@ -15,6 +15,7 @@ restResources {
 
 dependencies {
   clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:ingest-common")
 }
 
 tasks.named("yamlRestTest").configure {

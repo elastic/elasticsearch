@@ -30,6 +30,7 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .module("mapper-extras")
+        .module("ingest-common")
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:
         .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))

@@ -282,6 +282,33 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         this.mappingsByHash = mappingsByHash;
         this.oldestIndexVersion = oldestIndexVersion;
         this.reservedStateMetadata = reservedStateMetadata;
+        assert assertConsistent();
+    }
+
+    private boolean assertConsistent() {
+        final var lookup = this.indicesLookup;
+        final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, indices));
+        try {
+            Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata);
+        } catch (Exception e) {
+            assert false : e;
+        }
+        assert Builder.assertDataStreams(indices, dsMetadata);
+        assert Set.of(allIndices).equals(indices.keySet());
+        final Function<Predicate<IndexMetadata>, Set<String>> indicesByPredicate = predicate -> indices.entrySet()
+            .stream()
+            .filter(entry -> predicate.test(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableSet());
+        assert Set.of(allOpenIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.OPEN));
+        assert Set.of(allClosedIndices).equals(indicesByPredicate.apply(idx -> idx.getState() == IndexMetadata.State.CLOSE));
+        assert Set.of(visibleIndices).equals(indicesByPredicate.apply(idx -> idx.isHidden() == false));
+        assert Set.of(visibleOpenIndices)
+            .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.OPEN));
+        assert Set.of(visibleClosedIndices)
+            .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
+        return true;
     }
 
     public Metadata withIncrementedVersion() {

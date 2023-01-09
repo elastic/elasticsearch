@@ -351,7 +351,59 @@ public final class H3 {
      * @return All neighbor indexes from the origin
      */
     public static long[] hexRing(long h3) {
-        return HexRing.hexRing(h3);
+        final long[] ring = new long[hexRingSize(h3)];
+        for (int i = 0; i < ring.length; i++) {
+            ring[i] = hexRingPosToH3(h3, i);
+            assert ring[i] >= 0;
+        }
+        return ring;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3 Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(long h3) {
+        return H3Index.H3_is_pentagon(h3) ? 5 : 6;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3Address Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(String h3Address) {
+        return hexRingSize(stringToH3(h3Address));
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3 Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static long hexRingPosToH3(long h3, int ringPos) {
+        // for pentagons, we skip direction at position 2
+        final int pos = H3Index.H3_is_pentagon(h3) && ringPos >= 2 ? ringPos + 1 : ringPos;
+        if (pos < 0 || pos > 5) {
+            throw new IllegalArgumentException("invalid ring position");
+        }
+        return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[pos].digit());
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3Address Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static String hexRingPosToH3(String h3Address, int ringPos) {
+        return h3ToString(hexRingPosToH3(stringToH3(h3Address), ringPos));
     }
 
     /**

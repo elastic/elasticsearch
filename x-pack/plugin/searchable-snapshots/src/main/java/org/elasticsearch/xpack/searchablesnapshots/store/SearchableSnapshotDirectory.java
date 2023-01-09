@@ -394,7 +394,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final IndexInputStats inputStats = stats.computeIfAbsent(ext, n -> {
             final IndexInputStats.Counter counter = new IndexInputStats.Counter();
             for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
-                if (ext.equals(getNonNullFileExt(file.physicalName()))) {
+                if (n.equals(getNonNullFileExt(file.physicalName()))) {
                     counter.add(file.length());
                 }
             }

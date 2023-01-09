@@ -160,11 +160,7 @@ POST /kibana_sample_data_ecommerce/_async_search
                   "exclude":"other"
                }
             ],
-            "size":3,
-            "terms":{
-               "field":"products.discount_amount",
-               "include":0
-            }
+            "size":3
          }
       }
    }

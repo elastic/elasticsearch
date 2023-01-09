@@ -169,7 +169,7 @@ public class RefCountingRunnableTests extends ESTestCase {
                 expectedMessage = RefCountingRunnable.ALREADY_CLOSED_MESSAGE;
             } else {
                 throwingRunnable = refs::close;
-                expectedMessage = "invalid decRef call: already closed";
+                expectedMessage = "already closed";
             }
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());

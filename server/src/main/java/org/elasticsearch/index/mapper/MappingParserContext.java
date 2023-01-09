@@ -124,8 +124,8 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
-    static MappingParserContext createMultiFieldContext(MappingParserContext in) {
-        return new MultiFieldParserContext(in);
+    public MappingParserContext createMultiFieldContext() {
+        return new MultiFieldParserContext(this);
     }
 
     private static class MultiFieldParserContext extends MappingParserContext {
@@ -150,15 +150,19 @@ public class MappingParserContext {
         }
     }
 
-    static class DynamicTemplateParserContext extends MappingParserContext {
-        DynamicTemplateParserContext(MappingParserContext in) {
+    public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter) {
+        return new DynamicTemplateParserContext(this, dateFormatter);
+    }
+
+    private static class DynamicTemplateParserContext extends MappingParserContext {
+        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
             super(
                 in.similarityLookupService,
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.searchExecutionContextSupplier,
-                in.dateFormatter,
+                dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,

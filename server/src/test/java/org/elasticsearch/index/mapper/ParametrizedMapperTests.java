@@ -268,7 +268,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData()
         );
         if (fromDynamicTemplate) {
-            pc = new MappingParserContext.DynamicTemplateParserContext(pc);
+            pc = pc.createDynamicTemplateContext(null);
         }
         return (TestMapper) new TypeParser().parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(MapperBuilderContext.root(false));

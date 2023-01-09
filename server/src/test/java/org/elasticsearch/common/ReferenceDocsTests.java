@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -48,7 +47,7 @@ public class ReferenceDocsTests extends ESTestCase {
     @SuppressForbidden(reason = "never executed")
     public void testDocsExist() throws IOException {
         // cannot run as a unit test due to security manager restrictions - TODO create a separate Gradle task for this
-        for (ReferenceDocs docsLink : linksToVerify(Version.CURRENT, Build.CURRENT.isSnapshot())) {
+        for (ReferenceDocs docsLink : linksToVerify()) {
             try (var stream = new URL(docsLink.toString()).openStream()) {
                 Streams.readFully(stream);
                 // TODO also for URLs that contain a fragment id, verify that the fragment exists

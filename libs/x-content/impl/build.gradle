@@ -10,12 +10,20 @@ apply plugin: 'elasticsearch.java'
 
 archivesBaseName = "x-content-impl"
 
+String jacksonVersionCore = "2.14.2"
 String jacksonVersion = "2.14.0"
+//repositories {
+//  maven {
+//    url "https://oss.sonatype.org/content/repositories/snapshots"
+//    metadataSources { artifact() }
+//  }
+//}
+
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+  implementation files('/Users/przemyslawgomulka/scratch/jackson-core-2.14.2-20230108.002917-7.jar')//"com.fasterxml.jackson.core:jackson-core:${jacksonVersionCore}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"

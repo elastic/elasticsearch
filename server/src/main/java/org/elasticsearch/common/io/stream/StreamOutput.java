@@ -693,12 +693,10 @@ public abstract class StreamOutput extends OutputStream {
                 o.writeByte((byte) 10);
             }
             if (o.getVersion().onOrAfter(Version.V_8_7_0)) {
-                @SuppressWarnings("unchecked")
-                final Map<Object, Object> map = (Map<Object, Object>) v;
+                final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {
-                @SuppressWarnings("unchecked")
-                final Map<String, Object> map = (Map<String, Object>) v;
+                final Map<String, ?> map = (Map<String, ?>) v;
                 o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
             }
         }),

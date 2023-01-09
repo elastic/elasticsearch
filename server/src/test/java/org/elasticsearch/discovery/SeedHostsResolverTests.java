@@ -223,7 +223,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         appender.addExpectation(
             new MockLogAppender.ExceptionSeenEventExpectation(
                 getTestName(),
-                logger.getName(),
+                SeedHostsResolver.class.getCanonicalName(),
                 Level.WARN,
                 "failed to resolve host [" + hostname + "]",
                 UnknownHostException.class,
@@ -294,7 +294,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         appender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 getTestName(),
-                logger.getName(),
+                SeedHostsResolver.class.getCanonicalName(),
                 Level.WARN,
                 "timed out after [*] ([discovery.seed_resolver.timeout]=["
                     + SeedHostsResolver.getResolveTimeout(Settings.EMPTY)
@@ -413,7 +413,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         appender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 getTestName(),
-                logger.getName(),
+                SeedHostsResolver.class.getCanonicalName(),
                 Level.WARN,
                 "failed to resolve host [127.0.0.1:9300:9300]"
             )

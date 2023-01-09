@@ -46,7 +46,6 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 () -> null,
                 null,
                 null,
-                null,
                 MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
                 null
             ),

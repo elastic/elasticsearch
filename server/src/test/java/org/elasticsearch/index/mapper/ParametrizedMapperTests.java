@@ -261,7 +261,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             name -> null,
             version,
             () -> null,
-            null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),

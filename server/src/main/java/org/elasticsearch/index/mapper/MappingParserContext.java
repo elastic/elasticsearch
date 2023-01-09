@@ -31,7 +31,6 @@ public class MappingParserContext {
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Version indexVersionCreated;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
-    private final DateFormatter dateFormatter;
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
@@ -43,7 +42,6 @@ public class MappingParserContext {
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         Version indexVersionCreated,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        DateFormatter dateFormatter,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
@@ -54,7 +52,6 @@ public class MappingParserContext {
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.indexVersionCreated = indexVersionCreated;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
-        this.dateFormatter = dateFormatter;
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
@@ -103,7 +100,7 @@ public class MappingParserContext {
      * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
      */
     public DateFormatter getDateFormatter() {
-        return dateFormatter;
+        return null;
     }
 
     public boolean isWithinMultiField() {
@@ -136,7 +133,6 @@ public class MappingParserContext {
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.searchExecutionContextSupplier,
-                in.dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
@@ -155,6 +151,9 @@ public class MappingParserContext {
     }
 
     private static class DynamicTemplateParserContext extends MappingParserContext {
+
+        private final DateFormatter dateFormatter;
+
         DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
             super(
                 in.similarityLookupService,
@@ -162,12 +161,17 @@ public class MappingParserContext {
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.searchExecutionContextSupplier,
-                dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper
             );
+            this.dateFormatter = dateFormatter;
+        }
+
+        @Override
+        public DateFormatter getDateFormatter() {
+            return dateFormatter;
         }
 
         @Override

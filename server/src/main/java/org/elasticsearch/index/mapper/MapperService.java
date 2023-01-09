@@ -149,7 +149,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             searchExecutionContextSupplier,
-            null,
             scriptCompiler,
             indexAnalyzers,
             indexSettings,

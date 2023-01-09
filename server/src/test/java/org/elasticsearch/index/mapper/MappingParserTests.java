@@ -44,7 +44,6 @@ public class MappingParserTests extends MapperServiceTestCase {
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
             () -> { throw new UnsupportedOperationException(); },
-            null,
             scriptService,
             indexAnalyzers,
             indexSettings,

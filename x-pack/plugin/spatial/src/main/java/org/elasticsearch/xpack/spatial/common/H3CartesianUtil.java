@@ -187,8 +187,8 @@ public final class H3CartesianUtil {
         double maxNegLon = Double.NEGATIVE_INFINITY;
         double minPosLon = Double.POSITIVE_INFINITY;
         for (int i = 0; i < boundary.numPoints(); i++) {
-            final double lon = boundary.getLatLon(i).getLonDeg();
-            final double lat = boundary.getLatLon(i).getLatDeg();
+            final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(boundary.getLatLon(i).getLonDeg()));
+            final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg()));
             minLat = Math.min(minLat, lat);
             minLon = Math.min(minLon, lon);
             maxLat = Math.max(maxLat, lat);

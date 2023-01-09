@@ -20,7 +20,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
@@ -242,13 +241,15 @@ public class H3CartesianUtilTests extends ESTestCase {
     }
 
     public void testBoundingBox() {
+        final double[] xs = new double[H3CartesianUtil.MAX_ARRAY_SIZE];
+        final double[] ys = new double[H3CartesianUtil.MAX_ARRAY_SIZE];
         for (int res = 0; res <= H3.MAX_H3_RES; res++) {
             final long h3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), res);
             final Rectangle rectangle = H3CartesianUtil.toBoundingBox(h3);
-            final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                final double lat = boundary.getLatLon(i).getLatDeg();
-                final double lon = boundary.getLatLon(i).getLonDeg();
+            final int points = H3CartesianUtil.computePoints(h3, xs, ys);
+            for (int i = 0; i < points; i++) {
+                final double lat = ys[i];
+                final double lon = xs[i];
                 assertTrue(rectangle.getMaxY() >= lat && rectangle.getMinY() <= lat);
                 if (rectangle.getMinX() > rectangle.getMaxX()) {
                     assertTrue(rectangle.getMaxX() >= lon || rectangle.getMinX() <= lon);

@@ -30,6 +30,7 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation "net.sf.supercsv:super-csv:${versions.supercsv}"
 
   internalClusterTestImplementation project(":client:rest-high-level")
 }

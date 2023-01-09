@@ -1,0 +1,422 @@
+
+
+// languages and salary are not long data type fields, but integer.
+// TestFieldExtractOperator is mimicking ES atm (ValuesSourceReaderOperator is returning always Longs).
+// The same goes for TestHashAggregationOperator. It's always creating a Long Block when it's encountering a numeric field.
+
+
+projectFrom
+from test | project languages, emp_no, first_name, last_name | limit 10;
+
+languages:long | emp_no:long | first_name:keyword | last_name:keyword
+2 | 10001 | Georgi | Facello
+5 | 10002 | Bezalel | Simmel
+4 | 10003 | Parto | Bamford
+5 | 10004 | Chirstian | Koblick
+1 | 10005 | Kyoichi | Maliniak
+3 | 10006 | Anneke | Preusig
+4 | 10007 | Tzvetan | Zielinski
+2 | 10008 | Saniya | Kalloufi
+1 | 10009 | Sumant | Peac
+4 | 10010 | Duangkaew | Piveteau
+;
+
+projectFromWithFilter
+from test | project languages, emp_no, first_name, last_name | eval x = emp_no + 10 | where x > 10040 and x < 10050 | limit 5;
+
+languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:long
+4 | 10031 | null | Joslin | 10041
+3 | 10032 | null | Reistad | 10042
+1 | 10033 | null | Merlo | 10043
+1 | 10034 | null | Swan | 10044
+5 | 10035 | null | Chappelet | 10045
+;
+
+whereWithAverage-Ignore
+// returns incorrect results. _Might_ be because of the filter... not sure yet.
+//Expected :[[3.133013149047619E8]]
+//Actual   :[[3.0161593432E8]]
+from test | where languages == 5 | stats avg(avg_worked_seconds);
+
+avg(avg_worked_seconds):double
+313301314.9047619
+;
+
+averageByField
+from test | stats avg(avg_worked_seconds) by languages;
+
+// languages is not of type Long, but Integer. See https://github.com/elastic/elasticsearch-internal/issues/652
+avg(avg_worked_seconds):double | languages:long
+3.0318626831578946E8 | 2
+3.133013149047619E8 | 5
+2.863684210555556E8 | 4
+2.94833632E8 | 1
+2.978159518235294E8 | 3
+;
+
+whereWithAverageBySubField-Ignore
+// the where is not applied :-(
+from test | where languages + 1 == 6 | stats avg(avg_worked_seconds) by languages.long;
+
+avg(avg_worked_seconds):double | languages.long:long
+313301314.9047619 | 5
+;
+
+statsBySubField
+from test | stats avg=avg(avg_worked_seconds),min=min(avg_worked_seconds),max=max(avg_worked_seconds) by languages.long;
+
+avg:double | min:long | max:long | languages.long:long
+3.0318626831578946E8 | 212460105 | 377713748 | 2
+3.133013149047619E8 | 203838153 | 390266432 | 5
+2.863684210555556E8 | 200296405 | 393084805 | 4
+2.94833632E8 | 208374744 | 387408356 | 1
+2.978159518235294E8 | 203989706 | 394597613 | 3
+;
+
+statsBySubFieldSortedByKey-Ignore
+// https://github.com/elastic/elasticsearch-internal/issues/414
+from test | stats avg=avg(avg_worked_seconds),min=min(avg_worked_seconds),max=max(avg_worked_seconds) by languages.long | sort languages.long;
+
+avg:double | min:long | max:long | languages.long:long
+2.94833632E8 | 208374744 | 387408356 | 1
+3.0318626831578946E8 | 212460105 | 377713748 | 2
+2.978159518235294E8 | 203989706 | 394597613 | 3
+2.863684210555556E8 | 200296405 | 393084805 | 4
+3.133013149047619E8 | 203838153 | 390266432 | 5
+;
+
+avgOfIntegerByNotNullKeyword-Ignore
+// https://github.com/elastic/elasticsearch-internal/issues/654
+from test | stats avg(salary) by still_hired;
+
+avg(salary):double | still_hired:keyword
+50625.163636363635 | false
+45343.8 | true
+;
+
+avgOfIntegerWithSortByGroupingKey-Ignore
+// https://github.com/elastic/elasticsearch-internal/issues/414
+from test | stats avg(salary) by last_name | sort last_name desc | limit 10;
+
+avg(salary):double | last_name:keyword
+54462.0 | Zschoche
+39110.0 | Zockler
+74572.0 | Zielinski
+71165.0 | Waschkowski
+40031.0 | Warwick
+34341.0 | Tzvieli
+37853.0 | Tramer
+48735.0 | Terkki
+39356.0 | Tempesti
+39638.0 | Syrzycki
+;
+
+avgOfInteger-Ignore
+// returns incorrect results after TestFieldExtractOperator is returning now only Long blocks. Something else is fishy
+from test | stats avg(salary) by last_name | limit 10;
+
+avg(salary):double | last_name:keyword
+50249.0 | Awdeh
+46595.0 | Azuma
+52833.0 | Baek
+61805.0 | Bamford
+38992.0 | Bernatsky
+33370.0 | Bernini
+28336.0 | Berztiss
+41933.0 | Bierman
+29175.0 | Billingsley
+58715.0 | Bouloucos
+;
+
+medianByFieldAndSortedByValue
+from test | stats med=median(salary) by languages | sort med | limit 1;
+
+med:double | languages:long
+38992.0 | 5
+;
+
+medianByFieldAndSortedByValue2-Ignore
+// https://github.com/elastic/elasticsearch-internal/issues/414
+from test | where languages > 0 | stats med=median(salary) by languages | sort med;
+
+med:double | languages:long
+38992.0 | 5
+44353.0 | 4
+44956.0 | 2
+49095.0 | 1
+54462.0 | 3
+;
+
+medianByFieldAndSortedByAggregatedValue-Ignore
+// https://github.com/elastic/elasticsearch-internal/issues/414
+from test | where languages > 0 | stats med=median(salary) by languages | sort languages;
+
+med:double | languages:long
+49095.0 | 1
+44956.0 | 2
+54462.0 | 3
+44353.0 | 4
+38992.0 | 5
+;
+
+projectFromWithFilterPushedToES-Ignore
+// this one doesn't work because the where is pushed directly to ES in the sourceoperator
+from test | project languages, emp_no, first_name, last_name | where emp_no > 10030 and x < 10040 | limit 5;
+
+languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:long
+null | 10021 | Ramzi | Erde | 10031
+null | 10022 | Shahaf | Famili | 10032
+null | 10023 | Bojan | Montemayor | 10033
+null | 10024 | Suzette | Pettey | 10034
+null | 10025 | Prasadram | Heyers | 10035
+;
+
+projectFromWithStatsAfterLimit
+// this one doesn't have the null bucket in it. We need to talk about null handling by default in stats
+from test | project gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
+
+m:long | gender:keyword
+311267831 | M
+393084805 | F
+;
+
+projectFromWithStatsAndSort-Ignore
+// this one doesn't work because we generate one page per document, instead of one page
+// https://github.com/elastic/elasticsearch-internal/issues/414
+from test | project gender, avg_worked_seconds, first_name, last_name | stats m = max(avg_worked_seconds) by last_name | sort m desc;
+
+m:long | last_name:keyword
+311267831 | M
+393084805 | F
+315236372 |
+311267831 | M
+393084805 | F
+;
+
+sortFirstProjectAfter-Ignore
+// https://github.com/elastic/elasticsearch-internal/issues/414
+from test | sort languages asc nulls last, emp_no asc | limit 3 | project emp_no, languages, first_name, last_name;
+
+emp_no:long | languages:long | first_name:keyword | last_name:keyword
+10005 | 1 | Kyoichi | Maliniak
+10009 | 1 | Sumant | Peac
+10013 | 1 | Eberhardt | Terkki
+;
+
+sortWithLimitOne
+from test | sort languages | limit 1;
+
+avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword
+244294991 | 10005 | Kyoichi | M | 2.05 | 1 | 1 | Maliniak | 63528 | true
+;
+
+sortWithLimitFifteenAndProject-Ignore
+//https://github.com/elastic/elasticsearch-internal/issues/414
+from test | sort height desc, languages.long nulls last, still_hired | limit 15 | project height, languages.long, still_hired;
+
+height:double | languages.long:long | still_hired:keyword
+2.1 | 2 | true
+2.1 | 3 | false
+2.1 | 5 | false
+2.1 | 5 | true
+2.1 | null | true
+2.09 | 3 | true
+2.08 | 5 | true
+2.08 | null | true
+2.07 | 2 | false
+2.07 | null | true
+2.06 | 1 | false
+2.06 | 1 | false
+2.05 | 1 | true
+2.04 | 5 | false
+2.03 | 2 | true
+;
+
+simpleEvalWithSortAndLimitOne
+from test | eval x = languages + 7 | sort x | limit 1;
+
+// https://github.com/elastic/elasticsearch-internal/issues/652
+avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:long
+244294991 | 10005 | Kyoichi | M | 2.05 | 1 | 1 | Maliniak | 63528 | true | 8
+;
+
+evalOfAverageValue
+from test | stats avg_salary = avg(salary) | eval x = avg_salary + 7;
+
+avg_salary:double | x:double
+48248.55 | 48255.55
+;
+
+averageOfEvalValue
+from test | eval ratio = salary / height | stats avg(ratio);
+
+avg(ratio):double
+27517.279737149947
+;
+
+simpleWhere-Ignore
+from test | where salary > 70000 | project first_name, last_name, salary;
+
+first_name:keyword | last_name:keyword | salary:long
+Tzvetan | Zielinski | 74572
+Lillian | Haddadi | 73717
+Divier | Reistad | 73851
+Otmar | Herbst | 74999
+null | Merlo | 70011
+Moss | Shanbhogue | 74970
+Remzi | Waschkowski | 71165
+Valter | Sullins | 73578
+;
+
+whereAfterProject-Ignore
+from test | project salary | where salary > 70000;
+
+salary:long
+74572
+73717
+73851
+74999
+70011
+74970
+71165
+73578
+;
+
+whereWithEvalGeneratedValue
+from test | eval x = salary / 2 | where x > 37000;
+
+avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:long
+393084805 | 10007 | Tzvetan | F | 1.7 | 4 | 4 | Zielinski | 74572 | true | 37286
+257694181 | 10029 | Otmar | M | 1.99 | null | null | Herbst | 74999 | false | 37499
+371418933 | 10045 | Moss | M | 1.7 | 3 | 3 | Shanbhogue | 74970 | false | 37485
+;
+
+whereWithStatsValue
+from test | stats x = avg(salary) | where x > 5000;
+
+x:double
+48248.55
+;
+
+statsByDouble-Ignore
+// There are only two flavors of BlockHash: Long and BytesRef
+// https://github.com/elastic/elasticsearch-internal/issues/654
+from test | eval abc=1+2 | where abc + languages > 4 | stats count(height) by height;
+
+?:?
+;
+
+whereNegatedCondition
+from test | eval abc=1+2 | where abc + languages > 4 and languages.long != 1 | eval x=abc+languages | project x, languages, languages.long | limit 3;
+
+x:long | languages:long | languages.long:long
+5 | 2 | 2
+8 | 5 | 5
+7 | 4 | 4
+;
+
+evalOverride
+from test | eval languages = languages + 1 | eval languages = languages + 1 | limit 5 | project l*;
+
+languages.long:long | last_name:keyword | languages:long
+2 | Facello | 4
+5 | Simmel | 7
+4 | Bamford | 6
+5 | Koblick | 7
+1 | Maliniak | 3
+;
+
+projectRename
+from test | project x = languages, y = languages | limit 3;
+
+x:long | y:long
+2 | 2
+5 | 5
+4 | 4
+;
+
+projectRenameEval
+// the types for x2 and y2 should be integer, but in fact they are long :-|
+from test | project x = languages, y = languages | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
+
+x:long | y:long | x2:long | y2:long
+2 | 2 | 3 | 4
+5 | 5 | 6 | 7
+4 | 4 | 5 | 6
+;
+
+projectRenameEvalProject
+// the type for z should be integer, but in fact they are long :-|
+from test | project x = languages, y = languages | eval z = x + y | project x, y, z | limit 3;
+
+x:long | y:long | z:long
+2 | 2 | 4
+5 | 5 | 10
+4 | 4 | 8
+;
+
+projectOverride
+from test | project languages, first_name = languages | limit 3;
+
+languages:long | first_name:long
+2 | 2
+5 | 5
+4 | 4
+;
+
+evalWithNull
+from test | eval nullsum = salary + null | sort nullsum asc, salary desc | project nullsum, salary | limit 1;
+
+nullsum:long | salary:long
+null | 74999
+;
+
+evalWithNullAndAvg
+from test | eval nullsum = salary + null | stats avg(nullsum), count(nullsum);
+
+avg(nullsum):double | count(nullsum):long
+NaN | 0
+;
+
+fromStatsLimit
+from test | stats ac = avg(salary) by languages | limit 1;
+
+ac:double | languages:long
+48178.84210526316 | 2
+;
+
+fromLimit
+from test | project first_name | limit 2;
+
+first_name:keyword
+Georgi
+Bezalel
+;
+
+projectAfterTopN
+from test | sort salary | limit 1 | project first_name, salary;
+
+first_name:keyword | salary:long
+Guoxiang | 25324
+;
+
+projectAfterTopNDesc
+from test | sort salary desc | limit 1 | project first_name, salary;
+
+first_name:keyword | salary:long
+Otmar | 74999
+;
+
+topNProjectEval
+from test | sort salary | limit 1 | project languages, salary | eval x = languages + 1;
+
+languages:long | salary:long | x:long
+5 | 25324 | 6
+;
+
+topNProjectEvalProject
+from test | sort salary | limit 1 | project languages, salary | eval x = languages + 1 | project x;
+
+x:long
+6
+;

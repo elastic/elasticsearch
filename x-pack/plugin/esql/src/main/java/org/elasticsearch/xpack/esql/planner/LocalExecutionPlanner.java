@@ -12,28 +12,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.BlockHash;
-import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.lucene.LuceneDocRef;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
-import org.elasticsearch.compute.lucene.ValueSources;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.AggregationOperator.AggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.EmptySourceOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
-import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
-import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -46,8 +34,6 @@ import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -64,15 +50,12 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -113,14 +96,18 @@ public class LocalExecutionPlanner {
     private final int taskConcurrency;
     private final int bufferMaxPages;
     private final DataPartitioning dataPartitioning;
-    private final List<SearchContext> searchContexts;
+    private final PhysicalOperationProviders physicalOperationProviders;
 
-    public LocalExecutionPlanner(BigArrays bigArrays, EsqlConfiguration configuration, List<SearchContext> contexts) {
+    public LocalExecutionPlanner(
+        BigArrays bigArrays,
+        EsqlConfiguration configuration,
+        PhysicalOperationProviders physicalOperationProviders
+    ) {
         this.bigArrays = bigArrays;
+        this.physicalOperationProviders = physicalOperationProviders;
         taskConcurrency = TASK_CONCURRENCY.get(configuration.pragmas());
         bufferMaxPages = BUFFER_MAX_PAGES.get(configuration.pragmas());
         dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
-        searchContexts = contexts;
     }
 
     /**
@@ -130,7 +117,6 @@ public class LocalExecutionPlanner {
 
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
-            searchContexts,
             new Holder<>(DriverParallelism.SINGLE),
             taskConcurrency,
             bufferMaxPages,
@@ -147,7 +133,7 @@ public class LocalExecutionPlanner {
         return new LocalExecutionPlan(context.driverFactories);
     }
 
-    public PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
+    private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context);
         } else if (node instanceof EsQueryExec esQuery) {
@@ -175,191 +161,15 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(aggregate.child(), context);
-        Layout.Builder layout = new Layout.Builder();
-        OperatorFactory operatorFactory = null;
-        AggregateExec.Mode mode = aggregate.getMode();
-
-        if (aggregate.groupings().isEmpty()) {
-            // not grouping
-            List<AggregatorFactory> aggregatorFactories = new ArrayList<>();
-            for (NamedExpression ne : aggregate.aggregates()) {
-                // add the field to the layout
-                layout.appendChannel(ne.id());
-
-                if (ne instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                    AggregatorMode aggMode = null;
-                    NamedExpression sourceAttr = null;
-
-                    if (mode == AggregateExec.Mode.PARTIAL) {
-                        aggMode = AggregatorMode.INITIAL;
-                        // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        sourceAttr = (NamedExpression) aggregateFunction.field();
-                    } else if (mode == AggregateExec.Mode.FINAL) {
-                        aggMode = AggregatorMode.FINAL;
-                        sourceAttr = alias;
-                    } else {
-                        throw new UnsupportedOperationException();
-                    }
-                    aggregatorFactories.add(
-                        new AggregatorFactory(
-                            AggregateMapper.mapToName(aggregateFunction),
-                            AggregateMapper.mapToType(aggregateFunction),
-                            aggMode,
-                            source.layout.getChannel(sourceAttr.id())
-                        )
-                    );
-
-                } else {
-                    throw new UnsupportedOperationException();
-                }
-            }
-            if (aggregatorFactories.isEmpty() == false) {
-                operatorFactory = new AggregationOperatorFactory(
-                    aggregatorFactories,
-                    mode == AggregateExec.Mode.FINAL ? AggregatorMode.FINAL : AggregatorMode.INITIAL
-                );
-            }
-        } else {
-            // grouping
-            List<GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
-            AttributeSet groups = Expressions.references(aggregate.groupings());
-            if (groups.size() != 1) {
-                throw new UnsupportedOperationException("just one group, for now");
-            }
-            Attribute grpAttrib = groups.iterator().next();
-            Set<NameId> grpAttribIds = new HashSet<>(List.of(grpAttrib.id()));
-            // since the aggregate node can define aliases of the grouping column, there might be additional ids for the grouping column
-            // e.g. in `... | stats c = count(a) by b | project c, bb = b`, the alias `bb = b` will be inlined in the resulting aggregation
-            // node.
-            for (NamedExpression agg : aggregate.aggregates()) {
-                if (agg instanceof Alias a && a.child()instanceof Attribute attr && attr.id() == grpAttrib.id()) {
-                    grpAttribIds.add(a.id());
-                }
-            }
-            layout.appendChannel(grpAttribIds);
-
-            final Supplier<BlockHash> blockHash;
-            if (grpAttrib.dataType() == DataTypes.KEYWORD) {
-                blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays);
-            } else {
-                blockHash = () -> BlockHash.newLongHash(context.bigArrays);
-            }
-
-            for (NamedExpression ne : aggregate.aggregates()) {
-
-                if (ne instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                    layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
-
-                    AggregatorMode aggMode = null;
-                    NamedExpression sourceAttr = null;
-
-                    if (mode == AggregateExec.Mode.PARTIAL) {
-                        aggMode = AggregatorMode.INITIAL;
-                        sourceAttr = Expressions.attribute(aggregateFunction.field());
-                    } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                        aggMode = AggregatorMode.FINAL;
-                        sourceAttr = alias;
-                    } else {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    aggregatorFactories.add(
-                        new GroupingAggregatorFactory(
-                            context.bigArrays,
-                            AggregateMapper.mapToName(aggregateFunction),
-                            AggregateMapper.mapToType(aggregateFunction),
-                            aggMode,
-                            source.layout.getChannel(sourceAttr.id())
-                        )
-                    );
-                } else if (grpAttribIds.contains(ne.id()) == false && aggregate.groupings().contains(ne) == false) {
-                    var u = ne instanceof Alias ? ((Alias) ne).child() : ne;
-                    throw new UnsupportedOperationException(
-                        "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
-                    );
-                }
-            }
-
-            var attrSource = grpAttrib;
-
-            final Integer inputChannel = source.layout.getChannel(attrSource.id());
-
-            if (inputChannel == null) {
-                var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
-                var luceneDocRef = new LuceneDocRef(
-                    source.layout.getChannel(sourceAttributes.get(0).id()),
-                    source.layout.getChannel(sourceAttributes.get(1).id()),
-                    source.layout.getChannel(sourceAttributes.get(2).id())
-                );
-                // The grouping-by values are ready, let's group on them directly.
-                // Costin: why are they ready and not already exposed in the layout?
-                operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-                    ValueSources.sources(context.searchContexts, attrSource.name()),
-                    luceneDocRef,
-                    aggregatorFactories,
-                    BigArrays.NON_RECYCLING_INSTANCE
-                );
-            } else {
-                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHash);
-            }
-        }
-
-        if (operatorFactory != null) {
-            return source.with(operatorFactory, layout.build());
-        }
-        throw new UnsupportedOperationException();
+        return physicalOperationProviders.getGroupingPhysicalOperation(aggregate, plan(aggregate.child(), context), context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
-        Set<String> indices = esQuery.index().concreteIndices();
-        List<SearchExecutionContext> matchedSearchContexts = context.searchContexts.stream()
-            .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
-            .map(SearchContext::getSearchExecutionContext)
-            .toList();
-        LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(
-            matchedSearchContexts,
-            ctx -> ctx.toQuery(esQuery.query()).query(),
-            context.dataPartitioning,
-            context.taskConcurrency
-        );
-        Layout.Builder layout = new Layout.Builder();
-        for (int i = 0; i < esQuery.output().size(); i++) {
-            layout.appendChannel(esQuery.output().get(i).id());
-        }
-        if (operatorFactory.size() > 0) {
-            context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, operatorFactory.size()));
-            return PhysicalOperation.fromSource(operatorFactory, layout.build());
-        } else {
-            return PhysicalOperation.fromSource(new EmptySourceOperator.Factory(), layout.build());
-        }
+        return physicalOperationProviders.getSourcePhysicalOperation(esQuery, context);
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {
-        PhysicalOperation source = plan(fieldExtractExec.child(), context);
-        Layout.Builder layout = source.layout.builder();
-
-        var sourceAttrs = fieldExtractExec.sourceAttributes();
-
-        PhysicalOperation op = source;
-        for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout.appendChannel(attr.id());
-            Layout previousLayout = op.layout;
-
-            var sources = ValueSources.sources(context.searchContexts, attr.name());
-
-            var luceneDocRef = new LuceneDocRef(
-                previousLayout.getChannel(sourceAttrs.get(0).id()),
-                previousLayout.getChannel(sourceAttrs.get(1).id()),
-                previousLayout.getChannel(sourceAttrs.get(2).id())
-            );
-
-            op = op.with(
-                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, luceneDocRef, attr.name()),
-                layout.build()
-            );
-        }
-        return op;
+        return physicalOperationProviders.getFieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -524,12 +334,12 @@ public class LocalExecutionPlanner {
     /**
      * Immutable physical operation.
      */
-    static class PhysicalOperation implements Describable {
+    public static class PhysicalOperation implements Describable {
         private final SourceOperatorFactory sourceOperatorFactory;
         private final List<OperatorFactory> intermediateOperatorFactories;
         private final SinkOperatorFactory sinkOperatorFactory;
 
-        private final Layout layout; // maps field names to channels
+        final Layout layout; // maps field names to channels
 
         /** Creates a new physical operation with the given source and layout. */
         static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
@@ -619,7 +429,6 @@ public class LocalExecutionPlanner {
      */
     public record LocalExecutionPlannerContext(
         List<DriverFactory> driverFactories,
-        List<SearchContext> searchContexts,
         Holder<DriverParallelism> driverParallelism,
         int taskConcurrency,
         int bufferMaxPages,
@@ -637,7 +446,6 @@ public class LocalExecutionPlanner {
         public LocalExecutionPlannerContext createSubContext() {
             return new LocalExecutionPlannerContext(
                 driverFactories,
-                searchContexts,
                 new Holder<>(DriverParallelism.SINGLE),
                 taskConcurrency,
                 bufferMaxPages,

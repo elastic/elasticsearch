@@ -1,0 +1,42 @@
+{
+    "properties" : {
+        "emp_no" : {
+            "type" : "integer"
+        },
+        "first_name" : {
+            "type" : "keyword"
+        },
+        "last_name" : {
+            "type" : "keyword"
+        },
+        "gender" : {
+            "type" : "keyword"
+        },
+        "birth_date": {
+            "type" : "date"
+        },
+        "hire_date": {
+            "type" : "date"
+        },
+        "salary" : {
+            "type" : "integer"
+        },
+        "languages" : {
+            "type" : "integer",
+            "fields": {
+                "long": {
+                    "type": "long"
+                }
+            }
+        },
+        "height": {
+            "type" : "double"
+        },
+        "still_hired": {
+            "type" : "keyword"
+        },
+        "avg_worked_seconds" : {
+            "type" : "long"
+        }
+    }
+}

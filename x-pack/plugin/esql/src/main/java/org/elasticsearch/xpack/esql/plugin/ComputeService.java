@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
@@ -134,7 +135,11 @@ public class ComputeService {
             List<Driver> drivers = new ArrayList<>();
             Runnable release = () -> Releasables.close(() -> Releasables.close(searchContexts), () -> Releasables.close(drivers));
             try {
-                LocalExecutionPlanner planner = new LocalExecutionPlanner(bigArrays, configuration, searchContexts);
+                LocalExecutionPlanner planner = new LocalExecutionPlanner(
+                    bigArrays,
+                    configuration,
+                    new EsPhysicalOperationProviders(searchContexts)
+                );
                 List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
                 LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
                     new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); })

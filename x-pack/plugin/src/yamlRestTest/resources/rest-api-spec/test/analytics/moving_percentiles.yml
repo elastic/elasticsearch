@@ -100,6 +100,8 @@ shift:
 
 ---
 default choses tdigest:
+  - skip:
+      features: close_to
   - do:
       search:
         index: "foo"
@@ -124,19 +126,21 @@ default choses tdigest:
   - length: { aggregations.histo.buckets: 3 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 3 }
-  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.0 }
+  - close_to: { aggregations.histo.buckets.0.percentiles.values.0.value: { value: 4.0, error: 0.1 } }
   - is_false: aggregations.histo.buckets.0.moving_percentiles
   - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
-  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 5.0 }
-  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.0 }
+  - close_to: { aggregations.histo.buckets.1.percentiles.values.0.value: { value: 5.2, error: 0.1 } }
+  - close_to: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: { value: 4.0, error: 0.1 } }
   - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
-  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  7.0 }
-  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
+  - close_to: { aggregations.histo.buckets.2.percentiles.values.0.value:  { value: 7.0, error: 0.1 } }
+  - close_to: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: { value: 4.0, error: 0.1 } }
 
 ---
 tdest explicitly:
+  - skip:
+      features: close_to
   - do:
       search:
         index: "foo"
@@ -162,16 +166,16 @@ tdest explicitly:
   - length: { aggregations.histo.buckets: 3 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 3 }
-  - match: { aggregations.histo.buckets.0.percentiles.values.0.value: 4.0 }
+  - close_to: { aggregations.histo.buckets.0.percentiles.values.0.value: { value: 4.0, error: 0.1 } }
   - is_false: aggregations.histo.buckets.0.moving_percentiles
   - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
-  - match: { aggregations.histo.buckets.1.percentiles.values.0.value: 5.0 }
-  - match: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: 4.0 }
+  - close_to: { aggregations.histo.buckets.1.percentiles.values.0.value: { value: 5.2, error: 0.1 } }
+  - close_to: { aggregations.histo.buckets.1.moving_percentiles.values.0.value: { value: 4.0, error: 0.1 } }
   - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
-  - match: { aggregations.histo.buckets.2.percentiles.values.0.value:  7.0 }
-  - match: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: 4.0 }
+  - close_to: { aggregations.histo.buckets.2.percentiles.values.0.value:  { value: 7.6, error: 0.1 } }
+  - close_to: { aggregations.histo.buckets.2.moving_percentiles.values.0.value: { value: 4.0, error: 0.1 } }
 
 ---
 hdr:

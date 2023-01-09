@@ -36,14 +36,14 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
-public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
+public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
-    private static final Logger logger = LogManager.getLogger(JoinTaskExecutor.class);
+    private static final Logger logger = LogManager.getLogger(NodeJoinExecutor.class);
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
 
-    public JoinTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
+    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
     }
@@ -135,7 +135,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         continue;
                     }
                 }
-                onTaskSuccess.add(() -> nodeJoinTask.listener().onResponse(null));
+                onTaskSuccess.add(() -> {
+                    logger.info(
+                        "node-join: [{}] with reason [{}]",
+                        nodeJoinTask.node().descriptionWithoutAttributes(),
+                        nodeJoinTask.reason()
+                    );
+                    nodeJoinTask.listener().onResponse(null);
+                });
             }
             joinTaskContext.success(() -> {
                 for (Runnable joinCompleter : onTaskSuccess) {

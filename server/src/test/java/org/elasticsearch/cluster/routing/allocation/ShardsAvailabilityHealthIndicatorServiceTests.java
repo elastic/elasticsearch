@@ -184,9 +184,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndAssignedReplicas() {
+    public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicas() {
         var clusterState = createClusterStateWith(
-            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE))),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))),
             List.of()
         );
         var service = createShardsAvailabilityIndicatorService(clusterState);
@@ -196,8 +196,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary shard.",
-                    Map.of("unassigned_primaries", 1, "started_replicas", 1),
+                    "This cluster has 1 unavailable primary shard, 1 unavailable replica shard.",
+                    Map.of("unassigned_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
                             NAME,
@@ -273,7 +273,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(
             indexMetadataList,
             List.of(
-                index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
+                index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
                 index("yellow-index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
                 index("yellow-index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
             ),
@@ -1343,11 +1343,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testLimitNumberOfAffectedResources() {
         var clusterState = createClusterStateWith(
             List.of(
-                index("red-index1", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
-                index("red-index2", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
-                index("red-index3", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
-                index("red-index4", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
-                index("red-index5", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE))
+                index("red-index1", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("red-index2", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("red-index3", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("red-index4", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("red-index5", new ShardAllocation(randomNodeId(), UNAVAILABLE))
             ),
             List.of()
         );
@@ -1361,7 +1361,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     createExpectedResult(
                         RED,
                         "This cluster has 5 unavailable primary shards.",
-                        Map.of("unassigned_primaries", 5, "started_replicas", 5),
+                        Map.of("unassigned_primaries", 5),
                         List.of(
                             new HealthIndicatorImpact(
                                 NAME,

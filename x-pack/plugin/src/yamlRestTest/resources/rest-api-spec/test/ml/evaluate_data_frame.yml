@@ -192,6 +192,8 @@ setup:
 
 ---
 "Test outlier_detection auc_roc":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -705,6 +707,8 @@ setup:
           }
 ---
 "Test classification auc_roc":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -726,6 +730,8 @@ setup:
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body:  >

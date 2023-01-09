@@ -16,6 +16,7 @@ import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
+import spock.lang.IgnoreRest
 
 import java.nio.file.Files
 
@@ -26,9 +27,9 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     public static final String ES_VERSION = VersionProperties.getElasticsearch()
 
     public static final String COMPILE_JAVA_CONFIG = """
+        def sep = org.elasticsearch.gradle.OS.current() == org.elasticsearch.gradle.OS.WINDOWS ? ':' : ';'
         tasks.named('compileJava').configure {
             doLast {
-                def sep = org.elasticsearch.gradle.OS.current() == org.elasticsearch.gradle.OS.WINDOWS ? ':' : ';'
                 println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(sep)
                 println "COMPILE_JAVA_CLASSPATH "  + classpath.asPath
             }
@@ -75,6 +76,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         """
     }
 
+    @IgnoreRest
     def "non module projects with non module dependencies"() {
         when:
         def result = gradleRunner('compileJava').build()

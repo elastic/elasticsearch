@@ -62,9 +62,4 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
     protected Writeable.Reader<DataStreamMetadata> instanceReader() {
         return DataStreamMetadata::new;
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

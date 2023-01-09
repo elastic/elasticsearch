@@ -51,8 +51,9 @@ setup:
   - is_true: 'routing_table.test.0.current.0.node_is_desired'
   - is_false: 'routing_table.test.0.current.0.relocating_node'
   - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
+  - is_false: 'routing_table.test.0.current.0.forecasted_write_load'
+  - is_false: 'routing_table.test.0.current.0.forecasted_shard_size_in_bytes'
   - match: { routing_table.test.0.desired.total: 1 }
   - gte: { routing_table.test.0.desired.unassigned: 0 }
   - gte: { routing_table.test.0.desired.ignored: 0 }
   - is_true: 'routing_table.test.0.desired.node_ids'
-

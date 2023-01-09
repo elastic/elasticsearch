@@ -1,0 +1,15 @@
+import org.elasticsearch.gradle.internal.conventions.util.Util
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+dependencies {
+  shadow "junit:junit:${versions.junit}"
+  shadow "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
+  implementation "org.elasticsearch.gradle:reaper"
+}
+
+tasks.named("processResources").configure {
+  from(new File(Util.locateElasticsearchWorkspace(gradle), "build-tools-internal/version.properties"))
+}

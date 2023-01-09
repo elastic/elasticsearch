@@ -12,35 +12,61 @@ between the _client_ that is connecting to {es}, and the _user_ on whose behalf
 the request should run. The JWT authenticates the user, and a separate credential
 authenticates the client.
 
-A common scenario for JWTs is when an existing front-end application uses
-OpenID Connect (OIDC) to authenticate and identify a user, and then accesses {es}
-on behalf of the authenticated user.
+The JWT realm is designed to cater for the following two scenarios:
 
-TIP: If the front-end application does not exist, you can use the
-<<token-authentication-services>> instead.
+1. An application authenticates and identifies a user with an authentication flow, e.g.
+OpenID Connect (OIDC), and then accesses {es} on behalf of the authenticated user.
+A common scenario for JWTs is when an existing application uses
+2. An application itself goes through an authentication flow, e.g. OAuth2 Client Credentials
+Flow, and then accesses {es} for itself.
+
+In both scenarios, the application should present a JWT to {es} that represents either the user (scenario 1)
+or itself (scenario 2). {es} categorizes the JWT into two types, ID Token and Access token,
+and validates them accordingly. The ID Token type basically follows the OIDC specification.
+The access token type is similar to the ID Token type, but with more relaxed rules which makes it
+suitable for loosely-defined JWTs, including self-signed ones.
+Tokens of both types must contain the following 5 pieces of information. While ID Tokens follow
+strict rules on which claim should provide each piece of the information,
+access tokens allow certain configurable options.
+
+[cols="3",frame=all]
+|====
+h|             2+^h| Claims
+h| Information     | ID Token   | Access Token
+ | Issuer          | `iss`      | `iss`
+ | Subject         | `sub`      | Defaults to `sub`, but can fall back to another claim if `sub` does not exist
+ | Audiences       | `aud`      | Defaults to `aud`, but can fall back to another claim if `aud` does not exist
+ | Issue Time      | `iat`      | `iat`
+ | Expiration Time | `exp`      | `exp`
+|====
+
+In addition, {es} also validates `nbf` and `auth_time` claims for ID Tokens if these claims are present.
+But these claims are ignored for access tokens.
+
+A single JWT realm can only work with a single token type. The default token
+type is `id_token`. To handle both token types, you must configure at least
+two JWT realms.
 
 [[jwt-realm-oidc]]
-==== JWT uses OIDC workflows
+==== JWT from OIDC workflows
 JWT authentication in {es} is derived from OIDC user workflows, where different
-tokens can be issued by an OIDC Provider (OP). One possible token is an
-_ID token_, which uses the JWT format. If the ID token is presented to a JWT
-realm, {es} can use it as a bearer token to authenticate, identify, and authorize an individual
-user.
+tokens can be issued by an OIDC Provider (OP), including ID Tokens and access
+tokens. ID Tokens are well-defined JWT and should be always compatible with
+what JWT realm supports. Access tokens can be arbitrary in theory. For them to
+be usable with JWT realm, they must at least use the JWT format and satisfy
+relevant requirements in the above table.
 
 NOTE: Because JWTs are obtained external to {es}, you can define a custom workflow
 instead of using the OIDC workflow. However, the JWT format must still be JSON
 Web Signature (JWS). The JWS header and JWS signature are validated using OIDC
 ID token validation rules.
 
-{es} supports a separate <<oidc-realm,OpenID Connect realm>>, which provides
-stronger security guarantees than the JWT realm, and is preferred for any
+{es} supports a separate <<oidc-realm,OpenID Connect realm>>. It is preferred for any
 use case where {es} can act as an OIDC RP. The OIDC realm is the only supported
 way to enable OIDC authentication in {kib}.
 
-TIP: If JWTs are issued for the front-end application, the application is the realm client and JWT user.
-That is not supported by OIDC flows, but it may be supported by bespoke JWT issuers.
-In that case, use the client secret and JWT for the client application, and the
-`es-security-runas-user` HTTP request header for the different user. See <<jwt-realm-runas>>.
+TIP: The JWT realm is compatible with the <<run-as-privilege,`run_as`>> feature.
+See also <<jwt-realm-runas>>.
 
 [[jwt-realm-configuration]]
 ==== Configure {es} to use a JWT realm
@@ -62,6 +88,7 @@ includes the most common settings, which are not intended for every use case:
 ----
 xpack.security.authc.realms.jwt.jwt1:
   order: 3
+  token_type: id_token
   client_authentication.type: shared_secret
   allowed_issuer: "https://issuer.example.com/jwt/"
   allowed_audiences: [ "8fb85eba-979c-496c-8ae2-a57fde3f12d0" ]
@@ -74,6 +101,9 @@ xpack.security.authc.realms.jwt.jwt1:
 Specifies a realm `order` of `3`, which indicates the order in which the
 configured realm is checked when authenticating a user. Realms are consulted in
 ascending order, where the realm with the lowest order value is consulted first.
+
+`token_type`::
+Instructs the realm to treat and validate incoming JWTs as ID Tokens (`id_token`).
 
 `client_authentication.type`::
 Specifies the client authentication type as `shared_secret`, which means that
@@ -102,6 +132,53 @@ use an absolute path starting with `/app/config/`.
 
 `claims.principal`::
 The name of the JWT claim that contains the user's principal (username).
+
+The following is an example snippet for configure a JWT realm for handling
+access tokens:
+
+[source,yaml]
+----
+xpack.security.authc.realms.jwt.jwt2:
+  order: 4
+  token_type: access_token
+  client_authentication.type: shared_secret
+  allowed_issuer: "https://issuer.example.com/jwt/"
+  allowed_subjects: [ "123456-compute@developer.example.com" ]
+  allowed_audiences: [ "elasticsearch" ]
+  required_claims:
+    token_use: access
+    version: ["1.0", "2.0"]
+  allowed_signature_algorithms: [RS256,HS256]
+  pkc_jwkset_path: "https://idp-42.example.com/.well-known/configuration"
+  fallback_claims.sub: client_id
+  fallback_claims.aud: scope
+  claims.principal: sub
+----
+
+`token_type`::
+Instructs the realm to treat and validate incoming JWTs as access tokens (`access_token`).
+
+`allowed_subjects`::
+Specifies a list of JWT subjects that the realm will allow.
+These values are typically URLs, UUIDs, or other case-sensitive string values.
+
+NOTE: This setting is mandatory for when `token_type` is `access_token`.
+
+`required_claims`::
+Specifies a list of key/value pairs for additional verifications to be performed
+against a JWT. The values are either a string or an array of strings.
+
+`fallback_claims.sub`::
+The name of the JWT claim to extract the subject information if the `sub` claim does not exist.
+This setting is only available when `token_type` is `access_token`.
+The fallback is applied everywhere the `sub` claim is used.
+In the above snippet, it means the `claims.principal` will also fallback to `client_id`
+if `sub` does not exist.
+
+`fallback_claims.aud`::
+The name of the JWT claim to extract the audiences information if the `aud` claim does not exist.
+This setting is only available when `token_type` is `access_token`.
+The fallback is applied everywhere the `aud` claim is used.
 
 --
 
@@ -186,11 +263,12 @@ as `HS256`. The algorithm must be in the realm's allow list.
 
 [[jwt-validation-payload]]
 ===== Payload claims
-OIDC ID tokens contain several claims, which provide information about the user
+Tokens contain several claims, which provide information about the user
 who is issuing the token, and the token itself.
+Depending on the token type, these information can optionally be identified
+by different claims.
 
-[[jwt-validation-payload-oidc]]
-====== OIDC payload claims
+====== JWT payload claims
 The following claims are validated by a subset of OIDC ID token rules.
 
 {es} doesn't validate `nonce` claims, but a custom JWT issuer can add a
@@ -205,10 +283,21 @@ creation (`iat`), not before (`nbf`), and expiration times (`exp`).
 (Required, String) Denotes the issuer that created the ID token. The value must
 be an exact, case-sensitive match to the value in the `allowed_issuer` setting.
 
+`sub`::
+(Required, String) Indicates the subject that the ID token is created for.
+A JWT realm of the `id_token` type by defaults accepts all subjects.
+A JWT realm of the `access_token` type can specify a fallback claim that will
+be used in place where the `sub` claim does not exist. Such JWT realm
+must also specify the `allowed_subjects` setting and the subject value
+must be an exact, case-sensitive match to any of the CSV values in the
+`allowed_subjects` setting.
+
 `aud`::
 (Required, String) Indicates the audiences that the ID token is for, expressed as a
 comma-separated value (CSV). One of the values must be an exact, case-sensitive
 match to any of the CSV values in the `allowed_audiences` setting.
+A JWT realm of the `access_token` type can specify a fallback claim that will
+be used in place where the `aud` claim does not exist.
 
 `exp`::
 (Required, integer) Expiration time for the ID token, expressed in UTC
@@ -221,14 +310,19 @@ seconds since epoch.
 `nbf`::
 (Optional, integer) Indicates the time before which the JWT must not be accepted,
 expressed as UTC seconds since epoch.
+This claim is optional. If it exists, a JWT realm of `id_token` type will verify
+it, while a JWT realm of `access_token` will just ignore it.
 
 `auth_time`::
 (Optional, integer) Time when the user authenticated to the JWT issuer,
 expressed as UTC seconds since epoch.
+This claim is optional. If it exists, a JWT realm of `id_token` type will verify
+it, while a JWT realm of `access_token` will just ignore it.
+
 
 [[jwt-validation-payload-es]]
-====== {es} settings for consuming OIDC claims
-{es} uses OIDC ID token claims for the following settings.
+====== {es} settings for consuming JWT claims
+{es} uses JWT claims for the following settings.
 
 `principal`::
 (Required, String) Contains the user's principal (username). The value is
@@ -584,5 +678,4 @@ JWT realm itself.
 "metadata":{"jwt_claim_email":"user2@something.example.com","jwt_claim_aud":["es01","es02","es03"],
 "jwt_claim_sub":"user2","jwt_claim_iss":"my-issuer"},"enabled":true,"authentication_realm":
 {"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"jwt2","type":"jwt"},"authentication_type":"realm"}
-%
 ----

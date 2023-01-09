@@ -2900,11 +2900,15 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {
-        IndexShard shard = newStartedShard(true);
+        boolean isPrimary = randomBoolean();
+        IndexShard shard = newStartedShard(isPrimary);
         indexDoc(shard, "_doc", "0");
         shard = reinitShard(shard);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, null));
+        DiscoveryNode sourceNode = isPrimary
+            ? null
+            : new DiscoveryNode("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, sourceNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.prepareForIndexRecovery();
@@ -2914,6 +2918,8 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
+        // Recovery state should be propagated to the engine
+        assertEquals(isPrimary, shard.getEngine().config().isRecoveringAsPrimary());
         closeShards(shard);
     }
 
@@ -4520,7 +4526,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener()
+                config.getIndexCommitListener(),
+                config.isRecoveringAsPrimary()
             );
             return new InternalEngine(configWithWarmer);
         });

@@ -1,0 +1,5 @@
+pr: 92421
+summary: Fix timing bug with DFS profiling
+area: Search
+type: bug
+issues: []

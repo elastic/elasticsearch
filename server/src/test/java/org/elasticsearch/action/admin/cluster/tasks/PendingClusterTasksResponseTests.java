@@ -11,17 +11,13 @@ package org.elasticsearch.action.admin.cluster.tasks;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-
 public class PendingClusterTasksResponseTests extends ESTestCase {
-    public void testPendingClusterTasksResponseChunking() throws IOException {
+    public void testPendingClusterTasksResponseChunking() {
         final var tasks = new ArrayList<PendingClusterTask>();
         for (int i = between(0, 10); i > 0; i--) {
             tasks.add(
@@ -34,16 +30,9 @@ public class PendingClusterTasksResponseTests extends ESTestCase {
                 )
             );
         }
-
-        int chunkCount = 0;
-        try (XContentBuilder builder = jsonBuilder()) {
-            final var iterator = new PendingClusterTasksResponse(tasks).toXContentChunked(ToXContent.EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-        } // closing the builder verifies that the XContent is well-formed
-
-        assertEquals(tasks.size() + 2, chunkCount);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new PendingClusterTasksResponse(tasks),
+            response -> response.pendingTasks().size() + 2
+        );
     }
 }

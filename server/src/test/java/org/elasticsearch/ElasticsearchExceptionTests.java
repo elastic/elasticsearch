@@ -37,7 +37,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -63,7 +61,6 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -544,12 +541,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 }""");
         }
         {
-            ElasticsearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1, 0));
-
-            assertExceptionAsJson(e, """
-                {"type":"search_parse_exception","reason":"foo","line":1,"col":0}""");
-        }
-        {
             ElasticsearchException ex = new ElasticsearchException(
                 "foo",
                 new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
@@ -597,9 +588,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 builder.endObject();
                 actual = Strings.toString(builder);
             }
-            assertThat(actual, startsWith(formatted("""
+            Object[] args = new Object[] { Constants.WINDOWS ? "\\r\\n" : "\\n" };
+            assertThat(actual, startsWith(Strings.format("""
                 {"type":"exception","reason":"foo","caused_by":{"type":"illegal_state_exception","reason":"bar",\
-                "stack_trace":"java.lang.IllegalStateException: bar%s\\tat org.elasticsearch.""", Constants.WINDOWS ? "\\r\\n" : "\\n")));
+                "stack_trace":"java.lang.IllegalStateException: bar%s\\tat org.elasticsearch.""", args)));
         }
     }
 
@@ -1202,7 +1194,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         Throwable actual;
         ElasticsearchException expected;
 
-        int type = randomIntBetween(0, 5);
+        int type = randomIntBetween(0, 4);
         switch (type) {
             case 0 -> {
                 actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
@@ -1215,17 +1207,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
             }
             case 2 -> {
-                actual = new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98));
-                expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
-            }
-            case 3 -> {
                 actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
                 expected = new ElasticsearchException(
                     "Elasticsearch exception [type=illegal_argument_exception, reason=Closed resource]",
                     new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]")
                 );
             }
-            case 4 -> {
+            case 3 -> {
                 actual = new SearchPhaseExecutionException(
                     "search",
                     "all shards failed",
@@ -1240,7 +1228,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 );
                 expected.addMetadata("es.phase", "search");
             }
-            case 5 -> {
+            case 4 -> {
                 actual = new ElasticsearchException(
                     "Parsing failed",
                     new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))

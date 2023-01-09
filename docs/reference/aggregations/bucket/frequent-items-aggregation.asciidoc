@@ -257,7 +257,7 @@ mostly from New York. Finally, the item set with the third highest support is
 ==== Aggregation with two analyzed fields and a filter
 
 We take the first example, but want to narrow the item sets to places in Europe.
-For that we add a filter:
+For that we add a filter and this time, we don't use the `exclude` parameter:
 
 [source,console]
 -------------------------------------------------

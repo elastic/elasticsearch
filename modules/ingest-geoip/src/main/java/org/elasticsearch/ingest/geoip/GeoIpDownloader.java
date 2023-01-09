@@ -180,7 +180,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
             }
         } else {
             logger.trace(
-                "Not updating geoip databases because no geoip processors exist in the cluster and eager downloading is not " + "configured"
+                "Not updating geoip databases because no geoip processors exist in the cluster and eager downloading is not configured"
             );
         }
     }
@@ -316,10 +316,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         this.state = state;
     }
 
+    /**
+     * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
+     */
     void runDownloader() {
         runDownloader(true);
     }
 
+    /**
+     * Downloads the geoip databases now. If scheduleNext is true, this schedules them to be downloaded again after pollInterval.
+     * @param scheduleNext
+     */
     void runDownloader(boolean scheduleNext) {
         if (isCancelled() || isCompleted()) {
             return;
@@ -391,12 +398,12 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
              * doesn't exist or all its primary shards have been allocated. It is potentially not ready if (for example) we have recently
              * cancelled another GeoipDownloader task. The cluster state update with information about the .geoip index's shards being
              * allocated can come after the cluster state update with information about updated pipelines. So this method checks for both.
-             * Since we only trigger the downloader when a geoip processor has been added, we only set atLeastOneGeoipProcessor to true if
+             * Since we only trigger the downloader when a geoip processor has been added, we only set atLeastOneGeoIpProcessor to true if
              * both conditions have been met.
              */
-            var geoipIndex = event.state().getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
-            boolean geoipIndexReady = geoipIndex == null
-                || event.state().routingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive();
+            var geoIpIndex = event.state().getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+            boolean geoipIndexReady = geoIpIndex == null
+                || event.state().routingTable().index(geoIpIndex.getWriteIndex()).allPrimaryShardsActive();
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
             if (geoipIndexReady && newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                 atLeastOneGeoipProcessor = true;

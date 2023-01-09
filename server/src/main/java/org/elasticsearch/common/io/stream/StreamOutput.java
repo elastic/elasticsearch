@@ -696,6 +696,7 @@ public abstract class StreamOutput extends OutputStream {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {
+                @SuppressWarnings("unchecked")
                 final Map<String, ?> map = (Map<String, ?>) v;
                 o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
             }

@@ -722,7 +722,7 @@ setup:
               }
             }
           }
-  - close_to: { classification.auc_roc.value: { value: 0.73, error: 0.01 }
+  - close_to: { classification.auc_roc.value: { value: 0.73, error: 0.01 } }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
@@ -742,7 +742,7 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: { value: 0.73, error: 0.01 } }
+  - close_to: { classification.auc_roc.value: { value: 0.73, error: 0.01 } }
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -309,9 +309,8 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
         final List<Realm> realmList = getActiveRealms().stream().filter(r -> ReservedRealm.TYPE.equals(r.type()) == false).toList();
-        final CountDown countDown = new CountDown(realmList.size() + 1); // handle empty list with one extra countdown
-        final Runnable doCountDown = () -> {
-            if (countDown.countDown() && failed.get() == false) {
+        try (var refs = new RefCountingRunnable(() -> {
+            if (failed.get() == false) {
                 // iterate over the factories so we can add enabled & available info
                 for (String type : factories.keySet()) {
                     assert ReservedRealm.TYPE.equals(type) == false;
@@ -333,30 +332,30 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 }
                 listener.onResponse(realmMap);
             }
-        };
-
-        doCountDown.run();
-        for (Realm realm : realmList) {
-            realm.usageStats(ActionListener.wrap(stats -> {
-                if (failed.get() == false) {
-                    synchronized (realmMap) {
-                        realmMap.compute(realm.type(), (key, value) -> {
-                            if (value == null) {
-                                Object realmTypeUsage = convertToMapOfLists(stats);
-                                return realmTypeUsage;
-                            }
-                            assert value instanceof Map;
-                            combineMaps((Map<String, Object>) value, stats);
-                            return value;
-                        });
+        })) {
+            for (Realm realm : realmList) {
+                final var ref = refs.acquire();
+                realm.usageStats(ActionListener.wrap(stats -> {
+                    if (failed.get() == false) {
+                        synchronized (realmMap) {
+                            realmMap.compute(realm.type(), (key, value) -> {
+                                if (value == null) {
+                                    Object realmTypeUsage = convertToMapOfLists(stats);
+                                    return realmTypeUsage;
+                                }
+                                assert value instanceof Map;
+                                combineMaps((Map<String, Object>) value, stats);
+                                return value;
+                            });
+                        }
+                        ref.close();
                     }
-                    doCountDown.run();
-                }
-            }, e -> {
-                if (failed.compareAndSet(false, true)) {
-                    listener.onFailure(e);
-                }
-            }));
+                }, e -> {
+                    if (failed.compareAndSet(false, true)) {
+                        listener.onFailure(e);
+                    }
+                }));
+            }
         }
     }
 

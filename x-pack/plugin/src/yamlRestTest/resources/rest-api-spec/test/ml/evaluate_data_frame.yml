@@ -214,6 +214,8 @@ setup:
 
 ---
 "Test outlier_detection auc_roc given actual_field is int":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -229,7 +231,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: { value: 0.95, error: 0.01 } }
+  - close_to: { outlier_detection.auc_roc.value: { value: 0.95, error: 0.01 } }
   - is_false: outlier_detection.auc_roc.curve
 
 ---

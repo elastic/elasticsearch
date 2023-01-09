@@ -8,9 +8,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Task;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.specs.NotSpec;
 import org.gradle.api.specs.Spec;
@@ -21,15 +19,12 @@ import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
-import org.gradle.internal.resources.SharedResource;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-
-import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_SERVICE_NAME;
 
 /**
  * Customized version of Gradle {@link Test} task which tracks a collection of {@link ElasticsearchCluster} as a task input. We must do this
@@ -85,15 +80,15 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     public List<ResourceLock> getSharedResources() {
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
-
-        int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
-        if (nodeCount > 0) {
-            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
-                locks.add(resource.getResourceLock());
-            }
-        }
+        // Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
+        // SharedResource resource = serviceRegistry.forService(throttleProvider);
+        //
+        // int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
+        // if (nodeCount > 0) {
+        // for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+        // locks.add(resource.getResourceLock());
+        // }
+        // }
         return Collections.unmodifiableList(locks);
     }
 

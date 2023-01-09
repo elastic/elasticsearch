@@ -22,16 +22,19 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -43,6 +46,9 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -277,7 +283,7 @@ public class ServerCliTests extends CommandTestCase {
             }
         }
         String expectedPassword = password == null ? "" : password;
-        argsValidator = args -> assertThat(args.secrets().isLoaded(), equalTo(true));
+        argsValidator = args -> assertThat(((KeyStoreWrapper) args.secrets()).hasPassword(), equalTo(hasPassword));
         autoConfigCallback = (t, options, env, processInfo) -> {
             char[] gotPassword = t.readSecret("");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
@@ -312,6 +318,15 @@ public class ServerCliTests extends CommandTestCase {
         mockServerExitCode = 140;
         int exitCode = executeMain();
         assertThat(exitCode, equalTo(140));
+    }
+
+    public void testServerCliCanLoadDifferentSecureSettingsImplementation() throws Exception {
+        // TODO: Change this to be using the Environment when we have an actual different implementation of SecureSettings
+        Command command = spy(newCommand());
+        doAnswer(args -> new MockSecureSettingsLoader()).when((ServerCli) command).secureSettingsLoader(any());
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        assertThat(terminal.getOutput(), Matchers.containsString("Mock secure settings loader loaded"));
     }
 
     interface AutoConfigMethod {
@@ -444,5 +459,20 @@ public class ServerCliTests extends CommandTestCase {
                 return mockServer;
             }
         };
+    }
+
+    class MockSecureSettingsLoader implements SecureSettingsLoader {
+        @Override
+        public LoadedSecrets load(
+            Environment environment,
+            Terminal terminal,
+            ProcessInfo processInfo,
+            OptionSet options,
+            Command autoConfigureCommand,
+            OptionSpec<String> enrollmentTokenOption
+        ) {
+            terminal.println("Mock secure settings loader loaded");
+            return new LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
+        }
     }
 }

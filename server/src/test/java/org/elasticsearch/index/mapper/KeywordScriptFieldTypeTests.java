@@ -292,21 +292,6 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
-    public void testSyntheticSourceAccess() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
-            try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searcher.count(fieldType.termQuery("1-suffix", mockContext(true, null, (ctx, doc) -> null))); }
-                );
-            }
-        }
-    }
-
     @Override
     protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);

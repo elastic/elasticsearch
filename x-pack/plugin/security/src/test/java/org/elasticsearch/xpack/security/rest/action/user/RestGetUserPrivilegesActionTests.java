@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -186,7 +185,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                   "clusters": [ "*", "remote-2" ]
                 }
               ]""";
-        assertThat(json, equalTo(XContentHelper.stripWhitespace(String.format(Locale.ROOT, """
+        assertThat(json, equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
               "global": [

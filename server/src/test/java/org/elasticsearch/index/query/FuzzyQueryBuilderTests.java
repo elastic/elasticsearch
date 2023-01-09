@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     protected Map<String, FuzzyQueryBuilder> getAlternateVersions() {
         Map<String, FuzzyQueryBuilder> alternateVersions = new HashMap<>();
         FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-        String contentString = formatted("""
+        String contentString = Strings.format("""
             {
                 "fuzzy" : {
                     "%s" : "%s"
@@ -84,7 +85,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringField() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -107,7 +108,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedFuzziness() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -130,7 +131,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
-        String queryMissingFuzzinessUpLimit = formatted("""
+        String queryMissingFuzzinessUpLimit = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -148,7 +149,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         String msg = "failed to find low and high distance values";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryHavingNegativeFuzzinessLowLimit = formatted("""
+        String queryHavingNegativeFuzzinessLowLimit = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -166,7 +167,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         );
         assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryMissingFuzzinessUpLimit2 = formatted("""
+        String queryMissingFuzzinessUpLimit2 = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -183,7 +184,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         );
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryMissingFuzzinessLowLimit = formatted("""
+        String queryMissingFuzzinessLowLimit = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -203,7 +204,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithNumericField() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{

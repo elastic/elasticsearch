@@ -128,31 +128,31 @@ Response:
       "values": [
         {
           "key": 1.0,
-          "value": 5.0
+          "value": 10.0
         },
         {
           "key": 5.0,
-          "value": 25.0
+          "value": 30.0
         },
         {
           "key": 25.0,
-          "value": 165.0
+          "value": 160.0
         },
         {
           "key": 50.0,
-          "value": 445.0
+          "value": 450.0
         },
         {
           "key": 75.0,
-          "value": 725.0
+          "value": 730.0
         },
         {
           "key": 95.0,
-          "value": 945.0
+          "value": 950.0
         },
         {
           "key": 99.0,
-          "value": 985.0
+          "value": 990.0
         }
       ]
     }

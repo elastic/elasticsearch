@@ -67,8 +67,17 @@ public class TextFieldExactQuery extends Query {
         int count = 0;
         try {
             ts.reset();
-            while (ts.incrementToken() && count++ < 1000) { // limit the size of the approximation
+            boolean more = ts.incrementToken();
+            while (more) {
+                if (count++ >= 1000) {
+                    // limit the size of the approximation
+                    break;
+                }
                 bq.add(new TermQuery(new Term(field, termAtt.toString())), BooleanClause.Occur.FILTER);
+                more = ts.incrementToken();
+            }
+            while (more) {
+                more = ts.incrementToken(); // consume the rest of the tokenstream
             }
             ts.end();
             ts.close();

@@ -17,7 +17,10 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
@@ -809,5 +812,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         SearchExecutionContext sec = createSearchExecutionContext(mapper);
         Query q = mapper.fieldType("field").exactQuery("value", sec);
         assertThat(q, instanceOf(TextFieldExactQuery.class));
+    }
+
+    public void testExactQueryWithoutNormalizer() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(this::minimalMapping));
+        SearchExecutionContext sec = createSearchExecutionContext(mapper);
+        Query q = mapper.fieldType("field").exactQuery("value", sec);
+        assertThat(q, equalTo(new ConstantScoreQuery(new TermQuery(new Term("field", "value")))));
     }
 }

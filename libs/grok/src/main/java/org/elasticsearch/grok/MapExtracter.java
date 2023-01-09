@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -24,17 +23,27 @@ import static java.util.Collections.emptyMap;
  * is mutable and should be discarded after collecting a single result.
  */
 public class MapExtracter implements GrokCaptureExtracter {
-    private final Map<String, ValueHolder> result;
+    private final Map<String, Object> result;
     private final List<GrokCaptureExtracter> fieldExtracters;
 
+    @SuppressWarnings("unchecked")
     MapExtracter(List<GrokCaptureConfig> captureConfig) {
         result = captureConfig.isEmpty() ? emptyMap() : new HashMap<>();
         fieldExtracters = new ArrayList<>(captureConfig.size());
         for (GrokCaptureConfig config : captureConfig) {
-            var valueHolder = config.hasMultipleBackReferences() ? new MultiValueHolder() : new SingleValueHolder();
             fieldExtracters.add(config.objectExtracter(value -> {
-                valueHolder.put(value);
-                result.put(config.name(), valueHolder);
+                String key = config.name();
+                if (config.hasMultipleBackReferences()) {
+                    if (result.containsKey(key) == false) {
+                        result.put(key, new ArrayList<>());
+                    }
+
+                    if (result.get(key)instanceof List<?> list) {
+                        ((ArrayList<Object>) list).add(value);
+                    }
+                } else {
+                    result.put(key, value);
+                }
             }));
         }
     }
@@ -45,45 +54,15 @@ public class MapExtracter implements GrokCaptureExtracter {
     }
 
     Map<String, Object> result() {
-        return result.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().value()));
-    }
-
-    interface ValueHolder {
-        Object value();
-
-        void put(Object value);
-    }
-
-    private static class SingleValueHolder implements ValueHolder {
-
-        private Object value;
-
-        @Override
-        public Object value() {
-            return value;
-        }
-
-        @Override
-        public void put(Object v) {
-            value = v;
-        }
-    }
-
-    private static class MultiValueHolder implements ValueHolder {
-        private ArrayList<Object> value;
-
-        @Override
-        public Object value() {
-            // Just to be compatible with Logstash's Grok:
-            // Even though we could have a pattern with 2 or more groups with the same name (`%{NUMBER:name}%{WORD:name}%`) and only one
-            // match, logstash still flatten the result returning just 1 element.
-            return value.size() == 1 ? value.get(0) : value;
-        }
-
-        @Override
-        public void put(Object v) {
-            value = Objects.requireNonNullElseGet(value, ArrayList::new);
-            value.add(v);
-        }
+        // Maintain compatibility with Logstash's Grok:
+        // Even though we could have a pattern with 2 or more groups with the same name (`%{NUMBER:name}%{WORD:name}%`) and only one
+        // match, logstash still flatten the result returning just 1 element.
+        return result.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            if (e.getValue()instanceof List<?> list && list.size() == 1) {
+                return list.get(0);
+            } else {
+                return e.getValue();
+            }
+        }));
     }
 }

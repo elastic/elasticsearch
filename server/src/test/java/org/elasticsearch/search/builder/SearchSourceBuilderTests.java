@@ -377,7 +377,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithUnits() throws IOException {
         final String timeout = randomTimeValue();
-        final String query = formatted("""
+        final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
@@ -388,7 +388,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithoutUnits() throws IOException {
         final int timeout = randomIntBetween(1, 1024);
-        final String query = formatted("""
+        final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {

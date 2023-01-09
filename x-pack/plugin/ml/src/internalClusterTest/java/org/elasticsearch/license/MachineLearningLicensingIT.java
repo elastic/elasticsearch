@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -544,7 +545,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .execute()
             .actionGet();
 
-        String simulateSource = formatted("""
+        String simulateSource = Strings.format("""
             {
               "pipeline": %s,
               "docs": [

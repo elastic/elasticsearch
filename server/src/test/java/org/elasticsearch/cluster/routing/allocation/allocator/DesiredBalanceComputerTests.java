@@ -630,7 +630,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                     )
                 );
                 for (int replica = 0; replica < replicas; replica++) {
-                    var replicaNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
+                    var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
                     indexRoutingTableBuilder.addShard(
                         newShardRouting(
                             shardId,

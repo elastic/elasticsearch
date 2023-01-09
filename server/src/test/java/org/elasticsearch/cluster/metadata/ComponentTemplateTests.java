@@ -206,10 +206,10 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
         {
             String randomString = randomAlphaOfLength(10);
-            CompressedXContent m1 = new CompressedXContent(formatted("""
+            CompressedXContent m1 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
                 """, randomString));
-            CompressedXContent m2 = new CompressedXContent(formatted("""
+            CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
                 """, randomString));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
@@ -217,14 +217,14 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
         {
             CompressedXContent m1 = randomMappings();
-            CompressedXContent m2 = new CompressedXContent(formatted("""
+            CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
                 """, randomAlphaOfLength(10)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
         }
 
         {
-            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(formatted("""
+            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(Strings.format("""
                 {"%s":{"properties":{"%s":{"type":"keyword"}}}}
                 """, MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
             Map<String, Object> reduceMap = Template.reduceMapping(map);

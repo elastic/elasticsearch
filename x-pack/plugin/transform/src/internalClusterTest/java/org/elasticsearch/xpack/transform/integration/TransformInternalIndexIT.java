@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -65,7 +66,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         String transformIndex = "transform-index-deletes-old";
         createSourceIndex(transformIndex);
         String transformId = "transform-update-deletes-old-transform-config";
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "bar"

@@ -658,7 +658,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
         final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
-        historySearchRequest.setJsonEntity(formatted("""
+        historySearchRequest.setJsonEntity(Strings.format("""
             {
               "query": {
                 "bool": {

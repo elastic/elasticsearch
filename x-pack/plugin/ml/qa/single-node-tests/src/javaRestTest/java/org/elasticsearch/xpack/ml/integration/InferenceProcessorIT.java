@@ -12,6 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -220,7 +221,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
         createdPipelines.add("regression-model-deprecated-pipeline");
         Request putPipeline = new Request("PUT", "_ingest/pipeline/regression-model-deprecated-pipeline");
-        putPipeline.setJsonEntity(formatted("""
+        putPipeline.setJsonEntity(Strings.format("""
             {
               "processors": [
                 {
@@ -283,7 +284,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
     private void putPipeline(String modelId, String pipelineName) throws IOException {
         Request putPipeline = new Request("PUT", "_ingest/pipeline/" + pipelineName);
-        putPipeline.setJsonEntity(formatted("""
+        putPipeline.setJsonEntity(Strings.format("""
             {
               "processors": [
                 {

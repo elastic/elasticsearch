@@ -8,11 +8,16 @@
 package org.elasticsearch.test;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Releasable;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
@@ -207,5 +212,19 @@ public class MockLogAppender extends AbstractAppender {
             name = name.substring("org.elasticsearch.".length());
         }
         return COMMON_PREFIX + name;
+    }
+
+    public Releasable capturing(Class<?>... classes) {
+        start();
+        final var loggers = Arrays.stream(classes).map(LogManager::getLogger).toArray(Logger[]::new);
+        for (final var logger : loggers) {
+            Loggers.addAppender(logger, this);
+        }
+        return () -> {
+            for (final var logger : loggers) {
+                Loggers.removeAppender(logger, this);
+            }
+            stop();
+        };
     }
 }

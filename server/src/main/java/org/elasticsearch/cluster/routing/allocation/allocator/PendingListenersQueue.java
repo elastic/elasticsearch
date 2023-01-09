@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public class PendingListenersQueue {
     }
 
     public void complete(long convergedIndex) {
+        assert MasterService.assertMasterUpdateOrTestThread();
         synchronized (pendingListeners) {
             if (convergedIndex > completedIndex) {
                 completedIndex = convergedIndex;
@@ -49,6 +51,7 @@ public class PendingListenersQueue {
     }
 
     public void completeAllAsNotMaster() {
+        assert MasterService.assertMasterUpdateOrTestThread();
         completedIndex = -1;
         executeListeners(Long.MAX_VALUE, false);
     }

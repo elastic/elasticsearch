@@ -47,6 +47,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -244,7 +245,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -294,7 +295,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(context.buildFullName(name), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
+            return new KeywordFieldType(
+                context.buildFullName(name),
+                fieldType,
+                normalizer,
+                searchAnalyzer,
+                quoteAnalyzer,
+                this,
+                context.isSourceSynthetic()
+            );
         }
 
         @Override
@@ -334,6 +343,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
+        private final boolean isSyntheticSource;
 
         public KeywordFieldType(
             String name,
@@ -341,7 +351,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer normalizer,
             NamedAnalyzer searchAnalyzer,
             NamedAnalyzer quoteAnalyzer,
-            Builder builder
+            Builder builder,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
@@ -357,6 +368,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
@@ -367,6 +379,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         public KeywordFieldType(String name) {
@@ -388,6 +401,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -398,6 +412,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+            this.isSyntheticSource = false;
         }
 
         @Override
@@ -686,30 +701,51 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             if (operation == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
+                return fieldDataFromDocValues();
+            }
+            if (operation != FielddataOperation.SCRIPT) {
+                throw new IllegalStateException("unknown operation [" + operation.name() + "]");
             }
 
-            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new SortedSetOrdinalsIndexFieldData.Builder(
-                    name(),
-                    CoreValuesSourceType.KEYWORD,
-                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-                );
+            if (hasDocValues()) {
+                return fieldDataFromDocValues();
             }
-
-            if (operation == FielddataOperation.SCRIPT) {
-                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
-                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,
-                    sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
                     KeywordDocValuesField::new
-                );
+                ) {
+                    @Override
+                    protected BytesRef storedToBytesRef(Object stored) {
+                        return (BytesRef) stored;
+                    }
+                };
             }
 
-            throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
+            Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                sourceValueFetcher(sourcePaths),
+                fieldDataContext.lookupSupplier().get().source(),
+                KeywordDocValuesField::new
+            );
+        }
+
+        private SortedSetOrdinalsIndexFieldData.Builder fieldDataFromDocValues() {
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -959,12 +995,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
-        if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), value);
-        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+
+        if (fieldType().isDimension()) {
+            context.getDimensions().addString(fieldType().name(), binaryValue);
+        }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
         // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
@@ -1112,6 +1149,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName(),
             false
         ) {
+
             @Override
             protected BytesRef convert(BytesRef value) {
                 return value;

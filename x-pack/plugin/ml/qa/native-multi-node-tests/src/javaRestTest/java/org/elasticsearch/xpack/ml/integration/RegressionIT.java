@@ -555,6 +555,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90599")
     public void testAliasFields() throws Exception {
         // The goal of this test is to assert alias fields are included in the analytics job.
         // We have a simple dataset with two integer fields: field_1 and field_2.
@@ -897,7 +898,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
-        String mapping = formatted("""
+        String mapping = Strings.format("""
             {
               "properties": {
                 "@timestamp": {

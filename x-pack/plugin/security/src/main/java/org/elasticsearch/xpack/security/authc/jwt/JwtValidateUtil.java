@@ -8,34 +8,21 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
-import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
-import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
-import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jose.util.Base64URL;
-import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.SecureString;
 
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -44,174 +31,7 @@ import java.util.List;
 public class JwtValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtil.class);
 
-    private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
-        JOSEObjectType.JWT,
-        null
-    );
-
-    public static void validateType(final SignedJWT jwt) throws Exception {
-        final JOSEObjectType jwtHeaderType = jwt.getHeader().getType();
-        try {
-            JwtValidateUtil.JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
-        } catch (Exception e) {
-            throw new Exception("Invalid JWT type [" + jwtHeaderType + "].", e);
-        }
-    }
-
-    public static void validateIssuer(final SignedJWT jwt, String allowedIssuer) throws Exception {
-        final String issuer = jwt.getJWTClaimsSet().getIssuer();
-        if ((issuer == null) || (allowedIssuer.equals(issuer) == false)) {
-            throw new Exception("Rejected issuer [" + issuer + "]. Allowed [" + allowedIssuer + "]");
-        }
-    }
-
-    public static void validateAudiences(final SignedJWT jwt, List<String> allowedAudiences) throws Exception {
-        final List<String> audiences = jwt.getJWTClaimsSet().getAudience();
-        if ((audiences == null) || (allowedAudiences.stream().anyMatch(audiences::contains) == false)) {
-            final String audiencesString = (audiences == null) ? "null" : String.join(",", audiences);
-            throw new Exception("Rejected audiences [" + audiencesString + "]. Allowed [" + allowedAudiences + "]");
-        }
-    }
-
-    public static void validateSignatureAlgorithm(final SignedJWT jwt, final List<String> allowedAlgorithms) throws Exception {
-        final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
-        if ((algorithm == null) || (allowedAlgorithms.contains(algorithm.getName()) == false)) {
-            throw new Exception("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
-        }
-    }
-
-    public static void validateAuthTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateAuthTime(jwt.getJWTClaimsSet().getDateClaim("auth_time"), now, allowedClockSkewSeconds);
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateAuthTime(final Date authTime, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (authTime == null) {
-            return; // optional
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
-        }
-        // skewSec=0 auth_time=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 auth_time=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 auth_time=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from auth_time)
-        if ((authTime.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
-            throw new Exception(
-                "Invalid auth_time ["
-                    + authTime.getTime()
-                    + "ms/"
-                    + authTime
-                    + "] > now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
-    public static void validateIssuedAtTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateIssuedAtTime(jwt.getJWTClaimsSet().getIssueTime(), now, allowedClockSkewSeconds);
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateIssuedAtTime(final Date iat, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (iat == null) {
-            throw new Exception("Invalid iat [null].");
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
-        }
-        // skewSec=0 iat=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 iat=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 iat=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from iat)
-        if ((iat.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
-            throw new Exception(
-                "Invalid iat ["
-                    + iat.getTime()
-                    + "ms/"
-                    + iat
-                    + "] > now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
-    public static void validateNotBeforeTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateNotBeforeTime(jwt.getJWTClaimsSet().getNotBeforeTime(), now, allowedClockSkewSeconds);
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateNotBeforeTime(final Date nbf, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (nbf == null) {
-            return; // optional
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
-        }
-        // skewSec=0 nbf=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 nbf=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 nbf=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from nbf)
-        if ((nbf.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
-            throw new Exception(
-                "Invalid nbf ["
-                    + nbf.getTime()
-                    + "ms/"
-                    + nbf
-                    + "] > now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
-    public static void validateExpiredTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateExpiredTime(jwt.getJWTClaimsSet().getExpirationTime(), now, allowedClockSkewSeconds);
-    }
-
-    // package private, so this logic can be called from unit tests without constructing a SignedJWT
-    static void validateExpiredTime(final Date exp, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        if (exp == null) {
-            throw new Exception("Invalid exp [null].");
-        } else if (now == null) {
-            throw new Exception("Invalid now [null].");
-        } else if (allowedClockSkewSeconds < 0L) {
-            throw new Exception("Invalid allowedClockSkewSeconds [" + allowedClockSkewSeconds + "] < 0.");
-        }
-        // skewSec=0 now=2:59:59.999 exp=3:00:00.000 --> pass
-        // skewSec=0 now=3:00:00.000 exp=3:00:00.000 --> fail
-        // skewSec=1 now=3:00:00.000 exp=3:00:00.000 --> pass (subtract skew from now)
-        if (now.getTime() - (allowedClockSkewSeconds * 1000L) >= exp.getTime()) {
-            throw new Exception(
-                "Invalid exp ["
-                    + exp.getTime()
-                    + "ms/"
-                    + exp
-                    + "] < now ["
-                    + now.getTime()
-                    + "ms/"
-                    + now
-                    + "] with skew ["
-                    + (allowedClockSkewSeconds * 1000L)
-                    + "ms]."
-            );
-        }
-    }
-
+    // TODO: rationalise the exceptions, differentiate between 400 and 500
     /**
      * Look through each JWK in the JWKSet to see if they can validate the Signed JWT signature.
      * Apply JWT kid and JWT alg filters to the JWKs to skip unnecessary signature checking.
@@ -266,7 +86,7 @@ public class JwtValidateUtil {
         }
 
         for (final JWK jwk : jwksStrength) {
-            if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
+            if (jwt.verify(createJwsVerifier(jwk))) {
                 LOGGER.trace(
                     "JWT signature validation succeeded with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops=[{}]",
                     jwk.getKeyType(),
@@ -299,22 +119,7 @@ public class JwtValidateUtil {
         } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
             return new MACVerifier(octetSequenceKey);
         }
-        throw JwtValidateUtil.createExceptionInvalidJwkClass(jwk);
-    }
-
-    public static JWSSigner createJwsSigner(final JWK jwk) throws JOSEException {
-        if (jwk instanceof RSAKey rsaKey) {
-            return new RSASSASigner(rsaKey);
-        } else if (jwk instanceof ECKey ecKey) {
-            return new ECDSASigner(ecKey);
-        } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
-            return new MACSigner(octetSequenceKey);
-        }
-        throw JwtValidateUtil.createExceptionInvalidJwkClass(jwk);
-    }
-
-    private static JOSEException createExceptionInvalidJwkClass(final JWK jwk) {
-        return new JOSEException(
+        throw new JOSEException(
             "Unsupported JWK class ["
                 + (jwk == null ? "null" : jwk.getClass().getCanonicalName())
                 + "]. Supported classes are ["
@@ -325,28 +130,5 @@ public class JwtValidateUtil {
                 + OctetSequenceKey.class.getCanonicalName()
                 + "]."
         );
-    }
-
-    // Build from Base64 components. Signature may or may not be valid. Useful for negative test cases.
-    public static SecureString buildJwt(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws Exception {
-        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
-        return new SecureString(signedJwt.serialize().toCharArray());
-    }
-
-    public static SignedJWT buildUnsignedJwt(final JWSHeader jwtHeader, final JWTClaimsSet jwtClaimsSet) {
-        return new SignedJWT(jwtHeader, jwtClaimsSet);
-    }
-
-    // Convenience method to construct JWSVerifier from JWK, and verify the signed JWT
-    public static boolean verifyJwt(final JWK jwk, final SignedJWT signedJwt) throws Exception {
-        return signedJwt.verify(JwtValidateUtil.createJwsVerifier(jwk));
-    }
-
-    // Convenience method to construct JWSSigner from JWK, sign the JWT, and return serialized SecureString
-    public static SecureString signJwt(final JWK jwk, final SignedJWT unsignedJwt) throws Exception {
-        // Copy the header and claims set to a new unsigned JWT, in case JWT is being re-signing
-        final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
-        signedJwt.sign(JwtValidateUtil.createJwsSigner(jwk));
-        return new SecureString(signedJwt.serialize().toCharArray());
     }
 }

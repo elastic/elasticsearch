@@ -404,7 +404,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public boolean hasScriptFields() {
-        return scriptFields != null;
+        return scriptFields != null && scriptFields.fields().isEmpty() == false;
     }
 
     @Override

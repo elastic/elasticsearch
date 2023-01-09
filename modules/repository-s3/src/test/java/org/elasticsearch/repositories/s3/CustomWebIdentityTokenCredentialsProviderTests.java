@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -53,7 +54,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                 assertEquals(ROLE_NAME, params.get("RoleSessionName"));
 
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");
-                byte[] response = formatted(
+                byte[] response = Strings.format(
                     """
                         <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
                           <AssumeRoleWithWebIdentityResult>

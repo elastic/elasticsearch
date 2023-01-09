@@ -93,44 +93,36 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         } else {
             explanation = "the shard is in the process of initializing on node [], " + "wait until initialization has completed";
         }
-        assertEquals(
-            XContentHelper.stripWhitespace(
-                formatted(
+        Object[] args = new Object[] {
+            shardRoutingState.toString().toLowerCase(Locale.ROOT),
+            shard.unassignedInfo() != null
+                ? Strings.format(
                     """
-                        {
-                          "index": "idx",
-                          "shard": 0,
-                          "primary": true,
-                          "current_state": "%s"
-                          %s,
-                          "current_node": {
-                            "id": "%s",
-                            "name": "%s",
-                            "transport_address": "%s"
-                          },
-                          "explanation": "%s"
-                        }""",
-                    shardRoutingState.toString().toLowerCase(Locale.ROOT),
-                    shard.unassignedInfo() != null
-                        ? formatted(
-                            """
-                                ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
-                                """,
-                            shard.unassignedInfo().getReason(),
-                            UnassignedInfo.DATE_TIME_FORMATTER.format(
-                                Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())
-                            ),
-                            AllocationDecision.fromAllocationStatus(shard.unassignedInfo().getLastAllocationStatus())
-                        )
-                        : "",
-                    cae.getCurrentNode().getId(),
-                    cae.getCurrentNode().getName(),
-                    cae.getCurrentNode().getAddress(),
-                    explanation
+                        ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
+                        """,
+                    shard.unassignedInfo().getReason(),
+                    UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())),
+                    AllocationDecision.fromAllocationStatus(shard.unassignedInfo().getLastAllocationStatus())
                 )
-            ),
-            Strings.toString(builder)
-        );
+                : "",
+            cae.getCurrentNode().getId(),
+            cae.getCurrentNode().getName(),
+            cae.getCurrentNode().getAddress(),
+            explanation };
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "index": "idx",
+              "shard": 0,
+              "primary": true,
+              "current_state": "%s"
+              %s,
+              "current_node": {
+                "id": "%s",
+                "name": "%s",
+                "transport_address": "%s"
+              },
+              "explanation": "%s"
+            }""", args)), Strings.toString(builder));
     }
 
     public void testFindAnyUnassignedShardToExplain() {

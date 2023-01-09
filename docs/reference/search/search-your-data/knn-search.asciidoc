@@ -415,7 +415,7 @@ segment as an https://arxiv.org/abs/1603.09320[HNSW graph]. Indexing vectors for
 approximate kNN search can take substantial time because of how expensive it is
 to build these graphs. You may need to increase the client request timeout for
 index and bulk requests. The <<tune-knn-search, approximate kNN tuning guide>>
-contains important guidance around indexing performance, and how the the index
+contains important guidance around indexing performance, and how the index
 configuration can affect search performance.
 
 In addition to its search-time tuning parameters, the HNSW algorithm has

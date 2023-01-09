@@ -2573,6 +2573,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 return CONTENT_TYPE;
             }
 
+            @Override
+            public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+                throw new UnsupportedOperationException();
+            }
+
             private static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());
         }
 
@@ -2599,7 +2604,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 protected RuntimeField createChildRuntimeField(
                     MappingParserContext parserContext,
                     String parentName,
-                    Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+                    Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+                    OnScriptError onScriptError
                 ) {
                     throw new UnsupportedOperationException();
                 }

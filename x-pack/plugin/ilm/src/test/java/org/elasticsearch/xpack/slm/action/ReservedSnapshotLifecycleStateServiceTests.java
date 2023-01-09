@@ -81,21 +81,21 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String badPolicyJSON = """
             {
-                "daily-snapshots": {
-                    "no_schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots": {
+                "no_schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              }
             }""";
 
         assertEquals(
@@ -127,36 +127,36 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String twoPoliciesJSON = """
             {
-                "daily-snapshots": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
                 },
-                "daily-snapshots1": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["bar-*", "not-important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              },
+              "daily-snapshots1": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["bar-*", "not-important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
+                }
+              }
             }""";
 
         prevState = updatedState;
@@ -167,21 +167,21 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String onePolicyRemovedJSON = """
             {
-                "daily-snapshots": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              }
             }""";
 
         prevState = updatedState;
@@ -192,21 +192,21 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String onePolicyRenamedJSON = """
             {
-                "daily-snapshots-2": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots-2": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              }
             }""";
 
         prevState = updatedState;
@@ -278,55 +278,55 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String testJSON = """
             {
-                 "metadata": {
-                     "version": "1234",
-                     "compatibility": "8.4.0"
-                 },
-                 "state": {
-                     "cluster_settings": {
-                         "indices.recovery.max_bytes_per_sec": "50mb"
-                     },
-                     "snapshot_repositories": {
-                        "repo": {
-                           "type": "fs",
-                           "settings": {
-                              "location": "my_backup_location"
-                           }
-                        }
-                     },
-                     "slm": {
-                        "daily-snapshots": {
-                            "schedule": "0 1 2 3 4 ?",
-                            "name": "<production-snap-{now/d}>",
-                            "repository": "repo",
-                            "config": {
-                                "indices": ["foo-*", "important"],
-                                "ignore_unavailable": true,
-                                "include_global_state": false
-                            },
-                            "retention": {
-                                "expire_after": "30d",
-                                "min_count": 1,
-                                "max_count": 50
-                            }
-                        },
-                        "daily-snapshots1": {
-                            "schedule": "0 1 2 3 4 ?",
-                            "name": "<production-snap-{now/d}>",
-                            "repository": "repo",
-                            "config": {
-                                "indices": ["bar-*", "not-important"],
-                                "ignore_unavailable": true,
-                                "include_global_state": false
-                            },
-                            "retention": {
-                                "expire_after": "30d",
-                                "min_count": 1,
-                                "max_count": 50
-                            }
-                        }
+              "metadata": {
+                "version": "1234",
+                "compatibility": "8.4.0"
+              },
+              "state": {
+                "cluster_settings": {
+                  "indices.recovery.max_bytes_per_sec": "50mb"
+                },
+                "snapshot_repositories": {
+                  "repo": {
+                    "type": "fs",
+                    "settings": {
+                      "location": "my_backup_location"
                     }
-                 }
+                  }
+                },
+                "slm": {
+                  "daily-snapshots": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                      "indices": ["foo-*", "important"],
+                      "ignore_unavailable": true,
+                      "include_global_state": false
+                    },
+                    "retention": {
+                      "expire_after": "30d",
+                      "min_count": 1,
+                      "max_count": 50
+                    }
+                  },
+                  "daily-snapshots1": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                      "indices": ["bar-*", "not-important"],
+                      "ignore_unavailable": true,
+                      "include_global_state": false
+                    },
+                    "retention": {
+                      "expire_after": "30d",
+                      "min_count": 1,
+                      "max_count": 50
+                    }
+                  }
+                }
+              }
             }""";
 
         AtomicReference<Exception> x = new AtomicReference<>();
@@ -387,19 +387,19 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String json = """
             {
-                "schedule": "0 1 2 3 4 ?",
-                "name": "<production-snap-{now/d}>",
-                "repository": "repo",
-                "config": {
-                    "indices": ["foo-*", "important"],
-                    "ignore_unavailable": true,
-                    "include_global_state": false
-                },
-                "retention": {
-                    "expire_after": "30d",
-                    "min_count": 1,
-                    "max_count": 50
-                }
+              "schedule": "0 1 2 3 4 ?",
+              "name": "<production-snap-{now/d}>",
+              "repository": "repo",
+              "config": {
+                "indices": ["foo-*", "important"],
+                "ignore_unavailable": true,
+                "include_global_state": false
+              },
+              "retention": {
+                "expire_after": "30d",
+                "min_count": 1,
+                "max_count": 50
+              }
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {

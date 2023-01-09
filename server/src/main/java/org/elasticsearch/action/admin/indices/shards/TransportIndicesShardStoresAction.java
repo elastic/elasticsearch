@@ -160,7 +160,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             try {
                 for (Tuple<ShardId, String> shard : shards) {
                     new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2()).fetchData(nodes, Collections.emptySet());
-                 }
+                }
             } finally {
                 refs.close();
             }

@@ -87,7 +87,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -169,7 +169,15 @@ public class NumberFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-
+            this.indexMode = mode;
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    var metricType = getMetric().getValue();
+                    return metricType != MetricType.counter && metricType != MetricType.gauge;
+                } else {
+                    return true;
+                }
+            });
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
                 if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
                     throw new IllegalArgumentException(
@@ -199,7 +207,6 @@ public class NumberFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
-            this.indexMode = mode;
         }
 
         Builder nullValue(Number number) {
@@ -227,6 +234,10 @@ public class NumberFieldMapper extends FieldMapper {
         public Builder metric(MetricType metric) {
             this.metric.setValue(metric);
             return this;
+        }
+
+        private Parameter<MetricType> getMetric() {
+            return metric;
         }
 
         public Builder allowMultipleValues(boolean allowMultipleValues) {
@@ -1658,7 +1669,6 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private final NumberType type;
-
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
@@ -1688,12 +1698,7 @@ public class NumberFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
-        if (builder.indexMode == IndexMode.TIME_SERIES
-            && (builder.metric.getValue() == MetricType.counter || builder.metric.getValue() == MetricType.gauge)) {
-            this.indexed = builder.indexed.isConfigured() ? builder.indexed.getValue() : false;
-        } else {
-            this.indexed = builder.indexed.getValue();
-        }
+        this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();

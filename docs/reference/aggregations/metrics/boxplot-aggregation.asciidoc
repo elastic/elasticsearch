@@ -114,9 +114,9 @@ GET latency/_search
     "load_time_boxplot": {
       "min": 0.0,
       "max": 99.0,
-      "q1": 16.5,
-      "q2": 44.5,
-      "q3": 72.5,
+      "q1": 17.0,
+      "q2": 45.0,
+      "q3": 73.0,
       "lower": 0.0,
       "upper": 99.0
     }

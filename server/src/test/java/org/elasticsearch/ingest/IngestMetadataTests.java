@@ -12,9 +12,9 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -49,7 +48,7 @@ public class IngestMetadataTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {
@@ -125,7 +124,7 @@ public class IngestMetadataTests extends ESTestCase {
         );
     }
 
-    public void testChunkedToXContent() throws IOException {
+    public void testChunkedToXContent() {
         final BytesReference pipelineConfig = new BytesArray("{}");
         final int pipelines = randomInt(10);
         final Map<String, PipelineConfiguration> pipelineConfigurations = new HashMap<>();
@@ -133,16 +132,9 @@ public class IngestMetadataTests extends ESTestCase {
             final String id = Integer.toString(i);
             pipelineConfigurations.put(id, new PipelineConfiguration(id, pipelineConfig, XContentType.JSON));
         }
-        int chunksSeen = 0;
-        try (XContentBuilder builder = new XContentBuilder(randomFrom(XContentType.values()), Streams.NULL_OUTPUT_STREAM, Set.of())) {
-            final var iterator = new IngestMetadata(pipelineConfigurations).toXContentChunked(ToXContent.EMPTY_PARAMS);
-            builder.startObject();
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunksSeen++;
-            }
-            builder.endObject();
-        }
-        assertEquals(2 + pipelines, chunksSeen);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new IngestMetadata(pipelineConfigurations),
+            response -> 2 + response.getPipelines().size()
+        );
     }
 }

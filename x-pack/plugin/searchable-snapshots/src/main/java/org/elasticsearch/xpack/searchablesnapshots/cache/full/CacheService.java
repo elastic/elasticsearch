@@ -351,12 +351,12 @@ public class CacheService extends AbstractLifecycleComponent {
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {
-                            processShardEviction(shardEviction);
+                            processShardEviction(shard);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(() -> format("failed to evict cache files associated with shard %s", shardEviction), e);
+                            logger.warn(() -> format("failed to evict cache files associated with shard %s", shard), e);
                             assert false : e;
                         }
                     });
@@ -734,9 +734,9 @@ public class CacheService extends AbstractLifecycleComponent {
         }
 
         boolean matches(CacheKey cacheKey) {
-            return Objects.equals(snapshotUUID, cacheKey.getSnapshotUUID())
-                && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
-                && Objects.equals(shardId, cacheKey.getShardId());
+            return Objects.equals(snapshotUUID, cacheKey.snapshotUUID())
+                && Objects.equals(snapshotIndexName, cacheKey.snapshotIndexName())
+                && Objects.equals(shardId, cacheKey.shardId());
         }
     }
 

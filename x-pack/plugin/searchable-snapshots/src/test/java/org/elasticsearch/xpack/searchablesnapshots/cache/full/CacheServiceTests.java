@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -117,7 +118,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 logger.trace("--> creating new cache files and randomly read/write them");
                 for (int i = 0; i < between(1, 25); i++) {
                     final ShardId shardId = new ShardId(index, randomIntBetween(0, numShards - 1));
-                    final String fileName = String.format(Locale.ROOT, "file_%d_%d", iteration, i);
+                    final String fileName = Strings.format("file_%d_%d", iteration, i);
                     final CacheKey cacheKey = new CacheKey(snapshotUUID, snapshotIndexName, shardId, fileName);
                     final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(0, 10_000), shardsCacheDirs[shardId.id()]);
 
@@ -154,7 +155,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                         .stream()
                         .filter(update -> update.getValue().v2() != null)
                         .filter(update -> update.getValue().v2() > 0)
-                        .anyMatch(update -> update.getKey().getShardId().equals(shardId))) {
+                        .anyMatch(update -> update.getKey().shardId().equals(shardId))) {
                         cacheDirFSyncs.put(shardCacheDir, numberOfFSyncs == null ? 1 : numberOfFSyncs + 1);
                     } else {
                         cacheDirFSyncs.put(shardCacheDir, numberOfFSyncs);
@@ -196,7 +197,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
             );
 
             final Path cacheDir = Files.createDirectories(
-                resolveSnapshotCache(randomShardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotUUID())
+                resolveSnapshotCache(randomShardPath(cacheKey.shardId())).resolve(cacheKey.snapshotUUID())
             );
             final String cacheFileUuid = UUIDs.randomBase64UUID(random());
             final SortedSet<ByteRange> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
@@ -378,7 +379,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     private static Set<ShardEviction> listOfShardEvictions(List<CacheFile> cacheFiles) {
         return cacheFiles.stream()
             .map(CacheFile::getCacheKey)
-            .map(cacheKey -> new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId()))
+            .map(cacheKey -> new ShardEviction(cacheKey.snapshotUUID(), cacheKey.snapshotIndexName(), cacheKey.shardId()))
             .collect(Collectors.toSet());
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -633,7 +634,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public void trigger(String watchId, int times, TimeValue timeValue) throws Exception {
             assertBusy(() -> {
                 long triggeredCount = schedulers.stream().filter(scheduler -> scheduler.trigger(watchId, times, timeValue)).count();
-                String msg = formatted("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+                String msg = Strings.format("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
                 if (triggeredCount > 1) {
                     logger.warn(msg);
                 }

@@ -35,7 +35,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -281,7 +280,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "token1", "file")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -328,7 +327,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity(formatted("""
+        refreshTokenRequest.setJsonEntity(Strings.format("""
             {"grant_type":"refresh_token","refresh_token":"%s"}
             """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
@@ -373,7 +372,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -520,7 +519,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity(formatted("""
+        invalidateApiKeysRequest.setJsonEntity(Strings.format("""
             {"ids":["%s"],"owner":true}""", apiKeyId1));
         invalidateApiKeysRequest.setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);

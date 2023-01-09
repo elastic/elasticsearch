@@ -44,7 +44,9 @@ The API returns the following result:
             "relocating_node": null,
             "relocating_node_is_desired": false,
             "shard_id": 0,
-            "index": "test"
+            "index": "test",
+            "forecasted_write_load": 8.0,
+            "forecasted_shard_size_in_bytes": 1024
           }
         ],
         "desired": {
@@ -66,7 +68,9 @@ The API returns the following result:
             "relocating_node": null,
             "relocating_node_is_desired": false,
             "shard_id": 1,
-            "index": "test"
+            "index": "test",
+            "forecasted_write_load": null,
+            "forecasted_shard_size_in_bytes": null
           }
         ],
         "desired": {

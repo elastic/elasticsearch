@@ -136,11 +136,21 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     }
                 }
                 onTaskSuccess.add(() -> {
-                    logger.info(
-                        "node-join: [{}] with reason [{}]",
-                        nodeJoinTask.node().descriptionWithoutAttributes(),
-                        nodeJoinTask.reason().message()
-                    );
+                    final var reason = nodeJoinTask.reason();
+                    if (reason.guidanceDocs() == null) {
+                        logger.info(
+                            "node-join: [{}] with reason [{}]",
+                            nodeJoinTask.node().descriptionWithoutAttributes(),
+                            reason.message()
+                        );
+                    } else {
+                        logger.warn(
+                            "node-join: [{}] with reason [{}]; for troubleshooting guidance, see {}",
+                            nodeJoinTask.node().descriptionWithoutAttributes(),
+                            reason.message(),
+                            reason.guidanceDocs()
+                        );
+                    }
                     nodeJoinTask.listener().onResponse(null);
                 });
             }

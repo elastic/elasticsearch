@@ -139,7 +139,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.info(
                         "node-join: [{}] with reason [{}]",
                         nodeJoinTask.node().descriptionWithoutAttributes(),
-                        nodeJoinTask.reason()
+                        nodeJoinTask.reason().message()
                     );
                     nodeJoinTask.listener().onResponse(null);
                 });

@@ -174,7 +174,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         return VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
     }
 
-    private static final String TEST_REASON = "test";
+    private static final JoinReason TEST_REASON = new JoinReason("test");
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
         // Node roles vary by version, and new roles are suppressed for BWC. This means we can receive a join from a node that's already
@@ -607,7 +607,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
-                    "node-join: [" + node1.descriptionWithoutAttributes() + "] with reason [" + TEST_REASON + "]"
+                    "node-join: [" + node1.descriptionWithoutAttributes() + "] with reason [" + TEST_REASON.message() + "]"
                 )
             );
             assertNull(
@@ -618,7 +618,9 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             JoinTask.singleNode(node1, TEST_REASON, future, 0L),
                             ClusterStateTaskConfig.build(Priority.NORMAL),
                             executor
-                        )
+                        ),
+                    10,
+                    TimeUnit.SECONDS
                 )
             );
             appender.assertAllExpectationsMatched();

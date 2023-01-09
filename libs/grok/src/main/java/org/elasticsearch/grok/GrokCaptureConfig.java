@@ -24,7 +24,6 @@ public final class GrokCaptureConfig {
     private final String name;
     private final GrokCaptureType type;
     private final int[] backRefs;
-    private final boolean hasMultipleBackReferences;
 
     GrokCaptureConfig(NameEntry nameEntry) {
         String groupName = new String(nameEntry.name, nameEntry.nameP, nameEntry.nameEnd - nameEntry.nameP, StandardCharsets.UTF_8);
@@ -32,7 +31,6 @@ public final class GrokCaptureConfig {
         name = parts.length >= 2 ? parts[1] : parts[0];
         type = parts.length == 3 ? GrokCaptureType.fromString(parts[2]) : GrokCaptureType.STRING;
         this.backRefs = nameEntry.getBackRefs();
-        this.hasMultipleBackReferences = backRefs.length > 1;
     }
 
     /**
@@ -47,10 +45,6 @@ public final class GrokCaptureConfig {
      */
     GrokCaptureType type() {
         return type;
-    }
-
-    public boolean hasMultipleBackReferences() {
-        return hasMultipleBackReferences;
     }
 
     /**

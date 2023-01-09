@@ -281,7 +281,7 @@ public final class Grok {
      */
     public Map<String, Object> captures(String text) {
         byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
-        var extracter = new MapExtracter(captureConfig);
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(captureConfig);
         if (match(utf8Bytes, 0, utf8Bytes.length, extracter)) {
             return extracter.result();
         }

@@ -137,7 +137,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
                 onTaskSuccess.add(() -> {
                     logger.info(
-                        "node-join: added [{}] with reason [{}]",
+                        "node-join: [{}] with reason [{}]",
                         nodeJoinTask.node().descriptionWithoutAttributes(),
                         nodeJoinTask.reason()
                     );

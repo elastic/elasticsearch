@@ -607,7 +607,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
-                    "node-join: added [" + node1.descriptionWithoutAttributes() + "] with reason [" + TEST_REASON + "]"
+                    "node-join: [" + node1.descriptionWithoutAttributes() + "] with reason [" + TEST_REASON + "]"
                 )
             );
             assertNull(

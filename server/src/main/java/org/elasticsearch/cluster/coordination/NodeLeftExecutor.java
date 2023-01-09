@@ -63,7 +63,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
             }
             taskContext.success(() -> {
                 if (reason != null) {
-                    logger.info("node-left: removed [{}] with reason [{}]", task.node().descriptionWithoutAttributes(), reason);
+                    logger.info("node-left: [{}] with reason [{}]", task.node().descriptionWithoutAttributes(), reason);
                 }
                 task.onClusterStateProcessed.run();
             });

@@ -128,7 +128,7 @@ public class NodeLeftExecutorTests extends ESTestCase {
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
-                    "node-left: removed [" + nodeToRemove.descriptionWithoutAttributes() + "] with reason [test reason]"
+                    "node-left: [" + nodeToRemove.descriptionWithoutAttributes() + "] with reason [test reason]"
                 )
             );
             assertNull(

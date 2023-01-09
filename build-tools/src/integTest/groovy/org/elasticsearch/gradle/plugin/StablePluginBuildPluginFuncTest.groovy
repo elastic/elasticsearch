@@ -19,15 +19,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.stream.Collectors
 
+import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupNamedComponentScanner
+
 class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
-        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
-        configurationCacheCompatible = false
-    }
-
-    def "can build stable plugin properties"() {
-        given:
         buildFile << """plugins {
                 id 'elasticsearch.stable-esplugin'
             }
@@ -38,8 +34,27 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
                 name = 'myplugin'
                 description = 'test plugin'
             }
+            repositories {
+              maven {
+                name = "local-test"
+                url = file("local-repo")
+                metadataSources {
+                  artifact()
+                }
+              }
+            }
             """
 
+        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
+        configurationCacheCompatible = false
+
+        def version = VersionProperties.elasticsearch
+        setupNamedComponentScanner(dir("local-repo/org/elasticsearch/elasticsearch-plugin-scanner/${version}/"), version)
+
+    }
+
+    def "can build stable plugin properties"() {
+        given:
         when:
         def result = gradleRunner(":pluginProperties").build()
         def props = getPluginProperties()
@@ -62,26 +77,16 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     def "can scan and create named components file"() {
+        //THIS IS RUNNING A MOCK CONFIGURED IN setup()
         given:
         File jarFolder = new File(testProjectDir.root, "jars")
         jarFolder.mkdirs()
 
-        buildFile << """plugins {
-                id 'elasticsearch.stable-esplugin'
-            }
-
-            version = '1.2.3'
-
-            esplugin {
-                name = 'myplugin'
-                description = 'test plugin'
-            }
-
+        buildFile << """
             dependencies {
                 implementation files('${normalized(StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
                 implementation files('${normalized(StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
             }
-
             """
 
         file("src/main/java/org/acme/A.java") << """
@@ -95,17 +100,15 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             }
         """
 
-
         when:
-        def result = gradleRunner(":assemble").build()
-        Path namedComponents = file("build/generated-named-components/named_components.json").toPath();
-        def map = new JsonSlurper().parse(namedComponents.toFile())
+        def result = gradleRunner(":assemble", "-i").build()
+
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
-
-        map  == ["org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass" : (["componentA" : "org.acme.A"]) ]
+        //we expect that a Fake namedcomponent scanner used in this test will be passed a filename to be created
+        File namedComponents = file("build/generated-named-components/named_components.json")
+        namedComponents.exists() == true
     }
-
 
     Map<String, String> getPluginProperties() {
         Path propsFile = file("build/generated-descriptor/stable-plugin-descriptor.properties").toPath();

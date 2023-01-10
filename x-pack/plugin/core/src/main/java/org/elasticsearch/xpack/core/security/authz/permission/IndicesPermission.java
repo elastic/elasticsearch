@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -391,7 +390,7 @@ public final class IndicesPermission {
             fieldPermissionsCache
         );
 
-        return new IndicesAccessControl(overallGranted, new CachedSupplier<>(indexPermissions));
+        return new IndicesAccessControl(overallGranted, indexPermissions);
     }
 
     private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(

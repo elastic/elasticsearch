@@ -38,7 +38,7 @@ public class IndicesAccessControl {
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
 
     private final boolean granted;
-    private final Supplier<Map<String, IndexAccessControl>> indexPermissions;
+    private final CachedSupplier<Map<String, IndexAccessControl>> indexPermissionsSupplier;
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
         this(granted, () -> Objects.requireNonNull(indexPermissions));
@@ -46,11 +46,11 @@ public class IndicesAccessControl {
 
     public IndicesAccessControl(boolean granted, Supplier<Map<String, IndexAccessControl>> indexPermissionsSupplier) {
         this.granted = granted;
-        this.indexPermissions = Objects.requireNonNull(indexPermissionsSupplier);
+        this.indexPermissionsSupplier = new CachedSupplier<>(Objects.requireNonNull(indexPermissionsSupplier));
     }
 
     protected IndicesAccessControl(IndicesAccessControl copy) {
-        this(copy.granted, copy.indexPermissions);
+        this(copy.granted, copy.indexPermissionsSupplier);
     }
 
     /**
@@ -118,7 +118,7 @@ public class IndicesAccessControl {
     }
 
     private Map<String, IndexAccessControl> getAllIndexPermissions() {
-        return this.indexPermissions.get();
+        return this.indexPermissionsSupplier.get();
     }
 
     public enum DlsFlsUsage {
@@ -279,12 +279,12 @@ public class IndicesAccessControl {
             }
             return indexPermissionsMap;
         };
-        return new IndicesAccessControl(isGranted, new CachedSupplier<>(limitedIndexPermissions));
+        return new IndicesAccessControl(isGranted, limitedIndexPermissions);
     }
 
     @Override
     public String toString() {
-        return "IndicesAccessControl{" + "granted=" + granted + ", indexPermissions=" + indexPermissions + '}';
+        return "IndicesAccessControl{" + "granted=" + granted + ", indexPermissions=" + indexPermissionsSupplier.get() + '}';
     }
 
     public static IndicesAccessControl allowAll() {

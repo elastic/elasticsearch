@@ -237,11 +237,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'main' branch", task -> {
-                String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi()
-                    && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
-            });
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> BuildParams.isCi() == false);
             c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");

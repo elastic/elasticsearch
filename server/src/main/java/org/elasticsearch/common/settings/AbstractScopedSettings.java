@@ -441,6 +441,9 @@ public abstract class AbstractScopedSettings {
      * </p>
      */
     public synchronized <T> void initializeAndWatch(Setting<T> setting, Consumer<T> consumer) {
+        assert setting.getProperties().contains(Setting.Property.Dynamic)
+            || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
+        assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
         consumer.accept(setting.get(settings));
         addSettingsUpdateConsumer(setting, consumer);
     }

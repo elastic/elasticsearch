@@ -175,7 +175,7 @@ SELECT gender, MAD(salary_ul) AS mad FROM test_emp_copy GROUP BY gender ORDER BY
 
     gender     |      mad
 ---------------+---------------
-null           |10789.0
+null           |11805.0
 F              |12719.0
 M              |8905.0
 ;

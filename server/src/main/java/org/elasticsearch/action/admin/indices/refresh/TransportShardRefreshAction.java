@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,11 +67,6 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     @Override
     protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
         return new ReplicationResponse(in);
-    }
-
-    @Override
-    protected ClusterBlockLevel globalBlockLevel() {
-        return ClusterBlockLevel.METADATA_READ;
     }
 
     @Override

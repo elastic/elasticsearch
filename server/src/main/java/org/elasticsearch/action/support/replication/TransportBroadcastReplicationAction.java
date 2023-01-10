@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -85,6 +87,7 @@ public abstract class TransportBroadcastReplicationAction<
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, l -> {
             final var clusterState = clusterService.state();
+            ExceptionsHelper.reThrowIfNotNull(clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ));
             final var context = new Context(task, request, clusterState.metadata().indices(), listener);
             ThrottledIterator.run(
                 shardIds(request, clusterState),

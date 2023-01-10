@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,11 +66,6 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
             PreShardSyncedFlushRequest::new,
             new PreSyncedFlushTransportHandler(indicesService)
         );
-    }
-
-    @Override
-    protected ClusterBlockLevel globalBlockLevel() {
-        return ClusterBlockLevel.METADATA_READ;
     }
 
     @Override

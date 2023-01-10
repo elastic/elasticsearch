@@ -15,10 +15,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -39,7 +36,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * A parser for documents
@@ -47,20 +43,11 @@ import java.util.function.Function;
 public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
-    private final Function<DateFormatter, MappingParserContext> dateParserContext;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
+    private final MappingParserContext mappingParserContext;
 
-    DocumentParser(
-        XContentParserConfiguration parserConfiguration,
-        Function<DateFormatter, MappingParserContext> dateParserContext,
-        IndexSettings indexSettings,
-        IndexAnalyzers indexAnalyzers
-    ) {
-        this.dateParserContext = dateParserContext;
+    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
+        this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
     }
 
     /**
@@ -75,7 +62,7 @@ public final class DocumentParser {
         final InternalDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
-            context = new InternalDocumentParserContext(mappingLookup, indexSettings, indexAnalyzers, dateParserContext, source, parser);
+            context = new InternalDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context);
@@ -857,13 +844,11 @@ public final class DocumentParser {
 
         InternalDocumentParserContext(
             MappingLookup mappingLookup,
-            IndexSettings indexSettings,
-            IndexAnalyzers indexAnalyzers,
-            Function<DateFormatter, MappingParserContext> parserContext,
+            MappingParserContext mappingParserContext,
             SourceToParse source,
             XContentParser parser
         ) throws IOException {
-            super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
+            super(mappingLookup, mappingParserContext, source);
             if (mappingLookup.getMapping().getRoot().subobjects()) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinLeafObject);
             } else {

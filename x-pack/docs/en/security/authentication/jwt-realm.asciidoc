@@ -17,7 +17,7 @@ They are designed to work for the following two scenarios, respectively:
 
 1. `id_token` - An application authenticates and identifies a user with an authentication flow,
 e.g. OpenID Connect (OIDC), and then accesses {es} on behalf of the authenticated user using
-a JWT conforming to OIDC ID Token specification.
+a JSON Web Token (JWT) conforming to OIDC ID Token specification.
 2. `access_token` - An application accesses {es} using its own identity, encoded as a JWT,
 e.g. The application authenticates itself to a central identity platform using an
 OAuth2 Client Credentials Flow and then uses the resulting JWT-based access token to connect to {es}.
@@ -27,7 +27,7 @@ you must configure at least two JWT realms. You should choose the token type car
 on the use case because it impacts on how validations are performed.
 
 The JWT realm validates the incoming JWT based on its configured token type.
-JWT tokens of both types must contain the following 5 pieces of information.
+JSON Web Tokens (JWT) of both types must contain the following 5 pieces of information.
 While ID Tokens, based on the OIDC specification, have strict rules for what claims should provide these information,
 access tokens allow some claims to be configurable.
 
@@ -52,9 +52,9 @@ including self-signed ones.
 ==== ID Tokens from OIDC workflows
 JWT authentication in {es} is derived from OIDC user workflows, where different
 tokens can be issued by an OIDC Provider (OP), including ID Tokens.
-ID Tokens are well-defined JWT and should be always compatible with
+ID Tokens from an OIDC provider are well-defined JSON Web Tokens (JWT) and should be always compatible with
 a JWT realm of the `id_token` token type. ID Tokens usually represent end-users
-which can be of a large number. Therefore, a JWT realm of `id_token` token type
+and the subject claim represents the end-user. This means that ID tokens will generally have many allowed subjects. Therefore, a JWT realm of `id_token` token type
 does _not_ enforce the `allowed_subjects` validation.
 
 NOTE: Because JWTs are obtained external to {es}, you can define a custom workflow
@@ -73,13 +73,13 @@ with the <<run-as-privilege,`run_as`>> feature. See also <<jwt-realm-runas>>.
 ==== Access Tokens
 A common method to obtain access tokens is with the OAuth2 Client Credentials Flow.
 A typical usage of this flow is for an application to get a credential for itself.
-this is the use case that the `access_token` token type is designed for.
+This is the use case that the `access_token` token type is designed for.
 It is likely that this application also obtains ID Tokens for its end-users.
 To prevent end-user ID Tokens being used to authenticate with the JWT realm configured
 for the application, we mandate `allowed_subjects` validation when a JWT realm
 has token type `access_token`.
 
-NOTE: Not every access token is a JWT. It can in fact be arbitrary in theory.
+NOTE: Not every access token is formatted as a JSON Web Token (JWT).
 For it to be compatible with the JWT realm, it must at least use the JWT format and satisfies
 relevant requirements in the above table.
 

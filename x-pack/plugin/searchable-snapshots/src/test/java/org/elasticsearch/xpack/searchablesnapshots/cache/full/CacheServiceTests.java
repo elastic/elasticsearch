@@ -253,7 +253,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         for (int i = 0; i < between(1, 3); i++) {
-            cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
         }
 
         blockingListener.waitForBlock();
@@ -277,7 +277,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
         if (randomBoolean()) {
             // mark shard as evicted after cache service is stopped should have no effect
-            cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
             assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
         }
     }
@@ -298,11 +298,11 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(Files.exists(randomCacheFile.getFile()));
         randomCacheFile.acquire(blockingListener);
 
-        cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+        cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
 
         final Map<CacheFile, Boolean> afterShardRecoveryCacheFiles = ConcurrentCollections.newConcurrentMap();
         final Future<?> waitForShardEvictionFuture = threadPool.generic().submit(() -> {
-            cacheService.waitForCacheFilesEvictionIfNeeded(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.waitForCacheFilesEvictionIfNeeded(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
             for (CacheFile cacheFile : cacheFilesAssociatedWithShard) {
                 afterShardRecoveryCacheFiles.put(cacheFile, Files.exists(cacheFile.getFile()));
             }

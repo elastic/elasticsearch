@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
@@ -149,18 +152,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
             // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
             // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
-            final ByteRange rangeToWrite = blobCacheByteRange;
-            final ByteRange rangeToRead = ByteRange.of(position, position + length);
-            assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
-            assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
-
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
-                rangeToWrite,
-                rangeToRead,
-                channel -> readCacheFile(channel, position, b),
-                this::writeCacheFile,
-                directory.cacheFetchAsyncExecutor()
-            );
+            final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, blobCacheByteRange);
 
             fillIndexCache(cacheFile, blobCacheByteRange);
             if (compoundFileOffset > 0L
@@ -227,6 +219,20 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 // oh well, no big deal, at least we can return them to the caller.
             }
         }
+    }
+
+    protected Future<Integer> populateAndRead(ByteBuffer b, long position, int length, CacheFile cacheFile, ByteRange rangeToWrite) {
+        final ByteRange rangeToRead = ByteRange.of(position, position + length);
+        assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
+        assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+        return cacheFile.populateAndRead(
+            rangeToWrite,
+            rangeToRead,
+            channel -> readCacheFile(channel, position, b),
+            this::writeCacheFile,
+            directory.cacheFetchAsyncExecutor()
+        );
     }
 
     private void readComplete(long position, int length) {
@@ -326,7 +332,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         long rangeStart,
         long rangeEnd,
         long remaining,
-        CacheFileReference cacheFileReference
+        Object cacheFileReference
     ) throws IOException {
         final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
         final int bytesRead = inputStream.read(copyBuffer, 0, len);
@@ -423,6 +429,67 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         stats.incrementSeeks(lastSeekPosition, position);
         lastSeekPosition = position;
     }
+
+    @Override
+    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
+        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceName
+                    + " out of bounds: offset="
+                    + sliceOffset
+                    + ",length="
+                    + sliceLength
+                    + ",fileLength="
+                    + length()
+                    + ": "
+                    + this
+            );
+        }
+
+        // Are we creating a slice from a CFS file?
+        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
+            && IndexFileNames.getExtension(sliceName) != null
+            && compoundFileOffset == 0L // not already a compound file
+            && isClone == false; // tests aggressively clone and slice
+
+        final ByteRange sliceHeaderByteRange;
+        final ByteRange sliceFooterByteRange;
+        final long sliceCompoundFileOffset;
+
+        if (sliceCompoundFile) {
+            sliceCompoundFileOffset = this.offset + sliceOffset;
+            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
+            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
+                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
+            } else {
+                sliceFooterByteRange = ByteRange.EMPTY;
+            }
+        } else {
+            sliceCompoundFileOffset = this.compoundFileOffset;
+            sliceHeaderByteRange = ByteRange.EMPTY;
+            sliceFooterByteRange = ByteRange.EMPTY;
+        }
+        final MetadataCachingIndexInput slice = doSlice(
+            sliceName,
+            sliceOffset,
+            sliceLength,
+            sliceHeaderByteRange,
+            sliceFooterByteRange,
+            sliceCompoundFileOffset
+        );
+        slice.isClone = true;
+        return slice;
+    }
+
+    protected abstract MetadataCachingIndexInput doSlice(
+        String sliceName,
+        long sliceOffset,
+        long sliceLength,
+        ByteRange sliceHeaderByteRange,
+        ByteRange sliceFooterByteRange,
+        long sliceCompoundFileOffset
+    );
 
     @Override
     public void doClose() {

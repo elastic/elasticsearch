@@ -686,47 +686,10 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
-     * to evict the cache files associated to that shard.
-     */
-    static class ShardEviction {
-
-        private final String snapshotUUID;
-        private final String snapshotIndexName;
-        private final ShardId shardId;
-
-        ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-            this.snapshotUUID = snapshotUUID;
-            this.snapshotIndexName = snapshotIndexName;
-            this.shardId = shardId;
-        }
-
-        public String getSnapshotUUID() {
-            return snapshotUUID;
-        }
-
-        public String getSnapshotIndexName() {
-            return snapshotIndexName;
-        }
-
-        public ShardId getShardId() {
-            return shardId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ShardEviction that = (ShardEviction) o;
-            return Objects.equals(snapshotUUID, that.snapshotUUID)
-                && Objects.equals(snapshotIndexName, that.snapshotIndexName)
-                && Objects.equals(shardId, that.shardId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(snapshotUUID, snapshotIndexName, shardId);
-        }
+         * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
+         * to evict the cache files associated to that shard.
+         */
+    record ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
 
         @Override
         public String toString() {

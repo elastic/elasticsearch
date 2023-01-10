@@ -18,6 +18,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -76,6 +77,15 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         TaskProvider<Task> buildBwcTaskProvider = project.getTasks().register("buildBwc");
         List<DistributionProject> distributionProjects = resolveArchiveProjects(checkoutDir.get(), bwcVersion.get());
+
+        // Setup gradle user home directory
+        project.getTasks().register("setupGradleUserHome", Copy.class, copy -> {
+            copy.into(project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+            copy.from(project.getGradle().getGradleUserHomeDir().getAbsolutePath(), copySpec -> {
+                copySpec.include("gradle.properties");
+                copySpec.include("init.d/*");
+            });
+        });
 
         for (DistributionProject distributionProject : distributionProjects) {
             createBuildBwcTask(

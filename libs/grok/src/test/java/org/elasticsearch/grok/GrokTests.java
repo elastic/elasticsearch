@@ -801,9 +801,15 @@ public class GrokTests extends ESTestCase {
         Grok grok = new Grok(bank, "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}", logger::warn);
         assertCaptureConfig(grok, Map.of("num", STRING));
 
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("num", "1");
-        assertThat(grok.captures("12"), equalTo(expected));
+        assertThat(grok.captures("12"), equalTo(Map.of("num", List.of("1", "2"))));
+
+        grok = new Grok(bank, "%{SINGLEDIGIT:num:int}(%{SINGLEDIGIT:num:int})?", logger::warn);
+        assertCaptureConfig(grok, Map.of("num", INTEGER));
+        assertEquals(grok.captures("1"), Map.of("num", 1));
+        assertEquals(grok.captures("1a"), Map.of("num", 1));
+        assertEquals(grok.captures("a1"), Map.of("num", 1));
+        assertEquals(grok.captures("12"), Map.of("num", List.of(1, 2)));
+        assertEquals(grok.captures("123"), Map.of("num", List.of(1, 2)));
     }
 
     public void testExponentialExpressions() {

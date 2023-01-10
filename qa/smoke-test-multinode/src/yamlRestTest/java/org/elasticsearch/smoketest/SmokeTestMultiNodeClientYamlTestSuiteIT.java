@@ -33,7 +33,7 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .module("ingest-common")
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:
-        .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))
+        .node(0, n -> n.setting("node.roles", "[master,data,remote_cluster_client]"))
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

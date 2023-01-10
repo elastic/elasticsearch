@@ -511,12 +511,19 @@ public class MetadataIndexTemplateService {
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
             .toList();
 
-        // Validates that all component templates exist in case ignore_missing_component_templates is not set
-        if (template.getIgnoreMissingComponentTemplates() == false && missingComponentTemplates.size() > 0) {
-            throw new InvalidIndexTemplateException(
-                name,
-                "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
-            );
+
+        // TODO: Should the code be split up in two parts for better error messages? If ignore_missing_component_templates is not set
+        // it throws a different error?
+        final List<String> ignoreMissingComponentTemplates = template.getIgnoreMissingComponentTemplates();
+        for(String missingComponentTemplate : missingComponentTemplates) {
+            if (ignoreMissingComponentTemplates.contains(missingComponentTemplate) == false) {
+                throw new InvalidIndexTemplateException(
+                    name,
+                    // TODO: should we make the code more complex and only error out in the end to have the full list reported?
+                    "index template [" + name + "] specifies a missing component templates " + missingComponentTemplate +
+                        " that does not exist and is not part of 'ignore_missing_component_templates'"
+                );
+            }
         }
     }
 

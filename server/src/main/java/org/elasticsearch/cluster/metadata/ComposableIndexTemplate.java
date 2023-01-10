@@ -61,7 +61,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             (Map<String, Object>) a[5],
             (DataStreamTemplate) a[6],
             (Boolean) a[7],
-            (Boolean) a[8]
+            (List<String>) a[8]
         )
     );
 
@@ -74,7 +74,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DataStreamTemplate.PARSER, DATA_STREAM);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
     }
 
     private final List<String> indexPatterns;
@@ -93,7 +93,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     @Nullable
     private final Boolean allowAutoCreate;
     @Nullable
-    private final Boolean ignoreMissingComponentTemplates;
+    private final List<String> ignoreMissingComponentTemplates;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
@@ -111,7 +111,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Long version,
         @Nullable Map<String, Object> metadata
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, false);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, null);
     }
 
     public ComposableIndexTemplate(
@@ -123,7 +123,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamTemplate dataStreamTemplate
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, false);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null);
     }
 
     public ComposableIndexTemplate(
@@ -135,7 +135,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamTemplate dataStreamTemplate,
         @Nullable Boolean allowAutoCreate,
-        @Nullable Boolean ignoreMissingComponentTemplates
+        @Nullable List<String> ignoreMissingComponentTemplates
     ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
@@ -161,7 +161,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        this.ignoreMissingComponentTemplates = in.readOptionalBoolean();
+        this.ignoreMissingComponentTemplates = in.readStringList();
     }
 
     public List<String> indexPatterns() {
@@ -213,12 +213,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     @Nullable
-    public Boolean getIgnoreMissingComponentTemplates() {
+    public List<String> getIgnoreMissingComponentTemplates() {
         // If value is not set, ignore_missing_component_templates is disabled
-        if (this.ignoreMissingComponentTemplates == null) {
-            return false;
+        if (ignoreMissingComponentTemplates == null) {
+            return List.of();
         }
-        return this.ignoreMissingComponentTemplates;
+        return ignoreMissingComponentTemplates;
     }
 
     @Override
@@ -236,7 +236,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        out.writeOptionalBoolean(ignoreMissingComponentTemplates);
+        out.writeStringCollection(ignoreMissingComponentTemplates);
     }
 
     @Override
@@ -265,7 +265,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.field(ALLOW_AUTO_CREATE.getPreferredName(), allowAutoCreate);
         }
         if (this.ignoreMissingComponentTemplates != null) {
-            builder.field(IGNORE_MISSING_COMPONENT_TEMPLATES.getPreferredName(), ignoreMissingComponentTemplates);
+            builder.stringListField(IGNORE_MISSING_COMPONENT_TEMPLATES.getPreferredName(), ignoreMissingComponentTemplates);
         }
         builder.endObject();
         return builder;
@@ -303,6 +303,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.metadata, other.metadata)
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
+            // TODO: componentTemplates list has a more complex comparison. Is this needed here too?
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates);
     }
 
@@ -443,7 +444,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private Map<String, Object> metadata;
         private DataStreamTemplate dataStreamTemplate;
         private Boolean allowAutoCreate;
-        private Boolean ignoreMissingComponentTemplates;
+        private List<String> ignoreMissingComponentTemplates;
 
         public Builder() {}
 
@@ -487,7 +488,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
-        public Builder ignoreMissingComponentTemplates(Boolean ignoreMissingComponentTemplates) {
+        public Builder ignoreMissingComponentTemplates(List<String> ignoreMissingComponentTemplates) {
             this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
             return this;
         }

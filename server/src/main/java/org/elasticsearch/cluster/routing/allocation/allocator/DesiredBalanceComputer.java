@@ -63,11 +63,7 @@ public class DesiredBalanceComputer {
 
     private TimeValue progressLogInterval;
 
-    public DesiredBalanceComputer(
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        ShardsAllocator delegateAllocator
-    ) {
+    public DesiredBalanceComputer(ClusterSettings clusterSettings, ThreadPool threadPool, ShardsAllocator delegateAllocator) {
         this.threadPool = threadPool;
         this.delegateAllocator = delegateAllocator;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);

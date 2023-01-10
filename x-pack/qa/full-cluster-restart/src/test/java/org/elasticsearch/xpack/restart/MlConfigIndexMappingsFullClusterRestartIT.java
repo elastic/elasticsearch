@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -72,7 +73,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig = formatted("""
+        String jobConfig = Strings.format("""
             {
                 "job_id": "%s",
                 "analysis_config": {

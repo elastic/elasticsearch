@@ -163,6 +163,12 @@ public class ApiKeyService {
         TimeValue.timeValueHours(24L),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
+        "xpack.security.authc.api_key.delete.retention_period",
+        TimeValue.timeValueDays(7),
+        Property.NodeScope,
+        Property.Dynamic
+    );
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
         "xpack.security.authc.api_key.cache.hash_algo",
         "ssha256",
@@ -193,7 +199,7 @@ public class ApiKeyService {
     private final Hasher hasher;
     private final boolean enabled;
     private final Settings settings;
-    private final ExpiredApiKeysRemover expiredApiKeysRemover;
+    private final InactiveApiKeysRemover inactiveApiKeysRemover;
     private final TimeValue deleteInterval;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
@@ -225,7 +231,7 @@ public class ApiKeyService {
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
-        this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
+        this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
@@ -1554,7 +1560,7 @@ public class ApiKeyService {
 
     // pkg scoped for testing
     boolean isExpirationInProgress() {
-        return expiredApiKeysRemover.isExpirationInProgress();
+        return inactiveApiKeysRemover.isExpirationInProgress();
     }
 
     // pkg scoped for testing
@@ -1565,7 +1571,7 @@ public class ApiKeyService {
     private void maybeStartApiKeyRemover() {
         if (securityIndex.isAvailable()) {
             if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                expiredApiKeysRemover.submit(client.threadPool());
+                inactiveApiKeysRemover.submit(client.threadPool());
                 lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
             }
         }

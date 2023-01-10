@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.DistributionDownloadPlugin.DISTRO_EXTRACTED_CONFIG_PREFIX;
-import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.BWC_MINOR_CONFIG_NAME;
+import static org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin.BWC_MINOR_CONFIG_NAME;
 
 public class ResolveAllDependencies extends DefaultTask {
 

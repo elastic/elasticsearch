@@ -142,8 +142,8 @@ public class ParentChildNavigationTests extends ESTestCase {
     }
 
     public void testIssue91915() {
-        GeoPolygon polygon1 = getGeoPolygon("8cc373cb54069ff");
-        GeoPolygon polygon2 = getGeoPolygon("8cc373cb54065ff");
+        GeoPolygon polygon1 = getGeoPolygon("8ec82ea0650155f");
+        GeoPolygon polygon2 = getGeoPolygon("8ec82ea06501447");
         // these polygons are disjoint but due to https://github.com/apache/lucene/issues/11883
         // they are reported as intersects. Once this is fixed this test will fail, we should adjust
         // testNoChildrenIntersecting
@@ -172,5 +172,22 @@ public class ParentChildNavigationTests extends ESTestCase {
             points.add(new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad()));
         }
         return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+    }
+
+    public void testHexRingPos() {
+        String[] h3Addresses = H3.getStringRes0Cells();
+        for (int i = 0; i < H3.MAX_H3_RES; i++) {
+            String h3Address = RandomPicks.randomFrom(random(), h3Addresses);
+            assertHexRing3(h3Address);
+            h3Addresses = H3.h3ToChildren(h3Address);
+        }
+    }
+
+    private void assertHexRing3(String h3Address) {
+        String[] ring = H3.hexRing(h3Address);
+        assertEquals(ring.length, H3.hexRingSize(h3Address));
+        for (int i = 0; i < H3.hexRingSize(h3Address); i++) {
+            assertEquals(ring[i], H3.hexRingPosToH3(h3Address, i));
+        }
     }
 }

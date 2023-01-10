@@ -12,10 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -64,21 +65,23 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         int successfulShards,
         int failedShards,
         List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        Metadata metadata,
+        RoutingTable routingTable
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-        Objects.requireNonNull(clusterState);
+        Objects.requireNonNull(metadata);
+        Objects.requireNonNull(routingTable);
         Objects.requireNonNull(shards);
         Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
-                    ignored -> new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus()
+                    ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index)).getStatus()
                 );
                 indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
             }

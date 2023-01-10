@@ -9,7 +9,6 @@ package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.CacheKey;
-import org.elasticsearch.blobcache.common.SharedBytes;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFileRegion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;

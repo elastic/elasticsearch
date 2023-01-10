@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.blobcache.common;
+package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,7 +51,7 @@ public class SharedBytes extends AbstractRefCounted {
     private final IntConsumer writeBytes;
     private final IntConsumer readBytes;
 
-    public SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
+    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
         throws IOException {
         this.numRegions = numRegions;
         this.regionSize = regionSize;
@@ -107,7 +107,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
 
-    public IO getFileChannel(int sharedBytesPos) {
+    IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
         return ios.compute(sharedBytesPos, (p, io) -> {
             if (io == null || io.tryIncRef() == false) {
@@ -128,7 +128,7 @@ public class SharedBytes extends AbstractRefCounted {
         });
     }
 
-    public long getPhysicalOffset(long chunkPosition) {
+    long getPhysicalOffset(long chunkPosition) {
         long physicalOffset = chunkPosition * regionSize;
         assert physicalOffset <= numRegions * regionSize;
         return physicalOffset;

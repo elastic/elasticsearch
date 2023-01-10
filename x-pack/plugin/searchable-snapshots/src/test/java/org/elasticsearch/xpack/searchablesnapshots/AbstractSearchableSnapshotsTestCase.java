@@ -70,8 +70,8 @@ import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomPopulateAndReads;
-import static org.elasticsearch.blobcache.common.SharedBytes.PAGE_SIZE;
-import static org.elasticsearch.blobcache.common.SharedBytes.pageAligned;
+import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBytes.pageAligned;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 

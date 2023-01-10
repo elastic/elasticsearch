@@ -16,7 +16,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.CacheKey;
-import org.elasticsearch.blobcache.common.SharedBytes;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;

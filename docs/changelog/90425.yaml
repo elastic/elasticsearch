@@ -1,5 +1,0 @@
-pr: 90425
-summary: Enhance nested depth tracking when parsing queries
-area: Search
-type: enhancement
-issues: []

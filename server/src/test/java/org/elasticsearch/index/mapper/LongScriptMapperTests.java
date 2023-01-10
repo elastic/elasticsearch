@@ -21,11 +21,16 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
     private static LongFieldScript.Factory factory(Consumer<LongFieldScript> executor) {
         return new LongFieldScript.Factory() {
             @Override
-            public LongFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public LongFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new LongFieldScript.LeafFactory() {
                     @Override
                     public LongFieldScript newInstance(LeafReaderContext ctx) {
-                        return new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new LongFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

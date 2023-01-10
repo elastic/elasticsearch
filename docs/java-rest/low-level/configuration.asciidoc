@@ -14,7 +14,7 @@ additional configuration for the low-level Java REST Client.
 Configuring requests timeouts can be done by providing an instance of
 `RequestConfigCallback` while building the `RestClient` through its builder.
 The interface has one method that receives an instance of
-https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+https://hc.apache.org/httpcomponents-client-4.5.x/current/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
  as an argument and has the same return type. The request config builder can
 be modified and then returned. In the following example we increase the
 connect timeout (defaults to 1 second) and the socket timeout (defaults to 30
@@ -50,7 +50,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-thre
 Configuring basic authentication can be done by providing an
 `HttpClientConfigCallback` while building the `RestClient` through its builder.
 The interface has one method that receives an instance of
-https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+https://hc.apache.org/httpcomponents-asyncclient-4.1.x/current/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  as an argument and has the same return type. The http client builder can be
 modified and then returned. In the following example we set a default
 credentials provider that requires basic authentication.
@@ -99,7 +99,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-api-ke
 
 Encrypted communication using TLS can also be configured through the
 `HttpClientConfigCallback`. The
-https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+https://hc.apache.org/httpcomponents-asyncclient-4.1.x/current/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  received as an argument exposes multiple methods to configure encrypted
  communication: `setSSLContext`, `setSSLSessionStrategy` and
  `setConnectionManager`, in order of precedence from the least important.

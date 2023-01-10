@@ -8,8 +8,6 @@
 
 Clears a trained model deployment cache on all nodes where the trained model is assigned.
 
-beta::[]
-
 [[clear-trained-model-deployment-cache-request]]
 == {api-request-title}
 

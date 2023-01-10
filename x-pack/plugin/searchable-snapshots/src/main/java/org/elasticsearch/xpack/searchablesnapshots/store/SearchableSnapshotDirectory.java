@@ -20,7 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -394,7 +394,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final IndexInputStats inputStats = stats.computeIfAbsent(ext, n -> {
             final IndexInputStats.Counter counter = new IndexInputStats.Counter();
             for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
-                if (ext.equals(getNonNullFileExt(file.physicalName()))) {
+                if (n.equals(getNonNullFileExt(file.physicalName()))) {
                     counter.add(file.length());
                 }
             }
@@ -484,10 +484,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
-            recoveryState.setPreWarmComplete();
-            listener.onResponse(null);
-        }, listener::onFailure), snapshot().totalFileCount());
+        final CountDownActionListener completionListener = new CountDownActionListener(
+            snapshot().totalFileCount(),
+            ActionListener.wrap(ignored -> {
+                recoveryState.setPreWarmComplete();
+                listener.onResponse(null);
+            }, listener::onFailure)
+        );
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             boolean hashEqualsContents = file.metadata().hashEqualsContents();
@@ -507,9 +510,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
                 final int numberOfParts = file.numberOfParts();
-                final StepListener<Collection<Void>> fileCompletionListener = new StepListener<>();
-                fileCompletionListener.addListener(completionListener.map(voids -> null));
-                fileCompletionListener.whenComplete(voids -> {
+                final StepListener<Void> fileCompletionListener = new StepListener<>();
+                fileCompletionListener.addListener(completionListener);
+                fileCompletionListener.whenComplete(ignored -> {
                     logger.debug("{} file [{}] prewarmed", shardId, file.physicalName());
                     input.close();
                 }, e -> {
@@ -517,7 +520,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     IOUtils.closeWhileHandlingException(input);
                 });
 
-                final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
+                final CountDownActionListener partsListener = new CountDownActionListener(numberOfParts, fileCompletionListener);
                 submitted = true;
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;

@@ -3590,7 +3590,8 @@ public class InternalEngineTests extends EngineTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
             config.getRelativeTimeInNanosSupplier(),
-            null
+            null,
+            false
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -7260,7 +7261,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getSnapshotCommitSupplier(),
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener()
+                config.getIndexCommitListener(),
+                config.isRecoveringAsPrimary()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
@@ -7478,12 +7480,15 @@ public class InternalEngineTests extends EngineTestCase {
     public void testIndexCommitsListener() throws Exception {
         final Map<IndexCommit, Engine.IndexCommitRef> acquiredCommits = new HashMap<>();
         final List<IndexCommit> deletedCommits = new ArrayList<>();
+        final List<Long> acquiredPrimaryTerms = new ArrayList<>();
 
         final Engine.IndexCommitListener indexCommitListener = new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, Engine.IndexCommitRef indexCommitRef) {
+            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
                 assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());
                 assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
+                assertThat(primaryTerm, greaterThanOrEqualTo(0L));
+                acquiredPrimaryTerms.add(primaryTerm);
             }
 
             @Override
@@ -7567,6 +7572,9 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             releaseCommitRef(acquiredCommits, 7L);
+
+            final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
+            assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
         }
     }
 

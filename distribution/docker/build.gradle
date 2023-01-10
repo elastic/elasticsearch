@@ -15,7 +15,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'

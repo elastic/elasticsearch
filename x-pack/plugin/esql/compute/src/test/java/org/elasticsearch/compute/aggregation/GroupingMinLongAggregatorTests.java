@@ -11,19 +11,19 @@ import org.elasticsearch.compute.data.Block;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MaxAggregatorTests extends AggregatorTestCase {
+public class GroupingMinLongAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.MAX;
+    protected GroupingAggregatorFunction.Factory aggregatorFunction() {
+        return GroupingAggregatorFunction.MIN_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "max";
+        return "min of longs";
     }
 
     @Override
-    public void assertSimpleResult(int end, Block result) {
-        assertThat(result.getDouble(0), equalTo((double) end - 1));
+    public void assertSimpleBucket(Block result, int end, int position, int bucket) {
+        assertThat(result.getDouble(position), equalTo((double) bucket));
     }
 }

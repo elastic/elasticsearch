@@ -7,20 +7,17 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
 
-@Experimental
-final class MinDoubleAggregator extends AbstractDoubleAggregator {
-    static MinDoubleAggregator create(int inputChannel) {
-        return new MinDoubleAggregator(inputChannel, new DoubleState(Double.POSITIVE_INFINITY));
+@Aggregator
+@GroupingAggregator
+class MinDoubleAggregator {
+    public static double init() {
+        return Double.POSITIVE_INFINITY;
     }
 
-    private MinDoubleAggregator(int channel, DoubleState state) {
-        super(channel, state);
-    }
-
-    @Override
-    protected double combine(double current, double v) {
+    public static double combine(double current, double v) {
         return Math.min(current, v);
     }
 }

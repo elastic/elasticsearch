@@ -5,10 +5,6 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute;
-
-/**
- * Used to denote code that is experimental and that needs significant refactoring before production use
- */
-public @interface Experimental {
+module org.elasticsearch.compute.ann {
+    exports org.elasticsearch.compute.ann;
 }

@@ -115,6 +115,8 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     dependsOn([':client:rest-high-level:shadowJar',
       ':plugins:repository-hdfs:hadoop-client-api:shadowJar',
       ':libs:elasticsearch-x-content:generateProviderImpl',
+      ':x-pack:plugin:esql:compute:ann:jar',
+      ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
       ':server:generatePluginsList'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }

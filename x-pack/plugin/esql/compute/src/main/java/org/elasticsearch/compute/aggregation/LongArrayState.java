@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -56,6 +56,10 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
             largestIndex = index;
         }
         values.set(index, value);
+    }
+
+    long getOrDefault(int index) {
+        return index <= largestIndex ? values.get(index) : initialDefaultValue;
     }
 
     private void ensureCapacity(int position) {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;

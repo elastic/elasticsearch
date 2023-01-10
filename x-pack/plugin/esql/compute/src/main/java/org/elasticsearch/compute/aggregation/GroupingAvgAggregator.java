@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -31,14 +31,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
     private final int channel;
 
     static GroupingAvgAggregator create(BigArrays bigArrays, int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
         return new GroupingAvgAggregator(inputChannel, new GroupingAvgState(bigArrays));
-    }
-
-    static GroupingAvgAggregator createIntermediate(BigArrays bigArrays) {
-        return new GroupingAvgAggregator(-1, new GroupingAvgState(bigArrays));
     }
 
     private GroupingAvgAggregator(int channel, GroupingAvgState state) {

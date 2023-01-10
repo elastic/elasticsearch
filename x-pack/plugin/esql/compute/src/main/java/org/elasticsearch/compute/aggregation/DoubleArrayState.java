@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -43,11 +43,7 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     }
 
     double getOrDefault(int index) {
-        if (index > largestIndex) {
-            return initialDefaultValue;
-        } else {
-            return values.get(index);
-        }
+        return index <= largestIndex ? values.get(index) : initialDefaultValue;
     }
 
     void set(double value, int index) {

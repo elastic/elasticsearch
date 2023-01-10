@@ -13,20 +13,20 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GroupingSumAggregatorTests extends GroupingAggregatorTestCase {
+public class GroupingMaxLongAggregatorTests extends GroupingAggregatorTestCase {
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.SUM;
+        return GroupingAggregatorFunction.MAX_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "sum";
+        return "max of longs";
     }
 
     @Override
     public void assertSimpleBucket(Block result, int end, int position, int bucket) {
-        double expected = LongStream.range(0, end).filter(l -> l % 5 == bucket).sum();
+        double expected = LongStream.range(0, end).filter(l -> l % 5 == bucket).max().getAsLong();
         assertThat(result.getDouble(position), equalTo(expected));
     }
 }

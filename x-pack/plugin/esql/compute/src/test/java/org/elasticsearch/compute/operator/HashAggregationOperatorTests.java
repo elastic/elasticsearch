@@ -14,7 +14,7 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAvgAggregatorTests;
-import org.elasticsearch.compute.aggregation.GroupingMaxAggregatorTests;
+import org.elasticsearch.compute.aggregation.GroupingMaxDoubleAggregatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
@@ -39,7 +39,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.AVG, mode, 1),
                 new GroupingAggregator.GroupingAggregatorFactory(
                     bigArrays,
-                    GroupingAggregatorFunction.MAX,
+                    GroupingAggregatorFunction.MAX_LONGS,
                     mode,
                     mode.isInputPartial() ? 2 : 1
                 )
@@ -50,7 +50,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator(mode = <not-needed>, aggs = avg, max)";
+        return "HashAggregationOperator(mode = <not-needed>, aggs = avg, max of longs)";
     }
 
     @Override
@@ -60,7 +60,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(results.get(0).getPositionCount(), equalTo(5));
 
         GroupingAvgAggregatorTests avg = new GroupingAvgAggregatorTests();
-        GroupingMaxAggregatorTests max = new GroupingMaxAggregatorTests();
+        GroupingMaxDoubleAggregatorTests max = new GroupingMaxDoubleAggregatorTests();
 
         Block groups = results.get(0).getBlock(0);
         Block avgs = results.get(0).getBlock(1);

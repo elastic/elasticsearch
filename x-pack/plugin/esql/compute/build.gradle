@@ -2,6 +2,21 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project('ann')
+  annotationProcessor project('gen')
 
   testImplementation project(':test:framework')
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
+}
+
+spotless {
+  java {
+    /*
+     * Generated files go here.
+     */
+    targetExclude 'src/main/generated/**/*.java'
+  }
 }

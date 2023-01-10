@@ -9,11 +9,13 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
+
+import java.util.function.BiFunction;
 
 @Experimental
 public interface GroupingAggregatorFunction extends Releasable {
@@ -31,74 +33,31 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     Block evaluateFinal();
 
-    abstract class Factory implements Describable {
-
-        private final String name;
-
-        Factory(String name) {
-            this.name = name;
+    record Factory(String name, String type, BiFunction<BigArrays, Integer, GroupingAggregatorFunction> create) implements Describable {
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
+            if (mode.isInputPartial()) {
+                return create.apply(bigArrays, -1);
+            } else {
+                return create.apply(bigArrays, inputChannel);
+            }
         }
-
-        public abstract GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel);
 
         @Override
         public String describe() {
-            return name;
+            return type == null ? name : name + " of " + type;
         }
     }
 
-    Factory AVG = new Factory("avg") {
-        @Override
-        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
-            if (mode.isInputPartial()) {
-                return GroupingAvgAggregator.createIntermediate(bigArrays);
-            } else {
-                return GroupingAvgAggregator.create(bigArrays, inputChannel);
-            }
-        }
-    };
+    Factory AVG = new Factory("avg", null, GroupingAvgAggregator::create);
 
-    Factory COUNT = new Factory("count") {
-        @Override
-        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
-            if (mode.isInputPartial()) {
-                return GroupingCountAggregator.createIntermediate(bigArrays);
-            } else {
-                return GroupingCountAggregator.create(bigArrays, inputChannel);
-            }
-        }
-    };
+    Factory COUNT = new Factory("count", null, GroupingCountAggregator::create);
 
-    Factory MIN = new Factory("min") {
-        @Override
-        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
-            if (mode.isInputPartial()) {
-                return GroupingMinAggregator.createIntermediate(bigArrays);
-            } else {
-                return GroupingMinAggregator.create(bigArrays, inputChannel);
-            }
-        }
-    };
+    Factory MIN_DOUBLES = new Factory("min", "doubles", MinDoubleGroupingAggregatorFunction::create);
+    Factory MIN_LONGS = new Factory("min", "longs", MinLongGroupingAggregatorFunction::create);
 
-    Factory MAX = new Factory("max") {
-        @Override
-        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
-            if (mode.isInputPartial()) {
-                return GroupingMaxAggregator.createIntermediate(bigArrays);
-            } else {
-                return GroupingMaxAggregator.create(bigArrays, inputChannel);
-            }
-        }
-    };
+    Factory MAX_DOUBLES = new Factory("max", "doubles", MaxDoubleGroupingAggregatorFunction::create);
+    Factory MAX_LONGS = new Factory("max", "longs", MaxLongGroupingAggregatorFunction::create);
 
-    Factory SUM = new Factory("sum") {
-        @Override
-        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
-            if (mode.isInputPartial()) {
-                return GroupingSumAggregator.createIntermediate(bigArrays);
-            } else {
-                return GroupingSumAggregator.create(bigArrays, inputChannel);
-            }
-        }
-    };
+    Factory SUM_DOUBLES = new Factory("sum", "doubles", SumDoubleGroupingAggregatorFunction::create);
+    Factory SUM_LONGS = new Factory("sum", "longs", SumLongGroupingAggregatorFunction::create);
 }

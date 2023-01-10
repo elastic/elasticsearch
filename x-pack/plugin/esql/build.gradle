@@ -21,6 +21,7 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ql'))
   implementation project('compute')
+  implementation project('compute:ann')
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

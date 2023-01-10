@@ -13,15 +13,15 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GroupingMaxAggregatorTests extends GroupingAggregatorTestCase {
+public class GroupingMaxDoubleAggregatorTests extends GroupingAggregatorTestCase {
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.MAX;
+        return GroupingAggregatorFunction.MAX_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "max";
+        return "max of doubles";
     }
 
     @Override

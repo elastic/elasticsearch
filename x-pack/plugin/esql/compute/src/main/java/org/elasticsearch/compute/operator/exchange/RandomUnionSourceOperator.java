@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 

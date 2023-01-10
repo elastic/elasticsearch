@@ -7,20 +7,17 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
 
-@Experimental
-final class SumDoubleAggregator extends AbstractDoubleAggregator {
-    static SumDoubleAggregator create(int inputChannel) {
-        return new SumDoubleAggregator(inputChannel, new DoubleState());
+@Aggregator
+@GroupingAggregator
+class SumDoubleAggregator {
+    public static double init() {
+        return 0;
     }
 
-    private SumDoubleAggregator(int channel, DoubleState state) {
-        super(channel, state);
-    }
-
-    @Override
-    protected double combine(double current, double v) {
+    public static double combine(double current, double v) {
         return current + v;
     }
 }

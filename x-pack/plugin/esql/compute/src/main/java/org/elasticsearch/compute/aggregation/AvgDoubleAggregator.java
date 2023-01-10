@@ -7,118 +7,48 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.AggregatorStateVector;
+import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockBuilder;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
-import java.util.Optional;
 
-@Experimental
-class AvgDoubleAggregator implements AggregatorFunction {
-
-    private final AvgState state;
-    private final int channel;
-
-    static AvgDoubleAggregator create(int inputChannel) {
-        return new AvgDoubleAggregator(inputChannel, new AvgState());
+@Aggregator
+class AvgDoubleAggregator { // TODO use @GroupingAggregator to generate AvgLongGroupingAggregator
+    public static AvgState init() {
+        return new AvgState();
     }
 
-    private AvgDoubleAggregator(int channel, AvgState state) {
-        this.channel = channel;
-        this.state = state;
+    public static void combine(AvgState current, double v) {
+        current.add(v);
     }
 
-    @Override
-    public void addRawInput(Page page) {
-        assert channel >= 0;
-        Block valuesBlock = page.getBlock(channel);
-        Optional<Vector> vector = valuesBlock.asVector();
-        if (vector.isPresent()) {
-            addRawInputFromVector(vector.get());
-        } else {
-            addRawInputFromBlock(valuesBlock);
-        }
+    public static void combineValueCount(AvgState current, int positions) {
+        current.count += positions;
     }
 
-    private void addRawInputFromVector(Vector valuesVector) {
-        final AvgState state = this.state;
-        for (int i = 0; i < valuesVector.getPositionCount(); i++) {
-            state.add(valuesVector.getDouble(i));
-        }
-        state.count += valuesVector.getPositionCount();
+    public static void combineStates(AvgState current, AvgState state) {
+        current.add(state.value, state.delta);
+        current.count += state.count;
     }
 
-    private void addRawInputFromBlock(Block valuesBlock) {
-        final AvgState state = this.state;
-        for (int i = 0; i < valuesBlock.getTotalValueCount(); i++) {  // all values, for now
-            if (valuesBlock.isNull(i) == false) { // skip null values
-                state.add(valuesBlock.getDouble(i));
-            }
-        }
-        state.count += valuesBlock.validPositionCount();
-    }
-
-    @Override
-    public void addIntermediateInput(Block block) {
-        assert channel == -1;
-        Optional<Vector> vector = block.asVector();
-        if (vector.isPresent() && vector.get() instanceof AggregatorStateVector) {
-            @SuppressWarnings("unchecked")
-            AggregatorStateVector<AvgState> blobBlock = (AggregatorStateVector<AvgState>) vector.get();
-            AvgState state = this.state;
-            AvgState tmpState = new AvgState();
-            for (int i = 0; i < block.getPositionCount(); i++) {
-                blobBlock.get(i, tmpState);
-                state.add(tmpState.value, tmpState.delta);
-                state.count += tmpState.count;
-            }
-        } else {
-            throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
-        }
-    }
-
-    @Override
-    public Block evaluateIntermediate() {
-        AggregatorStateVector.Builder<AggregatorStateVector<AvgState>, AvgState> builder = AggregatorStateVector.builderOfAggregatorState(
-            AvgState.class,
-            state.getEstimatedSize()
-        );
-        builder.add(state);
-        return builder.build().asBlock();
-    }
-
-    @Override
-    public Block evaluateFinal() {
-        AvgState s = state;
-        double result = s.value / s.count;
+    public static Block evaluateFinal(AvgState state) {
+        double result = state.value / state.count;
         return BlockBuilder.newConstantDoubleBlockWith(result, 1);
     }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channel=").append(channel);
-        sb.append("]");
-        return sb.toString();
-    }
-
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
-    static class AvgState implements AggregatorState<AvgState> {
+    static class AvgState implements AggregatorState<AvgDoubleAggregator.AvgState> {
 
         private double value;
         private double delta;
 
         private long count;
 
-        private final AvgStateSerializer serializer;
+        private final AvgDoubleAggregator.AvgStateSerializer serializer;
 
         AvgState() {
             this(0, 0, 0);
@@ -128,7 +58,7 @@ class AvgDoubleAggregator implements AggregatorFunction {
             this.value = value;
             this.delta = delta;
             this.count = count;
-            this.serializer = new AvgStateSerializer();
+            this.serializer = new AvgDoubleAggregator.AvgStateSerializer();
         }
 
         void add(double valueToAdd) {
@@ -159,13 +89,13 @@ class AvgDoubleAggregator implements AggregatorFunction {
         public void close() {}
 
         @Override
-        public AggregatorStateSerializer<AvgState> serializer() {
+        public AggregatorStateSerializer<AvgDoubleAggregator.AvgState> serializer() {
             return serializer;
         }
     }
 
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
-    static class AvgStateSerializer implements AggregatorStateSerializer<AvgState> {
+    static class AvgStateSerializer implements AggregatorStateSerializer<AvgDoubleAggregator.AvgState> {
 
         // record Shape (double value, double delta, long count) {}
 
@@ -180,7 +110,7 @@ class AvgDoubleAggregator implements AggregatorFunction {
         private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
-        public int serialize(AvgState value, byte[] ba, int offset) {
+        public int serialize(AvgDoubleAggregator.AvgState value, byte[] ba, int offset) {
             doubleHandle.set(ba, offset, value.value);
             doubleHandle.set(ba, offset + 8, value.delta);
             longHandle.set(ba, offset + 16, value.count);
@@ -189,7 +119,7 @@ class AvgDoubleAggregator implements AggregatorFunction {
 
         // sets the state in value
         @Override
-        public void deserialize(AvgState value, byte[] ba, int offset) {
+        public void deserialize(AvgDoubleAggregator.AvgState value, byte[] ba, int offset) {
             Objects.requireNonNull(value);
             double kvalue = (double) doubleHandle.get(ba, offset);
             double kdelta = (double) doubleHandle.get(ba, offset + 8);

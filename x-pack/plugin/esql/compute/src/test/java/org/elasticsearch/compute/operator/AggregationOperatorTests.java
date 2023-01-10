@@ -13,7 +13,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.AvgLongAggregatorTests;
-import org.elasticsearch.compute.aggregation.MaxAggregatorTests;
+import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
@@ -28,7 +28,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
                 new Aggregator.AggregatorFactory(AggregatorFunction.AVG_LONGS, mode, 0),
-                new Aggregator.AggregatorFactory(AggregatorFunction.MAX, mode, mode.isInputPartial() ? 1 : 0)
+                new Aggregator.AggregatorFactory(AggregatorFunction.MAX_LONGS, mode, mode.isInputPartial() ? 1 : 0)
             ),
             mode
         );
@@ -36,7 +36,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "AggregationOperator(mode = SINGLE, aggs = avg of longs, max)";
+        return "AggregationOperator(mode = SINGLE, aggs = avg of longs, max of longs)";
     }
 
     @Override
@@ -46,7 +46,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
         AvgLongAggregatorTests avg = new AvgLongAggregatorTests();
-        MaxAggregatorTests max = new MaxAggregatorTests();
+        MaxDoubleAggregatorTests max = new MaxDoubleAggregatorTests();
 
         Block avgs = results.get(0).getBlock(0);
         Block maxs = results.get(0).getBlock(1);

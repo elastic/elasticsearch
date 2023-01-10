@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
@@ -24,14 +24,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
     private final int channel;
 
     static GroupingCountAggregator create(BigArrays bigArrays, int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
         return new GroupingCountAggregator(inputChannel, new LongArrayState(bigArrays, 0));
-    }
-
-    static GroupingCountAggregator createIntermediate(BigArrays bigArrays) {
-        return new GroupingCountAggregator(-1, new LongArrayState(bigArrays, 0));
     }
 
     private GroupingCountAggregator(int channel, LongArrayState state) {

@@ -13,7 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -186,8 +186,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(expectedFieldName, results.columns().get(0).name());
         assertEquals("long", results.columns().get(0).type());
         assertEquals(1, results.values().get(0).size());
-        // ####: check the type of the result type, should be long
-        assertEquals(46.0, (double) results.values().get(0).get(0), 1d);
+        assertEquals(46, (long) results.values().get(0).get(0));
     }
 
     public void testFromStatsGroupingAvgWithSort() {
@@ -333,9 +332,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals("long", results.columns().get(4).type());
         assertEquals("color", results.columns().get(5).name());
         assertEquals("keyword", results.columns().get(5).type());
-        record Group(double avg, double mi, double ma, double s, long c, String color) {
-
-        }
+        record Group(double avg, long mi, long ma, long s, long c, String color) {}
         List<Group> expectedGroups = List.of(
             new Group(42, 42, 42, 420, 10, "blue"),
             new Group(44, 44, 44, 440, 10, "green"),
@@ -344,16 +341,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         // TODO: each aggregator returns Double now, it should in fact mirror the data type of the fields it's aggregating
         List<Group> actualGroups = results.values()
             .stream()
-            .map(
-                l -> new Group(
-                    (Double) l.get(0),
-                    (Double) l.get(1),
-                    (Double) l.get(2),
-                    (Double) l.get(3),
-                    (Long) l.get(4),
-                    (String) l.get(5)
-                )
-            )
+            .map(l -> new Group((Double) l.get(0), (Long) l.get(1), (Long) l.get(2), (Long) l.get(3), (Long) l.get(4), (String) l.get(5)))
             .sorted(Comparator.comparing(c -> c.color))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));

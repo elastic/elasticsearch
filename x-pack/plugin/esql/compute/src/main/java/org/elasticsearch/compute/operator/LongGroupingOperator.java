@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;

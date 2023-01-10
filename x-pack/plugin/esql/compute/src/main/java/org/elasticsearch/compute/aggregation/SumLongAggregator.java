@@ -7,20 +7,17 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
 
-@Experimental
-final class SumLongAggregator extends AbstractLongAggregator {
-    static SumLongAggregator create(int inputChannel) {
-        return new SumLongAggregator(inputChannel, new LongState());
+@Aggregator
+@GroupingAggregator
+class SumLongAggregator {
+    public static long init() {
+        return 0;
     }
 
-    private SumLongAggregator(int channel, LongState state) {
-        super(channel, state);
-    }
-
-    @Override
-    protected long combine(long current, long v) {
+    public static long combine(long current, long v) {
         return Math.addExact(current, v);
     }
 }

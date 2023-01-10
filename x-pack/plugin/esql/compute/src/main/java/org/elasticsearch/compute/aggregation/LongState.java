@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;

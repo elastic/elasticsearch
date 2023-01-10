@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 

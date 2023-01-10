@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupingCountAggregator;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -32,7 +33,7 @@ class AggregateMapper {
             return AggregatorFunction.COUNT;
         }
         if (aggregateFunction instanceof Max) {
-            return AggregatorFunction.MAX;
+            return aggregateFunction.dataType().isRational() ? AggregatorFunction.MAX_DOUBLES : AggregatorFunction.MAX_LONGS;
         }
         if (aggregateFunction instanceof Min) {
             return aggregateFunction.dataType().isRational() ? AggregatorFunction.MIN_DOUBLES : AggregatorFunction.MIN_LONGS;
@@ -50,11 +51,17 @@ class AggregateMapper {
         } else if (aggregateFunction instanceof Count) {
             aggregatorFunc = GroupingAggregatorFunction.COUNT;
         } else if (aggregateFunction instanceof Max) {
-            aggregatorFunc = GroupingAggregatorFunction.MAX;
+            aggregatorFunc = aggregateFunction.dataType().isRational()
+                ? GroupingAggregatorFunction.MAX_DOUBLES
+                : GroupingCountAggregator.MAX_LONGS;
         } else if (aggregateFunction instanceof Min) {
-            aggregatorFunc = GroupingAggregatorFunction.MIN;
+            aggregatorFunc = aggregateFunction.dataType().isRational()
+                ? GroupingAggregatorFunction.MIN_DOUBLES
+                : GroupingAggregatorFunction.MIN_LONGS;
         } else if (aggregateFunction instanceof Sum) {
-            aggregatorFunc = GroupingAggregatorFunction.SUM;
+            aggregatorFunc = aggregateFunction.dataType().isRational()
+                ? GroupingAggregatorFunction.SUM_DOUBLES
+                : GroupingAggregatorFunction.SUM_LONGS;
         } else {
             throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
         }

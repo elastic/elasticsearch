@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;

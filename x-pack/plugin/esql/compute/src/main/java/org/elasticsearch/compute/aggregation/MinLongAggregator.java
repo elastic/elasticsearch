@@ -7,29 +7,17 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.GroupingAggregator;
 
-@Experimental
-final class MinLongAggregator extends AbstractLongAggregator {
-    static MinLongAggregator create(int inputChannel) {
-        /*
-         * If you don't see any values this spits out Long.MAX_VALUE but
-         * PostgreSQL spits out *nothing* when it gets an empty table:
-         * # SELECT max(a) FROM foo;
-         *  max
-         * -----
-         *
-         * (1 row)
-         */
-        return new MinLongAggregator(inputChannel, new LongState(Long.MAX_VALUE));
+@Aggregator
+@GroupingAggregator
+class MinLongAggregator {
+    public static long init() {
+        return Long.MAX_VALUE;
     }
 
-    private MinLongAggregator(int channel, LongState state) {
-        super(channel, state);
-    }
-
-    @Override
-    protected long combine(long current, long v) {
+    public static long combine(long current, long v) {
         return Math.min(current, v);
     }
 }

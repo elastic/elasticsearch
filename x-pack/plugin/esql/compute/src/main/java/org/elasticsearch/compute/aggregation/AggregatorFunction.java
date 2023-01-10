@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
@@ -36,16 +36,17 @@ public interface AggregatorFunction {
         }
     }
 
-    Factory AVG_DOUBLES = new Factory("avg", "doubles", AvgDoubleAggregator::create);
-    Factory AVG_LONGS = new Factory("avg", "longs", AvgLongAggregator::create);
+    Factory AVG_DOUBLES = new Factory("avg", "doubles", AvgDoubleAggregatorFunction::create);
+    Factory AVG_LONGS = new Factory("avg", "longs", AvgLongAggregatorFunction::create);
 
     Factory COUNT = new Factory("count", null, CountRowsAggregator::create);
 
-    Factory MAX = new Factory("max", null, MaxAggregator::create);
+    Factory MAX_DOUBLES = new Factory("max", "doubles", MaxDoubleAggregatorFunction::create);
+    Factory MAX_LONGS = new Factory("max", "longs", MaxLongAggregatorFunction::create);
 
-    Factory MIN_DOUBLES = new Factory("min", "doubles", MinDoubleAggregator::create);
-    Factory MIN_LONGS = new Factory("min", "longs", MinLongAggregator::create);
+    Factory MIN_DOUBLES = new Factory("min", "doubles", MinDoubleAggregatorFunction::create);
+    Factory MIN_LONGS = new Factory("min", "longs", MinLongAggregatorFunction::create);
 
-    Factory SUM_DOUBLES = new Factory("sum", "doubles", SumDoubleAggregator::create);
-    Factory SUM_LONGS = new Factory("sum", "longs", SumLongAggregator::create);
+    Factory SUM_DOUBLES = new Factory("sum", "doubles", SumDoubleAggregatorFunction::create);
+    Factory SUM_LONGS = new Factory("sum", "longs", SumLongAggregatorFunction::create);
 }

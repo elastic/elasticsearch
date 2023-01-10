@@ -9,6 +9,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -32,7 +33,7 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + String.format(Locale.ROOT, """
+        return super.configUsers() + Strings.format("""
             user1:%s
             user2:%s
             """, usersPasswdHashed, usersPasswdHashed);

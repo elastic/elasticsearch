@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -602,6 +604,66 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains("languages", "emp_no")
         );
         as(orderBy2.child(), EsRelation.class);
+    }
+
+    public void testPruneRedundantSortClauses() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort languages nulls last, emp_no desc nulls first
+            | where languages > 2
+            | eval e = emp_no * 2
+            | project languages, emp_no, e
+            | sort e, emp_no, languages desc, emp_no desc""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order(),
+            contains(
+                new Order(
+                    EMPTY,
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "languages", mapping.get("languages")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                )
+            )
+        );
+        assertThat(orderBy.child().collect(OrderBy.class::isInstance), is(emptyList()));
+    }
+
+    public void testPruneRedundantSortClausesUsingAlias() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | project e = emp_no, emp_no
+            | sort emp_no, e desc""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order(),
+            contains(
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
+                )
+            )
+        );
     }
 
     private LogicalPlan optimizedPlan(String query) {

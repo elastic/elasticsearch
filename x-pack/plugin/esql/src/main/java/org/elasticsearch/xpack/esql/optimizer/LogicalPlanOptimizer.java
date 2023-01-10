@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -78,7 +79,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownAndCombineOrderBy(),
-            new PruneOrderByBeforeStats()
+            new PruneOrderByBeforeStats(),
+            new PruneRedundantSortClauses()
         );
 
         var local = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
@@ -370,6 +372,23 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             return pullable;
         }
 
+    }
+
+    static class PruneRedundantSortClauses extends OptimizerRules.OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy plan) {
+            var referencedAttributes = new ExpressionSet<Attribute>();
+            var order = new ArrayList<Order>();
+            for (Order o : plan.order()) {
+                Attribute a = (Attribute) o.child();
+                if (referencedAttributes.add(a)) {
+                    order.add(o);
+                }
+            }
+
+            return plan.order().size() == order.size() ? plan : new OrderBy(plan.source(), plan.child(), order);
+        }
     }
 
     private static AttributeMap<Expression> aliases(LogicalPlan node) {

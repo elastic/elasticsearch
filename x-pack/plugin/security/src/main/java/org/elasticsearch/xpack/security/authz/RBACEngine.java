@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
+import org.elasticsearch.xpack.core.security.action.TransportRelayAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -112,7 +113,8 @@ public class RBACEngine implements AuthorizationEngine {
         AuthenticateAction.NAME,
         HasPrivilegesAction.NAME,
         GetUserPrivilegesAction.NAME,
-        GetApiKeyAction.NAME
+        GetApiKeyAction.NAME,
+        TransportRelayAction.NAME
     );
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";

@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -72,6 +73,16 @@ public class NodeClient extends AbstractClient {
      */
     public List<String> getActionNames() {
         return actions.keySet().stream().map(ActionType::name).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Writeable.Reader<ActionResponse> getResponseReader(String actionName) {
+        return (Writeable.Reader<ActionResponse>) actions.keySet()
+            .stream()
+            .filter(action -> action.name().equals(actionName))
+            .findFirst()
+            .orElseThrow()
+            .getResponseReader();
     }
 
     @Override

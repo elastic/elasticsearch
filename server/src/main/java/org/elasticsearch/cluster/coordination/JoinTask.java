@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 
 public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster, long term) implements ClusterStateTaskListener {
 
-    public static JoinTask singleNode(DiscoveryNode node, String reason, ActionListener<Void> listener, long term) {
+    public static JoinTask singleNode(DiscoveryNode node, JoinReason reason, ActionListener<Void> listener, long term) {
         return new JoinTask(List.of(new NodeJoinTask(node, reason, listener)), false, term);
     }
 
@@ -59,9 +59,9 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         return () -> nodeJoinTasks.stream().map(j -> j.node).iterator();
     }
 
-    public record NodeJoinTask(DiscoveryNode node, String reason, ActionListener<Void> listener) {
+    public record NodeJoinTask(DiscoveryNode node, JoinReason reason, ActionListener<Void> listener) {
 
-        public NodeJoinTask(DiscoveryNode node, String reason, ActionListener<Void> listener) {
+        public NodeJoinTask(DiscoveryNode node, JoinReason reason, ActionListener<Void> listener) {
             this.node = Objects.requireNonNull(node);
             this.reason = reason;
             this.listener = listener;
@@ -76,7 +76,7 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
 
         public void appendDescription(StringBuilder stringBuilder) {
             node.appendDescriptionWithoutAttributes(stringBuilder);
-            stringBuilder.append(' ').append(reason);
+            stringBuilder.append(' ').append(reason.message());
         }
     }
 }

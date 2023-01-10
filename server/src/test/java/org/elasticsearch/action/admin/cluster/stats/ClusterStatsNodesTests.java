@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -92,7 +93,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             long failedCount = statValues[1];
             long current = statValues[2];
             long timeInMillis = statValues[3];
-            processorStatsString.append(formatted("""
+            processorStatsString.append(Strings.format("""
                 "%s":{"count":%s,"failed":%s,"current":%s,"time_in_millis":%s}\
                 """, entry.getKey(), count, failedCount, current, timeInMillis));
             if (iter.hasNext()) {
@@ -100,7 +101,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             }
         }
         processorStatsString.append("}");
-        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo(formatted("""
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo(Strings.format("""
             {"ingest":{"number_of_pipelines":%s,"processor_stats":%s}}\
             """, stats.pipelineCount, processorStatsString)));
     }

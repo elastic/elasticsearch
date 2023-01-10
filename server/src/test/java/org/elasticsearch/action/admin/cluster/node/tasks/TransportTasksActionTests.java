@@ -892,9 +892,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         if (byParents) {
             DiscoveryNodes nodes = testNodes[0].clusterService.state().nodes();
-            ChunkedToXContent.wrapAsXContentObject(response.groupedByNode(() -> nodes)).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByNode(() -> nodes)).toXContent(builder, ToXContent.EMPTY_PARAMS);
         } else {
-            ChunkedToXContent.wrapAsXContentObject(response.groupedByParent()).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(response.groupedByParent()).toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.flush();
         logger.info(Strings.toString(builder));

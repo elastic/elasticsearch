@@ -294,7 +294,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Path file = createTempFile();
         Files.write(file, input.getBytes(StandardCharsets.UTF_8));
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, null);
-        String reason = formatted("Expected userRoles to be empty, but was %s", usersRoles.keySet());
+        String reason = Strings.format("Expected userRoles to be empty, but was %s", usersRoles.keySet());
         assertThat(reason, usersRoles.keySet(), hasSize(0));
     }
 

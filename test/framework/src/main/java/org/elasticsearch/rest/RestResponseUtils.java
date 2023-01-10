@@ -11,14 +11,12 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
-import java.io.IOException;
-
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
 public class RestResponseUtils {
     private RestResponseUtils() {}
 
-    public static BytesReference getBodyContent(RestResponse restResponse) throws IOException {
+    public static BytesReference getBodyContent(RestResponse restResponse) {
         if (restResponse.isChunked() == false) {
             return restResponse.content();
         }
@@ -40,6 +38,8 @@ public class RestResponseUtils {
 
             out.flush();
             return out.bytes();
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
         }
     }
 }

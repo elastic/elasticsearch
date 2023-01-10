@@ -9,25 +9,25 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 
 import java.io.IOException;
 
 public class WebhookActionFactory extends ActionFactory {
 
-    private final HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
+    private final WebhookService webhookService;
 
-    public WebhookActionFactory(HttpClient httpClient, TextTemplateEngine templateEngine) {
+    public WebhookActionFactory(WebhookService webhookService, TextTemplateEngine templateEngine) {
         super(LogManager.getLogger(ExecutableWebhookAction.class));
-        this.httpClient = httpClient;
         this.templateEngine = templateEngine;
+        this.webhookService = webhookService;
     }
 
     @Override
     public ExecutableWebhookAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser), actionLogger, httpClient, templateEngine);
+        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser), actionLogger, webhookService, templateEngine);
 
     }
 }

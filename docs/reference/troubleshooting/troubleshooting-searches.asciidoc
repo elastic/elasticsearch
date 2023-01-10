@@ -301,18 +301,20 @@ for a data stream>>.
 
 [discrete]
 [[troubleshooting-slow-searches]]
-=== Find Slow Queries
+=== Find slow queries
 
-<<index-modules-slowlog,Slowlogs>> can help pinpoint slow performing search 
-requests. Enabling <<auditing-settings,Audit Logging>> on top can help determine 
+<<index-modules-slowlog,Slow logs>> can help pinpoint slow performing search 
+requests. Enabling <<auditing-settings,audit logging>> on top can help determine 
 query source. The following is commonly used, only short-term `elasticsearch.yml` 
 settings to trace queries:
 
-[source,console]
+[source,yaml]
 ----
 xpack.security.audit.enabled: true
 xpack.security.audit.logfile.events.include: _all
 xpack.security.audit.logfile.events.emit_request_body: true
 ----
 
-See also <<https://www.elastic.co/blog/advanced-tuning-finding-and-fixing-slow-elasticsearch-queries,Advanced tuning: finding and fixing slow Elasticsearch queries>>.
+Refer to
+https://www.elastic.co/blog/advanced-tuning-finding-and-fixing-slow-elasticsearch-queries[Advanced
+tuning: finding and fixing slow Elasticsearch queries] for more information.

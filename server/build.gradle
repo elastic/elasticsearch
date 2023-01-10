@@ -228,7 +228,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
     )
-    ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 tasks.named("dependencyLicenses").configure {

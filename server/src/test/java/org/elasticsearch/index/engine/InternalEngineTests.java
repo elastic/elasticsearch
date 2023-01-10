@@ -7491,6 +7491,8 @@ public class InternalEngineTests extends EngineTestCase {
                 Engine.IndexCommitRef indexCommitRef,
                 Set<String> additionalFiles
             ) {
+                assertNotNull(store);
+                assertTrue(store.hasReferences());
                 assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());
                 assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
                 assertThat(primaryTerm, greaterThanOrEqualTo(0L));

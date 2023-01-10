@@ -226,13 +226,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     @Nullable
-    public List<String> getIgnoreMissingComponentTemplates() {
-        // If value is not set, ignore_missing_component_templates is disabled
-        if (ignoreMissingComponentTemplates == null) {
-            return List.of();
-        }
-        return ignoreMissingComponentTemplates;
-    }
+    public List<String> getIgnoreMissingComponentTemplates() {     return ignoreMissingComponentTemplates;    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

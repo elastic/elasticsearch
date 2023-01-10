@@ -1,0 +1,5 @@
+[[ignore_missing_component_templates]]
+== Config ignore_missing_component_templates
+
+* REST examples
+* Explain how to use it

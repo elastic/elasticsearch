@@ -597,6 +597,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
         assertThat(state.metadata().templatesV2().get("foo"), notNullValue());
+
         assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
         Exception e = expectThrows(
@@ -1529,6 +1530,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         });
 
         assertThat(e.name(), equalTo("template"));
+        // TODO: Update error message
+        // but: was "index_template [template] invalid, cause [index template [template] specifies a missing component templates bad that does not exist and is not part of 'ignore_missing_component_templates']"
         assertThat(e.getMessage(), containsString("index template [template] specifies " + "component templates [bad] that do not exist"));
     }
 

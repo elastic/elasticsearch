@@ -19,17 +19,17 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -42,32 +42,25 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(numClientNodes = 1)
-public class DocumentAndFieldLevelSecurityTests extends AbstractDocumentAndFieldLevelSecurityTests {
+public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + String.format(Locale.ROOT, """
+        return super.configUsers() + Strings.format("""
             user1:%s
             user2:%s
             user3:%s
             user4:%s
             user5:%s
-            user6:%s
-            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "role1:user1\n"
-            + "role2:user1,user4\n"
-            + "role3:user2,user4\n"
-            + "role4:user3,user4,user5\n"
-            + "role5:user6\n"; // no DLS/FLS restrictions
+        return super.configUsersRoles() + "role1:user1\n" + "role2:user1,user4\n" + "role3:user2,user4\n" + "role4:user3,user4,user5\n";
     }
 
     @Override
@@ -104,11 +97,6 @@ public class DocumentAndFieldLevelSecurityTests extends AbstractDocumentAndField
                   field_security:
                      grant: [ field1, id ]
                   query: '{"term" : {"field2" : "value2"}}'
-            role5:
-              cluster: [ all ]
-              indices:
-                - names: '*'
-                  privileges: [ ALL ]
             """;
     }
 
@@ -126,8 +114,6 @@ public class DocumentAndFieldLevelSecurityTests extends AbstractDocumentAndField
         );
         client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        // DLS and FLS features should not be used before running any query
-        assertDlsFlsNotTrackedAcrossAllNodes();
 
         SearchResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
@@ -155,47 +141,6 @@ public class DocumentAndFieldLevelSecurityTests extends AbstractDocumentAndField
         assertSearchHits(response, "1", "2");
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2").toString(), equalTo("value2"));
-
-        assertDlsFlsNotTrackedOnCoordOnlyNode();
-        assertDlsFlsTracked();
-    }
-
-    public void testDlsFlsFeatureUsageOnCoordOnlyNodeNotTracked() {
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
-        );
-        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        // DLS and FLS features should not be used before running any query
-        assertDlsFlsNotTrackedAcrossAllNodes();
-
-        // Running a search on coordinating only node should not track feature usage. It should only be tracked on data nodes.
-        SearchResponse response = internalCluster().coordOnlyNodeClient()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .get();
-        assertHitCount(response, 1);
-
-        assertDlsFlsNotTrackedOnCoordOnlyNode();
-        assertDlsFlsTracked();
-    }
-
-    public void testDlsFlsFeatureUsageNotTracked() {
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
-        );
-        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-
-        // Running a search with user6 (which has role5 without DLS/FLS) should not trigger feature tracking.
-        SearchResponse response = internalCluster().coordOnlyNodeClient()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-            .prepareSearch("test")
-            .get();
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "2");
-
-        assertDlsFlsNotTrackedAcrossAllNodes();
     }
 
     public void testUpdatesAreRejected() {

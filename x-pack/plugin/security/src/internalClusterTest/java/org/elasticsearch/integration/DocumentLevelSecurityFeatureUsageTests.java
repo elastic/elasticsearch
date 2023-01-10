@@ -34,7 +34,8 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers() + String.format(Locale.ROOT, """
             user1:%s
-            """, usersPasswdHashed);
+            user2:%s
+            """, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
@@ -42,6 +43,7 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
         return super.configUsersRoles() + """
             role1:user1
             role2:user1
+            role3:user2
             """;
     }
 
@@ -64,6 +66,11 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
                   query:
                     term:
                       field1: value1
+            role3:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
             """;
     }
 
@@ -96,6 +103,24 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
         assertDlsFlsNotTrackedOnCoordOnlyNode();
         // only DLS feature should have been tracked across all data nodes
         assertOnlyDlsTracked();
+    }
+
+    public void testDlsFlsFeatureUsageNotTracked() {
+        assertAcked(
+            client().admin().indices().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
+        );
+        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+
+        // Running a search with user2 (which has role3 without DLS/FLS) should not trigger feature tracking.
+        SearchResponse response = internalCluster().coordOnlyNodeClient()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .get();
+        assertHitCount(response, 2);
+        assertSearchHits(response, "1", "2");
+
+        assertDlsFlsNotTrackedAcrossAllNodes();
     }
 
 }

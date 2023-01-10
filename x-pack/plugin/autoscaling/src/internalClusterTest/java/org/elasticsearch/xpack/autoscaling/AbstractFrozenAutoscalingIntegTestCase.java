@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -63,7 +64,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateAutoscalingAndSearchableSnapshots.class);
+        return List.of(BlobCachePlugin.class, LocalStateAutoscalingAndSearchableSnapshots.class);
     }
 
     @Override

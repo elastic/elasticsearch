@@ -62,9 +62,9 @@ Ingest Node::
 Machine Learning::
 * Copy more settings when creating DF analytics destination index {es-pull}91546[#91546] (issue: {es-issue}89795[#89795])
 * Fix for 'No statistics' error message {ml-pull}2410[#2410]
-* Fix for 'No counts available' error message. {ml-pull}2414[#2414]
+* Fix for 'No counts available' error message {ml-pull}2414[#2414]
 * Guard against input sequences that are too long for Question Answering models {es-pull}91924[#91924]
-* Improve performance of closing files before spawning. {ml-pull}2424[#2424]
+* Improve performance of closing files before spawning {ml-pull}2424[#2424]
 * Skip remote clusters when performing up front privileges validation for datafeeds {es-pull}91895[#91895] (issue: {es-issue}87832[#87832])
 * Support fields with commas in data frame analytics `analyzed_fields` {es-pull}91710[#91710] (issue: {es-issue}72541[#72541])
 * Validate rule filters are present on open anomaly detection api {es-pull}92207[#92207]

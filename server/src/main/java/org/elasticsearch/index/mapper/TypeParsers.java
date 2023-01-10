@@ -110,7 +110,7 @@ public class TypeParsers {
                 }
             }
 
-            parserContext = MappingParserContext.createMultiFieldContext(parserContext);
+            parserContext = parserContext.createMultiFieldContext();
 
             final Map<String, Object> multiFieldsPropNodes;
             if (propNode instanceof List && ((List<?>) propNode).isEmpty()) {

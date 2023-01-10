@@ -8,8 +8,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -48,7 +46,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1524,7 +1521,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.start();
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "should see checkindex message",
@@ -1558,14 +1554,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 )
             );
 
-            Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
-            Loggers.addAppender(classLogger, mockAppender);
-
-            try {
+            try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
                 persistedClusterStateService.loadBestOnDiskState();
-            } finally {
-                Loggers.removeAppender(classLogger, mockAppender);
-                mockAppender.stop();
             }
             mockAppender.assertAllExpectationsMatched();
         }
@@ -1852,22 +1842,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         ClusterState clusterState,
         PersistedClusterStateService.Writer writer,
         MockLogAppender.LoggingExpectation expectation
-    ) throws IllegalAccessException, IOException {
+    ) throws IOException {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(expectation);
-        Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
-        Loggers.addAppender(classLogger, mockAppender);
-
-        try {
+        try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
             if (previousState == null) {
                 writer.writeFullStateAndCommit(currentTerm, clusterState);
             } else {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
-        } finally {
-            Loggers.removeAppender(classLogger, mockAppender);
-            mockAppender.stop();
         }
         mockAppender.assertAllExpectationsMatched();
     }

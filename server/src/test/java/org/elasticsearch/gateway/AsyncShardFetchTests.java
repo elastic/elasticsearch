@@ -9,8 +9,10 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -372,11 +374,21 @@ public class AsyncShardFetchTests extends ESTestCase {
 
         private final ThreadPool threadPool;
         private final Map<String, Entry> simulations = new ConcurrentHashMap<>();
-        private AtomicInteger reroute = new AtomicInteger();
+        private final AtomicInteger reroute = new AtomicInteger();
 
         TestFetch(ThreadPool threadPool) {
-            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "", null);
+            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "");
             this.threadPool = threadPool;
+        }
+
+        @Override
+        protected void list(
+            ShardId shardId,
+            String customDataPath,
+            DiscoveryNode[] nodes,
+            ActionListener<BaseNodesResponse<Response>> listener
+        ) {
+            fail("should not call list()");
         }
 
         public void addSimulation(String nodeId, Response response) {

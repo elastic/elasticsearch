@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.realm.CustomRealmIT;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -55,7 +56,7 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     public void setupTestUser(String role) throws IOException {
         final String endpoint = "/_security/user/" + TEST_USER;
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = formatted("""
+        final String body = Strings.format("""
             {
                 "username": "%s",
                 "password": "%s",

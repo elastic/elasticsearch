@@ -559,6 +559,7 @@ public class IndexShardRoutingTable {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
+            assert noAssignedReplicaWithoutActivePrimary(shards) : "unexpected assigned replica with no active primary: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 
@@ -589,9 +590,24 @@ public class IndexShardRoutingTable {
                     seenPrimary = true;
                 }
             }
-            // We should be able to return seenPrimary here, but in tests there are many routing tables with no primary (e.g. empty) so for
-            // now we leniently allow there to be no primary as well. TODO fix those tests and stop being lenient here.
-            return true;
+            return seenPrimary;
+        }
+
+        static boolean noAssignedReplicaWithoutActivePrimary(List<ShardRouting> shards) {
+            boolean seenAssignedReplica = false;
+            for (final var shard : shards) {
+                if (shard.currentNodeId() != null) {
+                    if (shard.primary()) {
+                        if (shard.active()) {
+                            return true;
+                        }
+                    } else {
+                        seenAssignedReplica = true;
+                    }
+                }
+            }
+
+            return seenAssignedReplica == false;
         }
 
         public static IndexShardRoutingTable.Builder readFrom(StreamInput in) throws IOException {

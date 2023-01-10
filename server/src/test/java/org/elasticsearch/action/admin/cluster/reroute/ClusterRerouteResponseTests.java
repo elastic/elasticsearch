@@ -54,7 +54,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             createClusterRerouteResponse(clusterState),
             new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")),
             2,
-            formatted("""
+            Strings.format("""
                 {
                   "acknowledged": true,
                   "explanations": [
@@ -80,7 +80,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
     public void testToXContentWithDeprecatedClusterState() {
         var clusterState = createClusterState();
-        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 32, formatted("""
+        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 32, Strings.format("""
             {
               "acknowledged": true,
               "state": {

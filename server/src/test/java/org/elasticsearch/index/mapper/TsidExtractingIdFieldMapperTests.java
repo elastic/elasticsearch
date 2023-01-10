@@ -614,9 +614,6 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     private TestDocumentParserContext documentParserContext(IndexableField... fields) throws IOException {
         TestDocumentParserContext ctx = new TestDocumentParserContext(
             mapperService().mappingLookup(),
-            MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
-            null,
-            null,
             source(null, testCase.randomSource(), null)
         );
         for (IndexableField f : fields) {

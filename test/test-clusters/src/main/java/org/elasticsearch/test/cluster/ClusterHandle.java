@@ -28,6 +28,13 @@ public interface ClusterHandle extends Closeable {
     void stop(boolean forcibly);
 
     /**
+     * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
+     *
+     * @param forcibly whether to ficibly terminate the cluster
+     */
+    void restart(boolean forcibly);
+
+    /**
      * Whether the cluster is started or not. This method makes no guarantees on cluster availability, only that the node processes have
      * been started.
      *

@@ -229,13 +229,13 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 final CacheFile randomCacheFile = randomFrom(cacheFiles);
                 final CacheKey cacheKey = randomCacheFile.getCacheKey();
 
-                final SnapshotId snapshotId = new SnapshotId("_ignored_", cacheKey.getSnapshotUUID());
+                final SnapshotId snapshotId = new SnapshotId("_ignored_", cacheKey.snapshotUUID());
                 if (randomBoolean()) {
                     final ByteRange absent = randomCacheFile.getAbsentRangeWithin(ByteRange.of(0L, randomCacheFile.getLength()));
                     if (absent != null) {
                         assertThat(
                             "Persistent cache should not contain any cached data",
-                            persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId),
+                            persistentCache.getCacheSize(cacheKey.shardId(), snapshotId),
                             equalTo(0L)
                         );
 
@@ -244,7 +244,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                         assertThat(cacheService.getCacheFilesEventsQueueSize(), equalTo(0L));
                         assertThat(cacheService.getNumberOfCacheFilesEvents(), equalTo(0L));
 
-                        final long sizeInCache = persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId);
+                        final long sizeInCache = persistentCache.getCacheSize(cacheKey.shardId(), snapshotId);
                         final long sizeInCacheFile = sumOfCompletedRangesLengths(randomCacheFile);
                         assertThat(
                             "Persistent cache should contain cached data for at least 1 cache file",
@@ -268,7 +268,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                         assertThat(
                             "Persistent cache should contain cached data for at least 1 cache file",
-                            persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId),
+                            persistentCache.getCacheSize(cacheKey.shardId(), snapshotId),
                             equalTo(sizeInCache)
                         );
                     }
@@ -286,14 +286,10 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 fileSystem.waitForBlock();
 
                 logger.debug("starting eviction of shard [{}]", cacheKey);
-                cacheService.markShardAsEvictedInCache(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId());
+                cacheService.markShardAsEvictedInCache(cacheKey.snapshotUUID(), cacheKey.snapshotIndexName(), cacheKey.shardId());
 
                 logger.debug("waiting for shard eviction to be processed");
-                cacheService.waitForCacheFilesEvictionIfNeeded(
-                    cacheKey.getSnapshotUUID(),
-                    cacheKey.getSnapshotIndexName(),
-                    cacheKey.getShardId()
-                );
+                cacheService.waitForCacheFilesEvictionIfNeeded(cacheKey.snapshotUUID(), cacheKey.snapshotIndexName(), cacheKey.shardId());
 
                 logger.debug("unblocking synchronization of cache files");
                 fileSystem.unblock();
@@ -301,7 +297,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                 assertThat(
                     "Persistent cache should not report any cached data for the evicted shard",
-                    persistentCache.getCacheSize(cacheKey.getShardId(), new SnapshotId("_ignored_", cacheKey.getSnapshotUUID())),
+                    persistentCache.getCacheSize(cacheKey.shardId(), new SnapshotId("_ignored_", cacheKey.snapshotUUID())),
                     equalTo(0L)
                 );
 
@@ -310,11 +306,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                 assertThat(
                     "Persistent cache should not report any cached data for the evicted shard (ignoring deleted files)",
-                    persistentCache.getCacheSize(
-                        cacheKey.getShardId(),
-                        new SnapshotId("_ignored_", cacheKey.getSnapshotUUID()),
-                        path -> true
-                    ),
+                    persistentCache.getCacheSize(cacheKey.shardId(), new SnapshotId("_ignored_", cacheKey.snapshotUUID()), path -> true),
                     equalTo(0L)
                 );
 
@@ -335,7 +327,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             final long sizeOfCacheFileInCache = sumOfCompletedRangesLengths(cacheFile);
 
             final Supplier<Long> cacheSizeSupplier = () -> cacheService.getPersistentCache()
-                .getCacheSize(cacheFile.getCacheKey().getShardId(), new SnapshotId("_ignored_", cacheFile.getCacheKey().getSnapshotUUID()));
+                .getCacheSize(cacheFile.getCacheKey().shardId(), new SnapshotId("_ignored_", cacheFile.getCacheKey().snapshotUUID()));
             assertThat(cacheSizeSupplier.get(), equalTo(0L));
 
             cacheService.synchronizeCache();

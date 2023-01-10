@@ -16,6 +16,7 @@
  *      </li>
  *      <li> Interfaces and annotations used by plugin developers are in `api` package
  *           i.e org.elasticsearch.plugin.analysis.api or org.elasticsearch.plugin.api
+*       </li>
  *      <li> packages which are not meant to be used by plugin developers should not be subpackages of api
  *           i.e org.elasticsearch.plugin.analysis.internal
  *      </li>

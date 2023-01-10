@@ -379,7 +379,7 @@ public class SharedBlobCacheService implements Releasable {
             final long now = currentTimeSupplier.getAsLong();
             final Entry<CacheFileRegion> entry = keyMapping.computeIfAbsent(
                 regionKey,
-                key -> new Entry<>(new CacheFileRegion(regionKey, effectiveRegionSize), now)
+                key -> new Entry<>(new CacheFileRegion(key, effectiveRegionSize), now)
             );
             if (entry.chunk.sharedBytesPos == -1) {
                 // new item
@@ -568,9 +568,7 @@ public class SharedBlobCacheService implements Releasable {
 
     public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
         forceEvict(
-            k -> shardId.equals(k.getShardId())
-                && snapshotIndexName.equals(k.getSnapshotIndexName())
-                && snapshotUUID.equals(k.getSnapshotUUID())
+            k -> shardId.equals(k.shardId()) && snapshotIndexName.equals(k.snapshotIndexName()) && snapshotUUID.equals(k.snapshotUUID())
         );
     }
 

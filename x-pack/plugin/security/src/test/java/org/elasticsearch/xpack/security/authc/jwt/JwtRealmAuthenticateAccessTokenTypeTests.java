@@ -25,9 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-
 public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
 
     private String fallbackSub;
@@ -155,8 +152,7 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
             randomBoolean() ? null : new Nonce(32).toString(),
             otherClaims
         );
-        final SecureString signedJWT = JwtValidateUtil.signJwt(jwk, unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(jwk, SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
+        final SecureString signedJWT = signJwt(jwk, unsignedJwt);
         return signedJWT;
     }
 

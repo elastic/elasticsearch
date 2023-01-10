@@ -155,7 +155,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                         .stream()
                         .filter(update -> update.getValue().v2() != null)
                         .filter(update -> update.getValue().v2() > 0)
-                        .anyMatch(update -> update.getKey().getShardId().equals(shardId))) {
+                        .anyMatch(update -> update.getKey().shardId().equals(shardId))) {
                         cacheDirFSyncs.put(shardCacheDir, numberOfFSyncs == null ? 1 : numberOfFSyncs + 1);
                     } else {
                         cacheDirFSyncs.put(shardCacheDir, numberOfFSyncs);
@@ -197,7 +197,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
             );
 
             final Path cacheDir = Files.createDirectories(
-                resolveSnapshotCache(randomShardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotUUID())
+                resolveSnapshotCache(randomShardPath(cacheKey.shardId())).resolve(cacheKey.snapshotUUID())
             );
             final String cacheFileUuid = UUIDs.randomBase64UUID(random());
             final SortedSet<ByteRange> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
@@ -379,7 +379,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     private static Set<ShardEviction> listOfShardEvictions(List<CacheFile> cacheFiles) {
         return cacheFiles.stream()
             .map(CacheFile::getCacheKey)
-            .map(cacheKey -> new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId()))
+            .map(cacheKey -> new ShardEviction(cacheKey.snapshotUUID(), cacheKey.snapshotIndexName(), cacheKey.shardId()))
             .collect(Collectors.toSet());
     }
 

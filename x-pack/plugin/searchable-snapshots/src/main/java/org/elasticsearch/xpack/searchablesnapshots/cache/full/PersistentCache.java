@@ -577,12 +577,12 @@ public class PersistentCache implements Closeable {
         }
 
         final CacheKey cacheKey = cacheFile.getCacheKey();
-        document.add(new StringField(FILE_NAME_FIELD, cacheKey.getFileName(), Field.Store.YES));
+        document.add(new StringField(FILE_NAME_FIELD, cacheKey.fileName(), Field.Store.YES));
         document.add(new StringField(FILE_LENGTH_FIELD, Long.toString(cacheFile.getLength()), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.getSnapshotUUID(), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.getSnapshotIndexName(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.snapshotUUID(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.snapshotIndexName(), Field.Store.YES));
 
-        final ShardId shardId = cacheKey.getShardId();
+        final ShardId shardId = cacheKey.shardId();
         document.add(new StringField(SHARD_INDEX_NAME_FIELD, shardId.getIndex().getName(), Field.Store.YES));
         document.add(new StringField(SHARD_INDEX_ID_FIELD, shardId.getIndex().getUUID(), Field.Store.YES));
         document.add(new StringField(SHARD_ID_FIELD, Integer.toString(shardId.getId()), Field.Store.YES));

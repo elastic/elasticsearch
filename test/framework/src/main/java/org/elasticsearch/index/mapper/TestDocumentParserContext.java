@@ -10,12 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.xcontent.XContentParser;
-
-import java.util.function.Function;
 
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
@@ -33,21 +28,29 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * Use with caution as it can cause {@link NullPointerException}s down the line.
      */
     public TestDocumentParserContext() {
-        super(MappingLookup.EMPTY, MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY), null, null, null);
+        this(MappingLookup.EMPTY, null);
     }
 
     /**
      * More verbose way to create a context, to be used when one or more constructor arguments are needed as final methods
      * that depend on them are called while executing tests.
      */
-    public TestDocumentParserContext(
-        MappingLookup mappingLookup,
-        IndexSettings indexSettings,
-        IndexAnalyzers indexAnalyzers,
-        Function<DateFormatter, MappingParserContext> parserContextFunction,
-        SourceToParse source
-    ) {
-        super(mappingLookup, indexSettings, indexAnalyzers, parserContextFunction, source);
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source) {
+        super(
+            mappingLookup,
+            new MappingParserContext(
+                s -> null,
+                s -> null,
+                s -> null,
+                Version.CURRENT,
+                () -> null,
+                null,
+                null,
+                MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
+                null
+            ),
+            source
+        );
     }
 
     @Override

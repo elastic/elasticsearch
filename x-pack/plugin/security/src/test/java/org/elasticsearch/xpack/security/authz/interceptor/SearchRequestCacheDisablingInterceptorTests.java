@@ -42,7 +42,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private MockLicenseState licenseState;
-    private SearchRequestInterceptor interceptor;
+    private SearchRequestCacheDisablingInterceptor interceptor;
 
     @Before
     public void init() {
@@ -50,7 +50,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         clusterService = mock(ClusterService.class);
-        interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);
+        interceptor = new SearchRequestCacheDisablingInterceptor(threadPool, licenseState);
     }
 
     @After
@@ -83,7 +83,9 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.disableFeatures(searchRequest, Map.of(), future);
+        if (interceptor.supports(searchRequest)) {
+            interceptor.disableFeatures(searchRequest, Map.of(), future);
+        }
         future.actionGet();
         if (remoteIndices.length > 0) {
             verify(searchRequest).requestCache(false);
@@ -108,9 +110,9 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
 
         if (remoteIndices.length > 0) {
-            assertThat(SearchRequestInterceptor.hasRemoteIndices(searchRequest), is(true));
+            assertThat(SearchRequestCacheDisablingInterceptor.hasRemoteIndices(searchRequest), is(true));
         } else {
-            assertThat(SearchRequestInterceptor.hasRemoteIndices(searchRequest), is(false));
+            assertThat(SearchRequestCacheDisablingInterceptor.hasRemoteIndices(searchRequest), is(false));
         }
     }
 }

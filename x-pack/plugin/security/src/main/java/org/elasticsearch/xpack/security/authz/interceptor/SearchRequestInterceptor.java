@@ -17,10 +17,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.util.Arrays;
 import java.util.Map;
-
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
@@ -38,10 +35,6 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         ActionListener<Void> listener
     ) {
         final SearchRequest request = (SearchRequest) indicesRequest;
-        if (hasRemoteIndices(request)) {
-            request.requestCache(false);
-        }
-
         final SearchSourceBuilder source = request.source();
 
         if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
@@ -76,8 +69,4 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         }
     }
 
-    // package private for test
-    static boolean hasRemoteIndices(SearchRequest request) {
-        return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
-    }
 }

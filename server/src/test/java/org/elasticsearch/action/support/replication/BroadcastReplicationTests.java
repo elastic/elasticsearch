@@ -69,7 +69,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
-import static org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction.MAX_REQUESTS_PER_NODE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -86,6 +85,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private TestBroadcastReplicationAction broadcastReplicationAction;
+    private static final int MAX_REQUESTS_PER_NODE = between(1, 10);
 
     @BeforeClass
     public static void beforeClass() {
@@ -353,7 +353,8 @@ public class BroadcastReplicationTests extends ESTestCase {
                 actionFilters,
                 indexNameExpressionResolver,
                 null,
-                ThreadPool.Names.SAME
+                ThreadPool.Names.SAME,
+                MAX_REQUESTS_PER_NODE
             );
         }
 

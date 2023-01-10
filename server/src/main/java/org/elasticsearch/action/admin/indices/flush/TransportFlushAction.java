@@ -48,7 +48,8 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
             actionFilters,
             indexNameExpressionResolver,
             TransportShardFlushAction.TYPE,
-            ThreadPool.Names.FLUSH
+            ThreadPool.Names.FLUSH,
+            5 // the FLUSH threadpool has at most 5 threads by default, so this should be enough to keep everyone busy
         );
     }
 

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -29,7 +30,9 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,13 +51,12 @@ public abstract class TransportBroadcastReplicationAction<
     ShardRequest extends ReplicationRequest<ShardRequest>,
     ShardResponse extends ReplicationResponse> extends HandledTransportAction<Request, Response> {
 
-    static int MAX_REQUESTS_PER_NODE = 10; // The REFRESH threadpool maxes out at 10 by default so this is enough to keep everyone busy.
-
     private final ActionType<ShardResponse> replicatedBroadcastShardAction;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final String executor;
     private final NodeClient client;
+    private final int maxRequestsPerNode;
 
     protected TransportBroadcastReplicationAction(
         String name,
@@ -65,31 +67,37 @@ public abstract class TransportBroadcastReplicationAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionType<ShardResponse> replicatedBroadcastShardAction,
-        String executor
+        String executor,
+        int maxRequestsPerNode
     ) {
-        super(name, transportService, actionFilters, requestReader, executor);
+        // Explicitly SAME since the REST layer runs this directly via the NodeClient so it doesn't fork even if we tell it to (see #92730)
+        super(name, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+
         this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
+        this.maxRequestsPerNode = maxRequestsPerNode;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final var clusterState = clusterService.state();
-        final var context = new Context(task, request, clusterState.metadata().indices(), listener);
-        ThrottledIterator.run(
-            shardIds(request, clusterState),
-            context::processShard,
-            clusterState.nodes().getDataNodes().size() * MAX_REQUESTS_PER_NODE,
-            () -> {},
-            context::finish
-        );
+        clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, l -> {
+            final var clusterState = clusterService.state();
+            final var context = new Context(task, request, clusterState.metadata().indices(), listener);
+            ThrottledIterator.run(
+                shardIds(request, clusterState),
+                context::processShard,
+                clusterState.nodes().getDataNodes().size() * maxRequestsPerNode,
+                () -> {},
+                context::finish
+            );
+        }));
     }
 
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
-        // assert Transports.assertNotTransportThread("per-shard requests might be high-volume"); TODO Yikes!
+        assert Transports.assertNotTransportThread("per-shard requests might be high-volume");
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);

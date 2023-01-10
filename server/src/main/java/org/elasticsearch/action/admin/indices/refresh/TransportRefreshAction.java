@@ -50,7 +50,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
             actionFilters,
             indexNameExpressionResolver,
             TransportShardRefreshAction.TYPE,
-            ThreadPool.Names.REFRESH
+            ThreadPool.Names.REFRESH,
+            10 // the REFRESH threadpool has at most 10 threads by default, so this should be enough to keep everyone busy
         );
     }
 

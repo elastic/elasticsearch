@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -373,12 +374,12 @@ public final class IndicesPermission {
         }
 
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
-        final int[] totalResourceCountHolder = new int[] { 0 };
+        final AtomicInteger totalResourceCountHolder = new AtomicInteger(0);
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias));
             resources.put(resource.name, resource);
-            totalResourceCountHolder[0] += resource.size();
+            totalResourceCountHolder.getAndAdd(resource.size());
         }
 
         final boolean overallGranted = isActionGranted(action, resources);
@@ -386,7 +387,7 @@ public final class IndicesPermission {
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
-            totalResourceCountHolder[0],
+            totalResourceCountHolder.get(),
             fieldPermissionsCache
         );
 

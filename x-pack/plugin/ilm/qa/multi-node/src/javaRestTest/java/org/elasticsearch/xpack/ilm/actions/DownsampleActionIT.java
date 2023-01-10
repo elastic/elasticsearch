@@ -199,7 +199,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity(formatted("""
+        createTemplateRequest.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -249,7 +249,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(formatted(TEMPLATE, dataStream, policy));
+        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
         assertOK(client().performRequest(createIndexTemplateRequest));
 
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());

@@ -36,7 +36,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     @Override
     protected NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
-        final long tiles = 1L << precision();
+        final int tiles = 1 << precision();
         return new CellSingleValue(values, precision()) {
             @Override
             protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
@@ -65,7 +65,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     @Override
     protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
-        final long tiles = 1L << precision();
+        final int tiles = 1 << precision();
         return new CellMultiValues(values, precision()) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {

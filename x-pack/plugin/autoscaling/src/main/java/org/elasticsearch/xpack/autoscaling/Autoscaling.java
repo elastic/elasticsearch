@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -119,10 +120,10 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         this.clusterServiceHolder.set(clusterService);
-        this.allocationDeciders.set(allocationDeciders);
+        this.allocationDeciders.set(allocationService.getAllocationDeciders());
         var capacityServiceHolder = new AutoscalingCalculateCapacityService.Holder(this);
         this.reservedAutoscalingPolicyAction.set(new ReservedAutoscalingPolicyAction(capacityServiceHolder));
         return List.of(capacityServiceHolder, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));

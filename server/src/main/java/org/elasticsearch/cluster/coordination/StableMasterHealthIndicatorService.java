@@ -41,7 +41,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     public static final String NAME = "master_is_stable";
     public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
-    public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
+    public static final Diagnosis CONTACT_SUPPORT = new Diagnosis(
         new Diagnosis.Definition(
             NAME,
             "contact_support",
@@ -218,7 +218,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private List<Diagnosis> getContactSupportUserActions(boolean explain) {
         if (explain) {
-            return List.of(CONTACT_SUPPORT_USER_ACTION);
+            return List.of(CONTACT_SUPPORT);
         } else {
             return List.of();
         }

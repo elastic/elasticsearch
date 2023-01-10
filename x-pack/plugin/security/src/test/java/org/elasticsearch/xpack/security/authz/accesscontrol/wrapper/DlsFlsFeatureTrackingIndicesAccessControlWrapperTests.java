@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol.wrapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -34,7 +36,11 @@ public class DlsFlsFeatureTrackingIndicesAccessControlWrapperTests extends ESTes
         MockLicenseState licenseState = MockLicenseState.createMock();
         Mockito.when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         Mockito.when(licenseState.isAllowed(FIELD_LEVEL_SECURITY_FEATURE)).thenReturn(true);
-        DlsFlsFeatureTrackingIndicesAccessControlWrapper wrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(licenseState);
+        Settings settings = Settings.builder().put(XPackSettings.DLS_FLS_ENABLED.getKey(), true).build();
+        DlsFlsFeatureTrackingIndicesAccessControlWrapper wrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(
+            settings,
+            licenseState
+        );
 
         String flsIndexName = "fls-index";
         String dlsIndexName = "dls-index";

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.security.authz.accesscontrol.wrapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
@@ -16,17 +18,28 @@ import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SE
 /**
  * The wrapper of {@link IndicesAccessControl} which adds ability to track actual Document and Field Level Security feature usage.
  */
-public class DlsFlsFeatureTrackingIndicesAccessControlWrapper implements IndicesAccessControlWrapper {
+public class DlsFlsFeatureTrackingIndicesAccessControlWrapper {
 
     private final XPackLicenseState licenseState;
+    private final boolean isDlsFlsEnabled;
 
-    public DlsFlsFeatureTrackingIndicesAccessControlWrapper(XPackLicenseState licenseState) {
+    public DlsFlsFeatureTrackingIndicesAccessControlWrapper(Settings settings, XPackLicenseState licenseState) {
         this.licenseState = licenseState;
+        this.isDlsFlsEnabled = XPackSettings.DLS_FLS_ENABLED.get(settings);
     }
 
-    @Override
     public IndicesAccessControl wrap(IndicesAccessControl indicesAccessControl) {
-        return new DlsFlsFeatureUsageTracker(indicesAccessControl, licenseState);
+        if (isDlsFlsEnabled == false
+            || indicesAccessControl == null
+            || indicesAccessControl == IndicesAccessControl.ALLOW_NO_INDICES
+            || indicesAccessControl == IndicesAccessControl.DENIED
+            || indicesAccessControl == IndicesAccessControl.allowAll()
+            || indicesAccessControl instanceof DlsFlsFeatureUsageTracker) {
+            // Wrap only if it's not one of the statically defined nor already wrapped.
+            return indicesAccessControl;
+        } else {
+            return new DlsFlsFeatureUsageTracker(indicesAccessControl, licenseState);
+        }
     }
 
     private static class DlsFlsFeatureUsageTracker extends IndicesAccessControl {

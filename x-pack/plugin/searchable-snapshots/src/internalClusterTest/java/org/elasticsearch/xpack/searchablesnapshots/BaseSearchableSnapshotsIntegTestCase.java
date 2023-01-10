@@ -11,6 +11,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -80,6 +81,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(BlobCachePlugin.class);
         plugins.add(LocalStateSearchableSnapshots.class);
         plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
         return Collections.unmodifiableList(plugins);

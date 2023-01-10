@@ -805,7 +805,7 @@ public class AuthorizationService {
                     collection.forEach(tuple -> {
                         final IndicesAccessControl existing = actionToIndicesAccessControl.putIfAbsent(
                             tuple.v1(),
-                            wrapIndicesAccessControl(tuple.v2().getIndicesAccessControl())
+                            tuple.v2().getIndicesAccessControl()
                         );
                         if (existing != null) {
                             throw new IllegalStateException("a value already exists for action " + tuple.v1());

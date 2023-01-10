@@ -121,10 +121,10 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     deterministicTaskQueue.advanceTime();
                 }
             }
+            assertThat(warningCount.get(), is(1L));
+            assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
+            mockLogAppender.assertAllExpectationsMatched();
         }
-        assertThat(warningCount.get(), is(1L));
-        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
-        mockLogAppender.assertAllExpectationsMatched();
 
         while (warningCount.get() < 5) {
             assertTrue(clusterFormationFailureHelper.isRunning());

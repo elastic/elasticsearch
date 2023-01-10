@@ -37,7 +37,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SearchRequestInterceptorTests extends ESTestCase {
+public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
 
     private ClusterService clusterService;
     private ThreadPool threadPool;

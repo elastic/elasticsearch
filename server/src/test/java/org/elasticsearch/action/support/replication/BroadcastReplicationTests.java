@@ -85,7 +85,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private TestBroadcastReplicationAction broadcastReplicationAction;
-    private static final int MAX_REQUESTS_PER_NODE = between(1, 10);
+    private static final int MAX_REQUESTS_PER_NODE = 10;
 
     @BeforeClass
     public static void beforeClass() {

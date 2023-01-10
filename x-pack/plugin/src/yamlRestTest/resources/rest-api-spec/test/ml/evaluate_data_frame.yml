@@ -194,6 +194,8 @@ setup:
 "Test outlier_detection auc_roc":
   - skip:
       features: close_to
+      reason: "t-digest and HdrHistogram library upgrade in version 8.7.0"
+      version: "- 8.6.99"
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -216,6 +218,8 @@ setup:
 "Test outlier_detection auc_roc given actual_field is int":
   - skip:
       features: close_to
+      reason: "t-digest and HdrHistogram library upgrade in version 8.7.0"
+      version: "- 8.6.99"
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -238,6 +242,8 @@ setup:
 "Test outlier_detection auc_roc include curve":
   - skip:
       features: close_to
+      reason: "t-digest and HdrHistogram library upgrade in version 8.7.0."
+      version: " - 8.6.99"
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -713,6 +719,8 @@ setup:
 "Test classification auc_roc":
   - skip:
       features: close_to
+      reason: "t-digest and HdrHistogram library upgrade in version 8.7.0"
+      version: " - 8.6.99"
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -736,6 +744,8 @@ setup:
 "Test classification auc_roc with default top_classes_field":
   - skip:
       features: close_to
+      reason: "t-digest and HdrHistogram library upgrade in version 8.7.0"
+      version: " - 8.6.99"
   - do:
       ml.evaluate_data_frame:
         body:  >

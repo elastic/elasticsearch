@@ -111,11 +111,10 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     public static final double DEFAULT_DELETES_PCT_ALLOWED = 33.0d;
-    private static final String INDEX_COMPOUND_FORMAT_SETTING_KEY = "index.compound_format";
-    public static final Setting<CompoundFileThreshold> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
-        INDEX_COMPOUND_FORMAT_SETTING_KEY,
-        "1gb",
-        MergePolicyConfig::parseCompoundFormat,
+    public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
+        "index.compound_format",
+        Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO),
+        MergePolicyConfig::parseNoCFSRatio,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -190,7 +189,7 @@ public final class MergePolicyConfig {
             );
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
-        indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING).configure(mergePolicy);
+        mergePolicy.setNoCFSRatio(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
@@ -230,8 +229,8 @@ public final class MergePolicyConfig {
         mergePolicy.setForceMergeDeletesPctAllowed(value);
     }
 
-    void setCompoundFormatThreshold(CompoundFileThreshold compoundFileThreshold) {
-        compoundFileThreshold.configure(mergePolicy);
+    void setNoCFSRatio(Double noCFSRatio) {
+        mergePolicy.setNoCFSRatio(noCFSRatio);
     }
 
     void setDeletesPctAllowed(Double deletesPctAllowed) {
@@ -262,80 +261,24 @@ public final class MergePolicyConfig {
         return mergesEnabled ? mergePolicy : NoMergePolicy.INSTANCE;
     }
 
-    private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {
+    private static double parseNoCFSRatio(String noCFSRatio) {
         noCFSRatio = noCFSRatio.trim();
         if (noCFSRatio.equalsIgnoreCase("true")) {
-            return new CompoundFileThreshold(1.0d);
+            return 1.0d;
         } else if (noCFSRatio.equalsIgnoreCase("false")) {
-            return new CompoundFileThreshold(0.0d);
+            return 0.0;
         } else {
             try {
-                try {
-                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
-                } catch (NumberFormatException ex) {
-                    throw new IllegalArgumentException(
-                        "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
-                            + noCFSRatio
-                            + "]",
-                        ex
-                    );
+                double value = Double.parseDouble(noCFSRatio);
+                if (value < 0.0 || value > 1.0) {
+                    throw new IllegalArgumentException("NoCFSRatio must be in the interval [0..1] but was: [" + value + "]");
                 }
-            } catch (IllegalArgumentException e) {
-                try {
-                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
-                } catch (RuntimeException e2) {
-                    e.addSuppressed(e2);
-                }
-                throw e;
-            }
-        }
-    }
-
-    public static class CompoundFileThreshold {
-        private Double noCFSRatio;
-        private ByteSizeValue noCFSSize;
-
-        private CompoundFileThreshold(double noCFSRatio) {
-            if (noCFSRatio < 0.0 || noCFSRatio > 1.0) {
+                return value;
+            } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException(
-                    "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
-                        + noCFSRatio
-                        + "]"
+                    "Expected a boolean or a value in the interval [0..1] but was: " + "[" + noCFSRatio + "]",
+                    ex
                 );
-            }
-            this.noCFSRatio = noCFSRatio;
-            this.noCFSSize = null;
-        }
-
-        private CompoundFileThreshold(ByteSizeValue noCFSSize) {
-            if (noCFSSize.getBytes() < 0) {
-                throw new IllegalArgumentException(
-                    "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
-                        + noCFSSize
-                        + "]"
-                );
-            }
-            this.noCFSRatio = null;
-            this.noCFSSize = noCFSSize;
-        }
-
-        void configure(MergePolicy mergePolicy) {
-            if (noCFSRatio != null) {
-                assert noCFSSize == null;
-                mergePolicy.setNoCFSRatio(noCFSRatio);
-                mergePolicy.setMaxCFSSegmentSizeMB(Double.POSITIVE_INFINITY);
-            } else {
-                mergePolicy.setNoCFSRatio(1.0);
-                mergePolicy.setMaxCFSSegmentSizeMB(noCFSSize.getMbFrac());
-            }
-        }
-
-        @Override
-        public String toString() {
-            if (noCFSRatio != null) {
-                return "max CFS ratio: " + noCFSRatio;
-            } else {
-                return "max CFS size: " + noCFSSize;
             }
         }
     }

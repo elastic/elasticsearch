@@ -134,6 +134,19 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Long version,
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamTemplate dataStreamTemplate,
+        @Nullable Boolean allowAutoCreate
+    ) {
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null);
+    }
+
+    public ComposableIndexTemplate(
+        List<String> indexPatterns,
+        @Nullable Template template,
+        @Nullable List<String> componentTemplates,
+        @Nullable Long priority,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate,
         @Nullable Boolean allowAutoCreate,
         @Nullable List<String> ignoreMissingComponentTemplates
     ) {

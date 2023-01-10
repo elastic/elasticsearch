@@ -89,7 +89,7 @@ SELECT extra_gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD
 
  extra_gender  |      avg    |     mad_s   |     mad_l     
 ---------------+-------------+-------------+---------------
-Female         |48248        |10096        |1            
+Female         |48248        |10299        |1
 ;
 
 caseGroupByAndHaving

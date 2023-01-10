@@ -123,12 +123,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private final WriteLoadForecaster writeLoadForecaster;
 
+    public BalancedShardsAllocator() {
+        this(Settings.EMPTY);
+    }
+
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
+        this(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
+    }
+
+    public BalancedShardsAllocator(ClusterSettings clusterSettings) {
+        this(clusterSettings, WriteLoadForecaster.DEFAULT);
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
+    public BalancedShardsAllocator(ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
         clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
         clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
         clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);

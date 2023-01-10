@@ -68,6 +68,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -386,8 +387,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var allocateCalled = new AtomicBoolean();
         var desiredBalanceComputer = new DesiredBalanceComputer(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             mock(ThreadPool.class),
             new ShardsAllocator() {
                 @Override
@@ -660,8 +660,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             List.of()
         );
         var desiredBalance = new DesiredBalanceComputer(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             mock(ThreadPool.class),
             new BalancedShardsAllocator(Settings.EMPTY)
         ).compute(DesiredBalance.INITIAL, input, queue(), ignored -> iteration.incrementAndGet() < 1000);
@@ -826,8 +825,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         );
 
         var desiredBalance = new DesiredBalanceComputer(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             mock(ThreadPool.class),
             new BalancedShardsAllocator(settings)
         ).compute(
@@ -890,8 +888,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         when(mockThreadPool.relativeTimeInMillis()).thenAnswer(invocation -> currentTime.addAndGet(eachIterationDuration));
 
         var desiredBalanceComputer = new DesiredBalanceComputer(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             mockThreadPool,
             new ShardsAllocator() {
                 @Override
@@ -1036,8 +1033,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
      */
     private static DesiredBalanceComputer createDesiredBalanceComputer() {
         return new DesiredBalanceComputer(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             mock(ThreadPool.class),
             new ShardsAllocator() {
                 @Override

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -58,6 +57,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -114,10 +114,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             .build();
 
         var settings = Settings.EMPTY;
-        var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var clusterSettings = createBuiltInClusterSettings(settings);
         var clusterService = new ClusterService(
             settings,
-            clusterSettings,
+            createBuiltInClusterSettings(settings),
             new FakeThreadPoolMasterService(LOCAL_NODE_ID, "test", threadPool, deterministicTaskQueue::scheduleNow),
             new ClusterApplierService(LOCAL_NODE_ID, Settings.EMPTY, clusterSettings, threadPool) {
                 @Override
@@ -142,7 +142,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         };
 
         final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            settings,
             clusterSettings,
             createShardsAllocator(),
             threadPool,
@@ -225,8 +224,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             threadPool,
             clusterService,
             new DesiredBalanceComputer(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                createBuiltInClusterSettings(),
                 threadPool,
                 shardsAllocator
             ) {
@@ -328,8 +326,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             threadPool,
             clusterService,
             new DesiredBalanceComputer(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                createBuiltInClusterSettings(),
                 threadPool,
                 shardsAllocator
             ) {

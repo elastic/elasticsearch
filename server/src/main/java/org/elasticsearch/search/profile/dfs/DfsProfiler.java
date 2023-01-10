@@ -11,7 +11,6 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
-import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -70,23 +69,14 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             totalTime,
             List.of()
         );
-        final QueryProfileShardResult queryProfileShardResult;
+        final List<QueryProfileShardResult> queryProfileShardResult;
         if (collectorSet) {
-            List<CollectorResult> subCollectorResults = new ArrayList<>(knnQueryProfilers.size());
-            long totalRewriteTime = 0;
-            long totalCollectionTime = 0;
-            List<ProfileResult> profileResults = new ArrayList<>();
+            queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
             for (QueryProfiler queryProfiler : knnQueryProfilers) {
-                totalRewriteTime += queryProfiler.getRewriteTime();
-                profileResults.addAll(queryProfiler.getTree());
-                subCollectorResults.add(queryProfiler.getCollector());
-                totalCollectionTime += queryProfiler.getCollector().getTime();
+                queryProfileShardResult.add(
+                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
+                );
             }
-            queryProfileShardResult = new QueryProfileShardResult(
-                profileResults,
-                totalRewriteTime,
-                new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults)
-            );
         } else {
             queryProfileShardResult = null;
         }

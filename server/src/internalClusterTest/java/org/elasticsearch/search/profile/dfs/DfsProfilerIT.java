@@ -101,17 +101,19 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 }
                 SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = shard.getValue().getSearchProfileDfsPhaseResult();
                 assertThat(searchProfileDfsPhaseResult, is(notNullValue()));
-                for (ProfileResult result : searchProfileDfsPhaseResult.getQueryProfileShardResult().getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+                for (QueryProfileShardResult queryProfileShardResult : searchProfileDfsPhaseResult.getQueryProfileShardResult()) {
+                    for (ProfileResult result : queryProfileShardResult.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                    }
+                    CollectorResult result = queryProfileShardResult.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
+                    assertThat(result.getTime(), greaterThan(0L));
                     assertThat(result.getTime(), greaterThan(0L));
                 }
-                CollectorResult result = searchProfileDfsPhaseResult.getQueryProfileShardResult().getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
                 ProfileResult statsResult = searchProfileDfsPhaseResult.getDfsShardResult();
                 assertThat(statsResult.getQueryName(), equalTo("statistics"));
-                assertThat(result.getTime(), greaterThan(0L));
             }
         }
     }

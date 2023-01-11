@@ -12,6 +12,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -56,13 +57,17 @@ public class BwcSetupExtension {
 
     private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
-            loggedExec.dependsOn("checkoutBwcBranch");
+            loggedExec.dependsOn("checkoutBwcBranch", "setupGradleUserHome");
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
             loggedExec.getEnvironment().put("JAVA_HOME", unreleasedVersionInfo.zip(checkoutDir, (version, checkoutDir) -> {
                 String minimumCompilerVersion = readFromFile(new File(checkoutDir, minimumCompilerVersionPath(version.version())));
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
+
+            if (BuildParams.isCi() && Os.isFamily(Os.FAMILY_WINDOWS) == false) {
+                loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", "$HOME/gradle_ro_cache");
+            }
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 loggedExec.getExecutable().set("cmd");

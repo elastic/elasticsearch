@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -47,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -55,6 +55,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -64,7 +65,6 @@ import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -164,7 +164,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final ThreadPool threadPool;
-    private final PrioritizedThrottledTaskRunner<UploadTask> uploadTaskRunner;
+    private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
+    private final PrioritizedThrottledTaskRunner<ObjectStoreTask> downloadTaskRunner;
     private final Semaphore permits;
 
     private BlobStoreRepository objectStore;
@@ -187,6 +188,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         this.clusterService = clusterService;
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
+        );
+        this.downloadTaskRunner = new PrioritizedThrottledTaskRunner<>(
+            getClass().getSimpleName() + "#download-task-runner",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
         );
@@ -278,22 +284,22 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      * Abstract class for commit and files upload tasks.
      *
      * Tasks belonging to the same shard are ordered by commit generation. Tasks belonging to different shards are ordered by the commit
-     * enqueue time (also for file upload tasks).
+     * enqueue time.
      */
-    private abstract static class UploadTask extends AbstractRunnable implements Comparable<UploadTask> {
+    private abstract static class ObjectStoreTask extends AbstractRunnable implements Comparable<ObjectStoreTask> {
 
         protected final ShardId shardId;
         protected final long generation;
         protected final long timeInNanos;
 
-        UploadTask(ShardId shardId, long generation, long timeInNanos) {
+        ObjectStoreTask(ShardId shardId, long generation, long timeInNanos) {
             this.shardId = Objects.requireNonNull(shardId);
             this.generation = generation;
             this.timeInNanos = timeInNanos;
         }
 
         @Override
-        public final int compareTo(UploadTask other) {
+        public final int compareTo(ObjectStoreTask other) {
             if (shardId.equals(other.shardId)) {
                 return Long.compare(generation, other.generation);
             }
@@ -304,7 +310,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     /**
      * {@link CommitUploadTask} expands a commit into one or more file upload tasks.
      */
-    private class CommitUploadTask extends UploadTask {
+    private class CommitUploadTask extends ObjectStoreTask {
 
         protected final StatelessCommitRef reference;
         private final Releasable releasable;
@@ -339,29 +345,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                                 generation,
                                 TimeValue.nsecToMSec(end - timeInNanos),
                                 results.size(),
-                                results.stream().mapToLong(FileUploadTask.Result::length).reduce(Math::addExact).getAsLong()
+                                results.stream().mapToLong(FileUploadTask.Result::length).sum()
                             )
                         );
-
-                        Map<String, StoreFileMetadata> commitAdditionalFiles = results.stream()
-                            .collect(
-                                Collectors.toUnmodifiableMap(
-                                    result -> result.name(),
-                                    result -> new StoreFileMetadata(
-                                        result.name(),
-                                        result.length(),
-                                        result.checksum(),
-                                        Version.LATEST.toString()
-                                    )
-                                )
-                            );
 
                         NewCommitNotificationRequest request = new NewCommitNotificationRequest(
                             shardId,
                             true,
                             reference.getPrimaryTerm(),
                             generation,
-                            commitAdditionalFiles
+                            reference.getCommitFiles()
                         );
                         client.execute(NewCommitNotificationAction.INSTANCE, request);
                     }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
@@ -444,7 +437,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     /**
      * {@link FileUploadTask} uploads a blob to the object store
      */
-    private class FileUploadTask extends UploadTask {
+    private class FileUploadTask extends ObjectStoreTask {
 
         private final String name;
         private final Directory directory;
@@ -503,8 +496,166 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     listener.onResponse(result);
                 }
             }
+
         }
 
         record Result(String name, long length, String checksum, long elapsedInMillis) {}
     }
+
+    public void onNewCommitReceived(
+        final ShardId shardId,
+        final long primaryTerm,
+        final long generation,
+        final Map<String, StoreFileMetadata> toDownload,
+        final MultiFileWriter multiFileWriter,
+        final ActionListener<Void> listener
+    ) {
+        logger.debug("{} downloading new commit [{}]", shardId, generation);
+        ensureRunning();
+        if (permits.tryAcquire()) {
+            downloadTaskRunner.enqueueTask(
+                new CommitDownloadTask(
+                    multiFileWriter,
+                    toDownload,
+                    shardId,
+                    primaryTerm,
+                    generation,
+                    threadPool.relativeTimeInNanos(),
+                    ActionListener.runAfter(listener, permits::release)
+                )
+            );
+        }
+    }
+
+    private class CommitDownloadTask extends ObjectStoreTask {
+
+        private final Map<String, StoreFileMetadata> files;
+        private final MultiFileWriter multiFileWriter;
+        private final ShardId shardId;
+        private final long primaryTerm;
+        private final ActionListener<Void> listener;
+
+        CommitDownloadTask(
+            MultiFileWriter multiFileWriter,
+            Map<String, StoreFileMetadata> files,
+            ShardId shardId,
+            long primaryTerm,
+            long generation,
+            long timeInNanos,
+            ActionListener<Void> listener
+        ) {
+            super(shardId, generation, timeInNanos);
+            this.files = files;
+            this.shardId = shardId;
+            this.primaryTerm = primaryTerm;
+            this.multiFileWriter = multiFileWriter;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            logger.trace("{} downloading commit [{}] with [{}] new files", shardId, generation, files.size());
+
+            final ActionListener<Collection<Result>> finalListener = ActionListener.wrap(results -> {
+                final long end = threadPool.relativeTimeInNanos();
+                logger.debug(
+                    () -> format(
+                        "%s commit [%s] downloaded in [%s] ms (%s files, %s total bytes)",
+                        shardId,
+                        generation,
+                        TimeValue.nsecToMSec(end - timeInNanos),
+                        results.size(),
+                        results.stream().mapToLong(Result::length).reduce(Math::addExact).getAsLong()
+                    )
+                );
+                listener.onResponse(null);
+            }, e -> {
+                logger.error(() -> format("%s failed to download files of commit [%s] to object store", shardId, generation), e);
+                listener.onFailure(e);
+            });
+            if (files.isEmpty()) {
+                finalListener.onResponse(null);
+                return;
+            }
+
+            var groupedListener = new GroupedActionListener<>(files.size(), finalListener);
+            try {
+
+                final BlobContainer blobContainer = getBlobContainer(shardId, primaryTerm);
+
+                files.entrySet()
+                    .forEach(
+                        file -> downloadTaskRunner.enqueueTask(
+                            new FileDownloadTask(shardId, generation, timeInNanos, file, multiFileWriter, blobContainer, groupedListener)
+                        )
+                    );
+            } catch (Exception e) {
+                finalListener.onFailure(e);
+            }
+        }
+    }
+
+    private class FileDownloadTask extends ObjectStoreTask {
+
+        private final String objectStoreFileName;
+        private final StoreFileMetadata fileMetadata;
+        private final MultiFileWriter multiFileWriter;
+        private final BlobContainer blobContainer;
+        private final ActionListener<Result> listener;
+
+        FileDownloadTask(
+            ShardId shardId,
+            long generation,
+            long startTimeInNanos,
+            Map.Entry<String, StoreFileMetadata> fileToDownload,
+            MultiFileWriter multiFileWriter,
+            BlobContainer blobContainer,
+            ActionListener<Result> listener
+        ) {
+            super(shardId, generation, startTimeInNanos);
+            this.objectStoreFileName = Objects.requireNonNull(fileToDownload.getKey());
+            this.fileMetadata = Objects.requireNonNull(fileToDownload.getValue());
+            this.multiFileWriter = Objects.requireNonNull(multiFileWriter);
+            this.blobContainer = Objects.requireNonNull(blobContainer);
+            this.listener = Objects.requireNonNull(listener);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+
+            try (InputStream inputStream = blobContainer.readBlob(objectStoreFileName)) {
+                int readBufferSizeInBytes = getObjectStore().getReadBufferSizeInBytes();
+                blobContainer.readBlobPreferredLength();
+                var before = threadPool.relativeTimeInMillis();
+                multiFileWriter.writeFile(fileMetadata, readBufferSizeInBytes, inputStream);
+                var after = threadPool.relativeTimeInMillis();
+                logger.debug(
+                    () -> format(
+                        "%s file %s of size [%s] bytes from commit [%s] uploaded in [%s] ms",
+                        shardId,
+                        blobContainer.path().add(objectStoreFileName),
+                        fileMetadata.length(),
+                        generation,
+                        TimeValue.timeValueNanos(after - before).millis()
+                    )
+                );
+                listener.onResponse(new Result(objectStoreFileName, fileMetadata.length(), after - before));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }
+
+    }
+
+    record Result(String name, long length, long elapsedInMillis) {}
 }

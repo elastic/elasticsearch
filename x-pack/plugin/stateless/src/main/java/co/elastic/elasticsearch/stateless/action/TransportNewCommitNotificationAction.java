@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
+import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -27,6 +30,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -34,10 +41,13 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 public class TransportNewCommitNotificationAction extends HandledTransportAction<NewCommitNotificationRequest, ActionResponse.Empty> {
     private static final Logger logger = LogManager.getLogger(TransportNewCommitNotificationAction.class);
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final IndicesService indicesService;
     private final Client client;
 
     @Inject
@@ -45,11 +55,13 @@ public class TransportNewCommitNotificationAction extends HandledTransportAction
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
+        IndicesService indicesService,
         Client client
     ) {
         super(NewCommitNotificationAction.NAME, transportService, actionFilters, NewCommitNotificationRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indicesService = indicesService;
         this.client = client;
     }
 
@@ -77,9 +89,29 @@ public class TransportNewCommitNotificationAction extends HandledTransportAction
                     ); // TODO Handle failed notifications if necessary
                 });
         } else {
-            // TODO Make local search/replica shard download new files
             logger.debug("received notify request [{}]", request);
+            IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+            Engine engineOrNull = shard.getEngineOrNull();
+            if (engineOrNull == null) {
+                throw new EngineException(shard.shardId(), "Engine not started.");
+            }
+            if (engineOrNull instanceof SearchEngine searchEngine) {
+                try {
+                    searchEngine.onCommitNotification(
+                        request.getTerm(),
+                        request.getGeneration(),
+                        request.getFiles(),
+                        ActionListener.noop()
+                    );
+                } catch (IOException e) {
+                    // TODO: Consider if we want to improve exception handling or propagate this exception
+                    logger.error("Exception attempting to load new commit.", e);
+                }
+            } else {
+                throw new ElasticsearchException("Engine not type SearchEngine.");
+            }
         }
+        // TODO: Consider if we want to wait for commit reload
         listener.onResponse(ActionResponse.Empty.INSTANCE);
     }
 }

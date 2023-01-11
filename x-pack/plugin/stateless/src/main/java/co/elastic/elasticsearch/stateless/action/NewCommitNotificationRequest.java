@@ -32,21 +32,21 @@ public class NewCommitNotificationRequest extends ActionRequest {
     private final boolean indexingShard;
     private final long term;
     private final long generation;
-    private final Map<String, StoreFileMetadata> files;
+    private final Map<String, StoreFileMetadata> commitFiles;
 
     public NewCommitNotificationRequest(
         final ShardId shardId,
         final boolean indexingShard,
         final long term,
         final long generation,
-        final Map<String, StoreFileMetadata> files
+        final Map<String, StoreFileMetadata> commitFiles
     ) {
         this.shardId = shardId;
         this.indexingShard = indexingShard;
         assert term >= 0 && generation >= 0 : "term and generation should not be negative";
         this.term = term;
         this.generation = generation;
-        this.files = files;
+        this.commitFiles = commitFiles;
     }
 
     public NewCommitNotificationRequest(final StreamInput in) throws IOException {
@@ -55,7 +55,7 @@ public class NewCommitNotificationRequest extends ActionRequest {
         indexingShard = in.readBoolean();
         term = in.readVLong();
         generation = in.readVLong();
-        files = in.readImmutableMap(StreamInput::readString, StoreFileMetadata::new);
+        commitFiles = in.readImmutableMap(StreamInput::readString, StoreFileMetadata::new);
     }
 
     public ShardId getShardId() {
@@ -75,11 +75,11 @@ public class NewCommitNotificationRequest extends ActionRequest {
     }
 
     public Map<String, StoreFileMetadata> getFiles() {
-        return files;
+        return commitFiles;
     }
 
     public NewCommitNotificationRequest withIndexingShard(boolean indexingShard) {
-        return new NewCommitNotificationRequest(shardId, indexingShard, term, generation, files);
+        return new NewCommitNotificationRequest(shardId, indexingShard, term, generation, commitFiles);
     }
 
     @Override
@@ -94,7 +94,7 @@ public class NewCommitNotificationRequest extends ActionRequest {
         out.writeBoolean(indexingShard);
         out.writeVLong(term);
         out.writeVLong(generation);
-        out.writeMap(files, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     @Override
@@ -108,8 +108,8 @@ public class NewCommitNotificationRequest extends ActionRequest {
             + term
             + ", generation="
             + generation
-            + ", files="
-            + files
+            + ", commitFiles="
+            + commitFiles
             + '}';
     }
 }

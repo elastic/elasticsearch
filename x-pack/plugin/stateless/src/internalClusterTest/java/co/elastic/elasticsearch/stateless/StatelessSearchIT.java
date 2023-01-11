@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -62,12 +63,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 @Override
                 public void onNewCommit(
                     ShardId shardId,
+                    Store store,
                     long primaryTerm,
                     Engine.IndexCommitRef indexCommitRef,
                     Set<String> additionalFiles
                 ) {
                     createdCommits.incrementAndGet();
-                    superListener.onNewCommit(shardId, primaryTerm, indexCommitRef, additionalFiles);
+                    superListener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
                 }
 
                 @Override

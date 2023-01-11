@@ -59,8 +59,9 @@ POST /_security/role/cli_or_drivers_minimal
 --------------------------------------------------
 // TEST[skip:forcomparisontofilemethod]
 
-[[fileexample]]
-*Add permissions to roles.yml*
+[discrete]
+[[sql-role-file-example]]
+===== Add permissions to `roles.yml`
 
 This example configures a role that can run SQL in JDBC querying the `test` and `bort`
 indices. Add the following to `roles.yml`:

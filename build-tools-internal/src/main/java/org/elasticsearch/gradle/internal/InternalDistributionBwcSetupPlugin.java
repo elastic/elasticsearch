@@ -111,14 +111,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             "assemble"
         );
 
-        for (StableApiProject stableApiProject : resolveStableProjects()) {
+        for (Project stableApiProject : resolveStableProjects(project)) {
+
+            String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
 
             DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir.get(),
-                    stableApiProject.projectDir()
+                    relativeDir
                         + "/build/distributions/"
-                        + stableApiProject.name()
+                        + stableApiProject.getName()
                         + "-"
                         + bwcVersion.get()
                         + "-SNAPSHOT.jar"
@@ -130,8 +132,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 bwcSetupExtension,
                 project,
                 bwcVersion,
-                stableApiProject.name(),
-                "libs/" + stableApiProject.name(),
+                stableApiProject.getName(),
+                "libs/" + stableApiProject.getName(),
                 stableAnalysisPluginProjectArtifact,
                 buildBwcTaskProvider,
                 "assemble"
@@ -226,14 +228,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }).collect(Collectors.toList());
     }
 
-    record StableApiProject(String name, String projectDir) {}
-
-    private static List<StableApiProject> resolveStableProjects() {
+    private static List<Project> resolveStableProjects(Project project) {
         // TODO: How do we retrieve these programmatically?
         return List.of(
-            new StableApiProject("elasticsearch-plugin-analysis-api", "libs/plugin-analysis-api"),
-            new StableApiProject("elasticsearch-plugin-api", "libs/plugin-api"),
-            new StableApiProject("elasticsearch-logging", "libs/logging")
+            project.findProject(":libs:elasticsearch-plugin-analysis-api"),
+            project.findProject(":libs:elasticsearch-plugin-api"),
+            project.findProject(":libs:elasticsearch-logging")
         );
     }
 

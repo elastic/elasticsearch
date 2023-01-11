@@ -24,6 +24,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -46,6 +48,8 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
+
+    private static final Logger logger = LogManager.getLogger(DataStream.class);
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
@@ -75,6 +79,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final LongSupplier timeProvider;
     private final String name;
     private final List<Index> indices;
+    private final Index writeIndex;
     private final long generation;
     private final Map<String, Object> metadata;
     private final boolean hidden;
@@ -86,6 +91,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public DataStream(
         String name,
         List<Index> indices,
+        Index writeIndex,
         long generation,
         Map<String, Object> metadata,
         boolean hidden,
@@ -94,13 +100,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean allowCustomRouting,
         IndexMode indexMode
     ) {
-        this(name, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting, indexMode);
+        this(
+            name,
+            indices,
+            writeIndex,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode
+        );
     }
 
     // visible for testing
     DataStream(
         String name,
         List<Index> indices,
+        Index writeIndex,
         long generation,
         Map<String, Object> metadata,
         boolean hidden,
@@ -112,9 +131,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
+        assert this.indices.contains(writeIndex)
+            : "the list of data stream indices must contain the write index: " + writeIndex + ", but it does not; indices: " + indices;
+        this.writeIndex = writeIndex;
         this.generation = generation;
         this.metadata = metadata;
-        assert system == false || hidden; // system indices must be hidden
+        assert system == false || hidden : "system indices must be hidden";
         this.hidden = hidden;
         this.replicated = replicated;
         this.timeProvider = timeProvider;
@@ -152,6 +174,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public Index getWriteIndex() {
+        return indices.get(indices.size() - 1);
+    }
+
+    /**
+     * Returns the "old" unsafe write index, which is the very last index in the
+     * list of indices in a data stream. Use {@link #getWriteIndex()} if possible.
+     */
+    private Index unsafeGetWriteIndex() {
         return indices.get(indices.size() - 1);
     }
 
@@ -305,7 +335,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode);
+        return new DataStream(name, backingIndices, writeIndex, generation, metadata, hidden, false, system, allowCustomRouting, indexMode);
     }
 
     /**
@@ -356,7 +386,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", index.getName(), name)
             );
         }
-        if (indices.size() == (backingIndexPosition + 1)) {
+        if (index.equals(writeIndex)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -369,8 +399,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
-        assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        assert backingIndices.size() == indices.size() - 1
+            : "expected one fewer indices in the new backing index list, new backing indices: "
+                + backingIndices
+                + ", original backing indices: "
+                + indices;
+        return new DataStream(
+            name,
+            backingIndices,
+            writeIndex,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode
+        );
     }
 
     /**
@@ -391,7 +436,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", existingBackingIndex.getName(), name)
             );
         }
-        if (indices.size() == (backingIndexPosition + 1)) {
+        if (existingBackingIndex.equals(writeIndex)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -402,7 +447,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            writeIndex,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode
+        );
     }
 
     /**
@@ -448,12 +504,42 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
-        assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        assert backingIndices.size() == indices.size() + 1
+            : "expected the new backing indices to be increased by exactly one, but got: "
+                + indices.size()
+                + " versus "
+                + backingIndices.size();
+        return new DataStream(
+            name,
+            backingIndices,
+            writeIndex,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode
+        );
     }
 
+    /**
+     * Converts a data stream that may have been replicated by CCR into a new Data Stream with replicated=false.
+     */
     public DataStream promoteDataStream() {
-        return new DataStream(name, indices, getGeneration(), metadata, hidden, false, system, timeProvider, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            indices,
+            writeIndex,
+            getGeneration(),
+            metadata,
+            hidden,
+            false,
+            system,
+            timeProvider,
+            allowCustomRouting,
+            indexMode
+        );
     }
 
     /**
@@ -476,9 +562,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return null;
         }
 
+        final Index newWriteIndex;
+        if (reconciledIndices.contains(this.writeIndex)) {
+            // Write index is unchanged
+            newWriteIndex = this.writeIndex;
+        } else {
+            // Write index was removed, so we need to pick a new write index,
+            // use the size-based method to determine which index that is (since
+            // we do not know at this point.)
+            // TODO: this behavior matches the existing behavior for a data stream, however, it's
+            // sub-optimal since it may end up with an unintended index being the write index for
+            // the data stream. We should figure out a better way for the write index to be
+            // reconciled during a snapshot restoration.
+            newWriteIndex = reconciledIndices.get(reconciledIndices.size() - 1);
+        }
+
         return new DataStream(
             name,
             reconciledIndices,
+            newWriteIndex,
             generation,
             metadata == null ? null : new HashMap<>(metadata),
             hidden,
@@ -521,17 +623,30 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public DataStream(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            readIndices(in),
-            in.readVLong(),
-            in.readMap(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false,
-            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
-        );
+        this.name = in.readString();
+        this.indices = readIndices(in);
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            this.writeIndex = new Index(in);
+        } else {
+            // Old list-based method for picking the write index
+            this.writeIndex = unsafeGetWriteIndex();
+        }
+        this.generation = in.readVLong();
+        this.metadata = in.readMap();
+        this.hidden = in.readBoolean();
+        this.replicated = in.readBoolean();
+        this.system = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.allowCustomRouting = in.readBoolean();
+        } else {
+            this.allowCustomRouting = false;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            this.indexMode = in.readOptionalEnum(IndexMode.class);
+        } else {
+            this.indexMode = null;
+        }
+        this.timeProvider = System::currentTimeMillis;
     }
 
     static List<Index> readIndices(StreamInput in) throws IOException {
@@ -548,6 +663,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeString(name);
         TIMESTAMP_FIELD.writeTo(out);
         out.writeList(indices);
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            this.writeIndex.writeTo(out);
+        }
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
         out.writeBoolean(hidden);
@@ -571,20 +689,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
+    public static final ParseField WRITE_INDEX = new ParseField("write_index");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
         assert TIMESTAMP_FIELD == args[1];
+        List<Index> backingIndices = (List<Index>) args[2];
+        assert backingIndices.size() > 0 : "expected at least one backing index, as data streams cannot be empty";
         return new DataStream(
             (String) args[0],
             (List<Index>) args[2],
-            (Long) args[3],
-            (Map<String, Object>) args[4],
-            args[5] != null && (boolean) args[5],
+            // If parsing from an older version that may not have a write index,
+            // fall back to the older array-based detection of the write index
+            args[3] == null ? backingIndices.get(backingIndices.size() - 1) : (Index) args[3],
+            (Long) args[4],
+            (Map<String, Object>) args[5],
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.fromString((String) args[9]) : null
+            args[9] != null && (boolean) args[9],
+            args[10] != null ? IndexMode.fromString((String) args[10]) : null
         );
     });
 
@@ -592,6 +716,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Index.fromXContent(p), WRITE_INDEX);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
@@ -611,6 +736,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), TIMESTAMP_FIELD);
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
+        builder.field(WRITE_INDEX.getPreferredName(), this.writeIndex);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
@@ -633,17 +759,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStream that = (DataStream) o;
         return name.equals(that.name)
             && indices.equals(that.indices)
+            && writeIndex.equals(that.writeIndex)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && hidden == that.hidden
             && replicated == that.replicated
+            && system == that.system
             && allowCustomRouting == that.allowCustomRouting
             && indexMode == that.indexMode;
     }
 
     @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
+        return Objects.hash(name, indices, writeIndex, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

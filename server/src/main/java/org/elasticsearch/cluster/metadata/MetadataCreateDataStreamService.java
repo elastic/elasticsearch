@@ -267,6 +267,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
+            writeIndex.getIndex(),
             1L,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
             hidden,

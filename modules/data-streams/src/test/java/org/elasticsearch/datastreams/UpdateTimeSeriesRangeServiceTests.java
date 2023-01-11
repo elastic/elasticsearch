@@ -32,7 +32,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -140,6 +139,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                 new DataStream(
                     d.getName(),
                     d.getIndices(),
+                    d.getWriteIndex(),
                     d.getGeneration(),
                     d.getMetadata(),
                     d.isHidden(),

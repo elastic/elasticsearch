@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,6 +31,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,6 +59,167 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     @Override
     protected DataStream createTestInstance() {
         return DataStreamTestHelper.randomInstance();
+    }
+
+    @Override
+    protected DataStream mutateInstance(DataStream original) throws IOException {
+        switch (randomIntBetween(1, 10)) {
+            case 1:
+                logger.info("--> mutating name");
+                return new DataStream(
+                    randomValueOtherThan(original.getName(), () -> randomAlphaOfLength(5)),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 2:
+                logger.info("--> mutating indices");
+                List<Index> indices = new ArrayList<>(original.getIndices());
+                indices.add(new Index(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+                return new DataStream(
+                    original.getName(),
+                    indices,
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 3:
+                logger.info("--> mutating write index");
+                final Index newWriteIndex;
+                List<Index> newIndices = new ArrayList<>(original.getIndices());
+                if (original.getIndices().size() > 1) {
+                    newWriteIndex = randomValueOtherThan(original.getWriteIndex(), () -> randomFrom(original.getIndices()));
+                } else {
+                    Index newWrite = new Index(randomAlphaOfLength(3), randomAlphaOfLength(4));
+                    newWriteIndex = newWrite;
+                    newIndices.add(newWrite);
+                }
+                return new DataStream(
+                    original.getName(),
+                    newIndices,
+                    newWriteIndex,
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 4:
+                logger.info("--> mutating generation");
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    randomValueOtherThan(original.getGeneration(), ESTestCase::randomNonNegativeLong),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 5:
+                logger.info("--> mutating metadata");
+                Map<String, Object> newMeta = new HashMap<>(Optional.ofNullable(original.getMetadata()).orElse(Map.of()));
+                newMeta.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    newMeta,
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 6:
+                logger.info("--> mutating hidden flag");
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden() == false,
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 7:
+                logger.info("--> mutating replicated flag");
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated() == false,
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 8:
+                logger.info("--> mutating system flag");
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isSystem() == false, // On purpose, system indices must be hidden
+                    original.isReplicated(),
+                    original.isSystem() == false,
+                    original.isAllowCustomRouting(),
+                    original.getIndexMode()
+                );
+            case 9:
+                logger.info("--> mutating custom routing flag");
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting() == false,
+                    original.getIndexMode()
+                );
+            case 10:
+                logger.info("--> mutating index mode");
+                return new DataStream(
+                    original.getName(),
+                    original.getIndices(),
+                    original.getWriteIndex(),
+                    original.getGeneration(),
+                    original.getMetadata(),
+                    original.isHidden(),
+                    original.isReplicated(),
+                    original.isSystem(),
+                    original.isAllowCustomRouting(),
+                    randomValueOtherThan(original.getIndexMode(), () -> randomFrom(IndexMode.values()))
+                );
+            default:
+                throw new IllegalStateException("unexpected randomization branch");
+        }
     }
 
     public void testRollover() {
@@ -104,6 +268,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         ds = new DataStream(
             ds.getName(),
             ds.getIndices(),
+            ds.getWriteIndex(),
             ds.getGeneration(),
             ds.getMetadata(),
             ds.isHidden(),
@@ -129,6 +294,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         ds = new DataStream(
             ds.getName(),
             ds.getIndices(),
+            ds.getWriteIndex(),
             ds.getGeneration(),
             ds.getMetadata(),
             ds.isHidden(),
@@ -489,6 +655,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
             postSnapshotIndices,
+            postSnapshotIndices.get(postSnapshotIndices.size() - 1),
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
             preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
             preSnapshotDataStream.isHidden(),
@@ -531,6 +698,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
             indicesToAdd,
+            indicesToAdd.get(indicesToAdd.size() - 1),
             preSnapshotDataStream.getGeneration(),
             preSnapshotDataStream.getMetadata(),
             preSnapshotDataStream.isHidden(),

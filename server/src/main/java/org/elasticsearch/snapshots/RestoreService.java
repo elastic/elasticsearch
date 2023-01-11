@@ -693,9 +693,11 @@ public class RestoreService implements ClusterStateApplier {
             .stream()
             .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
             .toList();
+        Index updatedWriteIndex = metadata.get(renameIndex(dataStream.getWriteIndex().getName(), request, true)).getIndex();
         return new DataStream(
             dataStreamName,
             updatedIndices,
+            updatedWriteIndex,
             dataStream.getGeneration(),
             dataStream.getMetadata(),
             dataStream.isHidden(),

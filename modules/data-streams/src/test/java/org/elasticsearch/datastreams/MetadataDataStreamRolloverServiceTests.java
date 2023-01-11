@@ -56,9 +56,11 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         Instant now = Instant.now();
         String dataStreamName = "logs-my-app";
+        Index index = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid");
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
+            List.of(index),
+            index,
             1,
             null,
             false,
@@ -162,9 +164,11 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
+        Index index = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid");
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
+            List.of(index),
+            index,
             1,
             null,
             false,
@@ -249,9 +253,11 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testChangingIndexModeFromTimeSeriesToSomethingElseNoEffectOnExistingDataStreams() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
+        Index index = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid");
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
+            List.of(index),
+            index,
             1,
             null,
             false,

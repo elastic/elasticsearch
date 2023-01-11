@@ -286,6 +286,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             new DataStream(
                 ds.getName(),
                 ds.getIndices(),
+                ds.getWriteIndex(),
                 ds.getGeneration(),
                 ds.getMetadata(),
                 ds.isHidden(),

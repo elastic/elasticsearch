@@ -346,6 +346,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         var broken = new DataStream(
             original.getName(),
             List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
+            original.getWriteIndex(),
             original.getGeneration(),
             original.getMetadata(),
             original.isHidden(),

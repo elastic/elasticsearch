@@ -1088,7 +1088,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), index, 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
                 )
             );
 
@@ -1133,7 +1133,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), index, 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
                 )
             );
 
@@ -1178,7 +1178,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), index, 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
                 )
             );
 
@@ -1266,7 +1266,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), index, 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
                 )
             );
 
@@ -1311,7 +1311,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), index, 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
                 )
             );
 
@@ -2616,6 +2616,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         DataStream dataStream = new DataStream(
             dataStreamName,
             List.of(indexMetadata.getIndex()),
+            indexMetadata.getIndex(),
             1,
             null,
             false,

@@ -1789,6 +1789,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     DataStream broken = new DataStream(
                         original.getName(),
                         List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
+                        original.getIndices().get(1),
                         original.getGeneration(),
                         original.getMetadata(),
                         original.isHidden(),

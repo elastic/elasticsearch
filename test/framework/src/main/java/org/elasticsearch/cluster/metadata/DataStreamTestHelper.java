@@ -98,7 +98,7 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, indices, indices.get(indices.size() - 1), generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -233,6 +233,8 @@ public final class DataStreamTestHelper {
         return new DataStream(
             dataStreamName,
             indices,
+            // Use the last index in the list as the write index (the old data stream behavior)
+            indices.get(indices.size() - 1),
             generation,
             metadata,
             randomBoolean(),
@@ -361,10 +363,12 @@ public final class DataStreamTestHelper {
             backingIndices.add(im);
             generation++;
         }
+        List<Index> indices = backingIndices.stream().map(IndexMetadata::getIndex).toList();
         DataStream ds = new DataStream(
             dataStream,
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-            backingIndices.size(),
+            indices,
+            indices.get(indices.size() - 1),
+            indices.size(),
             null,
             false,
             false,

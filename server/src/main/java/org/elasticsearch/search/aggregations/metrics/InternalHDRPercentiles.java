@@ -48,7 +48,7 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
 
     @Override
     public double percentile(double percent) {
-        if (state.getTotalCount() == 0) {
+        if (state == null || state.getTotalCount() == 0) {
             return Double.NaN;
         }
         return state.getValueAtPercentile(percent);

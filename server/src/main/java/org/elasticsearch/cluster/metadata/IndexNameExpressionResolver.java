@@ -1377,8 +1377,7 @@ public class IndexNameExpressionResolver {
         }
 
         private static boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty()
-                || (expressions.size() == 1 && (Metadata.ALL.equals(expressions.get(0)) || Regex.isMatchAllPattern(expressions.get(0))));
+            return expressions.isEmpty() || expressions.size() == 1 && Metadata.ALL.equals(expressions.get(0));
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(Context context) {

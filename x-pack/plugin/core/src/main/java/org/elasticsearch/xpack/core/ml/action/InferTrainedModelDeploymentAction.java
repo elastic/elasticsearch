@@ -44,7 +44,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static final InferTrainedModelDeploymentAction INSTANCE = new InferTrainedModelDeploymentAction();
 
-    // TODO Review security level
+    /**
+     * Do not call this action directly, use InferModelAction instead
+     * which will perform various checks and set the node the request
+     * should execute on.
+     *
+     * The action is poorly named as once it was publicly accessible
+     * and exposed through a REST API now it _must_ only called internally.
+     */
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
@@ -157,10 +164,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 if (docs.isEmpty()) {
                     validationException = addValidationError("at least one document is required", validationException);
                 }
-                if (docs.size() > 1) {
-                    // TODO support multiple docs
-                    validationException = addValidationError("multiple documents are not supported", validationException);
-                }
             }
             return validationException;
         }
@@ -244,34 +247,44 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final InferenceResults results;
+        private final List<InferenceResults> results;
 
-        public Response(InferenceResults result) {
+        public Response(List<InferenceResults> results) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.results = Objects.requireNonNull(result);
+            this.results = Objects.requireNonNull(results);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            results = in.readNamedWriteable(InferenceResults.class);
-        }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            results.toXContent(builder, params);
-            builder.endObject();
-            return builder;
+            // Multiple results added in 8.6.1
+            if (in.getVersion().onOrAfter(Version.V_8_6_1)) {
+                results = in.readNamedWriteableList(InferenceResults.class);
+            } else {
+                results = List.of(in.readNamedWriteable(InferenceResults.class));
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeNamedWriteable(results);
+            if (out.getVersion().onOrAfter(Version.V_8_6_1)) {
+                out.writeNamedWriteableList(results);
+            } else {
+                out.writeNamedWriteable(results.get(0));
+            }
         }
 
-        public InferenceResults getResults() {
+        public List<InferenceResults> getResults() {
             return results;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            results.get(0).toXContent(builder, params);
+            builder.endObject();
+            return builder;
         }
     }
 }

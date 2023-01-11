@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -91,6 +93,44 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
+    }
+
+    static final String BASE_64_ENCODED_TEXT_EMBEDDING_MODEL = "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWl"
+        + "paWlpaWlpaWoACY19fdG9yY2hfXwpUaW55VGV4dEVtYmVkZGluZwpxACmBfShYCAAAAHRy"
+        + "YWluaW5ncQGJWBYAAABfaXNfZnVsbF9iYWNrd2FyZF9ob29rcQJOdWJxAy5QSwcIsFTQsF"
+        + "gAAABYAAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAAAAAAAdAB0Ac2ltcGxlbW9kZWwvY29k"
+        + "ZS9fX3RvcmNoX18ucHlGQhkAWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWoWPMWvDMBCF9/"
+        + "yKGy1IQ7Ia0q1j2yWbMYdsnWphWWd0Em3+fS3bBEopXd99j/dd77UI3Fy43+grvUwdGePC"
+        + "R/XKJntS9QEAcdZRT5QoCiJcoWnXtMvW/ohS1C4sZaihY/YFcoI2e4+d7sdPHQ0OzONyf5"
+        + "+T46B9U8DSNWTBcixMJeRtvQwkjv2AePpld1wKAC7MOaEzUsONgnDc4sQjBUz3mbbbY2qD"
+        + "2usbB9rQmcWV47/gOiVIReAvUsHT8y5S7yKL/mnSIWuPQmSqLRm0DJWkWD0eUEqtjUgpx7"
+        + "AXow6mai5HuJzPrTp8A1BLBwiD/6yJ6gAAAKkBAABQSwMEFAAICAgAAAAAAAAAAAAAAAAA"
+        + "AAAAACcAQQBzaW1wbGVtb2RlbC9jb2RlL19fdG9yY2hfXy5weS5kZWJ1Z19wa2xGQj0AWl"
+        + "paWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
+        + "WlpaWlpaWo2Qz0rDQBDGk/5RmjfwlmMCbWivBZ9gWL0IFkRCdLcmmOwmuxu0N08O3r2rCO"
+        + "rdx9CDgm/hWUUQMdugzUk6LCwzv++bGeak5YE1saoorNgCCwsbzFc9sm1PvivQo2zqToU8"
+        + "iiT1FEunfadXRcLzUocJVWN3i3ElZF3W4pDxUM9yVrPNXCeCR+lOLdp1190NwVktzoVKDF"
+        + "5COh+nQpbtsX+0/tjpOWYJuR8HMuJUZEEW8TJKQ8UY9eJIxZ7S0vvb3vf9yiCZLiV3Fz5v"
+        + "1HdHw6HvFK3JWnUElWR5ygbz8TThB4NMUJYG+axowyoWHbiHBwQbSWbHHXiEJ4QWkmOTPM"
+        + "MLQhvJaZOgSX49Z3a8uPq5Ia/whtBBctEkl4a8wwdCF8lVk1wb8glfCCtIbprkttntrkF0"
+        + "0Q1+AFBLBwi4BIswOAEAAP0BAABQSwMEAAAICAAAAAAAAAAAAAAAAAAAAAAAABkAQQBzaW"
+        + "1wbGVtb2RlbC9jb25zdGFudHMucGtsRkI9AFpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
+        + "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlqAAikuUEsHCG0vCVcEAAAABA"
+        + "AAAFBLAwQAAAgIAAAAAAAAAAAAAAAAAAAAAAAAEwA7AHNpbXBsZW1vZGVsL3ZlcnNpb25G"
+        + "QjcAWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWl"
+        + "paWlpaWjMKUEsHCNGeZ1UCAAAAAgAAAFBLAQIAAAAACAgAAAAAAACwVNCwWAAAAFgAAAAU"
+        + "AAAAAAAAAAAAAAAAAAAAAABzaW1wbGVtb2RlbC9kYXRhLnBrbFBLAQIAABQACAgIAAAAAA"
+        + "CD/6yJ6gAAAKkBAAAdAAAAAAAAAAAAAAAAAKgAAABzaW1wbGVtb2RlbC9jb2RlL19fdG9y"
+        + "Y2hfXy5weVBLAQIAABQACAgIAAAAAAC4BIswOAEAAP0BAAAnAAAAAAAAAAAAAAAAAPoBAA"
+        + "BzaW1wbGVtb2RlbC9jb2RlL19fdG9yY2hfXy5weS5kZWJ1Z19wa2xQSwECAAAAAAgIAAAA"
+        + "AAAAbS8JVwQAAAAEAAAAGQAAAAAAAAAAAAAAAADIAwAAc2ltcGxlbW9kZWwvY29uc3Rhbn"
+        + "RzLnBrbFBLAQIAAAAACAgAAAAAAADRnmdVAgAAAAIAAAATAAAAAAAAAAAAAAAAAFQEAABz"
+        + "aW1wbGVtb2RlbC92ZXJzaW9uUEsGBiwAAAAAAAAAHgMtAAAAAAAAAAAABQAAAAAAAAAFAA"
+        + "AAAAAAAGoBAAAAAAAA0gQAAAAAAABQSwYHAAAAADwGAAAAAAAAAQAAAFBLBQYAAAAABQAFAGoBAADSBAAAAAA=";
+
+    static final long RAW_TEXT_EMBEDDING_MODEL_SIZE; // size of the model before base64 encoding
+    static {
+        RAW_TEXT_EMBEDDING_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_TEXT_EMBEDDING_MODEL).length;
     }
 
     public void testEvaluate() throws IOException, InterruptedException {
@@ -418,6 +458,79 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testInferWithMultipleDocs() throws IOException {
+        String modelId = "infer_multi_docs";
+        // Use the text embedding model from SemanticSearchIT so
+        // that each response can be linked to the originating request.
+        // The test ensures the responses are returned in the same order
+        // as the requests
+        createTextEmbeddingModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_TEXT_EMBEDDING_MODEL, RAW_TEXT_EMBEDDING_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        List<String> inputs = List.of(
+            "my words",
+            "the machine is leaking",
+            "washing machine",
+            "these are my words",
+            "the octopus comforter smells",
+            "the octopus comforter is leaking",
+            "washing machine smells"
+        );
+
+        List<List<Double>> expectedEmbeddings = new ArrayList<>();
+
+        // Generate the text embeddings one at a time using the _infer API
+        // then index them for search
+        for (var input : inputs) {
+            Response inference = infer(input, modelId);
+            List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
+            Map<String, Object> inferenceResult = responseMap.get(0);
+            List<Double> embedding = (List<Double>) inferenceResult.get("predicted_value");
+            expectedEmbeddings.add(embedding);
+        }
+
+        // Now do the same with all documents sent at once
+        var docsBuilder = new StringBuilder();
+        int numInputs = inputs.size();
+        for (int i = 0; i < numInputs - 1; i++) {
+            docsBuilder.append("{\"input\":\"").append(inputs.get(i)).append("\"},");
+        }
+        docsBuilder.append("{\"input\":\"").append(inputs.get(numInputs - 1)).append("\"}");
+
+        {
+            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {  "docs": [%s] }
+                """, docsBuilder));
+            Response response = client().performRequest(request);
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> inferenceResults = (List<Map<String, Object>>) responseMap.get("inference_results");
+            assertThat(inferenceResults, hasSize(numInputs));
+
+            // Check the result order matches the input order by comparing
+            // the to the pre-calculated embeddings
+            for (int i = 0; i < numInputs; i++) {
+                List<Double> embedding = (List<Double>) inferenceResults.get(i).get("predicted_value");
+                assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
+            }
+        }
+        {
+            // the deprecated deployment/_infer endpoint does not support multiple docs
+            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {  "docs": [%s] }
+                """, docsBuilder));
+            Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
+            assertThat(ex.getMessage(), containsString("multiple documents are not supported"));
+        }
+    }
+
     public void testGetPytorchModelWithDefinition() throws IOException {
         String model = "should-fail-get";
         createPassThroughModel(model);
@@ -475,7 +588,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("Model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
                 containsString("error"),
                 not(containsString("warning"))
             )
@@ -498,7 +611,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
             """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
+        assertThat(ex.getMessage(), containsString("Model [not-deployed] must be deployed to use."));
     }
 
     public void testTruncation() throws IOException {

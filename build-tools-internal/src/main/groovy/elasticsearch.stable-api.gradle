@@ -1,3 +1,4 @@
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
@@ -32,8 +33,12 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
     "stableApi${baseName}"(libDependency)
   }
 
-  tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
+  def jarApiComparisonTask = tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
     oldJar = configurations."stableApi${baseName}"
     newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
+  }
+
+  jarApiComparisonTask.onlyIf("don't run this on Windows") {
+    Os.isFamily(Os.FAMILY_WINDOWS)
   }
 }

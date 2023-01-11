@@ -1,0 +1,5 @@
+pr: 92810
+summary: "[WIP] Allow leniency in SAML HTTP metadata loading"
+area: Authentication
+type: enhancement
+issues: []

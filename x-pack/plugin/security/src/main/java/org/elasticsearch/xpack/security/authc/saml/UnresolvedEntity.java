@@ -86,7 +86,7 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public List<RoleDescriptor> getRoleDescriptors() {
         throw SamlUtils.samlException(
-            "Cannot get role descriptors because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get role descriptors" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
         );
@@ -95,7 +95,8 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public List<RoleDescriptor> getRoleDescriptors(QName typeOrName) {
         throw SamlUtils.samlException(
-            "Cannot get role descriptors [type/name={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get role descriptors [type/name={}]"
+                + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             typeOrName,
             sourceLocation,
             entityId
@@ -105,7 +106,8 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public List<RoleDescriptor> getRoleDescriptors(QName typeOrName, String supportedProtocol) {
         throw SamlUtils.samlException(
-            "Cannot get role descriptors [type/name={}][protocol={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get role descriptors [type/name={}][protocol={}]"
+                + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             typeOrName,
             supportedProtocol,
             sourceLocation,
@@ -116,7 +118,8 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public IDPSSODescriptor getIDPSSODescriptor(String supportedProtocol) {
         throw SamlUtils.samlException(
-            "Cannot get IdP SSO descriptor [protocol={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get IdP SSO descriptor [protocol={}]"
+                + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
             sourceLocation,
             entityId
@@ -126,7 +129,8 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public SPSSODescriptor getSPSSODescriptor(String supportedProtocol) {
         throw SamlUtils.samlException(
-            "Cannot get SP SSO descriptor [protocol={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get SP SSO descriptor [protocol={}]"
+                + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
             sourceLocation,
             entityId
@@ -136,7 +140,8 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public AuthnAuthorityDescriptor getAuthnAuthorityDescriptor(String supportedProtocol) {
         throw SamlUtils.samlException(
-            "Cannot get authn authority descriptor [protocol={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get authn authority descriptor [protocol={}]"
+                + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
             sourceLocation,
             entityId
@@ -146,7 +151,8 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public AttributeAuthorityDescriptor getAttributeAuthorityDescriptor(String supportedProtocol) {
         throw SamlUtils.samlException(
-            "Cannot get attribute authority descriptor [protocol={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get attribute authority descriptor [protocol={}]"
+                + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
             sourceLocation,
             entityId
@@ -156,7 +162,7 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public PDPDescriptor getPDPDescriptor(String supportedProtocol) {
         throw SamlUtils.samlException(
-            "Cannot get PDP descriptor [protocol={}] because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get PDP descriptor [protocol={}]" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             supportedProtocol,
             sourceLocation,
             entityId
@@ -166,7 +172,7 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public AffiliationDescriptor getAffiliationDescriptor() {
         throw SamlUtils.samlException(
-            "Cannot get affiliation descriptor because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get affiliation descriptor" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
         );
@@ -180,7 +186,7 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public Organization getOrganization() {
         throw SamlUtils.samlException(
-            "Cannot get organization because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get organization" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
         );
@@ -209,7 +215,7 @@ class UnresolvedEntity implements EntityDescriptor {
     @Override
     public String getSignatureReferenceID() {
         throw SamlUtils.samlException(
-            "Cannot get signature reference id because the metadata [location={}] for SAML entity [id={}] could not be resolved",
+            "Cannot get signature reference id" + " because the metadata [location={}] for SAML entity [id={}] could not be resolved",
             sourceLocation,
             entityId
         );

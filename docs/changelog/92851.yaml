@@ -1,0 +1,6 @@
+pr: 92851
+summary: Limit length of lag detector hot threads log lines
+area: Cluster Coordination
+type: bug
+issues:
+ - 88126

@@ -10,9 +10,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -24,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -76,9 +72,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private volatile boolean active = false;
 
     public static final String OPERATOR_DIRECTORY = "operator";
-
-    private volatile NodesInfoResponse nodesInfoResponse = null;
-    private volatile boolean nodeInfosRefreshRequired = true;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -152,7 +145,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         startIfMaster(clusterState);
-        checkForNodeChanges(event);
     }
 
     private void startIfMaster(ClusterState clusterState) {
@@ -424,27 +416,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
             ReservedStateChunk parsedState = stateService.parse(NAMESPACE, parser);
-            if (nodeInfosRefreshRequired || nodesInfoResponse == null) {
-                var nodesInfoRequest = NodesInfoRequest.requestWithMetrics(NodesInfoRequest.Metric.INGEST);
-                nodesInfoRequest.timeout(TimeValue.timeValueSeconds(30));
-
-                clusterAdminClient().nodesInfo(nodesInfoRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(NodesInfoResponse response) {
-                        // stash the latest node infos response and continue with processing the file
-                        nodesInfoResponse = response;
-                        nodeInfosRefreshRequired = false;
-                        stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, completion));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        completion.completeExceptionally(e);
-                    }
-                });
-            } else {
-                stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, completion));
-            }
+            stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, completion));
         } catch (Exception e) {
             completion.completeExceptionally(e);
         }
@@ -479,15 +451,5 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         public FileSettingsStartupException(String message, Throwable t) {
             super(message, t);
         }
-    }
-
-    void checkForNodeChanges(ClusterChangedEvent event) {
-        if (currentNodeMaster(event.state()) && event.nodesChanged()) {
-            nodeInfosRefreshRequired = true;
-        }
-    }
-
-    public NodesInfoResponse nodeInfos() {
-        return nodesInfoResponse;
     }
 }

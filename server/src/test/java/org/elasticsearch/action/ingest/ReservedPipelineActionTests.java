@@ -47,7 +47,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -137,8 +136,6 @@ public class ReservedPipelineActionTests extends ESTestCase {
                 mock(NodeClient.class)
             )
         );
-
-        doReturn(response).when(fileSettingsService).nodeInfos();
     }
 
     private TransformState processJSON(ReservedPipelineAction action, TransformState prevState, String json) throws Exception {
@@ -147,36 +144,10 @@ public class ReservedPipelineActionTests extends ESTestCase {
         }
     }
 
-    public void testValidation() throws Exception {
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedPipelineAction action = makeSpiedAction();
-
-        String badPolicyJSON = """
-            {
-               "my_ingest_pipeline": {
-                   "description": "_description",
-                   "processors": [
-                      {
-                        "foo" : {
-                          "field": "pipeline",
-                          "value": "pipeline"
-                        }
-                      }
-                   ]
-               }
-            }""";
-
-        assertEquals(
-            "Error processing ingest pipelines",
-            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
-        );
-    }
-
     public void testAddRemoveIngestPipeline() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedPipelineAction action = makeSpiedAction();
+        ReservedPipelineAction action = new ReservedPipelineAction();
 
         String emptyJSON = "";
 
@@ -234,10 +205,5 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
         updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
-    }
-
-    @SuppressWarnings("unchecked")
-    private ReservedPipelineAction makeSpiedAction() {
-        return spy(new ReservedPipelineAction(ingestService, fileSettingsService));
     }
 }

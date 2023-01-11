@@ -857,6 +857,7 @@ public class Node implements Closeable {
             );
 
             actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
+            actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
@@ -864,9 +865,6 @@ public class Node implements Closeable {
                 environment,
                 client
             );
-
-            actionModule.getReservedClusterStateService()
-                .installStateHandler(new ReservedPipelineAction(ingestService, fileSettingsService));
 
             RestoreService restoreService = new RestoreService(
                 clusterService,

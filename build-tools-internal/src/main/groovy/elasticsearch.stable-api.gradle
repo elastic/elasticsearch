@@ -38,7 +38,9 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
     newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
   }
 
-  jarApiComparisonTask.onlyIf("don't run this on Windows") {
-    Os.isFamily(Os.FAMILY_WINDOWS)
+  jarApiComparisonTask.configure {
+    onlyIf {
+      !Os.isFamily(Os.FAMILY_WINDOWS)
+    }
   }
 }

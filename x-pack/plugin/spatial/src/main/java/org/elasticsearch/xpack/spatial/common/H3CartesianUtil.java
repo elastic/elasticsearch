@@ -58,7 +58,7 @@ public final class H3CartesianUtil {
         }
     }
 
-    /** For the given resolution, it returns the maximum latitude of the h3 bin containing the south pole */
+    /** For the given resolution, it returns true if the cell contains any of the poles */
     public static boolean isPolar(long h3) {
         final int res = H3.getResolution(h3);
         return H3.southPolarH3(res) == h3 || H3.northPolarH3(res) == h3;

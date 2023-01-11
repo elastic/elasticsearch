@@ -6,9 +6,7 @@
  * Side Public License, v 1.
  */
 
-buildscript {
-  ext.stableApiSince = "8.6.0"
-}
+ext.stableApiSince = "8.6.0"
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'

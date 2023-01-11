@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -229,12 +230,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     private static List<Project> resolveStableProjects(Project project) {
-        // TODO: How do we retrieve these programmatically?
-        return List.of(
-            project.findProject(":libs:elasticsearch-plugin-analysis-api"),
-            project.findProject(":libs:elasticsearch-plugin-api"),
-            project.findProject(":libs:elasticsearch-logging")
+        Set<String> stableProjectNames = Set.of(
+            "elasticsearch-logging",
+            "elasticsearch-plugin-api",
+            "elasticsearch-plugin-analysis-api"
         );
+        // TODO: When do extra properties get applied?
+        return project.findProject(":libs").getSubprojects().stream()
+            .filter(subproject -> stableProjectNames.contains(subproject.getName()))
+            // .filter(subproject -> subproject.getExtensions().getExtraProperties().has("stableApiSince"))
+            .toList();
     }
 
     public static String buildBwcTaskName(String projectName) {

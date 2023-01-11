@@ -79,9 +79,12 @@ class SslTrustResolver {
     }
 
     TrustManager[] buildTrustManagers() throws GeneralSecurityException, IOException {
-        var configurationCount = Stream.of(this.certificateAuthorities, this.trustStoreFile, this.serverCertificate, this.serverKeyStoreFile)
-            .filter(Objects::nonNull)
-            .count();
+        var configurationCount = Stream.of(
+            this.certificateAuthorities,
+            this.trustStoreFile,
+            this.serverCertificate,
+            this.serverKeyStoreFile
+        ).filter(Objects::nonNull).count();
         if (configurationCount == 0) {
             return null;
         } else if (configurationCount > 1) {

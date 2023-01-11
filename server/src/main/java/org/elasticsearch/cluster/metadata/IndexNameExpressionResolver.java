@@ -654,6 +654,30 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * Resolve the expression to the set of indices, aliases, and datastreams that the expression matches.
+     */
+    public Set<String> resolveExpressions(ClusterState state, IndicesOptions indicesOptions, String... expressions) {
+        Context context = new Context(
+            state,
+            indicesOptions,
+            true,
+            false,
+            true,
+            true,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+        Collection<String> resolved = resolveExpressions(context, expressions);
+        if (resolved instanceof Set<String>) {
+            // unmodifiable without creating a new collection as it might contain many items
+            return Collections.unmodifiableSet((Set<String>) resolved);
+        } else {
+            return Set.copyOf(resolved);
+        }
+    }
+
+    /**
      * Iterates through the list of indices and selects the effective list of filtering aliases for the
      * given index.
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to

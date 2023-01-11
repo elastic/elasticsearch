@@ -21,10 +21,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -53,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -439,7 +438,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
-        private final IndexAbstractionResolver indexAbstractionResolver;
+        private final IndexNameExpressionResolver indexAbstractionResolver;
         private final boolean ccsCheckCompatibility;
 
         @Inject
@@ -454,7 +453,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
-            this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+            this.indexAbstractionResolver = indexNameExpressionResolver;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
@@ -469,20 +468,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            final Metadata metadata = clusterState.metadata();
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
+                assert request.includeDataStreams() : "expression resolver includes datastreams but request doesn't allow it";
                 resolveIndices(
                     localIndices.indices(),
-                    request.indicesOptions,
-                    metadata,
+                    localIndices.indicesOptions(),
+                    clusterState,
                     indexAbstractionResolver,
                     indices,
                     aliases,
-                    dataStreams,
-                    request.includeDataStreams()
+                    dataStreams
                 );
             }
 
@@ -518,7 +516,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          *
          * @param names          The names and wildcard expressions to resolve
          * @param indicesOptions Options for expanding wildcards to indices with different states
-         * @param metadata       Cluster metadata
+         * @param clusterState   Cluster state
          * @param resolver       Resolver instance for matching names
          * @param indices        List containing any matching indices
          * @param aliases        List containing any matching aliases
@@ -528,22 +526,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         static void resolveIndices(
             String[] names,
             IndicesOptions indicesOptions,
-            Metadata metadata,
-            IndexAbstractionResolver resolver,
+            ClusterState clusterState,
+            IndexNameExpressionResolver resolver,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams,
-            boolean includeDataStreams
+            List<ResolvedDataStream> dataStreams
         ) {
-            List<String> resolvedIndexAbstractions = resolver.resolveIndexAbstractions(names, indicesOptions, metadata, includeDataStreams);
-            SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+            Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, names);
             for (String s : resolvedIndexAbstractions) {
-                enrichIndexAbstraction(metadata, s, lookup, indices, aliases, dataStreams);
+                enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             dataStreams.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
-
         }
 
         private static void mergeResults(
@@ -568,18 +563,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         private static void enrichIndexAbstraction(
-            Metadata metadata,
+            ClusterState clusterState,
             String indexAbstraction,
-            SortedMap<String, IndexAbstraction> lookup,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = lookup.get(indexAbstraction);
+            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction);
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
-                        IndexMetadata writeIndex = metadata.index(ia.getWriteIndex());
+                        IndexMetadata writeIndex = clusterState.metadata().index(ia.getWriteIndex());
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
                         List<Attribute> attributes = new ArrayList<>();
                         attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? Attribute.OPEN : Attribute.CLOSED);

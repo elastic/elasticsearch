@@ -14,7 +14,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,32 +26,6 @@ public class IndexAbstractionResolver {
 
     public IndexAbstractionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-    }
-
-    public List<String> resolveIndexAbstractions(
-        String[] indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        boolean includeDataStreams
-    ) {
-        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata, includeDataStreams);
-    }
-
-    public List<String> resolveIndexAbstractions(
-        Iterable<String> indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        boolean includeDataStreams
-    ) {
-        final Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(
-            indices,
-            indicesOptions,
-            metadata,
-            () -> availableIndexAbstractions,
-            availableIndexAbstractions::contains,
-            includeDataStreams
-        );
     }
 
     public List<String> resolveIndexAbstractions(

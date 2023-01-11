@@ -119,12 +119,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir.get(),
-                    relativeDir
-                        + "/build/distributions/"
-                        + stableApiProject.getName()
-                        + "-"
-                        + bwcVersion.get()
-                        + "-SNAPSHOT.jar"
+                    relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
                 ),
                 null
             );
@@ -230,13 +225,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     private static List<Project> resolveStableProjects(Project project) {
-        Set<String> stableProjectNames = Set.of(
-            "elasticsearch-logging",
-            "elasticsearch-plugin-api",
-            "elasticsearch-plugin-analysis-api"
-        );
+        Set<String> stableProjectNames = Set.of("elasticsearch-logging", "elasticsearch-plugin-api", "elasticsearch-plugin-analysis-api");
         // TODO: When do extra properties get applied?
-        return project.findProject(":libs").getSubprojects().stream()
+        return project.findProject(":libs")
+            .getSubprojects()
+            .stream()
             .filter(subproject -> stableProjectNames.contains(subproject.getName()))
             // .filter(subproject -> subproject.getExtensions().getExtraProperties().has("stableApiSince"))
             .toList();

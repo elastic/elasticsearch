@@ -52,12 +52,21 @@ public class BwcSetupExtension {
     }
 
     TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
-        return createRunBwcGradleTask(project, name, configuration);
+        return bwcTask(name, configuration, true);
     }
 
-    private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
+    TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration, boolean useUniqueUserHome) {
+        return createRunBwcGradleTask(project, name, configuration, useUniqueUserHome);
+    }
+
+    private TaskProvider<LoggedExec> createRunBwcGradleTask(
+        Project project,
+        String name,
+        Action<LoggedExec> configAction,
+        boolean useUniqueUserHome
+    ) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
-            loggedExec.dependsOn("checkoutBwcBranch", "setupGradleUserHome");
+            loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
             loggedExec.getEnvironment().put("JAVA_HOME", unreleasedVersionInfo.zip(checkoutDir, (version, checkoutDir) -> {
@@ -76,7 +85,11 @@ public class BwcSetupExtension {
                 loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
             }
 
-            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+            if (useUniqueUserHome) {
+                loggedExec.dependsOn("setupGradleUserHome");
+                loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+            }
+
             if (project.getGradle().getStartParameter().isOffline()) {
                 loggedExec.args("--offline");
             }

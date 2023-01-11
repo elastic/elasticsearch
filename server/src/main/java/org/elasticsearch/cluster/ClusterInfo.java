@@ -76,9 +76,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
+        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
-        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
     }

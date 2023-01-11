@@ -1,6 +1,7 @@
 include::migration_intro.asciidoc[]
 
 * <<migrating-8.7,Migrating to 8.7>>
+* <<migrating-8.6,Migrating to 8.6>>
 * <<migrating-8.5,Migrating to 8.5>>
 * <<migrating-8.4,Migrating to 8.4>>
 * <<migrating-8.3,Migrating to 8.3>>
@@ -9,6 +10,7 @@ include::migration_intro.asciidoc[]
 * <<migrating-8.0,Migrating to 8.0>>
 
 include::migrate_8_7.asciidoc[]
+include::migrate_8_6.asciidoc[]
 include::migrate_8_5.asciidoc[]
 include::migrate_8_4.asciidoc[]
 include::migrate_8_3.asciidoc[]

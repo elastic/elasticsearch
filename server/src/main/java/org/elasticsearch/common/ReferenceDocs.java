@@ -42,7 +42,7 @@ public enum ReferenceDocs {
             var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.json"));
             var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, resourceStream)
         ) {
-            linksBySymbol = parser.map(HashMap::new, XContentParser::text);
+            linksBySymbol = Map.copyOf(parser.map(HashMap::new, XContentParser::text));
         } catch (IOException e) {
             assert false : e;
             throw new IllegalStateException("could not read links resource", e);

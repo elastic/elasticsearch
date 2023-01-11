@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.fieldcaps;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
@@ -17,6 +19,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Cancellable;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -43,14 +49,18 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,6 +68,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -65,12 +78,14 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -164,7 +179,17 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class);
+        return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
     }
 
     public void testFieldAlias() {
@@ -641,6 +666,52 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(resp.getField("extra_field").get("integer").isAggregatable());
     }
 
+    public void testCancel() throws Exception {
+        BlockingOnRewriteQueryBuilder.blockOnRewrite();
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Request restRequest = new Request("POST", "/_field_caps?fields=*");
+        restRequest.setEntity(new StringEntity("""
+                  {
+                    "index_filter": {
+                        "blocking_query": {}
+                     }
+                  }
+            """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+        Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
+        logger.info("--> waiting for field-caps tasks to be started");
+        assertBusy(() -> {
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                .get()
+                .getTasks();
+            assertThat(tasks.size(), greaterThanOrEqualTo(2));
+            for (TaskInfo task : tasks) {
+                assertTrue(task.cancellable());
+                assertFalse(task.cancelled());
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        cancellable.cancel();
+        logger.info("--> waiting for field-caps tasks to be cancelled");
+        assertBusy(() -> {
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                .get()
+                .getTasks();
+            for (TaskInfo task : tasks) {
+                assertTrue(task.cancellable());
+                assertTrue(task.cancelled());
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        BlockingOnRewriteQueryBuilder.unblockOnRewrite();
+        expectThrows(CancellationException.class, future::actionGet);
+    }
+
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
         assertNotNull(response.getIndices());
         Arrays.sort(indices);
@@ -680,9 +751,62 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 if (searchExecutionContext.indexMatches("*error*")) {
                     throw new IllegalArgumentException("I throw because I choose to.");
                 }
-                ;
             }
             return this;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+    }
+
+    public static class BlockingOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
+
+        public BlockingOnRewriteQueryPlugin() {}
+
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return List.of(
+                new QuerySpec<>("blocking_query", BlockingOnRewriteQueryBuilder::new, BlockingOnRewriteQueryBuilder::fromXContent)
+            );
+        }
+    }
+
+    static class BlockingOnRewriteQueryBuilder extends DummyQueryBuilder {
+        private static CountDownLatch blockingLatch = new CountDownLatch(1);
+        public static final String NAME = "blocking_query";
+
+        BlockingOnRewriteQueryBuilder() {
+
+        }
+
+        BlockingOnRewriteQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        static void blockOnRewrite() {
+            blockingLatch = new CountDownLatch(1);
+        }
+
+        static void unblockOnRewrite() {
+            blockingLatch.countDown();
+        }
+
+        @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            try {
+                blockingLatch.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            return this;
+        }
+
+        public static BlockingOnRewriteQueryBuilder fromXContent(XContentParser parser) {
+            ObjectParser<BlockingOnRewriteQueryBuilder, Void> objectParser = new ObjectParser<>(NAME, BlockingOnRewriteQueryBuilder::new);
+            declareStandardFields(objectParser);
+            return objectParser.apply(parser, null);
         }
 
         @Override

@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 /**
  * Encapsulates links to pages in the reference docs, so that for example we can include URLs in logs and API outputs. Each instance's
  * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
- * {@code reference-docs-links.json} which must define links for exactly the set of values of this enum.
+ * {@code reference-docs-links.json} which must include definitions for exactly the set of values of this enum.
  */
 public enum ReferenceDocs {
     INITIAL_MASTER_NODES,

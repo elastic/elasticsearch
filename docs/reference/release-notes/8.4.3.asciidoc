@@ -3,6 +3,14 @@
 
 Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 
+[[known-issues-8.4.3]]
+[float]
+=== Known issues
+
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
 [[bug-8.4.3]]
 [float]
 === Bug fixes

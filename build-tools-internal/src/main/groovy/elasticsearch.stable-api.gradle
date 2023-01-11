@@ -16,10 +16,7 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
   def baseName = "v${bwcVersion}"
 
   BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-  Configuration stableApiConfiguration = configurations.create("stableApi${baseName}") {
-    // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
-    transitive = false
-  }
+  Configuration stableApiConfiguration = configurations.create("stableApi${baseName}")
   Object libDependency = null
 
   if (unreleasedVersion) {

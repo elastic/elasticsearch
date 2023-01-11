@@ -66,7 +66,7 @@ public class BwcSetupExtension {
             }));
 
             if (BuildParams.isCi() && Os.isFamily(Os.FAMILY_WINDOWS) == false) {
-                loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", "$HOME/gradle_ro_cache");
+                loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");
             }
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {

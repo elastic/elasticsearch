@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -56,12 +55,11 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -188,6 +186,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     public void testStartStop() {
         fileSettingsService.start();
+        fileSettingsService.startWatcher(clusterService.state());
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
@@ -204,6 +203,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(service).processFileSettings(any());
 
         service.start();
+        service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());
@@ -227,7 +227,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
 
         doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
+            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
         }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
 
@@ -239,34 +239,12 @@ public class FileSettingsServiceTests extends ESTestCase {
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(service.operatorSettingsFile(), "{}");
 
-        Exception startupException = expectThrows(IllegalStateException.class, () -> service.start());
-        assertThat(
-            startupException.getCause(),
-            allOf(
-                instanceOf(FileSettingsService.FileSettingsStartupException.class),
-                hasToString(
-                    "org.elasticsearch.reservedstate.service.FileSettingsService$FileSettingsStartupException: "
-                        + "Error applying operator settings"
-                )
-            )
-        );
-
-        verify(service, times(1)).processFileSettings(any());
-
-        service.stop();
-
-        clearInvocations(service);
-
-        // Let's check that if we didn't throw an error that everything works
-        doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
-            return null;
-        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
-
         service.start();
-        service.startWatcher(clusterService.state(), true);
+        service.startWatcher(clusterService.state());
+        service.processSettingsAndNotifyListeners();
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, atLeastOnce()).processFileSettings(any());
+        verify(stateService, atLeastOnce()).process(anyString(), (ReservedStateChunk) isNull(), any());
 
         service.stop();
         service.close();
@@ -297,6 +275,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(spiedController).parse(any(String.class), any());
 
         service.start();
+        service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());
@@ -343,6 +322,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(spiedController).parse(any(String.class), any());
 
         service.start();
+        service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());
@@ -360,120 +340,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.close();
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testNodeInfosRefresh() throws Exception {
-        var spiedController = spy(controller);
-        var csAdminClient = spy(clusterAdminClient);
-        var response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
-
-        doAnswer(i -> {
-            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(response);
-            return null;
-        }).when(csAdminClient).nodesInfo(any(), any());
-
-        var service = spy(new FileSettingsService(clusterService, spiedController, env, nodeClient));
-        doAnswer(i -> csAdminClient).when(service).clusterAdminClient();
-
-        doAnswer(
-            (Answer<ReservedStateChunk>) invocation -> new ReservedStateChunk(
-                Collections.emptyMap(),
-                new ReservedStateVersion(1L, Version.CURRENT)
-            )
-        ).when(spiedController).parse(any(String.class), any());
-
-        Files.createDirectories(service.operatorSettingsDir());
-        // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.operatorSettingsFile(), "{}");
-
-        clearInvocations(csAdminClient);
-        clearInvocations(spiedController);
-
-        // we haven't fetched the node infos ever, since we haven't done any file processing
-        assertNull(service.nodeInfos());
-
-        // call the processing twice
-        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
-            if (e != null) {
-                fail("shouldn't get an exception");
-            }
-        });
-        // after the first processing we should have node infos
-        assertEquals(1, service.nodeInfos().getNodes().size());
-
-        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
-            if (e != null) {
-                fail("shouldn't get an exception");
-            }
-        });
-
-        // node infos should have been fetched only once
-        verify(csAdminClient, times(1)).nodesInfo(any(), any());
-        verify(spiedController, times(2)).process(any(), any(ReservedStateChunk.class), any());
-
-        // pretend we added a new node
-
-        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-
-        NodeInfo localNodeInfo = new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
-            localNode,
-            Settings.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
-            null,
-            null
-        );
-        var newResponse = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo, localNodeInfo), List.of());
-
-        final ClusterState prevState = clusterService.state();
-        final ClusterState clusterState = ClusterState.builder(prevState)
-            .nodes(
-                DiscoveryNodes.builder(prevState.getNodes()).add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId())
-            )
-            .build();
-
-        ClusterChangedEvent event = new ClusterChangedEvent("transport", clusterState, prevState);
-        assertTrue(event.nodesChanged());
-        service.clusterChanged(event);
-
-        doAnswer(i -> {
-            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(newResponse);
-            return null;
-        }).when(csAdminClient).nodesInfo(any(), any());
-
-        // this wouldn't change yet, node fetch transport action is invoked on demand, when we need to process file changes,
-        // not every time we update the cluster state
-        assertEquals(1, service.nodeInfos().getNodes().size());
-
-        // call the processing twice
-        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
-            if (e != null) {
-                fail("shouldn't get an exception");
-            }
-        });
-
-        assertEquals(2, service.nodeInfos().getNodes().size());
-
-        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
-            if (e != null) {
-                fail("shouldn't get an exception");
-            }
-        });
-
-        assertEquals(2, service.nodeInfos().getNodes().size());
-
-        // node infos should have been fetched one more time
-        verify(csAdminClient, times(2)).nodesInfo(any(), any());
-        verify(spiedController, times(4)).process(any(), any(ReservedStateChunk.class), any());
     }
 
     public void testRegisterWatchKeyRetry() throws IOException, InterruptedException {

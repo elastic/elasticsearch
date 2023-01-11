@@ -20,6 +20,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.reservedstate.service.FileSettingsChangedEvent;
+import org.elasticsearch.reservedstate.service.FileSettingsChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -36,7 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener, FileSettingsChangedListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     private final Environment environment;
@@ -47,6 +49,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     volatile CountDownLatch listenerThreadLatch = new CountDownLatch(0);
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
+    private volatile boolean fileSettingsApplied = false;
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
@@ -219,7 +222,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             setReady(false);
             logger.info("marking node as not ready because it's shutting down");
         } else {
-            setReady(clusterState.nodes().getMasterNodeId() != null);
+            if (clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId())) {
+                setReady(clusterState.nodes().getMasterNodeId() != null && fileSettingsApplied);
+            } else {
+                setReady(clusterState.nodes().getMasterNodeId() != null);
+            }
         }
     }
 
@@ -237,6 +244,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
      */
     public void addBoundAddressListener(BoundAddressListener listener) {
         boundAddressListeners.add(listener);
+    }
+
+    @Override
+    public void settingsChanged(FileSettingsChangedEvent event) {
+        fileSettingsApplied = true;
     }
 
     /**

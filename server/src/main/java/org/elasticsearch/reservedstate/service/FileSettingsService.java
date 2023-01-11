@@ -10,9 +10,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -37,6 +34,8 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -72,12 +71,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private WatchKey configDirWatchKey;
 
     private volatile boolean active = false;
-    private volatile boolean initialState = true;
 
     public static final String OPERATOR_DIRECTORY = "operator";
 
-    private volatile NodesInfoResponse nodesInfoResponse = null;
-    private volatile boolean nodeInfosRefreshRequired = true;
+    private final List<FileSettingsChangedListener> eventListeners;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -96,6 +93,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.stateService = stateService;
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
         this.nodeClient = nodeClient;
+        this.eventListeners = new ArrayList<>();
     }
 
     public Path operatorSettingsDir() {
@@ -127,7 +125,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
         this.active = Files.exists(operatorSettingsDir().getParent());
-        startIfMaster(clusterService.state());
         clusterService.addListener(this);
     }
 
@@ -149,16 +146,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         startIfMaster(clusterState);
-        checkForNodeChanges(event);
     }
 
     private void startIfMaster(ClusterState clusterState) {
         if (currentNodeMaster(clusterState)) {
-            startWatcher(clusterState, initialState);
+            startWatcher(clusterState);
         } else {
             stopWatcher();
         }
-        initialState = false;
     }
 
     /**
@@ -221,7 +216,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return watcherThread != null;
     }
 
-    synchronized void startWatcher(ClusterState clusterState, boolean onStartup) {
+    synchronized void startWatcher(ClusterState clusterState) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
 
@@ -239,21 +234,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             Path settingsDirPath = operatorSettingsDir();
             this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
             if (Files.exists(settingsDirPath)) {
-                Path settingsFilePath = operatorSettingsFile();
-                if (Files.exists(settingsFilePath)) {
-                    logger.debug("found initial operator settings file [{}], applying...", settingsFilePath);
-                    // we make a distinction here for startup, so that if we had operator settings before the node started
-                    // we would fail startup.
-                    try {
-                        processFileSettings(settingsFilePath).get();
-                    } catch (ExecutionException e) {
-                        if (onStartup) {
-                            throw new FileSettingsStartupException("Error applying operator settings", e.getCause());
-                        } else {
-                            logger.error("Error processing operator settings json file", e.getCause());
-                        }
-                    }
-                }
                 settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
             } else {
                 logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
@@ -285,6 +265,19 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
+            Path path = operatorSettingsFile();
+
+            if (Files.exists(path)) {
+                logger.debug("found initial operator settings file [{}], applying...", path);
+                processSettingsAndNotifyListeners();
+            } else {
+                // Notify everyone we don't have any initial file settings
+                var changedEvent = new FileSettingsChangedEvent(-1L);
+                for (var listener : eventListeners) {
+                    listener.settingsChanged(changedEvent);
+                }
+            }
+
             WatchKey key;
             while ((key = watchService.take()) != null) {
                 /*
@@ -304,8 +297,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 Path settingsPath = operatorSettingsDir();
                 if (Files.exists(settingsPath)) {
                     try {
-                        Path path = operatorSettingsFile();
-
                         if (logger.isDebugEnabled()) {
                             key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
                         } else {
@@ -320,11 +311,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsPath);
 
                         if (watchedFileChanged(path)) {
-                            try {
-                                processFileSettings(path).get();
-                            } catch (ExecutionException e) {
-                                logger.error("Error processing operator settings json file", e.getCause());
-                            }
+                            processSettingsAndNotifyListeners();
                         }
                     } catch (IOException e) {
                         logger.warn("encountered I/O error while watching file settings", e);
@@ -338,6 +325,19 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             logger.info("shutting down watcher thread");
         } catch (Exception e) {
             logger.error("shutting down watcher thread with exception", e);
+        }
+    }
+
+    // package private for testing
+    void processSettingsAndNotifyListeners() throws InterruptedException {
+        try {
+            Long appliedVersion = processFileSettings(operatorSettingsFile()).get();
+            var changedEvent = new FileSettingsChangedEvent(appliedVersion);
+            for (var listener : eventListeners) {
+                listener.settingsChanged(changedEvent);
+            }
+        } catch (ExecutionException e) {
+            logger.error("Error processing operator settings json file", e.getCause());
         }
     }
 
@@ -404,8 +404,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         } while (true);
     }
 
-    CompletableFuture<Void> processFileSettings(Path path) {
-        CompletableFuture<Void> completion = new CompletableFuture<>();
+    CompletableFuture<Long> processFileSettings(Path path) {
+        CompletableFuture<Long> completion = new CompletableFuture<>();
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (
             var fis = Files.newInputStream(path);
@@ -413,26 +413,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
             ReservedStateChunk parsedState = stateService.parse(NAMESPACE, parser);
-            if (nodeInfosRefreshRequired || nodesInfoResponse == null) {
-                var nodesInfoRequest = NodesInfoRequest.requestWithMetrics(NodesInfoRequest.Metric.INGEST);
-
-                clusterAdminClient().nodesInfo(nodesInfoRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(NodesInfoResponse response) {
-                        // stash the latest node infos response and continue with processing the file
-                        nodesInfoResponse = response;
-                        nodeInfosRefreshRequired = false;
-                        stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, completion));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        completion.completeExceptionally(e);
-                    }
-                });
-            } else {
-                stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, completion));
-            }
+            stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, parsedState.metadata().version(), completion));
         } catch (Exception e) {
             completion.completeExceptionally(e);
         }
@@ -445,11 +426,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return nodeClient.admin().cluster();
     }
 
-    private void completeProcessing(Exception e, CompletableFuture<Void> completion) {
+    private void completeProcessing(Exception e, Long version, CompletableFuture<Long> completion) {
         if (e != null) {
             completion.completeExceptionally(e);
         } else {
-            completion.complete(null);
+            completion.complete(version);
         }
     }
 
@@ -469,13 +450,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    void checkForNodeChanges(ClusterChangedEvent event) {
-        if (currentNodeMaster(event.state()) && event.nodesChanged()) {
-            nodeInfosRefreshRequired = true;
-        }
-    }
-
-    public NodesInfoResponse nodeInfos() {
-        return nodesInfoResponse;
+    public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
+        eventListeners.add(listener);
     }
 }

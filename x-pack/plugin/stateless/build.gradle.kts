@@ -35,7 +35,7 @@ dependencies {
 }
 
 tasks {
-    named("internalClusterTest", Test::class) {
+    internalClusterTest {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
     }
 

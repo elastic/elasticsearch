@@ -1,0 +1,68 @@
+[role="xpack"]
+[[sparse-scored-terms]]
+=== Sparse Scored Terms field type
+++++
+<titleabbrev>Sparse Scored Terms</titleabbrev>
+++++
+
+A field to store terms along with their associated scores.
+This data is defined using two paired arrays:
+
+* A `terms` array of string values indicating which terms to be indexed.
+* A corresponding `scores` array of positive <<number, `integer`>> numbers indicating
+the individual term score. Consider this value similar to term frequency.
+
+Because the elements in the `terms` array correspond to the elements in the
+same position of the `scores` array, these two arrays must have the same length.
+
+[IMPORTANT]
+========
+* `sparse_scored_terms` fields do not support sorting.
+========
+
+[role="child_attributes"]
+[[sparse-scored-terms-uses]]
+==== Uses
+
+`sparse_scored_terms` are useful when a collection of terms are known and should be
+weighted or scored in a specific way to improve relevance and recall.
+
+Currently, no aggregations are allowed to be executed against the values in this field type and
+only basic terms queries are allowed.
+
+[[sparse-scored-terms-ex]]
+==== Examples
+
+The following <<indices-create-index, create index>> API request creates a new index with two field mappings:
+
+* `my_terms`, a `sparse-scored-terms` field
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings" : {
+    "properties" : {
+      "my_terms" : {
+        "type" : "sparse_scored_terms"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+The following <<docs-index_,index>> API requests stores some scored terms
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001/_doc/1
+{
+  "my_terms" : {
+      "terms" : ["state", "mind", "carolina"], <1>
+      "scores" : [3, 12, 156] <2>
+   }
+}
+
+--------------------------------------------------
+<1> The sparse terms for indexing.
+<2> Their respective scores.

@@ -104,6 +104,7 @@ as-you-type completion.
 ==== Other types
 
 <<percolator,`percolator`>>::   Indexes queries written in <<query-dsl,Query DSL>>.
+<<sparse-scored-terms,`sparse_scored_terms`>>:: Indexes terms with associated scores for search.
 
 
 [discrete]
@@ -176,6 +177,8 @@ include::types/rank-feature.asciidoc[]
 include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
+
+include::types/sparse-scored-terms.asciidoc[]
 
 include::types/shape.asciidoc[]
 

@@ -49,6 +49,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -66,6 +68,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -355,6 +358,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.mapper.SparseScoredTermsMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -461,6 +465,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
@@ -474,7 +479,8 @@ public class MachineLearning extends Plugin
         IngestPlugin,
         PersistentTaskPlugin,
         SearchPlugin,
-        ShutdownAwarePlugin {
+        ShutdownAwarePlugin,
+        MapperPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -538,6 +544,11 @@ public class MachineLearning extends Plugin
     private static final LicensedFeature.Momentary BUCKET_COUNT_KS_TEST_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
         "bucket-count-ks-test-agg",
+        License.OperationMode.PLATINUM
+    );
+    private static final LicensedFeature.Momentary SPARSE_SCORED_TERMS_FIELD_MAPPER = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "sparse-scored-terms-field-mapper",
         License.OperationMode.PLATINUM
     );
 
@@ -1579,6 +1590,16 @@ public class MachineLearning extends Plugin
             ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
                 .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
         );
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Map.of(SparseScoredTermsMapper.CONTENT_TYPE, new FieldMapper.TypeParser((n, c) -> {
+            if (SPARSE_SCORED_TERMS_FIELD_MAPPER.check(getLicenseState()) == false) {
+                throw LicenseUtils.newComplianceException(SPARSE_SCORED_TERMS_FIELD_MAPPER.getName());
+            }
+            return new SparseScoredTermsMapper.Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()));
+        }));
     }
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {

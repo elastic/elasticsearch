@@ -4,9 +4,7 @@ import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.JarApiComparisonTask
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-import java.util.stream.Collectors
-
-import static java.util.Arrays.stream
+import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
 
 configurations {
   stableApi
@@ -21,9 +19,7 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
 
   if (unreleasedVersion) {
     // For unreleased snapshot versions, build them from source
-    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named(ext.buildBwcName))
-    // TODO: is there a way to derive this from the project name instead?
-    // libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name)))
+    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name)))
   } else {
     // For released versions, download it
     libDependency = "org.elasticsearch:" + project.name + ":${bwcVersion}"
@@ -39,10 +35,4 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
     oldJar.fileProvider(project.provider(() -> configurations."stableApi${baseName}".singleFile))
     newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
   }
-}
-
-private static String buildBwcTaskName(String projectName) {
-  return "buildBwc"
-  + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
-    .collect(Collectors.joining());
 }

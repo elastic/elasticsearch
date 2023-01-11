@@ -6,9 +6,6 @@
  * Side Public License, v 1.
  */
 
-// TODO: How do we avoid hardcoding this?
-ext.buildBwcName = 'buildBwcElasticsearchLogging'
-
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.bwc-test'

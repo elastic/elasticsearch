@@ -33,6 +33,15 @@ public final class H3 {
 
     public static int MAX_H3_RES = Constants.MAX_H3_RES;
 
+    private static final long[] NORTH = new long[MAX_H3_RES + 1];
+    private static final long[] SOUTH = new long[MAX_H3_RES + 1];
+    static {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            NORTH[res] = H3.geoToH3(90, 0, res);
+            SOUTH[res] = H3.geoToH3(-90, 0, res);
+        }
+    }
+
     /**
      * Converts from <code>long</code> representation of an index to <code>String</code> representation.
      */
@@ -515,6 +524,52 @@ public final class H3 {
      */
     public static int h3ToNotIntersectingChildrenSize(String h3Address) {
         return h3ToNotIntersectingChildrenSize(stringToH3(h3Address));
+    }
+
+    /**
+     * Find the h3 index containing the North Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 index containing the North Pole.
+     */
+    public static long northPolarH3(int res) {
+        checkResolution(res);
+        return NORTH[res];
+    }
+
+    /**
+     * Find the h3 address containing the North Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 address containing the North Pole.
+     */
+    public static String northPolarH3Address(int res) {
+        return h3ToString(northPolarH3(res));
+    }
+
+    /**
+     * Find the h3 index containing the South Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 index containing the South Pole.
+     */
+    public static long southPolarH3(int res) {
+        checkResolution(res);
+        return SOUTH[res];
+    }
+
+    /**
+     * Find the h3 address containing the South Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 address containing the South Pole.
+     */
+    public static String southPolarH3Address(int res) {
+        return h3ToString(southPolarH3(res));
     }
 
     /**

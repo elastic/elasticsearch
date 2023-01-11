@@ -39,8 +39,10 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
@@ -56,31 +58,35 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 @ESTestCase.WithoutSecurityManager
-public class S3RegisterCASLinearizabilityTests extends ESTestCase {
-    private S3ClientRef getClientRef() {
-        final String region = System.getProperty("test.s3.region", "eu-central-1");
-        final String accessKey = System.getProperty("test.s3.access_key", null);
-        final String secretKey = System.getProperty("test.s3.secret_key", null);
+public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
 
+    private static String getRequiredProperty(String key) {
+        return Strings.requireNonBlank(System.getProperty(key), "Required system property `" + key + "` is not set");
+    }
+
+    private S3ClientRef getClientRef() {
+        final String region = getRequiredProperty("test.s3.region");
+        final String accessKey = System.getProperty("test.s3.access_key");
+        final String secretKey = System.getProperty("test.s3.secret_key");
         if (accessKey != null && secretKey != null) {
             return new S3ClientRef(region, accessKey, secretKey);
+        } else {
+            // Running the test in a development mode. Make sure you local AWS development environment is correctly configured
+            // For instructions see https://github.com/elastic/elasticsearch-benchmarks/blob/master/docs/authentication.md#aws-auth
+            return new S3ClientRef(region);
         }
-
-        // Fallback to the default credential provider when the system properties are not defined
-        return new S3ClientRef(region);
     }
 
-    private String getBucket() {
-        return System.getProperty("test.s3.bucket", "francisco-stateless-tests");
-    }
-
-    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-4967")
-    public void testCASIsLinearizable() throws Exception {
-        final var bucket = getBucket();
-        final var registerKey = UUIDs.randomBase64UUID();
+    public void testCASIsLinearizeable() throws Exception {
+        final var bucket = getRequiredProperty("test.s3.bucket");
+        assertThat(bucket, not(blankOrNullString()));
+        final String basePath = System.getProperty("test.s3.base_path", "stateless-cas-linearizability");
+        final var registerKey = basePath + "/" + UUIDs.randomBase64UUID();
 
         try (var clientRef = getClientRef()) {
             Integer initialValue = null;

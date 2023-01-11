@@ -213,7 +213,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
+            indexSettings.getMode().buildIdFieldMapper(false, idFieldDataEnabled),
             this::compileScript
         );
     }

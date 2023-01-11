@@ -525,6 +525,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> TIME_SERIES_USE_AUTO_GENERATED_ID = Setting.boolSetting(
+        "index.time_series.use_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */

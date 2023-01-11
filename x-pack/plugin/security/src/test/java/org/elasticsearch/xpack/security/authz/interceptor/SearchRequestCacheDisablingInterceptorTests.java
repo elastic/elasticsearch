@@ -85,8 +85,8 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         if (interceptor.supports(searchRequest)) {
             interceptor.disableFeatures(searchRequest, Map.of(), future);
+            future.actionGet();
         }
-        future.actionGet();
         if (remoteIndices.length > 0) {
             verify(searchRequest).requestCache(false);
         } else {

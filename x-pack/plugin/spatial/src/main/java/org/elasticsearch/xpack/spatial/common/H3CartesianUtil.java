@@ -49,8 +49,8 @@ public final class H3CartesianUtil {
         }
     }
 
-    private static final double[] NORTH_BOUND = new double[16];
-    private static final double[] SOUTH_BOUND = new double[16];
+    private static final double[] NORTH_BOUND = new double[H3.MAX_H3_RES + 1];
+    private static final double[] SOUTH_BOUND = new double[H3.MAX_H3_RES + 1];
     static {
         for (int res = 0; res <= H3.MAX_H3_RES; res++) {
             NORTH_BOUND[res] = toBoundingBox(H3.northPolarH3(res)).getMinY();

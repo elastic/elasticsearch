@@ -223,7 +223,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             logger.info("marking node as not ready because it's shutting down");
         } else {
             if (clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId())) {
-                setReady(clusterState.nodes().getMasterNodeId() != null && fileSettingsApplied);
+                setReady(fileSettingsApplied);
             } else {
                 setReady(clusterState.nodes().getMasterNodeId() != null);
             }

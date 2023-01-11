@@ -1392,7 +1392,12 @@ public class Node implements Closeable {
             pluginsService.flatMap(Plugin::getBootstrapChecks).toList()
         );
 
-        injector.getInstance(FileSettingsService.class).start();
+        final FileSettingsService fileSettingsService = injector.getInstance(FileSettingsService.class);
+        fileSettingsService.start();
+        // if we are using the readiness service, listen for the file settings being applied
+        if (ReadinessService.enabled(environment)) {
+            fileSettingsService.addFileSettingsChangedListener(injector.getInstance(ReadinessService.class));
+        }
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known

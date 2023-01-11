@@ -14,12 +14,12 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 import java.io.IOException;
 
-public class SkipAsciiDigits extends FilteringTokenFilter {
+public class SkipStartingWithDigitTokenFilter extends FilteringTokenFilter {
 
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final long asciiDigitsToSkip;
 
-    public SkipAsciiDigits(TokenStream in, long asciiDigitsToSkip) {
+    public SkipStartingWithDigitTokenFilter(TokenStream in, long asciiDigitsToSkip) {
         super(in);
         this.asciiDigitsToSkip = asciiDigitsToSkip;
     }

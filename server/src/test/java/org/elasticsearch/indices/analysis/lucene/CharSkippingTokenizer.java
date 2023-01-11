@@ -14,11 +14,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TestTokenizer extends CharTokenizer {
+public class CharSkippingTokenizer extends CharTokenizer {
 
     private final Set<Integer> setOfChars;
 
-    public TestTokenizer(List<String> tokenizerListOfChars) {
+    public CharSkippingTokenizer(List<String> tokenizerListOfChars) {
         this.setOfChars = tokenizerListOfChars.stream().map(s -> (int) s.charAt(0)).collect(Collectors.toSet());
     }
 

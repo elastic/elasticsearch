@@ -44,20 +44,7 @@ APIs to view or edit a role defined in `roles.yml`.
 This example configures a role that can run SQL in JDBC querying the `test`
 index:
 
-[source,console]
---------------------------------------------------
-POST /_security/role/cli_or_drivers_minimal
-{
-  "cluster": ["cluster:monitor/main"],
-  "indices": [
-    {
-      "names": ["test"],
-      "privileges": ["read", "indices:admin/get"]
-    }
-  ]
-}
---------------------------------------------------
-// TEST[skip:forcomparisontofilemethod]
+include::{xes-repo-dir}/rest-api/security/create-roles.asciidoc[tag=sql-queries-permission]
 
 [discrete]
 [[sql-role-file-example]]

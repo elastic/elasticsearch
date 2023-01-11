@@ -37,18 +37,18 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
     public static final String PHASE_DEFINITION = """
         {
-                "policy" : "my-policy",
-                "phase_definition" : {
-                  "min_age" : "20m",
-                  "actions" : {
-                    "rollover" : {
-                      "max_age" : "5s"
-                    }
-                  }
-                },
-                "version" : 1,
-                "modified_date_in_millis" : 1578521007076
-              }""";
+          "policy" : "my-policy",
+          "phase_definition" : {
+            "min_age" : "20m",
+            "actions" : {
+              "rollover" : {
+                "max_age" : "5s"
+              }
+            }
+          },
+          "version" : 1,
+          "modified_date_in_millis" : 1578521007076
+        }""";
 
     private static final NamedXContentRegistry REGISTRY;
 

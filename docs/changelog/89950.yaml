@@ -1,5 +1,0 @@
-pr: 89950
-summary: "Synthetic _source: support `field` in many cases"
-area: TSDB
-type: enhancement
-issues: []

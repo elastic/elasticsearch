@@ -259,12 +259,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     attributes.add(ne.toAttribute());
                 }
                 plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
-            } else if (child instanceof Project project) {
-                // resolve aliases and push down
-                var aliases = aliases(project);
-
-                var conditionWithResolvedAliases = filter.condition().transformUp(ReferenceAttribute.class, r -> aliases.resolve(r, r));
-                plan = project.replaceChild(filter.with(project.child(), conditionWithResolvedAliases));
+            } else if (child instanceof Project) {
+                return pushDownPastProject(filter);
             } else if (child instanceof OrderBy orderBy) {
                 // swap the filter with its child
                 plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
@@ -319,6 +315,14 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             // TODO: combine with CombineEval from https://github.com/elastic/elasticsearch-internal/pull/511 when merged
             if (child instanceof OrderBy orderBy) {
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
+            } else if (child instanceof Project) {
+                var projectWithEvalChild = pushDownPastProject(eval);
+                var fieldProjections = eval.fields().stream().map(NamedExpression::toAttribute).toList();
+                return new Project(
+                    projectWithEvalChild.source(),
+                    projectWithEvalChild.child(),
+                    CollectionUtils.combine(projectWithEvalChild.projections(), fieldProjections)
+                );
             }
 
             return eval;
@@ -334,15 +338,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             if (child instanceof OrderBy childOrder) {
                 // combine orders
                 return new OrderBy(orderBy.source(), childOrder.child(), CollectionUtils.combine(orderBy.order(), childOrder.order()));
-            } else if (child instanceof Project project) {
-                // resolve aliases and push down
-                var aliases = aliases(project);
-
-                var orderWithResolvedAliases = orderBy.order()
-                    .stream()
-                    .map(o -> (Order) o.transformUp(ReferenceAttribute.class, r -> aliases.resolve(r, r)))
-                    .toList();
-                return project.replaceChild(new OrderBy(orderBy.source(), project.child(), orderWithResolvedAliases));
+            } else if (child instanceof Project) {
+                return pushDownPastProject(orderBy);
             }
 
             return orderBy;
@@ -391,9 +388,21 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static AttributeMap<Expression> aliases(LogicalPlan node) {
-        AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
-        node.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
-        return aliases.build();
+    private static Project pushDownPastProject(UnaryPlan parent) {
+        if (parent.child()instanceof Project project) {
+            AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
+            project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
+            var aliases = aliasBuilder.build();
+
+            var expressionsWithResolvedAliases = (UnaryPlan) parent.transformExpressionsOnly(
+                ReferenceAttribute.class,
+                r -> aliases.resolve(r, r)
+            );
+
+            return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
+        } else {
+            throw new UnsupportedOperationException("Expected child to be instance of Project");
+        }
     }
+
 }

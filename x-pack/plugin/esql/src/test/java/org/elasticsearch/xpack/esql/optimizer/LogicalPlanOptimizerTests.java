@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
@@ -373,6 +374,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(as(attr, FieldAttribute.class).name(), is("emp_no"));
     }
 
+    public void testPushDownEvalPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | project x = emp_no
+            | eval y = x * 2""");
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(
+            eval.fields(),
+            contains(
+                new Alias(
+                    EMPTY,
+                    "y",
+                    new Mul(EMPTY, new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")), new Literal(EMPTY, 2, INTEGER))
+                )
+            )
+        );
+    }
+
     public void testPushDownFilterPastProjectUsingEval() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -519,6 +540,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains("languages", "emp_no")
         );
         as(orderBy.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughProjectAndEval() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | project languages, en = emp_no
+            | eval e = en * 2
+            | sort languages""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(
+            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("languages", "emp_no")
+        );
+        as(orderBy.child(), Eval.class);
     }
 
     public void testCombineOrderByThroughProjectWithAlias() {

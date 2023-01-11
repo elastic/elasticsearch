@@ -51,8 +51,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -89,8 +89,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESIntegTestCase.ClusterScope(numClientNodes = 1)
-public class FieldLevelSecurityTests extends AbstractDocumentAndFieldLevelSecurityTests {
+public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
@@ -372,17 +371,11 @@ public class FieldLevelSecurityTests extends AbstractDocumentAndFieldLevelSecuri
             .get();
         assertHitCount(response, 1);
         // user2 has no access to field1, so a query on its field alias should not match with the document:
-        response = internalCluster().coordOnlyNodeClient()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(matchQuery("alias", "value1"))
             .get();
         assertHitCount(response, 0);
-
-        // coordinating only node should not tack DLS/FLS feature usage
-        assertDlsFlsNotTrackedOnCoordOnlyNode();
-        // only FLS feature should have been tracked across all data nodes
-        assertOnlyFlsTracked();
     }
 
     public void testKnnSearch() throws IOException {

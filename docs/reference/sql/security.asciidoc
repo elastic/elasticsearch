@@ -37,8 +37,9 @@ method for defining roles. File-based role management is useful if you want to
 define a role that doesn't need to change. You cannot use the role management
 APIs to view or edit a role defined in `roles.yml`. 
 
-[[apiexample]]
-*Add permissions with the role management APIs*
+[discrete]
+[[sql-role-api-example]]
+===== Add permissions with the role management APIs
 
 This example configures a role that can run SQL in JDBC querying the `test`
 index:

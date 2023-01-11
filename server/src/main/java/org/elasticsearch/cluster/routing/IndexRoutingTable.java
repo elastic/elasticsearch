@@ -302,7 +302,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
         Index index = new Index(in);
-        Builder builder = new Builder(index);
+        Builder builder = new Builder(ShardRoutingRoleStrategy.NO_SHARD_CREATION, index);
 
         int size = in.readVInt();
         builder.ensureShardArray(size);
@@ -324,15 +324,21 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     }
 
     public static Builder builder(Index index) {
-        return new Builder(index);
+        return new Builder(ShardRoutingRoleStrategy.NO_SHARD_CREATION, index);
+    }
+
+    public static Builder builder(ShardRoutingRoleStrategy shardRoutingRoleStrategy, Index index) {
+        return new Builder(shardRoutingRoleStrategy, index);
     }
 
     public static class Builder {
 
+        private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
         private final Index index;
         private IndexShardRoutingTable.Builder[] shards;
 
-        public Builder(Index index) {
+        public Builder(ShardRoutingRoleStrategy shardRoutingRoleStrategy, Index index) {
+            this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
             this.index = index;
         }
 
@@ -438,7 +444,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 shardId,
                                 primary,
                                 primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
-                                unassignedInfo
+                                unassignedInfo,
+                                shardRoutingRoleStrategy.newRestoredRole(i)
                             )
                         );
                     } else {
@@ -447,7 +454,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 shardId,
                                 primary,
                                 primary ? recoverySource : PeerRecoverySource.INSTANCE,
-                                withLastAllocatedNodeId(unassignedInfo, previousNodes, i)
+                                withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
+                                shardRoutingRoleStrategy.newRestoredRole(i)
                             )
                         );
                     }
@@ -493,7 +501,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                             shardId,
                             primary,
                             primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE,
-                            withLastAllocatedNodeId(unassignedInfo, previousNodes, i)
+                            withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
+                            shardRoutingRoleStrategy.newEmptyRole(i)
                         )
                     );
                 }
@@ -546,7 +555,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 );
         }
 
-        public Builder addReplica() {
+        public Builder addReplica(ShardRouting.Role role) {
             assert shards != null;
             for (IndexShardRoutingTable.Builder existing : shards) {
                 assert existing != null;
@@ -556,7 +565,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         existing.shardId(),
                         false,
                         PeerRecoverySource.INSTANCE,
-                        new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                        new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
+                        role
                     )
                 );
             }

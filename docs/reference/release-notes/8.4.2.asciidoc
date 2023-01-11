@@ -18,6 +18,8 @@ This regression was fixed in version 8.4.3.
 
 include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
 
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
 [[bug-8.4.2]]
 [float]
 === Bug fixes

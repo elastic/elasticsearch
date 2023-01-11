@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -83,7 +84,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         to = in.readGenericValue();
         includeLower = in.readBoolean();
         includeUpper = in.readBoolean();
-        timeZone = in.readOptionalZoneId();
+        timeZone = in.dateTimeZoneToZoneId();
         format = in.readOptionalString();
         String relationString = in.readOptionalString();
         if (relationString != null) {

@@ -29,11 +29,13 @@ users so they can run SQL. To run SQL, a user needs `read` and
 `indices:admin/get` permissions at minimum while some parts of 
 the API require `cluster:monitor/main`.
 
-You can add permissions with either an <<apiexample,API call>>
-or the configuration file <<fileexample,roles.yml>>. File-based role management
-is useful if you want to define a role that doesn't need to change. Also, you
-cannot use the role management APIs to view or edit a role defined in `roles.yml`.
-Using a role management API is the preferred method for defining roles.
+You can add permissions by <<defining-roles,creating a role>>, and assigning
+that role to the user. Roles can be created using {kib}, an
+<<sql-role-api-example,API call>> or the <<sql-role-file-example,`roles.yml`
+configuration file>>. Using {kib} or the role management APIs is the preferred
+method for defining roles. File-based role management is useful if you want to
+define a role that doesn't need to change. You cannot use the role management
+APIs to view or edit a role defined in `roles.yml`. 
 
 [[apiexample]]
 *Add permissions with the role management APIs*

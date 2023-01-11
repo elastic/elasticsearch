@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.http.HttpRemoteClusterService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -106,6 +107,7 @@ public final class NetworkModule {
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
+    private final List<HttpRemoteClusterService> httpRemoteClusterServices = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -159,6 +161,11 @@ public final class NetworkModule {
             );
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
+            }
+
+            final HttpRemoteClusterService httpRemoteClusterService = plugin.getHttpRemoteClusterService(settings);
+            if (httpRemoteClusterService != null) {
+                httpRemoteClusterServices.add(httpRemoteClusterService);
             }
         }
     }
@@ -230,6 +237,16 @@ public final class NetworkModule {
             throw new IllegalStateException("Unsupported transport.type [" + name + "]");
         }
         return factory;
+    }
+
+    public HttpRemoteClusterService getHttpRemoteClusterService() {
+        if (httpRemoteClusterServices.size() == 0) {
+            return null;
+        } else if (httpRemoteClusterServices.size() == 1) {
+            return httpRemoteClusterServices.get(0);
+        } else {
+            throw new IllegalStateException("cannot have more than one HttpRemoteClusterService implementations");
+        }
     }
 
     /**

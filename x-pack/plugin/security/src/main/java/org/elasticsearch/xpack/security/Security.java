@@ -49,6 +49,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.http.HttpRemoteClusterService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -1122,6 +1123,9 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
 
+        settingsList.add(SecurityHttpRemoteClusterService.HTTP_REMOTE_HOST);
+        settingsList.add(SecurityHttpRemoteClusterService.HTTP_REMOTE_AUTHENTICATION);
+
         // hide settings
         settingsList.add(
             Setting.listSetting(
@@ -1758,5 +1762,10 @@ public class Security extends Plugin
             return Collections.emptyList();
         }
         return List.of(reservedRoleMappingAction.get());
+    }
+
+    @Override
+    public HttpRemoteClusterService getHttpRemoteClusterService(Settings settings) {
+        return new SecurityHttpRemoteClusterService(settings);
     }
 }

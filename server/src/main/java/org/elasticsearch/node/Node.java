@@ -114,6 +114,7 @@ import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.stats.HealthApiStats;
+import org.elasticsearch.http.HttpRemoteClusterService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -817,6 +818,9 @@ public class Node implements Closeable {
                 taskManager,
                 tracer
             );
+            final HttpRemoteClusterService httpRemoteClusterService = networkModule.getHttpRemoteClusterService();
+            httpRemoteClusterService.init(transportService);
+            transportService.setHttpRemoteClusterService(httpRemoteClusterService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(

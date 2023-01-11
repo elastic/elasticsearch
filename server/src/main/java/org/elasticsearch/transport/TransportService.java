@@ -35,6 +35,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.HttpRemoteClusterService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -167,6 +168,8 @@ public class TransportService extends AbstractLifecycleComponent
             return "local node connection";
         }
     };
+
+    private HttpRemoteClusterService httpRemoteClusterService;
 
     public TransportService(
         Settings settings,
@@ -302,6 +305,14 @@ public class TransportService extends AbstractLifecycleComponent
 
     void setTracerLogExclude(List<String> tracerLogExclude) {
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    public HttpRemoteClusterService getHttpRemoteClusterService() {
+        return httpRemoteClusterService;
+    }
+
+    public void setHttpRemoteClusterService(HttpRemoteClusterService httpRemoteClusterService) {
+        this.httpRemoteClusterService = httpRemoteClusterService;
     }
 
     @Override

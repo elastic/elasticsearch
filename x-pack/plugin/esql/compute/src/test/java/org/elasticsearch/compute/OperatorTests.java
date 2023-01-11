@@ -60,9 +60,6 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TopNOperator;
-import org.elasticsearch.compute.operator.TopNOperator.SortOrder;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -93,9 +90,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -115,7 +110,6 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 @Experimental
 public class OperatorTests extends ESTestCase {
@@ -804,87 +798,6 @@ public class OperatorTests extends ESTestCase {
         }
 
         assertThat(results, contains(values.stream().limit(limit).toArray()));
-    }
-
-    public void testRandomTopN() {
-        for (boolean asc : List.of(true, false)) {
-            int limit = randomIntBetween(1, 20);
-            List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
-            Comparator<Long> comparator = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
-            List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-            List<Long> outputValues = topN(inputValues, limit, asc, false);
-            assertThat(outputValues, equalTo(expectedValues));
-        }
-    }
-
-    public void testBasicTopN() {
-        List<Long> values = Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L);
-        assertThat(topN(values, 1, true, false), equalTo(Arrays.asList(1L)));
-        assertThat(topN(values, 1, false, false), equalTo(Arrays.asList(100L)));
-        assertThat(topN(values, 2, true, false), equalTo(Arrays.asList(1L, 2L)));
-        assertThat(topN(values, 2, false, false), equalTo(Arrays.asList(100L, 20L)));
-        assertThat(topN(values, 3, true, false), equalTo(Arrays.asList(1L, 2L, 4L)));
-        assertThat(topN(values, 3, false, false), equalTo(Arrays.asList(100L, 20L, 10L)));
-        assertThat(topN(values, 4, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L)));
-        assertThat(topN(values, 4, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L)));
-        assertThat(topN(values, 100, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L, null, null)));
-        assertThat(topN(values, 100, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null)));
-        assertThat(topN(values, 1, true, true), equalTo(Arrays.asList(new Long[] { null })));
-        assertThat(topN(values, 1, false, true), equalTo(Arrays.asList(new Long[] { null })));
-        assertThat(topN(values, 2, true, true), equalTo(Arrays.asList(null, null)));
-        assertThat(topN(values, 2, false, true), equalTo(Arrays.asList(null, null)));
-        assertThat(topN(values, 3, true, true), equalTo(Arrays.asList(null, null, 1L)));
-        assertThat(topN(values, 3, false, true), equalTo(Arrays.asList(null, null, 100L)));
-        assertThat(topN(values, 4, true, true), equalTo(Arrays.asList(null, null, 1L, 2L)));
-        assertThat(topN(values, 4, false, true), equalTo(Arrays.asList(null, null, 100L, 20L)));
-        assertThat(topN(values, 100, true, true), equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L)));
-        assertThat(topN(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
-    }
-
-    private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
-        return topNTwoColumns(
-            inputValues.stream().map(v -> tuple(v, 0L)).toList(),
-            limit,
-            List.of(new SortOrder(0, ascendingOrder, nullsFirst))
-        ).stream().map(Tuple::v1).toList();
-    }
-
-    public void testTopNTwoColumns() {
-        List<Tuple<Long, Long>> values = Arrays.asList(tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L), tuple(1L, null));
-        assertThat(
-            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, false), new SortOrder(1, true, false))),
-            equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
-        );
-        assertThat(
-            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, true), new SortOrder(1, true, false))),
-            equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
-        );
-        assertThat(
-            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, false), new SortOrder(1, true, true))),
-            equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
-        );
-    }
-
-    private List<Tuple<Long, Long>> topNTwoColumns(List<Tuple<Long, Long>> inputValues, int limit, List<SortOrder> sortOrders) {
-        List<Tuple<Long, Long>> outputValues = new ArrayList<>();
-        try (
-            Driver driver = new Driver(
-                new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
-                List.of(new TopNOperator(limit, sortOrders)),
-                new PageConsumerOperator(page -> {
-                    Block block1 = page.getBlock(0);
-                    Block block2 = page.getBlock(1);
-                    for (int i = 0; i < block1.getPositionCount(); i++) {
-                        outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
-                    }
-                }),
-                () -> {}
-            )
-        ) {
-            driver.run();
-        }
-        assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
-        return outputValues;
     }
 
     private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {

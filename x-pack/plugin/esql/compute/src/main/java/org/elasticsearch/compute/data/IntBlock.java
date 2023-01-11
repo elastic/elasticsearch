@@ -47,8 +47,8 @@ public final class IntBlock extends AbstractBlock {
     }
 
     @Override
-    public Class<?> elementType() {
-        return int.class;
+    public ElementType elementType() {
+        return ElementType.INT;
     }
 
     @Override

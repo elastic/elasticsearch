@@ -45,8 +45,8 @@ final class ConstantLongVector extends AbstractVector {
     }
 
     @Override
-    public Class<?> elementType() {
-        return long.class;
+    public ElementType elementType() {
+        return ElementType.LONG;
     }
 
     @Override

@@ -37,8 +37,8 @@ final class ConstantBytesRefVector extends AbstractVector {
     }
 
     @Override
-    public Class<?> elementType() {
-        return BytesRef.class;
+    public ElementType elementType() {
+        return ElementType.BYTES_REF;
     }
 
     @Override

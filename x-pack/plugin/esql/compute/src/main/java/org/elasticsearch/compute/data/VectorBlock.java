@@ -68,7 +68,7 @@ final class VectorBlock extends AbstractBlock {
     }
 
     @Override
-    public Class<?> elementType() {
+    public ElementType elementType() {
         return vector.elementType();
     }
 

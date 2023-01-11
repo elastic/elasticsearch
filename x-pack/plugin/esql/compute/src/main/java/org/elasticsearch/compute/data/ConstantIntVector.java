@@ -41,8 +41,8 @@ public final class ConstantIntVector extends AbstractVector {
     }
 
     @Override
-    public Class<?> elementType() {
-        return int.class;
+    public ElementType elementType() {
+        return ElementType.INT;
     }
 
     @Override

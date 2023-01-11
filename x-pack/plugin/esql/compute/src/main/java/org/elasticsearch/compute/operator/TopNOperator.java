@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.ann.Experimental;
@@ -44,7 +45,12 @@ public class TopNOperator implements Operator {
             this.inputQueue = new PriorityQueue<>(topCount) {
                 @Override
                 protected boolean lessThan(Page a, Page b) {
-                    return TopNOperator.compareTo(order, a, b) < 0;
+                    return compareFirstPositionsOfBlocks(
+                        order.asc,
+                        order.nullsFirst,
+                        a.getBlock(order.channel),
+                        b.getBlock(order.channel)
+                    ) < 0;
                 }
             };
         } else {
@@ -59,25 +65,44 @@ public class TopNOperator implements Operator {
 
     private static int compareTo(List<SortOrder> orders, Page a, Page b) {
         for (SortOrder order : orders) {
-            int compared = compareTo(order, a, b);
-            if (compared != 0) {
-                return compared;
+            int cmp = compareFirstPositionsOfBlocks(order.asc, order.nullsFirst, a.getBlock(order.channel), b.getBlock(order.channel));
+            if (cmp != 0) {
+                return cmp;
             }
         }
         return 0;
     }
 
-    private static int compareTo(SortOrder order, Page a, Page b) {
-        Block blockA = a.getBlock(order.channel);
-        Block blockB = b.getBlock(order.channel);
-
-        boolean aIsNull = blockA.isNull(0);
-        boolean bIsNull = blockB.isNull(0);
-        if (aIsNull || bIsNull) {
-            return Boolean.compare(aIsNull, bIsNull) * (order.nullsFirst ? 1 : -1);
+    /**
+     * Since all pages in the PQ are single-row (see {@link #addInput(Page)}, here we only need to compare the first positions of the given
+     * blocks.
+     */
+    static int compareFirstPositionsOfBlocks(boolean asc, boolean nullsFirst, Block b1, Block b2) {
+        assert b1.getPositionCount() == 1 : "not a single row block";
+        assert b2.getPositionCount() == 1 : "not a single row block";
+        boolean firstIsNull = b1.isNull(0);
+        boolean secondIsNull = b2.isNull(0);
+        if (firstIsNull || secondIsNull) {
+            return Boolean.compare(firstIsNull, secondIsNull) * (nullsFirst ? 1 : -1);
         }
-
-        return Long.compare(blockA.getLong(0), blockB.getLong(0)) * (order.asc ? -1 : 1);
+        if (b1.elementType() != b2.elementType()) {
+            throw new IllegalStateException("Blocks have incompatible element types: " + b1.elementType() + " != " + b2.elementType());
+        }
+        final int cmp = switch (b1.elementType()) {
+            case INT -> Integer.compare(b1.getInt(0), b2.getInt(0));
+            case LONG -> Long.compare(b1.getLong(0), b2.getLong(0));
+            case DOUBLE -> Double.compare(b1.getDouble(0), b2.getDouble(0));
+            case BYTES_REF -> b1.getBytesRef(0, new BytesRef()).compareTo(b2.getBytesRef(0, new BytesRef()));
+            case NULL -> {
+                assert false : "Must not occur here as we check nulls above already";
+                throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
+            }
+            case UNKNOWN -> {
+                assert false : "Must not occur here as TopN should never receive intermediate blocks";
+                throw new UnsupportedOperationException("Block doesn't support retrieving elements");
+            }
+        };
+        return asc ? -cmp : cmp;
     }
 
     @Override

@@ -49,7 +49,7 @@ final class FilterVector extends AbstractVector {
     }
 
     @Override
-    public Class<?> elementType() {
+    public ElementType elementType() {
         return vector.elementType();
     }
 

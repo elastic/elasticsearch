@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -67,7 +68,7 @@ public class LongGroupingOperator implements Operator {
     @Override
     public void addInput(Page page) {
         Block block = page.getBlock(channel);
-        assert block.elementType() == long.class;
+        assert block.elementType() == ElementType.LONG;
         long[] groups = new long[block.getPositionCount()];
         for (int i = 0; i < block.getPositionCount(); i++) {
             long value = block.getLong(i);

@@ -35,8 +35,8 @@ final class ConstantDoubleVector extends AbstractVector {
     }
 
     @Override
-    public Class<?> elementType() {
-        return double.class;
+    public ElementType elementType() {
+        return ElementType.DOUBLE;
     }
 
     @Override

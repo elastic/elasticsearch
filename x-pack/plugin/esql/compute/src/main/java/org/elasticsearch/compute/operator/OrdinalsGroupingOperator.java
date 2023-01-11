@@ -22,6 +22,7 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockBuilder;
 import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
@@ -111,10 +112,10 @@ public class OrdinalsGroupingOperator implements Operator {
         if (docs.getPositionCount() == 0) {
             return;
         }
-        assert docs.elementType() == int.class;
+        assert docs.elementType() == ElementType.INT;
         final Vector shardIndexVector = page.getBlock(luceneDocRef.shardRef()).asVector().get();
         assert shardIndexVector.isConstant();
-        assert shardIndexVector.elementType() == int.class;
+        assert shardIndexVector.elementType() == ElementType.INT;
         final int shardIndex = shardIndexVector.getInt(0);
         var source = sources.get(shardIndex);
         if (source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {

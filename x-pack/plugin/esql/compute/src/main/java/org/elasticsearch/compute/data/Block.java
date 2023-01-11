@@ -100,9 +100,9 @@ public interface Block {
     Object getObject(int valueIndex);
 
     /**
-     * {@return the primitive element type of this vector}
+     * {@return the element type of this block}
      */
-    Class<?> elementType();
+    ElementType elementType();
 
     /**
      * Returns true if the value stored at the given position is null, false otherwise.

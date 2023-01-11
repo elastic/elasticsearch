@@ -83,9 +83,9 @@ public interface Vector {
     Vector filter(int... positions);
 
     /**
-     * {@return the element type of this vector, unboxed if the type is a primitive}
+     * {@return the element type of this vector}
      */
-    Class<?> elementType();
+    ElementType elementType();
 
     /**
      * {@return true iff this vector is a constant vector - returns the same constant value for every position}

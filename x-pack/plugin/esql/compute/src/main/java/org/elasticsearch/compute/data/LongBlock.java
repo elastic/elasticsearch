@@ -41,8 +41,8 @@ public final class LongBlock extends AbstractBlock {
     }
 
     @Override
-    public Class<?> elementType() {
-        return long.class;
+    public ElementType elementType() {
+        return ElementType.LONG;
     }
 
     @Override

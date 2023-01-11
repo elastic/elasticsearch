@@ -51,8 +51,8 @@ public class AggregatorStateVector<T extends AggregatorState<T>> extends Abstrac
     }
 
     @Override
-    public Class<?> elementType() {
-        return byte[].class;
+    public ElementType elementType() {
+        return ElementType.UNKNOWN;
     }
 
     @Override

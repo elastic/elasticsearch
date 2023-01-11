@@ -311,6 +311,25 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(actualGroups, equalTo(expectedGroups));
     }
 
+    public void testSortWithKeywordField() {
+        EsqlQueryResponse results = run("from test | stats avg(count) by color | sort color | limit 2");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(2, results.values().size());
+
+        // assert column metadata
+        assertEquals("avg(count)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals("color", results.columns().get(1).name());
+        assertEquals("keyword", results.columns().get(1).type());
+
+        // assert rows
+        assertThat(results.values().get(0).get(1), equalTo("blue"));
+        assertThat(results.values().get(0).get(0), equalTo(42.0));
+        assertThat(results.values().get(1).get(1), equalTo("green"));
+        assertThat(results.values().get(1).get(0), equalTo(44.0));
+    }
+
     public void testFromStatsMultipleAggs() {
         EsqlQueryResponse results = run(
             "from test | stats a=avg(count), mi=min(count), ma=max(count), s=sum(count), c=count(count) by color"

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -35,7 +36,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
     @Override
     public void addRawInput(Vector groupIdVector, Page page) {
         assert channel >= 0;
-        assert groupIdVector.elementType() == long.class;
+        assert groupIdVector.elementType() == ElementType.LONG;
         Block valuesBlock = page.getBlock(channel);
         Optional<Vector> vector = valuesBlock.asVector();
         if (vector.isPresent()) {

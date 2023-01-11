@@ -49,7 +49,7 @@ final class FilteredBlock extends AbstractBlock {
     }
 
     @Override
-    public Class<?> elementType() {
+    public ElementType elementType() {
         return block.elementType();
     }
 

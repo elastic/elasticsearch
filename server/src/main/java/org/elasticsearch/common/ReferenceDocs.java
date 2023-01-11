@@ -20,10 +20,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Encapsulates links to pages in the reference docs, so that for example we can include URLs in logs and API outputs. Each instance's
@@ -38,15 +36,8 @@ public enum ReferenceDocs {
     private static final Map<String, String> linksBySymbol;
 
     static {
-        try (
-            var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.json"));
-            var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, resourceStream)
-        ) {
-            linksBySymbol = Map.copyOf(parser.map(HashMap::new, XContentParser::text));
-            var symbols = Arrays.stream(ReferenceDocs.values()).map(Enum::name).collect(Collectors.toSet());
-            if (symbols.equals(linksBySymbol.keySet()) == false) {
-                throw new IllegalStateException("symbols do not match links: " + symbols + " vs " + linksBySymbol);
-            }
+        try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.json"))) {
+            linksBySymbol = Map.copyOf(readLinksBySymbol(resourceStream));
         } catch (Exception e) {
             assert false : e;
             throw new IllegalStateException("could not read links resource", e);
@@ -55,6 +46,27 @@ public enum ReferenceDocs {
 
     static final String UNRELEASED_VERSION_COMPONENT = "master";
     static final String VERSION_COMPONENT = getVersionComponent(Version.CURRENT, Build.CURRENT.isSnapshot());
+
+    static Map<String, String> readLinksBySymbol(InputStream inputStream) throws Exception {
+        try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, inputStream)) {
+            final var result = parser.map(LinkedHashMap::new, XContentParser::text);
+            final var iterator = result.keySet().iterator();
+            for (int i = 0; i < values().length; i++) {
+                final var expected = values()[i].name();
+                if (iterator.hasNext() == false) {
+                    throw new IllegalStateException("ran out of values at index " + i + ": expecting " + expected);
+                }
+                final var actual = iterator.next();
+                if (actual.equals(expected) == false) {
+                    throw new IllegalStateException("mismatch at index " + i + ": found " + actual + " but expected " + expected);
+                }
+            }
+            if (iterator.hasNext()) {
+                throw new IllegalStateException("found unexpected extra value: " + iterator.next());
+            }
+            return result;
+        }
+    }
 
     /**
      * Compute the version component of the URL path (e.g. {@code 8.5} or {@code master}) for a particular version of Elasticsearch. Exposed

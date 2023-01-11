@@ -116,6 +116,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.FORCE_AUTHN;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.GROUPS_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_ENTITY_ID;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_LENIENT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
@@ -529,6 +530,16 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
+        if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
+            // This isn't an ideal check, but we don't have a better option right now
+            listener.onResponse(
+                AuthenticationResult.unsuccessful(
+                    "SAML realm [" + this + "] cannot authenticate because the metadata could not be resolved",
+                    null
+                )
+            );
+            return;
+        }
         if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
@@ -680,6 +691,12 @@ public final class SamlRealm extends Realm implements Releasable {
         TimeValue refresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
         resolver.setMinRefreshDelay(Duration.ofMillis(refresh.millis()));
         resolver.setMaxRefreshDelay(Duration.ofMillis(refresh.millis()));
+
+        final boolean lenient = config.getSetting(IDP_METADATA_HTTP_LENIENT);
+        if (lenient) {
+            resolver.setFailFastInitialization(false);
+        }
+
         initialiseResolver(resolver, config);
 
         return new Tuple<>(resolver, () -> {
@@ -688,7 +705,7 @@ public final class SamlRealm extends Realm implements Releasable {
             SpecialPermission.check();
             try {
                 return AccessController.doPrivileged(
-                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(resolver, entityId, metadataUrl)
+                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(resolver, entityId, metadataUrl, lenient)
                 );
             } catch (PrivilegedActionException e) {
                 throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
@@ -727,11 +744,13 @@ public final class SamlRealm extends Realm implements Releasable {
         final Path path = config.env().configFile().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile());
 
-        if (config.hasSetting(IDP_METADATA_HTTP_REFRESH)) {
-            logger.info(
-                "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
-                RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_REFRESH)
-            );
+        for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_LENIENT)) {
+            if (config.hasSetting(httpSetting)) {
+                logger.info(
+                    "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
+                    RealmSettings.getFullSettingKey(config, httpSetting)
+                );
+            }
         }
 
         // We don't want to rely on the internal OpenSAML refresh timer, but we can't turn it off, so just set it to run once a day.
@@ -744,18 +763,28 @@ public final class SamlRealm extends Realm implements Releasable {
         FileWatcher watcher = new FileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
-        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString()));
+        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), false));
     }
 
     private static EntityDescriptor resolveEntityDescriptor(
         AbstractReloadingMetadataResolver resolver,
         String entityId,
-        String sourceLocation
+        String sourceLocation,
+        boolean lenient
     ) {
         try {
             final EntityDescriptor descriptor = resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)));
             if (descriptor == null) {
-                throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
+                if (lenient) {
+                    logger.warn(
+                        "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
+                        entityId,
+                        sourceLocation
+                    );
+                    return new UnresolvedEntity(entityId, sourceLocation);
+                } else {
+                    throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
+                }
             }
             return descriptor;
         } catch (ResolverException e) {
@@ -969,4 +998,5 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
     }
+
 }

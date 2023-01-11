@@ -1,0 +1,5 @@
+pr: 92829
+summary: Protect H3 library against integer overflow
+area: Geo
+type: enhancement
+issues: []

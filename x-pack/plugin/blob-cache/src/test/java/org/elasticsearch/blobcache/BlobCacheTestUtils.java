@@ -13,23 +13,12 @@ import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.CacheFile;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.hamcrest.MatcherAssert;
 
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.OpenOption;
@@ -37,7 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,139 +136,6 @@ public final class BlobCacheTestUtils {
 
     public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
         return cacheFile.getCompletedRanges().stream().mapToLong(ByteRange::length).sum();
-    }
-
-    /**
-     * A {@link BlobContainer} that can read a single in-memory blob.
-     * Any attempt to read a different blob will throw a {@link FileNotFoundException}
-     */
-    public static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
-        return new MostlyUnimplementedFakeBlobContainer() {
-            @Override
-            public InputStream readBlob(String name, long position, long length) throws IOException {
-                if (blobName.equals(name) == false) {
-                    throw new FileNotFoundException("Blob not found: " + name);
-                }
-                return Streams.limitStream(
-                    new ByteArrayInputStream(
-                        blobContent,
-                        BlobCacheUtils.toIntBytes(position),
-                        blobContent.length - BlobCacheUtils.toIntBytes(position)
-                    ),
-                    length
-                );
-            }
-        };
-    }
-
-    public static BlobContainer singleSplitBlobContainer(final String blobName, final byte[] blobContent, final int partSize) {
-        if (partSize >= blobContent.length) {
-            return singleBlobContainer(blobName, blobContent);
-        } else {
-            final String prefix = blobName + ".part";
-            return new MostlyUnimplementedFakeBlobContainer() {
-                @Override
-                public InputStream readBlob(String name, long position, long length) throws IOException {
-                    if (name.startsWith(prefix) == false) {
-                        throw new FileNotFoundException("Blob not found: " + name);
-                    }
-                    assert position + length <= partSize
-                        : "cannot read [" + position + "-" + (position + length) + "] from array part of length [" + partSize + "]";
-                    final int partNumber = Integer.parseInt(name.substring(prefix.length()));
-                    final int positionInBlob = BlobCacheUtils.toIntBytes(position) + partSize * partNumber;
-                    assert positionInBlob + length <= blobContent.length
-                        : "cannot read ["
-                            + positionInBlob
-                            + "-"
-                            + (positionInBlob + length)
-                            + "] from array of length ["
-                            + blobContent.length
-                            + "]";
-                    return Streams.limitStream(
-                        new ByteArrayInputStream(blobContent, positionInBlob, blobContent.length - positionInBlob),
-                        length
-                    );
-                }
-            };
-        }
-    }
-
-    private static class MostlyUnimplementedFakeBlobContainer implements BlobContainer {
-
-        @Override
-        public long readBlobPreferredLength() {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        public Map<String, BlobMetadata> listBlobs() {
-            throw unsupportedException();
-        }
-
-        @Override
-        public BlobPath path() {
-            throw unsupportedException();
-        }
-
-        @Override
-        public boolean blobExists(String blobName) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public InputStream readBlob(String blobName) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeMetadataBlob(
-            String blobName,
-            boolean failIfAlreadyExists,
-            boolean atomic,
-            CheckedConsumer<OutputStream, IOException> writer
-        ) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public DeleteResult delete() {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public Map<String, BlobContainer> children() {
-            throw unsupportedException();
-        }
-
-        @Override
-        public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
-            throw unsupportedException();
-        }
-
-        private UnsupportedOperationException unsupportedException() {
-            assert false : "this operation is not supported and should have not be called";
-            return new UnsupportedOperationException("This operation is not supported");
-        }
     }
 
     /**

@@ -43,15 +43,13 @@ public enum ReferenceDocs {
             var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, resourceStream)
         ) {
             linksBySymbol = Map.copyOf(parser.map(HashMap::new, XContentParser::text));
-        } catch (IOException e) {
+            var symbols = Arrays.stream(ReferenceDocs.values()).map(Enum::name).collect(Collectors.toSet());
+            if (symbols.equals(linksBySymbol.keySet()) == false) {
+                throw new IllegalStateException("symbols do not match links: " + symbols + " vs " + linksBySymbol);
+            }
+        } catch (Exception e) {
             assert false : e;
             throw new IllegalStateException("could not read links resource", e);
-        }
-
-        var symbols = Arrays.stream(ReferenceDocs.values()).map(Enum::name).collect(Collectors.toSet());
-        if (symbols.equals(linksBySymbol.keySet()) == false) {
-            assert false : symbols + " vs " + linksBySymbol;
-            throw new IllegalStateException("symbols do not match links: " + symbols + " vs " + linksBySymbol);
         }
     }
 

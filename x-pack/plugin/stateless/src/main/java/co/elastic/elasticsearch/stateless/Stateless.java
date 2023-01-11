@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
@@ -35,9 +36,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -60,6 +63,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
@@ -84,7 +88,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
-public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPlugin, ActionPlugin {
+public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPlugin, ActionPlugin, ClusterPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -97,7 +101,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
         Setting.Property.NodeScope
     );
 
-    static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
+    public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final Settings settings;
@@ -279,6 +283,11 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
                 }
             }
         );
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return List.of(new StatelessAllocationDecider());
     }
 
     /**

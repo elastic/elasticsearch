@@ -23,33 +23,31 @@ configurations {
 }
 
 dependencies {
-    dependencies {
-        compileOnly(xpackModule("core"))
-        internalClusterTestImplementation(testArtifact(xpackModule("core")))
-        add("testImplementation", "org.elasticsearch.test:s3-fixture")
-        add("testImplementation", "org.elasticsearch.test:gcs-fixture")
-        add("testImplementation", "org.elasticsearch.test:azure-fixture")
-        add("testImplementation", "com.amazonaws:aws-java-sdk-core")
-        add("testImplementation", "org.elasticsearch.plugin:repository-s3")
-        add("testImplementation", "org.elasticsearch.plugin:repository-gcs")
-        add("testImplementation", "org.elasticsearch.plugin:repository-azure")
-    }
+    compileOnly(xpackModule("core"))
+    internalClusterTestImplementation(testArtifact(xpackModule("core")))
+    testImplementation("com.amazonaws:aws-java-sdk-core")
+    testImplementation("org.elasticsearch.test:s3-fixture")
+    testImplementation("org.elasticsearch.test:gcs-fixture")
+    testImplementation("org.elasticsearch.test:azure-fixture")
+    testImplementation("org.elasticsearch.plugin:repository-s3")
+    testImplementation("org.elasticsearch.plugin:repository-gcs")
+    testImplementation("org.elasticsearch.plugin:repository-azure")
 }
 
 tasks {
-    internalClusterTest {
-        exclude ("**/S3RegisterCASLinearizabilityTests.class")
+    named("internalClusterTest", Test::class) {
+        exclude("**/S3RegisterCASLinearizabilityTests.class")
     }
-}
 
-tasks.register<Test>("statelessS3ThirdPartyTests") {
-  val internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
-  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
-  setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  include ("**/S3RegisterCASLinearizabilityTests.class")
-  systemProperty ("test.s3.access_key", System.getenv("stateless_aws_s3_access_key"))
-  systemProperty ("test.s3.secret_key", System.getenv("stateless_aws_s3_secret_key"))
-  systemProperty ("test.s3.bucket", System.getenv("stateless_aws_s3_bucket"))
-  systemProperty ("test.s3.region", System.getenv("stateless_aws_s3_region"))
-  systemProperty ("test.s3.base_path", System.getenv("stateless_aws_s3_base_path"))
+    register<Test>("statelessS3ThirdPartyTests") {
+        val internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+        setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+        setClasspath(internalTestSourceSet.getRuntimeClasspath())
+        include("**/S3RegisterCASLinearizabilityTests.class")
+        systemProperty("test.s3.access_key", System.getenv("stateless_aws_s3_access_key"))
+        systemProperty("test.s3.secret_key", System.getenv("stateless_aws_s3_secret_key"))
+        systemProperty("test.s3.bucket", System.getenv("stateless_aws_s3_bucket"))
+        systemProperty("test.s3.region", System.getenv("stateless_aws_s3_region"))
+        systemProperty("test.s3.base_path", System.getenv("stateless_aws_s3_base_path"))
+    }
 }

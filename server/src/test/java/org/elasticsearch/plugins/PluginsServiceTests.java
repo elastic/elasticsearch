@@ -150,7 +150,7 @@ public class PluginsServiceTests extends ESTestCase {
             "false"
         );
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        final String expected = formatted(
+        final String expected = Strings.format(
             "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
             removing
         );

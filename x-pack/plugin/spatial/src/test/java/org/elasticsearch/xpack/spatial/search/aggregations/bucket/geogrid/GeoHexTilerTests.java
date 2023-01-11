@@ -15,6 +15,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
@@ -57,16 +58,6 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
     @Override
     protected long getCellsForDiffPrecision(int precisionDiff) {
         return UnboundedGeoHexGridTiler.calcMaxAddresses(precisionDiff);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92541")
-    public void testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
-        super.testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues();
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92562")
-    public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
-        super.testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues();
     }
 
     public void testLargeShape() throws Exception {
@@ -126,6 +117,87 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
             assertCorner(h3bins, new Point(tile.getMinLon(), tile.getMaxLat()), precision, msg);
             assertCorner(h3bins, new Point(tile.getMaxLon(), tile.getMaxLat()), precision, msg);
         }
+    }
+
+    // Polygons with bounds inside the South Pole cell break a tiler optimization
+    public void testTroublesomeShapeAlmostWithinSouthPole_BoundedGeoShapeCellValues() throws Exception {
+        int precision = 1;
+        String polygon = """
+            POLYGON((180.0 -90.0, 180.0 -73.80002960532788, 1.401298464324817E-45 -73.80002960532788,
+            1.401298464324817E-45 -90.0, 180.0 -90.0))""";
+        GeoBoundingBox geoBoundingBox = new GeoBoundingBox(
+            new GeoPoint(19.585157879020088, 0.9999999403953552),
+            new GeoPoint(-90.0, -26.405694642531472)
+        );
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, polygon);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getBoundedGridTiler(geoBoundingBox, precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(cellValues.advanceExact(0));
+        int numBuckets = cellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, geoBoundingBox);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
+    // Polygons with bounds inside the South Pole cell break a tiler optimization
+    public void testTroublesomeShapeAlmostWithinSouthPoleCell_UnboundedGeoShapeCellValues() throws Exception {
+        int precision = 0;
+        String polygon = """
+            POLYGON((1.7481549674935762E-110 -90.0, 180.0 -90.0, 180.0 -75.113250736563,
+            1.7481549674935762E-110 -75.113250736563, 1.7481549674935762E-110 -90.0))""";
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, polygon);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getUnboundedGridTiler(precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(unboundedCellValues.advanceExact(0));
+        int numBuckets = unboundedCellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, null);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
+    // Polygons with bounds inside the North Pole cell break a tiler optimization
+    public void testTroublesomeShapeAlmostWithinNorthPoleCell_UnboundedGeoShapeCellValues() throws Exception {
+        int precision = 1;
+        String polygon = """
+            POLYGON((36.98661841690625 69.44049730644747, 180.0 69.44049730644747,
+            180.0 90.0, 36.98661841690625 90.0, 36.98661841690625 69.44049730644747))""";
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, polygon);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getUnboundedGridTiler(precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(unboundedCellValues.advanceExact(0));
+        int numBuckets = unboundedCellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, null);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
+    public void testTroublesomePolarCellLevel1_UnboundedGeoShapeCellValues() throws Exception {
+        int precision = 1;
+        String polygon = "BBOX (-84.24596376729815, 43.36113427778119, 90.0, 83.51476833522361)";
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, polygon);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getUnboundedGridTiler(precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(unboundedCellValues.advanceExact(0));
+        int numBuckets = unboundedCellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, null);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
     }
 
     private void assertCorner(long[] h3bins, Point point, int precision, String msg) throws IOException {

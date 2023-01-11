@@ -33,14 +33,7 @@ public final class H3CartesianUtil {
     public static final int MAX_ARRAY_SIZE = 15;
     private static final DoubleUnaryOperator NORMALIZE_LONG_POS = lon -> lon < 0 ? lon + 360d : lon;
     private static final DoubleUnaryOperator NORMALIZE_LONG_NEG = lon -> lon > 0 ? lon - 360d : lon;
-    private static final long[] NORTH = new long[16];
-    private static final long[] SOUTH = new long[16];
-    static {
-        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
-            NORTH[res] = H3.geoToH3(90, 0, res);
-            SOUTH[res] = H3.geoToH3(-90, 0, res);
-        }
-    }
+
     // we cache the first two levels and polar polygons
     private static final Map<Long, double[][]> CACHED_H3 = new HashMap<>();
     static {
@@ -51,24 +44,24 @@ public final class H3CartesianUtil {
             }
         }
         for (int res = 2; res <= H3.MAX_H3_RES; res++) {
-            CACHED_H3.put(NORTH[res], getCoordinates(NORTH[res]));
-            CACHED_H3.put(SOUTH[res], getCoordinates(SOUTH[res]));
+            CACHED_H3.put(H3.northPolarH3(res), getCoordinates(H3.northPolarH3(res)));
+            CACHED_H3.put(H3.southPolarH3(res), getCoordinates(H3.southPolarH3(res)));
         }
     }
 
-    private static final double[] NORTH_BOUND = new double[16];
-    private static final double[] SOUTH_BOUND = new double[16];
+    private static final double[] NORTH_BOUND = new double[H3.MAX_H3_RES + 1];
+    private static final double[] SOUTH_BOUND = new double[H3.MAX_H3_RES + 1];
     static {
         for (int res = 0; res <= H3.MAX_H3_RES; res++) {
-            NORTH_BOUND[res] = toBoundingBox(NORTH[res]).getMinY();
-            SOUTH_BOUND[res] = toBoundingBox(SOUTH[res]).getMaxY();
+            NORTH_BOUND[res] = toBoundingBox(H3.northPolarH3(res)).getMinY();
+            SOUTH_BOUND[res] = toBoundingBox(H3.southPolarH3(res)).getMaxY();
         }
     }
 
-    /** For the given resolution, it returns the maximum latitude of the h3 bin containing the south pole */
+    /** For the given resolution, it returns true if the cell contains any of the poles */
     public static boolean isPolar(long h3) {
-        final int resolution = H3.getResolution(h3);
-        return SOUTH[resolution] == h3 || NORTH[resolution] == h3;
+        final int res = H3.getResolution(h3);
+        return H3.southPolarH3(res) == h3 || H3.northPolarH3(res) == h3;
     }
 
     /** For the given resolution, it returns the maximum latitude of the h3 bin containing the south pole */
@@ -97,9 +90,9 @@ public final class H3CartesianUtil {
             System.arraycopy(cached[1], 0, ys, 0, cached[0].length);
             return cached[0].length;
         }
-        final int resolution = H3.getResolution(h3);
-        final double pole = NORTH[resolution] == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(90d))
-            : SOUTH[resolution] == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-90d))
+        final int res = H3.getResolution(h3);
+        final double pole = H3.northPolarH3(res) == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(90d))
+            : H3.southPolarH3(res) == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-90d))
             : Double.NaN;
         final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3);
         final int numPoints;
@@ -184,20 +177,28 @@ public final class H3CartesianUtil {
         double minLon = Double.POSITIVE_INFINITY;
         double maxLat = Double.NEGATIVE_INFINITY;
         double maxLon = Double.NEGATIVE_INFINITY;
+        double maxNegLon = Double.NEGATIVE_INFINITY;
+        double minPosLon = Double.POSITIVE_INFINITY;
         for (int i = 0; i < boundary.numPoints(); i++) {
-            final LatLng latLng = boundary.getLatLon(i);
-            minLat = Math.min(minLat, latLng.getLatDeg());
-            minLon = Math.min(minLon, latLng.getLonDeg());
-            maxLat = Math.max(maxLat, latLng.getLatDeg());
-            maxLon = Math.max(maxLon, latLng.getLonDeg());
+            final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(boundary.getLatLon(i).getLonDeg()));
+            final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg()));
+            minLat = Math.min(minLat, lat);
+            minLon = Math.min(minLon, lon);
+            maxLat = Math.max(maxLat, lat);
+            maxLon = Math.max(maxLon, lon);
+            if (lon < 0) {
+                maxNegLon = Math.max(maxNegLon, lon);
+            } else {
+                minPosLon = Math.min(minPosLon, lon);
+            }
         }
         final int res = H3.getResolution(h3);
-        if (h3 == NORTH[res]) {
+        if (h3 == H3.northPolarH3(res)) {
             return new org.elasticsearch.geometry.Rectangle(-180d, 180d, 90d, minLat);
-        } else if (h3 == SOUTH[res]) {
+        } else if (h3 == H3.southPolarH3(res)) {
             return new org.elasticsearch.geometry.Rectangle(-180d, 180d, maxLat, -90d);
         } else if (maxLon - minLon > 180d) {
-            return new org.elasticsearch.geometry.Rectangle(maxLon, minLon, maxLat, minLat);
+            return new org.elasticsearch.geometry.Rectangle(minPosLon, maxNegLon, maxLat, minLat);
         } else {
             return new org.elasticsearch.geometry.Rectangle(minLon, maxLon, maxLat, minLat);
         }

@@ -774,7 +774,10 @@ public final class IndexSettings {
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
 
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+            mergePolicyConfig::setCompoundFormatThreshold
+        );
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
             mergePolicyConfig::setDeletesPctAllowed

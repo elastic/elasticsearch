@@ -118,8 +118,8 @@ public class GeoHexCellIdSource extends CellIdSource {
         GeoHexPredicate(GeoBoundingBox bbox, int precision) {
             this.crossesDateline = bbox.right() < bbox.left();
             this.bbox = bbox;
-            northPoleHex = H3.geoToH3(90, 0, precision);
-            southPoleHex = H3.geoToH3(-90, 0, precision);
+            northPoleHex = H3.northPolarH3(precision);
+            southPoleHex = H3.southPolarH3(precision);
         }
 
         public boolean validHex(long hex) {

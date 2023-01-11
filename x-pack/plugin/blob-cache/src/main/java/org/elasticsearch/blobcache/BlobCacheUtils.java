@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots;
+package org.elasticsearch.blobcache;
 
 import org.elasticsearch.common.unit.ByteSizeUnit;
 
-public class SearchableSnapshotsUtils {
+public class BlobCacheUtils {
 
     /**
      * We use {@code long} to represent offsets and lengths of files since they may be larger than 2GB, but {@code int} to represent

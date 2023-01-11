@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+ext.stableApiSince = "8.5.0"
+
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.bwc-test'

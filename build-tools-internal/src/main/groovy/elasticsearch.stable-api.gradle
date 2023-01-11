@@ -10,7 +10,10 @@ configurations {
   stableApi
 }
 
-BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString("8.5.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
+BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString(ext.stableApiSince)) && it != VersionProperties.
+  elasticsearchVersion
+}).
+  each { bwcVersion ->
   def baseName = "v${bwcVersion}"
 
   BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)

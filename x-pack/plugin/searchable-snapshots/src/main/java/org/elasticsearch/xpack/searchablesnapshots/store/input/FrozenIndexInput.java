@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.FrozenCacheFile;
@@ -152,7 +149,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     len,
                     b,
                     rangeToRead.start(),
-                    false,
                     luceneByteBufLock,
                     stopAsyncReads
                 ),
@@ -187,38 +183,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         return written;
     }
 
-    /**
-     * Perform a single {@code read()} from {@code inputStream} into {@code copyBuffer}, handling an EOF by throwing an {@link EOFException}
-     * rather than returning {@code -1}. Returns the number of bytes read, which is always positive.
-     *
-     * Most of its arguments are there simply to make the message of the {@link EOFException} more informative.
-     */
-    private static int readSafe(
-        InputStream inputStream,
-        byte[] copyBuffer,
-        long rangeStart,
-        long rangeEnd,
-        long remaining,
-        FrozenCacheFile frozenCacheFile
-    ) throws IOException {
-        final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
-        final int bytesRead = inputStream.read(copyBuffer, 0, len);
-        if (bytesRead == -1) {
-            throw new EOFException(
-                String.format(
-                    Locale.ROOT,
-                    "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
-                    rangeStart,
-                    rangeEnd,
-                    remaining,
-                    frozenCacheFile
-                )
-            );
-        }
-        assert bytesRead > 0 : bytesRead;
-        return bytesRead;
-    }
-
     private int readCacheFile(
         final SharedBytes.IO fc,
         long channelPos,
@@ -226,14 +190,13 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         long length,
         final ByteBuffer buffer,
         long logicalPos,
-        boolean cached,
         ReentrantReadWriteLock luceneByteBufLock,
         AtomicBoolean stopAsyncReads
     ) throws IOException {
         logger.trace(
             "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
             fileInfo.physicalName(),
-            cached,
+            false,
             logicalPos,
             channelPos,
             relativePos,
@@ -323,7 +286,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final ByteBuffer buf = writeBuffer.get();
         buf.clear();
         while (remaining > 0L) {
-            final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
+            final int bytesRead = MetadataCachingIndexInput.readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
             if (bytesRead > buf.remaining()) {
                 // always fill up buf to the max
                 final int bytesToAdd = buf.remaining();
@@ -358,47 +321,15 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
-        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
-            throw new IllegalArgumentException(
-                "slice() "
-                    + sliceName
-                    + " out of bounds: offset="
-                    + sliceOffset
-                    + ",length="
-                    + sliceLength
-                    + ",fileLength="
-                    + length()
-                    + ": "
-                    + this
-            );
-        }
-
-        // Are we creating a slice from a CFS file?
-        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
-            && IndexFileNames.getExtension(sliceName) != null
-            && compoundFileOffset == 0L // not already a compound file
-            && isClone == false; // tests aggressively clone and slice
-
-        final ByteRange sliceHeaderByteRange;
-        final ByteRange sliceFooterByteRange;
-        final long sliceCompoundFileOffset;
-
-        if (sliceCompoundFile) {
-            sliceCompoundFileOffset = this.offset + sliceOffset;
-            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
-            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
-                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
-            } else {
-                sliceFooterByteRange = ByteRange.EMPTY;
-            }
-        } else {
-            sliceCompoundFileOffset = this.compoundFileOffset;
-            sliceHeaderByteRange = ByteRange.EMPTY;
-            sliceFooterByteRange = ByteRange.EMPTY;
-        }
-
-        final FrozenIndexInput slice = new FrozenIndexInput(
+    protected MetadataCachingIndexInput doSlice(
+        String sliceName,
+        long sliceOffset,
+        long sliceLength,
+        ByteRange sliceHeaderByteRange,
+        ByteRange sliceFooterByteRange,
+        long sliceCompoundFileOffset
+    ) {
+        return new FrozenIndexInput(
             sliceName,
             directory,
             fileInfo,
@@ -414,8 +345,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceHeaderByteRange,
             sliceFooterByteRange
         );
-        slice.isClone = true;
-        return slice;
     }
 
 }

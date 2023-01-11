@@ -38,11 +38,11 @@ import java.util.zip.ZipEntry;
  * that for every public class, method, and field, javap will print a consistent
  * single line. This should let us make string comparisons, rather than having
  * to parse the output of javap.
- * </p>
+ * <p>
  * While the above assumptions appear to hold, they are not guaranteed, and hence
  * brittle. We could overcome these problems with an ASM implementation of the
  * Jar Scanner.
- * </p>
+ * <p>
  * We also assume that we will not be comparing multi-version JARs.
  */
 public abstract class JarApiComparisonTask extends DefaultTask {

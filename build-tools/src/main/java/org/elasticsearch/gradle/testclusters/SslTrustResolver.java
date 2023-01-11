@@ -42,8 +42,8 @@ class SslTrustResolver {
     private File trustStoreFile;
     private String trustStorePassword;
     private File serverCertificate;
-    private File keyStoreFile;
-    private String keyStorePassword;
+    private File serverKeyStoreFile;
+    private String serverKeyStorePassword;
 
     public void setCertificateAuthorities(File... certificateAuthorities) {
         this.certificateAuthorities = new HashSet<>(Arrays.asList(certificateAuthorities));
@@ -62,11 +62,11 @@ class SslTrustResolver {
     }
 
     public void setServerKeystoreFile(File keyStoreFile) {
-        this.keyStoreFile = keyStoreFile;
+        this.serverKeyStoreFile = keyStoreFile;
     }
 
     public void setServerKeystorePassword(String keyStorePassword) {
-        this.keyStorePassword = keyStorePassword;
+        this.serverKeyStorePassword = keyStorePassword;
     }
 
     public SSLContext getSslContext() throws GeneralSecurityException, IOException {
@@ -79,7 +79,7 @@ class SslTrustResolver {
     }
 
     TrustManager[] buildTrustManagers() throws GeneralSecurityException, IOException {
-        var configurationCount = Stream.of(this.certificateAuthorities, this.trustStoreFile, this.serverCertificate, this.keyStoreFile)
+        var configurationCount = Stream.of(this.certificateAuthorities, this.trustStoreFile, this.serverCertificate, this.serverKeyStoreFile)
             .filter(Objects::nonNull)
             .count();
         if (configurationCount == 0) {
@@ -92,7 +92,7 @@ class SslTrustResolver {
                     certificateAuthorities,
                     trustStoreFile,
                     serverCertificate,
-                    keyStoreFile
+                    serverKeyStoreFile
                 )
             );
         }
@@ -102,8 +102,8 @@ class SslTrustResolver {
             return getTrustManagers(readKeyStoreFromFile(trustStoreFile, trustStorePassword));
         } else if (this.serverCertificate != null) {
             return buildTrustManagerFromLeafCertificates(head(readCertificates(serverCertificate)));
-        } else if (this.keyStoreFile != null) {
-            return buildTrustManagerFromLeafCertificates(readCertificatesFromKeystore(keyStoreFile, keyStorePassword));
+        } else if (this.serverKeyStoreFile != null) {
+            return buildTrustManagerFromLeafCertificates(readCertificatesFromKeystore(serverKeyStoreFile, serverKeyStorePassword));
         } else {
             // Cannot get here unless the code gets out of sync with the 'configurationCount == 0' check above
             throw new IllegalStateException("Expected to configure trust, but all configuration values are null");

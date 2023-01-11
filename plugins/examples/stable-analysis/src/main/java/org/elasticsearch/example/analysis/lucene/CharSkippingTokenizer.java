@@ -23,7 +23,6 @@ public class CharSkippingTokenizer extends CharTokenizer {
 
     public CharSkippingTokenizer(List<String> tokenizerListOfChars) {
         this.setOfChars = tokenizerListOfChars.stream().map(s -> (int) s.charAt(0)).collect(Collectors.toSet());
-
     }
 
     @Override

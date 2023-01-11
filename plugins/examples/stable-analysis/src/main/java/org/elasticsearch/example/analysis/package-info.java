@@ -8,10 +8,14 @@
 
 /**
  * Implementation notes to all components:
- * - a @NamedComponent annotation with a name is required in order for the component to be found by Elasticsearch
- * - a constructor is annotated with @Inject and has a settings interface as an argument. See the javadoc for the
- * ExampleAnalysisSettings for more details
- * - a no/noarg constructor is also possible
- * - a methods from stable analysis api are to be implemented with apache lucene
+ * <ul>
+ * <li>a @NamedComponent annotation with a name is required in order for the component to be found by Elasticsearch</li>
+ * <li>a constructor is annotated with @Inject and has a settings interface as an argument. See the javadoc for the</li>
+ * </ul>
+ * ExampleAnalysisSettings for more details:
+ * <ul>
+ * <li>a no/noarg constructor is also possible</li>
+ * <li>a methods from stable analysis api are to be implemented with Apache Lucene</li>
+ * </ul>
  */
 package org.elasticsearch.example.analysis;

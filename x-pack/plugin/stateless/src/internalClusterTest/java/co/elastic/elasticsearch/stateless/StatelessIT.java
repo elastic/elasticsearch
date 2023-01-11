@@ -208,7 +208,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testDownloadFromObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 2);
-        startIndexNodes(numberOfShards * 2);
+        startIndexNodes(numberOfShards);
+        startSearchNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -392,8 +393,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     private static IndexShard findSearchShard(Index index, int shardId) {
         IndexShard indexShard = null;
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            // TODO: Make search node type once we allocate the shards to the correct node type
-            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.INDEX_ROLE)) {
+            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.SEARCH_ROLE)) {
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService != null) {
                     IndexShard shardOrNull = indexService.getShardOrNull(shardId);

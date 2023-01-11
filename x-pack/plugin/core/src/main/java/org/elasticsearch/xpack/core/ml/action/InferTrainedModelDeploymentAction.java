@@ -257,7 +257,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Response(StreamInput in) throws IOException {
             super(in);
 
-            // Multiple results added in 8.7.0
+            // Multiple results added in 8.6.1
             if (in.getVersion().onOrAfter(Version.V_8_6_1)) {
                 results = in.readNamedWriteableList(InferenceResults.class);
             } else {
@@ -268,7 +268,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-
             if (out.getVersion().onOrAfter(Version.V_8_6_1)) {
                 out.writeNamedWriteableList(results);
             } else {

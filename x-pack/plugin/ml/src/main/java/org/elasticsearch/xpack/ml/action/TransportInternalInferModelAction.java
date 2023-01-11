@@ -256,7 +256,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 concreteModelId,
                 request.getUpdate(),
                 request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
-                request.getInferenceTimeout()
+                request.getTimeout()
             );
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);

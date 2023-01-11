@@ -45,12 +45,15 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request createTestInstance() {
-        return Request.forDocs(
-            randomAlphaOfLength(10),
-            Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
-            randomInferenceConfigUpdate(),
-            randomBoolean()
-        );
+        return randomBoolean()
+            ? new Request(
+                randomAlphaOfLength(10),
+                Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
+                randomInferenceConfigUpdate(),
+                TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+                randomBoolean()
+            )
+            : new Request(randomAlphaOfLength(10), List.of(randomMap()), randomInferenceConfigUpdate(), randomBoolean());
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
@@ -116,8 +119,8 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         if (version.before(Version.V_8_3_0)) {
             return new Request(
                 instance.getModelId(),
-                adjustedUpdate,
                 instance.getObjectsToInfer(),
+                adjustedUpdate,
                 TimeValue.MAX_VALUE,
                 instance.isPreviouslyLicensed()
             );

@@ -81,35 +81,29 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfigUpdate update;
         private final boolean previouslyLicensed;
-        private TimeValue inferenceTimeout;
+        private TimeValue timeout;
 
-        public static Request forDocs(
+        public Request(
             String modelId,
-            List<Map<String, Object>> docs,
-            InferenceConfigUpdate update,
+            List<Map<String, Object>> objectsToInfer,
+            InferenceConfigUpdate inferenceConfigUpdate,
             boolean previouslyLicensed
         ) {
-            return new Request(
-                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
-                update,
-                ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
-                DEFAULT_TIMEOUT,
-                previouslyLicensed
-            );
+            this(modelId, objectsToInfer, inferenceConfigUpdate, DEFAULT_TIMEOUT, previouslyLicensed);
         }
 
-        Request(
+        public Request(
             String modelId,
+            List<Map<String, Object>> objectsToInfer,
             InferenceConfigUpdate inferenceConfigUpdate,
-            List<Map<String, Object>> docs,
-            TimeValue inferenceTimeout,
+            TimeValue timeout,
             boolean previouslyLicensed
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(docs, DOCS.getPreferredName()));
+            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, DOCS.getPreferredName()));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfigUpdate, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
-            this.inferenceTimeout = inferenceTimeout;
+            this.timeout = timeout;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -119,9 +113,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
-                this.inferenceTimeout = in.readTimeValue();
+                this.timeout = in.readTimeValue();
             } else {
-                this.inferenceTimeout = TimeValue.MAX_VALUE;
+                this.timeout = TimeValue.MAX_VALUE;
             }
         }
 
@@ -145,12 +139,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return previouslyLicensed;
         }
 
-        public TimeValue getInferenceTimeout() {
-            return inferenceTimeout;
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
-        public void setInferenceTimeout(TimeValue inferenceTimeout) {
-            this.inferenceTimeout = inferenceTimeout;
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
         }
 
         @Override
@@ -166,7 +160,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
             if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
-                out.writeTimeValue(inferenceTimeout);
+                out.writeTimeValue(timeout);
             }
         }
 
@@ -178,7 +172,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(update, that.update)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
-                && Objects.equals(inferenceTimeout, that.inferenceTimeout)
+                && Objects.equals(timeout, that.timeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
@@ -189,7 +183,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, inferenceTimeout);
+            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, timeout);
         }
 
         public static class Builder {
@@ -230,7 +224,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             }
 
             public Request build() {
-                return new Request(modelId, update, docs, timeout, false);
+                return new Request(modelId, docs, update, timeout, false);
             }
         }
 

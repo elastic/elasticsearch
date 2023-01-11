@@ -487,7 +487,11 @@ final class FaceIJK {
                 }
 
                 final int unitScale = unitScaleByCIIres[adjRes] * 3;
-                lastCoord.ijkAdd(fijkOrient.translateI * unitScale, fijkOrient.translateJ * unitScale, fijkOrient.translateK * unitScale);
+                lastCoord.ijkAdd(
+                    Math.multiplyExact(fijkOrient.translateI, unitScale),
+                    Math.multiplyExact(fijkOrient.translateJ, unitScale),
+                    Math.multiplyExact(fijkOrient.translateK, unitScale)
+                );
                 lastCoord.ijkNormalize();
 
                 final Vec2d orig2d1 = lastCoord.ijkToHex2d();
@@ -594,10 +598,18 @@ final class FaceIJK {
                 // to each vertex to translate the vertices to that cell.
                 final int[] vertexLast = verts[lastV];
                 final int[] vertexV = verts[v];
-                scratch2.reset(vertexLast[0] + coord.i, vertexLast[1] + coord.j, vertexLast[2] + coord.k);
+                scratch2.reset(
+                    Math.addExact(vertexLast[0], this.coord.i),
+                    Math.addExact(vertexLast[1], this.coord.j),
+                    Math.addExact(vertexLast[2], this.coord.k)
+                );
                 scratch2.ijkNormalize();
                 final Vec2d orig2d0 = scratch2.ijkToHex2d();
-                scratch2.reset(vertexV[0] + coord.i, vertexV[1] + coord.j, vertexV[2] + coord.k);
+                scratch2.reset(
+                    Math.addExact(vertexV[0], this.coord.i),
+                    Math.addExact(vertexV[1], this.coord.j),
+                    Math.addExact(vertexV[2], this.coord.k)
+                );
                 scratch2.ijkNormalize();
                 final Vec2d orig2d1 = scratch2.ijkToHex2d();
 
@@ -695,7 +707,7 @@ final class FaceIJK {
                 scratch.reset(coord.i, coord.j, coord.k);
                 scratch.downAp7r();
             }
-            scratch.reset(lastI - scratch.i, lastJ - scratch.j, lastK - scratch.k);
+            scratch.reset(Math.subtractExact(lastI, scratch.i), Math.subtractExact(lastJ, scratch.j), Math.subtractExact(lastK, scratch.k));
             scratch.ijkNormalize();
             h = H3Index.H3_set_index_digit(h, r, scratch.unitIjkToDigit());
         }

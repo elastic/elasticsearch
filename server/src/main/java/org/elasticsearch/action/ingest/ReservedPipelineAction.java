@@ -120,6 +120,11 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
+    public void earlyValidate(Object source) throws Exception {
+        // do nothing, we can't expect that early in the cluster forming state we'll have reliable nodeInfos
+    }
+
+    @Override
     public List<PutPipelineRequest> fromXContent(XContentParser parser) throws IOException {
         List<PutPipelineRequest> result = new ArrayList<>();
 

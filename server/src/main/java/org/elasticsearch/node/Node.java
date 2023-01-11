@@ -1394,6 +1394,8 @@ public class Node implements Closeable {
             pluginsService.flatMap(Plugin::getBootstrapChecks).toList()
         );
 
+        injector.getInstance(FileSettingsService.class).start();
+
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
         coordinator.start(); // start before cluster service so that it can set initial state on ClusterApplierService
@@ -1444,7 +1446,6 @@ public class Node implements Closeable {
             }
         }
 
-        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {

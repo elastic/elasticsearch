@@ -95,6 +95,12 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         );
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public void earlyValidate(Object source) throws Exception {
+        prepare((List<ExpressionRoleMapping>) source);
+    }
+
     // Exposed for testing purposes
     protected void nonStateTransform(
         Collection<PutRoleMappingRequest> requests,

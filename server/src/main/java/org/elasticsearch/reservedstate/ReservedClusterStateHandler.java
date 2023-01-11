@@ -61,6 +61,18 @@ public interface ReservedClusterStateHandler<T> {
     TransformState transform(Object source, TransformState prevState) throws Exception;
 
     /**
+     * Early validation method that should do basic sanity check on the parsed content.
+     *
+     * <p>
+     * Individual handler may choose to do nothing here. Validation errors should be thrown
+     * as exceptions.
+     *
+     * @param source The parsed information specific to this handler from the combined cluster state content
+     * @throws Exception
+     */
+    void earlyValidate(Object source) throws Exception;
+
+    /**
      * List of dependent handler names for this handler.
      *
      * <p>

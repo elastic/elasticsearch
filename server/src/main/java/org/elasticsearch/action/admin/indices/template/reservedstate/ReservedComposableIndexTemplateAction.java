@@ -198,6 +198,12 @@ public class ReservedComposableIndexTemplateAction
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public void earlyValidate(Object source) throws Exception {
+        prepare((ComponentsAndComposables) source);
+    }
+
+    @Override
     public ComponentsAndComposables fromXContent(XContentParser parser) throws IOException {
         List<PutComponentTemplateAction.Request> componentTemplates = new ArrayList<>();
         List<PutComposableIndexTemplateAction.Request> composableTemplates = new ArrayList<>();

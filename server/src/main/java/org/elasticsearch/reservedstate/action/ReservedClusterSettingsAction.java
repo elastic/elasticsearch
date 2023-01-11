@@ -90,6 +90,19 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public void earlyValidate(Object source) throws Exception {
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
+        Map<String, Object> settings = (Map<String, Object>) source;
+        clusterUpdateSettingsRequest.persistentSettings(settings);
+
+        // Empty requests are ignored
+        if (clusterUpdateSettingsRequest.persistentSettings().isEmpty() == false) {
+            validate(clusterUpdateSettingsRequest);
+        }
+    }
+
+    @Override
     public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
         return parser.map();
     }

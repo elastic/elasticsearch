@@ -92,6 +92,16 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public void earlyValidate(Object source) throws Exception {
+        List<PutRepositoryRequest> repositories = (List<PutRepositoryRequest>) source;
+
+        for (var repositoryRequest : repositories) {
+            validate(repositoryRequest);
+        }
+    }
+
+    @Override
     public List<PutRepositoryRequest> fromXContent(XContentParser parser) throws IOException {
         List<PutRepositoryRequest> result = new ArrayList<>();
 

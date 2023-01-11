@@ -264,7 +264,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
 
         service.start();
-        service.startWatcher(clusterService.state(), true);
+        service.startWatcher(clusterService.state());
 
         verify(service, times(1)).processFileSettings(any());
 

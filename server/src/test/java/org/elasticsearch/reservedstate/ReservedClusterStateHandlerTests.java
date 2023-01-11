@@ -30,6 +30,11 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
             }
 
             @Override
+            public void earlyValidate(Object source) throws Exception {
+
+            }
+
+            @Override
             public ValidRequest fromXContent(XContentParser parser) throws IOException {
                 return new ValidRequest();
             }

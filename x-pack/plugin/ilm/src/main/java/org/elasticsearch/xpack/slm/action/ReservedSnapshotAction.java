@@ -99,6 +99,28 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
+    public void earlyValidate(Object source) throws Exception {
+        List<Exception> exceptions = new ArrayList<>();
+        @SuppressWarnings("unchecked")
+        var policies = (List<SnapshotLifecyclePolicy>) source;
+
+        for (var policy : policies) {
+            PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(policy.getId(), policy);
+            try {
+                validate(request);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+
+        if (exceptions.isEmpty() == false) {
+            var illegalArgumentException = new IllegalArgumentException("Error on validating SLM requests");
+            exceptions.forEach(illegalArgumentException::addSuppressed);
+            throw illegalArgumentException;
+        }
+    }
+
+    @Override
     public List<SnapshotLifecyclePolicy> fromXContent(XContentParser parser) throws IOException {
         List<SnapshotLifecyclePolicy> result = new ArrayList<>();
 

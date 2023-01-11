@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -189,7 +190,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
         assertMasterNode(internalCluster().masterClient(), masterNode);
         var savedClusterState = setupClusterStateListener(masterNode);
 
@@ -270,7 +273,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
@@ -282,4 +287,5 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(masterNode, testErrorJSON);
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
+
 }

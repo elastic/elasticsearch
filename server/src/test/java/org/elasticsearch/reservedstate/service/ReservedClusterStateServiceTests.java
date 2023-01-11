@@ -288,6 +288,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             }
 
             @Override
+            public void earlyValidate(Object source) throws Exception {}
+
+            @Override
             public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
                 return parser.map();
             }
@@ -303,6 +306,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             public TransformState transform(Object source, TransformState prevState) throws Exception {
                 throw new Exception("anything");
             }
+
+            @Override
+            public void earlyValidate(Object source) throws Exception {}
 
             @Override
             public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
@@ -415,6 +421,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             }
 
             @Override
+            public void earlyValidate(Object source) throws Exception {}
+
+            @Override
             public Collection<String> dependencies() {
                 return deps;
             }
@@ -513,6 +522,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             }
 
             @Override
+            public void earlyValidate(Object source) throws Exception {}
+
+            @Override
             public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
                 return parser.map();
             }
@@ -528,6 +540,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             public TransformState transform(Object source, TransformState prevState) {
                 return new TransformState(prevState.state(), prevState.keys(), (l) -> internalKeys(l));
             }
+
+            @Override
+            public void earlyValidate(Object source) throws Exception {}
 
             private void internalKeys(ActionListener<NonStateTransformResult> listener) {
                 listener.onResponse(new NonStateTransformResult(name(), Set.of("key non-state")));
@@ -598,6 +613,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 public TransformState transform(Object source, TransformState prevState) {
                     return new TransformState(prevState.state(), prevState.keys(), (l) -> internalKeys(l));
                 }
+
+                @Override
+                public void earlyValidate(Object source) throws Exception {}
 
                 private void internalKeys(ActionListener<NonStateTransformResult> listener) {
                     listener.onResponse(new NonStateTransformResult(name(), Set.of("key non-state:" + key)));
@@ -670,6 +688,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         public TransformState transform(Object source, TransformState prevState) {
             return prevState;
         }
+
+        @Override
+        public void earlyValidate(Object source) throws Exception {}
 
         @Override
         public Map<String, Object> fromXContent(XContentParser parser) throws IOException {

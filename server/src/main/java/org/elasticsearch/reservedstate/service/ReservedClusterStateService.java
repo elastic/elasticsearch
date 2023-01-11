@@ -333,6 +333,41 @@ public class ReservedClusterStateService {
     }
 
     /**
+     * Best effort early validation routine that checks if the supplied reserved state settings are valid.
+     * It delegates to each individual reserved cluster state handler to do early checking.
+     * <p>
+     * Early validation doesn't have access to the cluster state, it should simply verify if the content
+     * can properly be parsed and if the required fields are set for each state handler.
+     * @param namespace the namespace for which we validate for
+     * @param parser the parser that has the reserved state content
+     */
+    public void earlyValidate(String namespace, XContentParser parser) {
+        Long version = -1L;
+        try {
+            ReservedStateChunk reservedStateChunk = stateChunkParser.apply(parser, null);
+            Map<String, Object> reservedState = reservedStateChunk.state();
+            final ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+            version = reservedStateVersion.version();
+
+            List<String> errors = new ArrayList<>();
+            LinkedHashSet<String> orderedHandlers = orderedStateHandlers(reservedState.keySet());
+            for (var handlerName : orderedHandlers) {
+                ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
+                try {
+                    handler.earlyValidate(reservedState.get(handlerName));
+                } catch (Exception e) {
+                    errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+                }
+            }
+        } catch (Exception e) {
+            ErrorState errorState = new ErrorState(namespace, version, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e);
+        }
+    }
+
+    /**
      * Runs the non cluster state transformations asynchronously, collecting the {@link NonStateTransformResult} objects.
      * <p>
      * Once all non cluster state transformations have completed, we submit the cluster state update task, which

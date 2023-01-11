@@ -82,6 +82,12 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public void earlyValidate(Object source) throws Exception {
+        prepare((List<PutAutoscalingPolicyAction.Request>) source);
+    }
+
+    @Override
     public List<PutAutoscalingPolicyAction.Request> fromXContent(XContentParser parser) throws IOException {
         List<PutAutoscalingPolicyAction.Request> result = new ArrayList<>();
 

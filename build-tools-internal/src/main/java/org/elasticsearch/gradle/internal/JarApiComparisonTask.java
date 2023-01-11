@@ -9,7 +9,10 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.TaskAction;
 
@@ -46,7 +49,7 @@ public abstract class JarApiComparisonTask extends DefaultTask {
 
     @TaskAction
     public void compare() {
-        JarScanner oldJS = new JarScanner(getOldJar().get().toString());
+        JarScanner oldJS = new JarScanner(getOldJar().get().getSingleFile().toString());
         JarScanner newJS = new JarScanner(getNewJar().get().toString());
         try {
             JarScanner.compareSignatures(oldJS.jarSignature(), newJS.jarSignature());
@@ -55,8 +58,8 @@ public abstract class JarApiComparisonTask extends DefaultTask {
         }
     }
 
-    @InputFile
-    public abstract RegularFileProperty getOldJar();
+    @Input
+    public abstract Property<FileCollection> getOldJar();
 
     @InputFile
     public abstract RegularFileProperty getNewJar();

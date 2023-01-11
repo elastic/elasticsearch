@@ -33,9 +33,7 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
   }
 
   tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
-    dependsOn configurations."stableApi${baseName}"
-    // TODO: "normalize" input with a classpath resolution strategy
-    oldJar.fileProvider(project.provider(() -> configurations."stableApi${baseName}".singleFile))
+    oldJar = configurations."stableApi${baseName}"
     newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
   }
 }

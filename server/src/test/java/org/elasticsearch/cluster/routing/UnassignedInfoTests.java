@@ -78,7 +78,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
             UnassignedInfo.Reason.MANUAL_ALLOCATION,
             UnassignedInfo.Reason.INDEX_CLOSED,
-            UnassignedInfo.Reason.NODE_RESTARTING };
+            UnassignedInfo.Reason.NODE_RESTARTING,
+            UnassignedInfo.Reason.UNPROMOTABLE_REPLICA };
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }

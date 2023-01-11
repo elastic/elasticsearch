@@ -104,6 +104,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             : "unassigned shard must not be assigned to a node " + this;
         assert relocatingNodeId == null || state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING
             : state + " shard must not have relocating node " + this;
+        assert primary == false || role.isPromotableToPrimary() : "shard with unpromotable role was promoted to primary: " + this;
     }
 
     @Nullable
@@ -898,15 +899,42 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return role;
     }
 
+    public boolean isPromotableToPrimary() {
+        return role.isPromotableToPrimary();
+    }
+
+    public boolean isSearchable() {
+        return role.isSearchable();
+    }
+
     public enum Role implements Writeable, ToXContentFragment {
-        DEFAULT((byte) 0),
-        INDEX_ONLY((byte) 1),
-        SEARCH_ONLY((byte) 2);
+        DEFAULT((byte) 0, true, true),
+        INDEX_ONLY((byte) 1, true, false),
+        SEARCH_ONLY((byte) 2, false, true);
 
         private final byte code;
+        private final boolean promotable;
+        private final boolean searchable;
 
-        Role(byte code) {
+        Role(byte code, boolean promotable, boolean searchable) {
             this.code = code;
+            this.promotable = promotable;
+            this.searchable = searchable;
+        }
+
+        /**
+         * @return whether a shard copy with this role may be promoted from replica to primary. If {@code index.number_of_replicas} is
+         * reduced, unpromotable replicas are removed first.
+         */
+        public boolean isPromotableToPrimary() {
+            return promotable;
+        }
+
+        /**
+         * @return whether a shard copy with this role may be the target of a search.
+         */
+        public boolean isSearchable() {
+            return searchable;
         }
 
         @Override

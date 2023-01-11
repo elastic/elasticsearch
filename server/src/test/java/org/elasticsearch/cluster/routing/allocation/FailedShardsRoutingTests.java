@@ -610,7 +610,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
-        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        ShardRouting startedReplica = clusterState.getRoutingNodes().activePromotableReplicaWithHighestVersion(shardId);
 
         // fail the primary shard, check replicas get removed as well...
         ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
@@ -764,7 +764,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(4));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(0));
 
-        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        ShardRouting startedReplica = clusterState.getRoutingNodes().activePromotableReplicaWithHighestVersion(shardId);
         logger.info("--> all shards allocated, replica that should be promoted: {}", startedReplica);
 
         // fail the primary shard again and make sure the correct replica is promoted
@@ -795,7 +795,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             );
         }
 
-        startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        startedReplica = clusterState.getRoutingNodes().activePromotableReplicaWithHighestVersion(shardId);
         logger.info("--> failing primary shard a second time, should select: {}", startedReplica);
 
         // fail the primary shard again, and ensure the same thing happens

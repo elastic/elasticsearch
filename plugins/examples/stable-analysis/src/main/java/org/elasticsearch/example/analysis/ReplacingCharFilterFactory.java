@@ -8,18 +8,26 @@
 
 package org.elasticsearch.example.analysis;
 
-import org.apache.lucene.util.SuppressForbidden;
-import org.elasticsearch.example.analysis.lucene.ReplaceHash;
-import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.api.Inject;
 
 import java.io.Reader;
 
 @NamedComponent( "example_char_filter")
-public class ExampleCharFilterFactory implements CharFilterFactory {
+public class ReplacingCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+    private final String oldChar;
+    private final int newNumber;
+
+    @Inject
+    public ReplacingCharFilterFactory(ExampleAnalysisSettings settings) {
+        oldChar = settings.oldCharToReplaceInCharFilter();
+        newNumber = settings.newNumberToReplaceInCharFilter();
+    }
+
     @Override
     public Reader create(Reader reader) {
-        return new ReplaceHash(reader);
+        return new ReplaceCharToNumber(reader, oldChar, newNumber);
     }
 }
 

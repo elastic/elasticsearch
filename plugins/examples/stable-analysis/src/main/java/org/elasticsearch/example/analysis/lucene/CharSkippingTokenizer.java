@@ -6,19 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.indices.analysis.lucene;
+package org.elasticsearch.example.analysis.lucene;
 
 import org.apache.lucene.analysis.util.CharTokenizer;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-public class TestTokenizer extends CharTokenizer {
+/*
+A tokenizer that skips configured tokens.
+configured tokens are passed as list of single char strings.
+ */
+public class CharSkippingTokenizer extends CharTokenizer {
 
     private final Set<Integer> setOfChars;
 
-    public TestTokenizer(List<String> tokenizerListOfChars) {
+    public CharSkippingTokenizer(List<String> tokenizerListOfChars) {
         this.setOfChars = tokenizerListOfChars.stream().map(s -> (int) s.charAt(0)).collect(Collectors.toSet());
     }
 

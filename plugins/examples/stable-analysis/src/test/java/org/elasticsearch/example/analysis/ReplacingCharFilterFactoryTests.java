@@ -11,14 +11,16 @@ package org.elasticsearch.example.analysis;
 
 import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExampleCharFilterFactoryTests {
+public class ReplacingCharFilterFactoryTests {
     @Test
     public void exampleCharFilterIsAnnotatedWithName() {
-        CharFilterFactory charFilterFactory = new ExampleCharFilterFactory();
+        ExampleAnalysisSettings settings = Mockito.mock(ExampleAnalysisSettings.class);
+        CharFilterFactory charFilterFactory = new ReplacingCharFilterFactory(settings);
         assertThat(charFilterFactory.name(), equalTo("example_char_filter"));
     }
 }

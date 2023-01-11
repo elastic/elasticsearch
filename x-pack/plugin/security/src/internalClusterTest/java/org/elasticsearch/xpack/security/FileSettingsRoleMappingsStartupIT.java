@@ -43,6 +43,7 @@ public class FileSettingsRoleMappingsStartupIT extends ESIntegTestCase {
                           "enabled": true,
                           "roles": [ "kibana_user" ],
                           "rules": { "field": { "username": "*" } },
+                          "unknown_field": "something",
                           "metadata": {
                              "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
                              "_foo": "something"
@@ -79,8 +80,8 @@ public class FileSettingsRoleMappingsStartupIT extends ESIntegTestCase {
         internalCluster().stopNode(dataNode);
         logger.info("--> start master node");
         assertEquals(
-            "unable to launch a new watch service",
-            expectThrows(IllegalStateException.class, () -> internalCluster().startMasterOnlyNode()).getMessage()
+            "Error applying operator settings",
+            expectThrows(FileSettingsService.FileSettingsStartupException.class, () -> internalCluster().startMasterOnlyNode()).getMessage()
         );
     }
 

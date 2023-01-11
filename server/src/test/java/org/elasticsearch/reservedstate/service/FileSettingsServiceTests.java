@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -188,6 +187,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     public void testStartStop() {
         fileSettingsService.start();
+        fileSettingsService.startWatcher(clusterService.state());
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
@@ -204,6 +204,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(service).processFileSettings(any());
 
         service.start();
+        service.startWatcher(clusterService.state());
+
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());
@@ -226,10 +228,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     public void testInitialFile() throws Exception {
         ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
 
-        doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
-            return null;
-        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
+        doAnswer((Answer<Void>) invocation -> { throw new IllegalStateException("Some exception"); }).when(stateService)
+            .earlyValidate(any(), any());
 
         FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env, nodeClient));
         doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
@@ -239,34 +239,28 @@ public class FileSettingsServiceTests extends ESTestCase {
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(service.operatorSettingsFile(), "{}");
 
-        Exception startupException = expectThrows(IllegalStateException.class, () -> service.start());
+        Exception startupException = expectThrows(FileSettingsService.FileSettingsStartupException.class, () -> {
+            service.start();
+            service.startWatcher(clusterService.state());
+        });
         assertThat(
             startupException.getCause(),
-            allOf(
-                instanceOf(FileSettingsService.FileSettingsStartupException.class),
-                hasToString(
-                    "org.elasticsearch.reservedstate.service.FileSettingsService$FileSettingsStartupException: "
-                        + "Error applying operator settings"
-                )
-            )
+            allOf(instanceOf(IllegalStateException.class), hasToString("java.lang.IllegalStateException: Some exception"))
         );
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, times(1)).verifyFileSettings();
 
         service.stop();
 
         clearInvocations(service);
 
         // Let's check that if we didn't throw an error that everything works
-        doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
-            return null;
-        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
+        doAnswer((Answer<Void>) invocation -> null).when(stateService).earlyValidate(any(), any());
 
         service.start();
         service.startWatcher(clusterService.state());
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, times(1)).verifyFileSettings();
 
         service.stop();
         service.close();
@@ -297,6 +291,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(spiedController).parse(any(String.class), any());
 
         service.start();
+        service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());
@@ -343,6 +338,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(spiedController).parse(any(String.class), any());
 
         service.start();
+        service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());

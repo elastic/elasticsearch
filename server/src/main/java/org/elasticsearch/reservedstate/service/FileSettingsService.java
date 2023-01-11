@@ -410,7 +410,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             ) {
                 stateService.earlyValidate(NAMESPACE, parser);
             } catch (Exception e) {
-                throw new IllegalStateException("error while verifying operator settings file", e);
+                throw new FileSettingsStartupException("Error applying operator settings", e);
             }
         }
     }

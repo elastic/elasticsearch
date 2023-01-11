@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
@@ -74,6 +75,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -194,7 +196,9 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        return Optional.of(config -> config.isRecoveringAsPrimary() ? new IndexEngine(config) : new SearchEngine(config));
+        return Optional.of(
+            config -> config.isRecoveringAsPrimary() ? new IndexEngine(config) : new SearchEngine(config, getObjectStoreService())
+        );
     }
 
     /**
@@ -207,8 +211,24 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
         final ObjectStoreService service = getObjectStoreService();
         return new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
-                service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef, additionalFiles, primaryTerm));
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles
+            ) {
+                store.incRef();
+                Map<String, StoreFileMetadata> commitFiles;
+                try {
+                    Store.MetadataSnapshot metadata = store.getMetadata(indexCommitRef.getIndexCommit());
+                    commitFiles = metadata.fileMetadataMap();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                } finally {
+                    store.decRef();
+                }
+                service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef, commitFiles, additionalFiles, primaryTerm));
             }
 
             @Override

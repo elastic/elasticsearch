@@ -202,6 +202,56 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         assertObjectStoreConsistency();
 
+        indexDocuments(indexName);
+    }
+
+    public void testDownloadFromObjectStore() throws Exception {
+        startMasterOnlyNode();
+        final int numberOfShards = randomIntBetween(1, 2);
+        startIndexNodes(numberOfShards * 2);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        assertObjectStoreConsistency();
+
+        indexDocuments(indexName);
+
+        final Map<Index, Integer> indices = resolveIndices();
+        assertThat(indices.isEmpty(), is(false));
+
+        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
+            assertThat(entry.getValue(), greaterThan(0));
+            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
+                IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
+                IndexShard searchShard = findSearchShard(entry.getKey(), shardId);
+                assertObjectStoreConsistency();
+                assertBusy(() -> assertThatSearchShardIsConsistentWithLastCommit(indexShard, searchShard));
+            }
+        }
+
+        // Index more documents and produce new commit
+        indexDocuments(indexName);
+
+        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
+            assertThat(entry.getValue(), greaterThan(0));
+            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
+                IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
+                IndexShard searchShard = findSearchShard(entry.getKey(), shardId);
+                assertObjectStoreConsistency();
+                assertBusy(() -> assertThatSearchShardIsConsistentWithLastCommit(indexShard, searchShard));
+            }
+        }
+    }
+
+    private static void indexDocuments(String indexName) throws IOException {
         final int iters = randomIntBetween(1, 20);
         for (int i = 0; i < iters; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
@@ -256,6 +306,45 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    private static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard)
+        throws IOException {
+        final Store indexStore = indexShard.store();
+        final Store searchStore = searchShard.store();
+        indexStore.incRef();
+        searchStore.incRef();
+        try {
+            var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class)
+                .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+
+            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
+
+            for (String file : segmentInfos.files(true)) {
+                // can take some time for files to be uploaded to the object store
+                assertBusy(() -> {
+                    assertThat("" + file, blobContainer.blobExists(file), is(true));
+
+                    try (
+                        IndexInput input = indexStore.directory().openInput(file, IOContext.READONCE);
+                        InputStream local = new InputStreamIndexInput(input, input.length());
+                        IndexInput searchInput = searchStore.directory().openInput(file, IOContext.READONCE);
+                        InputStream searchInputStream = new InputStreamIndexInput(searchInput, searchInput.length());
+                    ) {
+                        assertEquals(
+                            "File [" + file + "] on search shard has a different content than local file ",
+                            local,
+                            searchInputStream
+                        );
+                    }
+                });
+            }
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            indexStore.decRef();
+            searchStore.decRef();
+        }
+    }
+
     private static void assertEquals(String message, InputStream expected, InputStream actual) throws IOException {
         // adapted from Files.mismatch()
         final int BUFFER_SIZE = 8192;
@@ -288,7 +377,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService != null) {
                     IndexShard shardOrNull = indexService.getShardOrNull(shardId);
-                    if (shardOrNull != null && shardOrNull.isActive()) {
+                    // TODO: Don't filter on primary once allocation fixed
+                    if (shardOrNull != null && shardOrNull.isActive() && shardOrNull.routingEntry().primary()) {
                         indexShard = shardOrNull;
                     }
                 }
@@ -296,6 +386,26 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
         assertThat("IndexShard instance not found on nodes with [index] role for " + shardId, indexShard, notNullValue());
         assertThat("IndexShard should be primary but got " + indexShard.routingEntry(), indexShard.routingEntry().primary(), is(true));
+        return indexShard;
+    }
+
+    private static IndexShard findSearchShard(Index index, int shardId) {
+        IndexShard indexShard = null;
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            // TODO: Make search node type once we allocate the shards to the correct node type
+            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.INDEX_ROLE)) {
+                IndexService indexService = indicesService.indexService(index);
+                if (indexService != null) {
+                    IndexShard shardOrNull = indexService.getShardOrNull(shardId);
+                    // TODO: Don't filter on primary once allocation fixed
+                    if (shardOrNull != null && shardOrNull.isActive() && shardOrNull.routingEntry().primary() == false) {
+                        indexShard = shardOrNull;
+                    }
+                }
+            }
+        }
+        assertThat("IndexShard instance not found on nodes with [search] role for " + shardId, indexShard, notNullValue());
+        assertThat("IndexShard should be replica but got " + indexShard.routingEntry(), indexShard.routingEntry().primary(), is(false));
         return indexShard;
     }
 

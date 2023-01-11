@@ -17,10 +17,14 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
+
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
@@ -33,6 +37,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -40,6 +45,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -62,16 +68,23 @@ public class SearchEngine extends Engine {
     private final AtomicLong lastSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private final AtomicLong lastTranslogLocation = new AtomicLong(0);
 
-    private volatile SegmentInfos segmentInfos;
+    private final StatelessReaderManager statelessReaderManager;
 
-    public SearchEngine(EngineConfig config) {
+    public SearchEngine(EngineConfig config, ObjectStoreService objectStoreService) {
         super(config);
         assert config.isRecoveringAsPrimary() == false;
         final Store store = engineConfig.getStore();
         store.incRef();
         try {
-            segmentInfos = Lucene.readSegmentInfos(store.directory());
-            var localCheckpoint = Long.parseLong(segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            statelessReaderManager = new StatelessReaderManager(
+                objectStoreService,
+                config.getShardId(),
+                store,
+                config.getThreadPool(),
+                config.getGlobalCheckpointSupplier()
+            );
+            statelessReaderManager.reloadReaderManager();
+            var localCheckpoint = statelessReaderManager.getSeqNoStats().getLocalCheckpoint();
             this.lastSeqNo.set(Math.max(localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong()));
         } catch (IOException e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -80,9 +93,28 @@ public class SearchEngine extends Engine {
         }
     }
 
+    public void onCommitNotification(
+        final long primaryTerm,
+        final long generation,
+        final Map<String, StoreFileMetadata> commitFiles,
+        ActionListener<Void> listener
+    ) throws IOException {
+        statelessReaderManager.onNewCommit(primaryTerm, generation, commitFiles, listener);
+    }
+
     @Override
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
-        closedLatch.countDown();
+        if (isClosed.compareAndSet(false, true)) {
+            try {
+                synchronized ((this)) {
+                    IOUtils.close(statelessReaderManager);
+                }
+            } catch (Exception ex) {
+                logger.warn("failed to close reader", ex);
+            } finally {
+                closedLatch.countDown();
+            }
+        }
     }
 
     @Override
@@ -117,12 +149,12 @@ public class SearchEngine extends Engine {
 
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
-        return segmentInfos;
+        return statelessReaderManager.getSegmentInfos();
     }
 
     @Override
     public String getHistoryUUID() {
-        return segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY);
+        return statelessReaderManager.getSegmentInfos().getUserData().get(Engine.HISTORY_UUID_KEY);
     }
 
     @Override
@@ -132,21 +164,25 @@ public class SearchEngine extends Engine {
 
     @Override
     public long getMaxSeqNo() {
+        // TODO: Integrate properly
         return lastSeqNo.get();
     }
 
     @Override
     public long getProcessedLocalCheckpoint() {
+        // TODO: Integrate properly
         return lastSeqNo.get();
     }
 
     @Override
     public long getPersistedLocalCheckpoint() {
+        // TODO: Integrate properly
         return lastSeqNo.get();
     }
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
+        // TODO: Integrate properly
         return lastSeqNo.get();
     }
 
@@ -157,7 +193,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public CompletionStats completionStats(String... fieldNamePatterns) {
-        return null;
+        return new CompletionStatsCache(() -> acquireSearcher("completion_stats")).get(fieldNamePatterns);
     }
 
     @Override
@@ -182,12 +218,12 @@ public class SearchEngine extends Engine {
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        return null;
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
     }
 
     @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
-        return null;
+        return statelessReaderManager.getReaderManager();
     }
 
     @Override
@@ -253,7 +289,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
-        return null;
+        return statelessReaderManager.getSeqNoStats();
     }
 
     @Override
@@ -288,7 +324,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return true;
+        return false;
     }
 
     @Override
@@ -324,7 +360,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return null;
+        return statelessReaderManager.getSafeCommitInfo();
     }
 
     @Override

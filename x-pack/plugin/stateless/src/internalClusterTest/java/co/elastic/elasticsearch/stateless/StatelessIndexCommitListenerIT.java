@@ -25,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -74,6 +75,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 @Override
                 public void onNewCommit(
                     ShardId shardId,
+                    Store store,
                     long primaryTerm,
                     Engine.IndexCommitRef indexCommitRef,
                     Set<String> additionalFiles

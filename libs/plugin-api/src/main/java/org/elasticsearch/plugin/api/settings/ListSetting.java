@@ -23,4 +23,6 @@ public @interface ListSetting {
      * A name of a setting
      */
     String path();
+
+    String[] def() default {};
 }

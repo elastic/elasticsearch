@@ -24,7 +24,7 @@ public final class AvgLongAggregatorFunction implements AggregatorFunction {
   }
 
   public static AvgLongAggregatorFunction create(int channel) {
-    return new AvgLongAggregatorFunction(channel, AvgLongAggregator.init());
+    return new AvgLongAggregatorFunction(channel, AvgLongAggregator.initSingle());
   }
 
   @Override

@@ -24,7 +24,7 @@ public final class AvgDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   public static AvgDoubleAggregatorFunction create(int channel) {
-    return new AvgDoubleAggregatorFunction(channel, AvgDoubleAggregator.init());
+    return new AvgDoubleAggregatorFunction(channel, AvgDoubleAggregator.initSingle());
   }
 
   @Override

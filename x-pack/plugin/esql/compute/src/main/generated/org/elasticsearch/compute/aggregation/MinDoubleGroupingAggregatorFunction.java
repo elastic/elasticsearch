@@ -67,11 +67,11 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
     @SuppressWarnings("unchecked") AggregatorStateVector<DoubleArrayState> blobVector = (AggregatorStateVector<DoubleArrayState>) vector.get();
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    DoubleArrayState tmpState = new DoubleArrayState(bigArrays, MinDoubleAggregator.init());
-    blobVector.get(0, tmpState);
-    for (int i = 0; i < groupIdVector.getPositionCount(); i++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(i));
-      state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), tmpState.get(i)), groupId);
+    DoubleArrayState inState = new DoubleArrayState(bigArrays, MinDoubleAggregator.init());
+    blobVector.get(0, inState);
+    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groupIdVector.getLong(position));
+      state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
     }
   }
 

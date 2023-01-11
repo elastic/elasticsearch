@@ -67,11 +67,11 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
     @SuppressWarnings("unchecked") AggregatorStateVector<LongArrayState> blobVector = (AggregatorStateVector<LongArrayState>) vector.get();
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    LongArrayState tmpState = new LongArrayState(bigArrays, SumLongAggregator.init());
-    blobVector.get(0, tmpState);
-    for (int i = 0; i < groupIdVector.getPositionCount(); i++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(i));
-      state.set(SumLongAggregator.combine(state.getOrDefault(groupId), tmpState.get(i)), groupId);
+    LongArrayState inState = new LongArrayState(bigArrays, SumLongAggregator.init());
+    blobVector.get(0, inState);
+    for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groupIdVector.getLong(position));
+      state.set(SumLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
     }
   }
 

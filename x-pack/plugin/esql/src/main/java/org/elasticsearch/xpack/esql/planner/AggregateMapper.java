@@ -45,9 +45,11 @@ class AggregateMapper {
     }
 
     static GroupingAggregatorFunction.Factory mapGrouping(AggregateFunction aggregateFunction) {
-        GroupingAggregatorFunction.Factory aggregatorFunc = null;
+        GroupingAggregatorFunction.Factory aggregatorFunc;
         if (aggregateFunction instanceof Avg) {
-            aggregatorFunc = GroupingAggregatorFunction.AVG;
+            aggregatorFunc = aggregateFunction.dataType().isRational()
+                ? GroupingAggregatorFunction.AVG_DOUBLES
+                : GroupingAggregatorFunction.AVG_LONGS;
         } else if (aggregateFunction instanceof Count) {
             aggregatorFunc = GroupingAggregatorFunction.COUNT;
         } else if (aggregateFunction instanceof Max) {

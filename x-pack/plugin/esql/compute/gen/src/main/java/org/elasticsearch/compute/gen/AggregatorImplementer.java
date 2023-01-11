@@ -23,9 +23,10 @@ import java.util.Optional;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 
+import static org.elasticsearch.compute.gen.Methods.findMethod;
+import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
@@ -57,62 +58,24 @@ public class AggregatorImplementer {
     public AggregatorImplementer(Elements elements, TypeElement declarationType) {
         this.declarationType = declarationType;
 
-        ExecutableElement init = null;
-        ExecutableElement combine = null;
-        ExecutableElement combineValueCount = null;
-        ExecutableElement combineStates = null;
-        ExecutableElement evaluateFinal = null;
-        for (ExecutableElement e : ElementFilter.methodsIn(declarationType.getEnclosedElements())) {
-            switch (e.getSimpleName().toString()) {
-                case "init":
-                    init = e;
-                    break;
-                case "combine":
-                    combine = e;
-                    break;
-                case "combineValueCount":
-                    combineValueCount = e;
-                    break;
-                case "combineStates":
-                    combineStates = e;
-                    break;
-                case "evaluateFinal":
-                    evaluateFinal = e;
-                    break;
-                default: // pass
-            }
-        }
-        this.init = checkStaticMethod("init", init);
-        this.combine = checkStaticMethod("combine", combine);
-        this.combineValueCount = checkOptionalStaticMethod("combineValueCount", combineValueCount);
-        this.combineStates = checkOptionalStaticMethod("combineStates", combineStates);
-        this.evaluateFinal = checkOptionalStaticMethod("evaluateFinal", evaluateFinal);
-
+        this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
         this.stateType = choseStateType();
+
+        this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
+            if (e.getParameters().size() == 0) {
+                return false;
+            }
+            TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
+            return firstParamType.isPrimitive() || firstParamType.toString().equals(stateType.toString());
+        });
+        this.combineValueCount = findMethod(declarationType, "combineValueCount");
+        this.combineStates = findMethod(declarationType, "combineStates");
+        this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
+
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "AggregatorFunction").replace("AggregatorAggregator", "Aggregator")
         );
-    }
-
-    static ExecutableElement checkStaticMethod(String name, ExecutableElement e) {
-        if (e == null) {
-            throw new IllegalArgumentException(name + " is required");
-        }
-        if (false == e.getModifiers().contains(Modifier.STATIC)) {
-            throw new IllegalArgumentException(name + " must be static");
-        }
-        return e;
-    }
-
-    static ExecutableElement checkOptionalStaticMethod(String name, ExecutableElement e) {
-        if (e == null) {
-            return null;
-        }
-        if (false == e.getModifiers().contains(Modifier.STATIC)) {
-            throw new IllegalArgumentException(name + " must be static if it exists");
-        }
-        return e;
     }
 
     private TypeName choseStateType() {
@@ -165,9 +128,9 @@ public class AggregatorImplementer {
     private CodeBlock callInit() {
         CodeBlock.Builder builder = CodeBlock.builder();
         if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.init()", declarationType);
+            builder.add("$T.$L()", declarationType, init.getSimpleName());
         } else {
-            builder.add("new $T($T.init())", stateType, declarationType);
+            builder.add("new $T($T.$L())", stateType, declarationType, init.getSimpleName());
         }
         return builder.build();
     }

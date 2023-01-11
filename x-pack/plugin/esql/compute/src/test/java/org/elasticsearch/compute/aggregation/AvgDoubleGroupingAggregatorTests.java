@@ -8,21 +8,29 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Tuple;
 
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GroupingAvgAggregatorTests extends GroupingAggregatorTestCase {
+public class AvgDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(int end) {
+        return new LongDoubleTupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l % 5, (double) l)));
+    }
+
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.AVG;
+        return GroupingAggregatorFunction.AVG_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "avg";
+        return "avg of doubles";
     }
 
     @Override

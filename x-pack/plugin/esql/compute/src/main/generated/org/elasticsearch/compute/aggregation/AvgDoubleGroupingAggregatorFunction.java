@@ -7,26 +7,26 @@ import java.util.Optional;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MaxDoubleAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link AvgDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
-  private final DoubleArrayState state;
+public final class AvgDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+  private final AvgDoubleAggregator.GroupingAvgState state;
 
   private final int channel;
 
-  public MaxDoubleGroupingAggregatorFunction(int channel, DoubleArrayState state) {
+  public AvgDoubleGroupingAggregatorFunction(int channel,
+      AvgDoubleAggregator.GroupingAvgState state) {
     this.channel = channel;
     this.state = state;
   }
 
-  public static MaxDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel) {
-    return new MaxDoubleGroupingAggregatorFunction(channel, new DoubleArrayState(bigArrays, MaxDoubleAggregator.init()));
+  public static AvgDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel) {
+    return new AvgDoubleGroupingAggregatorFunction(channel, AvgDoubleAggregator.initGrouping(bigArrays));
   }
 
   @Override
@@ -44,7 +44,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   private void addRawVector(Vector groupIdVector, Vector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(i));
-      state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), vector.getDouble(i)), groupId);
+      AvgDoubleAggregator.combine(state, groupId, vector.getDouble(i));
     }
   }
 
@@ -52,7 +52,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
     for (int i = 0; i < block.getTotalValueCount(); i++) {
       if (block.isNull(i) == false) {
         int groupId = Math.toIntExact(groupIdVector.getLong(i));
-        state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), block.getDouble(i)), groupId);
+        AvgDoubleAggregator.combine(state, groupId, block.getDouble(i));
       }
     }
   }
@@ -64,14 +64,14 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
     if (vector.isEmpty() || vector.get() instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
-    @SuppressWarnings("unchecked") AggregatorStateVector<DoubleArrayState> blobVector = (AggregatorStateVector<DoubleArrayState>) vector.get();
+    @SuppressWarnings("unchecked") AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState> blobVector = (AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState>) vector.get();
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    DoubleArrayState inState = new DoubleArrayState(bigArrays, MaxDoubleAggregator.init());
+    AvgDoubleAggregator.GroupingAvgState inState = AvgDoubleAggregator.initGrouping(bigArrays);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
+      AvgDoubleAggregator.combineStates(state, groupId, inState, position);
     }
   }
 
@@ -80,26 +80,21 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    DoubleArrayState inState = ((MaxDoubleGroupingAggregatorFunction) input).state;
-    state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
+    AvgDoubleAggregator.GroupingAvgState inState = ((AvgDoubleGroupingAggregatorFunction) input).state;
+    AvgDoubleAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
   public Block evaluateIntermediate() {
-    AggregatorStateVector.Builder<AggregatorStateVector<DoubleArrayState>, DoubleArrayState> builder =
-        AggregatorStateVector.builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
+    AggregatorStateVector.Builder<AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState>, AvgDoubleAggregator.GroupingAvgState> builder =
+        AggregatorStateVector.builderOfAggregatorState(AvgDoubleAggregator.GroupingAvgState.class, state.getEstimatedSize());
     builder.add(state);
     return builder.build().asBlock();
   }
 
   @Override
   public Block evaluateFinal() {
-    int positions = state.largestIndex + 1;
-    double[] values = new double[positions];
-    for (int i = 0; i < positions; i++) {
-      values[i] = state.get(i);
-    }
-    return new DoubleVector(values, positions).asBlock();
+    return AvgDoubleAggregator.evaluateFinal(state);
   }
 
   @Override

@@ -23,10 +23,10 @@ import java.util.Optional;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 
-import static org.elasticsearch.compute.gen.AggregatorImplementer.checkStaticMethod;
+import static org.elasticsearch.compute.gen.Methods.findMethod;
+import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
@@ -50,29 +50,27 @@ public class GroupingAggregatorImplementer {
     private final TypeElement declarationType;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final ExecutableElement combineStates;
+    private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
     private final TypeName stateType;
 
     public GroupingAggregatorImplementer(Elements elements, TypeElement declarationType) {
         this.declarationType = declarationType;
 
-        ExecutableElement init = null;
-        ExecutableElement combine = null;
-        for (ExecutableElement e : ElementFilter.methodsIn(declarationType.getEnclosedElements())) {
-            switch (e.getSimpleName().toString()) {
-                case "init":
-                    init = e;
-                    break;
-                case "combine":
-                    combine = e;
-                    break;
-                default: // pass
-            }
-        }
-        this.init = checkStaticMethod("init", init);
-        this.combine = checkStaticMethod("combine", combine);
-
+        this.init = findRequiredMethod(declarationType, new String[] { "init", "initGrouping" }, e -> true);
         this.stateType = choseStateType();
+
+        this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
+            if (e.getParameters().size() == 0) {
+                return false;
+            }
+            TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
+            return firstParamType.isPrimitive() || firstParamType.toString().equals(stateType.toString());
+        });
+        this.combineStates = findMethod(declarationType, "combineStates");
+        this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
+
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
@@ -128,9 +126,9 @@ public class GroupingAggregatorImplementer {
     private CodeBlock callInit() {
         CodeBlock.Builder builder = CodeBlock.builder();
         if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.init(bigArrays)", declarationType);
+            builder.add("$T.$L(bigArrays)", declarationType, init.getSimpleName());
         } else {
-            builder.add("new $T(bigArrays, $T.init())", stateType, declarationType);
+            builder.add("new $T(bigArrays, $T.$L())", stateType, declarationType, init.getSimpleName());
         }
         return builder.build();
     }
@@ -182,7 +180,7 @@ public class GroupingAggregatorImplementer {
 
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable) {
         builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(i))");
-        TypeName valueType = TypeName.get(combine.getParameters().get(1).asType());
+        TypeName valueType = TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType());
         if (valueType.isPrimitive() == false) {
             throw new IllegalArgumentException("second parameter to combine must be a primitive");
         }
@@ -228,10 +226,11 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("@SuppressWarnings($S) $T blobVector = ($T) vector.get()", "unchecked", stateBlockType(), stateBlockType());
         builder.addComment("TODO exchange big arrays directly without funny serialization - no more copying");
         builder.addStatement("$T bigArrays = $T.NON_RECYCLING_INSTANCE", BIG_ARRAYS, BIG_ARRAYS);
-        builder.addStatement("$T tmpState = $L", stateType, callInit());
-        builder.addStatement("blobVector.get(0, tmpState)");
-        builder.beginControlFlow("for (int i = 0; i < groupIdVector.getPositionCount(); i++)");
+        builder.addStatement("$T inState = $L", stateType, callInit());
+        builder.addStatement("blobVector.get(0, inState)");
+        builder.beginControlFlow("for (int position = 0; position < groupIdVector.getPositionCount(); position++)");
         {
+            builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
             combineStates(builder);
             builder.endControlFlow();
         }
@@ -239,8 +238,11 @@ public class GroupingAggregatorImplementer {
     }
 
     private void combineStates(MethodSpec.Builder builder) {
-        builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(i))");
-        builder.addStatement("state.set($T.combine(state.getOrDefault(groupId), tmpState.get(i)), groupId)", declarationType);
+        if (combineStates == null) {
+            builder.addStatement("state.set($T.combine(state.getOrDefault(groupId), inState.get(position)), groupId)", declarationType);
+            return;
+        }
+        builder.addStatement("$T.combineStates(state, groupId, inState, position)", declarationType);
     }
 
     private MethodSpec addIntermediateRowInput() {
@@ -253,7 +255,7 @@ public class GroupingAggregatorImplementer {
         }
         builder.endControlFlow();
         builder.addStatement("$T inState = (($T) input).state", stateType, implementation);
-        builder.addStatement("state.set($T.combine(state.getOrDefault(groupId), inState.get(position)), groupId)", declarationType);
+        combineStates(builder);
         return builder.build();
     }
 
@@ -279,7 +281,11 @@ public class GroupingAggregatorImplementer {
     private MethodSpec evaluateFinal() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateFinal");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(BLOCK);
-        primitiveStateToResult(builder);
+        if (evaluateFinal == null) {
+            primitiveStateToResult(builder);
+        } else {
+            builder.addStatement("return $T.evaluateFinal(state)", declarationType);
+        }
         return builder.build();
     }
 

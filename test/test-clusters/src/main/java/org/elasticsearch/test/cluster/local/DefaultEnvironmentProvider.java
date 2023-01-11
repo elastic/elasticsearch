@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 
 public class DefaultEnvironmentProvider implements EnvironmentProvider {
     private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
@@ -33,6 +34,9 @@ public class DefaultEnvironmentProvider implements EnvironmentProvider {
         // Override the system hostname variables for testing
         environment.put("HOSTNAME", HOSTNAME_OVERRIDE);
         environment.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
+
+        // Use the same timezone as the test executor
+        environment.put("TZ", TimeZone.getDefault().getID());
 
         return environment;
     }

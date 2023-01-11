@@ -1,5 +1,0 @@
-pr: 90806
-summary: Don't create IndexCaps objects when recording unmapped fields
-area: Mapping
-type: enhancement
-issues: [90796]

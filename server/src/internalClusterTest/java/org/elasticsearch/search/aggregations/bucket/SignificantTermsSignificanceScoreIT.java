@@ -150,7 +150,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         classes.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         responseBuilder.endObject();
 
-        String result = formatted("""
+        Object[] args = new Object[] { type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"" };
+        String result = Strings.format("""
             {
               "class": {
                 "doc_count_error_upper_bound": 0,
@@ -191,7 +192,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 ]
               }
             }
-            """, type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"");
+            """, args);
         assertThat(Strings.toString(responseBuilder), equalTo(XContentHelper.stripWhitespace(result)));
 
     }

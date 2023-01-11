@@ -245,7 +245,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         );
 
         // same pivot as testSimplePivot, but we retrieve the grouping key using a script and add prefix
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -298,7 +298,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String pipelineId = "my-pivot-pipeline";
         int pipelineValue = 42;
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity(formatted("""
+        pipelineRequest.setJsonEntity(Strings.format("""
             {
                "description" : "my pivot pipeline",
                "processors" : [
@@ -342,7 +342,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -402,7 +402,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -462,17 +462,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             int stars = (i * 32) % 5;
             long business = (stars * user) % 13;
             String location = (user + 10) + "," + (user + 15);
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
                 """, indexName, user, business, stars, location, dateStamp));
             stars = 5;
             business = 11;
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
                 """, indexName, user26, business, stars, location, dateStamp));
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
                 """, indexName, business, stars, location, dateStamp));
@@ -510,7 +510,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -561,7 +561,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -624,7 +624,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         // add 5 data points with 3 new users: 27, 28, 29
         for (int i = 25; i < 30; i++) {
             String location = (i + 10) + "," + (i + 15);
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
                 """, indexName, i, i, 3, location, dateStamp));
@@ -673,7 +673,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -780,7 +780,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -880,7 +880,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -929,7 +929,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -980,7 +980,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String pipelineId = "my-preview-pivot-pipeline";
         int pipelineValue = 42;
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity(formatted("""
+        pipelineRequest.setJsonEntity(Strings.format("""
             {
               "description": "my pivot preview pipeline",
               "processors": [
@@ -998,7 +998,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1070,7 +1070,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
         createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1126,7 +1126,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1187,7 +1187,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1252,7 +1252,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1323,7 +1323,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1392,7 +1392,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1457,7 +1457,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1528,7 +1528,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1601,7 +1601,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1656,7 +1656,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1713,7 +1713,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String statsField = "stars_stats";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1796,7 +1796,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1890,7 +1890,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1957,7 +1957,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -2005,7 +2005,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"id":"id_%s","rating":%s,"timestamp":"%s"}
                 """, indexName, i % 5, 7, nanoResolutionTimeStamp));
@@ -2042,7 +2042,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -2113,7 +2113,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -2210,7 +2210,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -2363,7 +2363,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String randomNanos = "," + randomIntBetween(100000000, 999999999);
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"id":"id_%s","rating":%s,"timestamp":"2020-01-27T01:59:00%sZ"}
                 """, indexName, i % 10, i % 7, randomNanos));

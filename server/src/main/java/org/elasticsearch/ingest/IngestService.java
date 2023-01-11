@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -72,7 +73,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -211,7 +211,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             String defaultPipeline = null;
             String finalPipeline = null;
             IndexMetadata indexMetadata = null;
-            // start to look for default or final pipelines via settings found in the index meta data
+            // start to look for default or final pipelines via settings found in the index metadata
             if (originalRequest != null) {
                 indexMetadata = metadata.indices()
                     .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
@@ -251,11 +251,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a final pipeline that we need to collect
                     }
                     if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
                     indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
                     indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
@@ -687,55 +685,46 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             @Override
             protected void doRun() {
                 final Thread originalThread = Thread.currentThread();
-                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
-                int i = 0;
-                for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                    if (indexRequest == null) {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
+                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                    int i = 0;
+                    for (DocWriteRequest<?> actionRequest : actionRequests) {
+                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+                        if (indexRequest == null) {
+                            i++;
+                            continue;
                         }
-                        assert counter.get() >= 0;
-                        i++;
-                        continue;
-                    }
 
-                    final String pipelineId = indexRequest.getPipeline();
-                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                    final String finalPipelineId = indexRequest.getFinalPipeline();
-                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-                    boolean hasFinalPipeline = true;
-                    final List<String> pipelines;
-                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(pipelineId, finalPipelineId);
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        pipelines = List.of(pipelineId);
-                        hasFinalPipeline = false;
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(finalPipelineId);
-                    } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
+                        final String pipelineId = indexRequest.getPipeline();
+                        indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                        final String finalPipelineId = indexRequest.getFinalPipeline();
+                        indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+                        boolean hasFinalPipeline = true;
+                        final List<String> pipelines;
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
+                            && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                            pipelines = List.of(pipelineId, finalPipelineId);
+                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
+                            pipelines = List.of(pipelineId);
+                            hasFinalPipeline = false;
+                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                            pipelines = List.of(finalPipelineId);
+                        } else {
+                            i++;
+                            continue;
                         }
-                        assert counter.get() >= 0;
+
+                        executePipelines(
+                            i,
+                            pipelines.iterator(),
+                            hasFinalPipeline,
+                            indexRequest,
+                            onDropped,
+                            onFailure,
+                            refs.acquireListener()
+                        );
+
                         i++;
-                        continue;
                     }
-
-                    executePipelines(
-                        i,
-                        pipelines.iterator(),
-                        hasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
-
-                    i++;
                 }
             }
         });
@@ -748,9 +737,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final IntConsumer onDropped,
         final BiConsumer<Integer, Exception> onFailure,
-        final AtomicInteger counter,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final Thread originalThread
+        final ActionListener<Void> onFinished
     ) {
         assert it.hasNext();
         final String pipelineId = it.next();
@@ -778,6 +765,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         e
                     );
                     onFailure.accept(slot, e);
+                    // document failed! no further processing of this doc
+                    onFinished.onResponse(null);
+                    return;
                 }
 
                 Iterator<String> newIt = it;
@@ -791,6 +781,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             slot,
                             new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
                         );
+                        // document failed! no further processing of this doc
+                        onFinished.onResponse(null);
+                        return;
                     } else {
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
@@ -804,22 +797,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newIt.hasNext()) {
-                    executePipelines(
-                        slot,
-                        newIt,
-                        newHasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
+                    executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, onFinished);
                 } else {
-                    if (counter.decrementAndGet() == 0) {
-                        onCompletion.accept(originalThread, null);
-                    }
-                    assert counter.get() >= 0;
+                    onFinished.onResponse(null);
                 }
             });
         } catch (Exception e) {
@@ -828,10 +808,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 e
             );
             onFailure.accept(slot, e);
-            if (counter.decrementAndGet() == 0) {
-                onCompletion.accept(originalThread, null);
-            }
-            assert counter.get() >= 0;
+            onFinished.onResponse(null);
         }
     }
 
@@ -856,7 +833,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Adds a listener that gets invoked with the current cluster state before processor factories
      * get invoked.
-     *
+     * <p>
      * This is useful for components that are used by ingest processors, so that they have the opportunity to update
      * before these components get used by the ingest processor factory.
      */

@@ -108,7 +108,6 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/92454")
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
@@ -126,6 +125,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
+
+        ensureGreen();
 
         var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         assertThat(

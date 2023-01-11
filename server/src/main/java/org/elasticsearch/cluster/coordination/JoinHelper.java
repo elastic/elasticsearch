@@ -67,7 +67,7 @@ public class JoinHelper {
     private final MasterService masterService;
     private final ClusterApplier clusterApplier;
     private final TransportService transportService;
-    private final JoinTaskExecutor joinTaskExecutor;
+    private final NodeJoinExecutor nodeJoinExecutor;
     private final LongSupplier currentTermSupplier;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
@@ -94,7 +94,7 @@ public class JoinHelper {
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
         this.circuitBreakerService = circuitBreakerService;
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+        this.nodeJoinExecutor = new NodeJoinExecutor(allocationService, rerouteService);
         this.currentTermSupplier = currentTermSupplier;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
@@ -389,13 +389,17 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTask task = JoinTask.singleNode(
-                sender,
-                joinReasonService.getJoinReason(sender, Mode.LEADER),
-                joinListener,
-                currentTermSupplier.getAsLong()
+            masterService.submitStateUpdateTask(
+                "node-join",
+                JoinTask.singleNode(
+                    sender,
+                    joinReasonService.getJoinReason(sender, Mode.LEADER),
+                    joinListener,
+                    currentTermSupplier.getAsLong()
+                ),
+                ClusterStateTaskConfig.build(Priority.URGENT),
+                nodeJoinExecutor
             );
-            masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         @Override
@@ -461,7 +465,7 @@ public class JoinHelper {
                     "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
                     joinTask,
                     ClusterStateTaskConfig.build(Priority.URGENT),
-                    joinTaskExecutor
+                    nodeJoinExecutor
 
                 );
             } else {

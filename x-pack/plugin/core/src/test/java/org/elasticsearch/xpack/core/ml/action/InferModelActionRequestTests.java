@@ -45,15 +45,12 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request createTestInstance() {
-        return randomBoolean()
-            ? new Request(
-                randomAlphaOfLength(10),
-                Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
-                randomInferenceConfigUpdate(),
-                TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
-                randomBoolean()
-            )
-            : new Request(randomAlphaOfLength(10), randomMap(), randomInferenceConfigUpdate(), randomBoolean());
+        return Request.forDocs(
+            randomAlphaOfLength(10),
+            Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
+            randomInferenceConfigUpdate(),
+            randomBoolean()
+        );
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
@@ -115,20 +112,17 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         } else {
             adjustedUpdate = currentUpdate;
         }
-        return version.before(Version.V_8_3_0)
-            ? new Request(
+
+        if (version.before(Version.V_8_3_0)) {
+            return new Request(
                 instance.getModelId(),
-                instance.getObjectsToInfer(),
                 adjustedUpdate,
+                instance.getObjectsToInfer(),
                 TimeValue.MAX_VALUE,
                 instance.isPreviouslyLicensed()
-            )
-            : new Request(
-                instance.getModelId(),
-                instance.getObjectsToInfer(),
-                adjustedUpdate,
-                instance.getTimeout(),
-                instance.isPreviouslyLicensed()
             );
+        }
+
+        return instance;
     }
 }

@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
 import org.junit.Before;
 
+import java.util.List;
+
 public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSerializationTestCase<
     InferTrainedModelDeploymentAction.Response> {
 
@@ -45,7 +47,14 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
 
     @Override
     protected InferTrainedModelDeploymentAction.Response createTestInstance() {
-        return new InferTrainedModelDeploymentAction.Response(TextEmbeddingResultsTests.createRandomResults(), randomLongBetween(1, 200));
+        return new InferTrainedModelDeploymentAction.Response(
+            List.of(
+                TextEmbeddingResultsTests.createRandomResults(),
+                TextEmbeddingResultsTests.createRandomResults(),
+                TextEmbeddingResultsTests.createRandomResults(),
+                TextEmbeddingResultsTests.createRandomResults()
+            )
+        );
     }
 
     @Override
@@ -53,8 +62,8 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
         InferTrainedModelDeploymentAction.Response instance,
         Version version
     ) {
-        if (version.before(Version.V_8_6_0)) {
-            return new InferTrainedModelDeploymentAction.Response(instance.getResults(), 0);
+        if (version.before(Version.V_8_7_0)) {
+            return new InferTrainedModelDeploymentAction.Response(instance.getResults().subList(0, 1));
         }
 
         return instance;

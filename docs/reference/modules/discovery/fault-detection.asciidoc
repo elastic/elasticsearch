@@ -220,7 +220,6 @@ To reconstruct the output, base64-decode the data and decompress it using
 ----
 cat lagdetector.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ----
-// NOTCONSOLE
 
 ===== Diagnosing `follower check retry count exceeded` nodes
 

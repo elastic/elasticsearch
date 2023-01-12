@@ -265,6 +265,12 @@ public class InputStreamIndexInputTests extends ESTestCase {
                 byte[] bytes = new InputStreamIndexInput(input, input.length()).readAllBytes();
                 assertEquals(size, bytes.length);
             }
+            try (IndexInput input = dir.openInput("test", IOContext.DEFAULT)) {
+                // Verify that the respect the limit condition
+                long limit = randomLongBetween(0, input.length());
+                byte[] bytes = new InputStreamIndexInput(input, limit).readAllBytes();
+                assertEquals(limit, bytes.length);
+            }
         }
     }
 }

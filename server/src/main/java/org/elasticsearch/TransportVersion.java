@@ -20,24 +20,30 @@ import java.util.Set;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
- * <pr/>
+ * <p>
  * Prior to 8.7.0, the node {@link Version} was used everywhere. This class separates the wire protocol version
  * from the running node version. Each node version has a reference to a specific transport version used by that node.
- * <pr/>
- * Each transport version constant has got an id number, which for versions prior to 8.7.0 is the same as the node version for compatibility.
+ * <p>
+ * Each transport version constant has got an id number, which for versions prior to 8.7.0 is the same as the node version
+ * for backwards compatibility.
  * There is also a unique id string. This is not actually used in the protocol, but is there to ensure each protocol version
- * is only added once. This string needs to be unique (here, a UUID, but can be any other unique nonempty string).
+ * is only added to the source file once. This string needs to be unique (here, a UUID, but can be any other unique nonempty string).
  * If two concurrent PRs added the same protocol version, the unique string causes a git conflict, ensuring the second PR to be merged
  * must be updated with the next free version. Without the unique id string, git will happily merge the two versions together,
  * causing problems when you try to upgrade between those two PRs.
- * <pr/>
- * When adding new transport versions, it is recommended to leave a gap in the numbering scheme (say, 100)
+ * <p>
+ * When adding new transport versions, it is recommended to leave a gap in the id number (say, 100)
  * to leave space for any intermediate fixes that may be needed in the future.
+ * <p>
+ * The earliest compatible version is hardcoded at {@link #MINIMUM_COMPATIBLE}. Previously, this was dynamically calculated
+ * from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have that concept. So the minimum compatible
+ * version needs to be hard-coded as the transport version of the minimum compatible node version. That variable should be updated
+ * appropriately whenever we do a major version release.
  */
 public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
     /*
-     * Legacy transport versions that matched the on-prem release version
+     * Legacy transport versions that match the node version
      */
     public static final TransportVersion V_7_0_0 = new TransportVersion(7_00_00_99, "7505fd05-d982-43ce-a63f-ff4c6c8bdeec");
     public static final TransportVersion V_7_0_1 = new TransportVersion(7_00_01_99, "ae772780-e6f9-46a1-b0a0-20ed0cae37f7");
@@ -127,16 +133,17 @@ public class TransportVersion implements Comparable<TransportVersion> {
     /*
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
      */
-    public static final TransportVersion V10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
+    public static final TransportVersion V_10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
     /*
      * When adding a new transport version, ensure there is a gap (say, 100) between versions
      * This is to make it possible to add intermediate versions for any bug fixes that may be required.
      */
 
     /** Reference to the current transport version */
-    public static final TransportVersion CURRENT = V10_000_000;
+    public static final TransportVersion CURRENT = V_10_000_000;
 
     /** Reference to the earliest compatible transport version to this version of the codebase */
+    // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     private static final Map<Integer, TransportVersion> idToVersion;

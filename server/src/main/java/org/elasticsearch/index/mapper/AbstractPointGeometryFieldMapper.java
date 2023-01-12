@@ -54,7 +54,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,
-        String onScriptError
+        OnScriptError onScriptError
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
         this.nullValue = null;

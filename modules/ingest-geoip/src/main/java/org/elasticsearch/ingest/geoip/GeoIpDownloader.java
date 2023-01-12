@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
@@ -232,9 +233,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
         return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
             Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
-            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineMap.get("processors");
+            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineMap.get(Pipeline.PROCESSORS_KEY);
             if (processors != null) {
-                return processors.stream().anyMatch(processor -> processor.containsKey("geoip"));
+                return processors.stream().anyMatch(processor -> processor.containsKey(GeoIpProcessor.TYPE));
             }
             return false;
         });

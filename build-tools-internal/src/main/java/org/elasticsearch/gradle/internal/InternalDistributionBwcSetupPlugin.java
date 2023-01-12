@@ -18,8 +18,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.services.BuildService;
-import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -44,7 +43,6 @@ import static java.util.Arrays.stream;
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
-    private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
     private ProviderFactory providerFactory;
 
     @Inject
@@ -55,26 +53,19 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        Provider<BwcTaskThrottle> bwcTaskThrottleProvider = project.getGradle()
-            .getSharedServices()
-            .registerIfAbsent(BWC_TASK_THROTTLE_SERVICE, BwcTaskThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
         BuildParams.getBwcVersions()
             .forPreviousUnreleased(
                 (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion, bwcTaskThrottleProvider);
+                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion);
                 }
             );
     }
 
-    private void configureBwcProject(
-        Project project,
-        BwcVersions.UnreleasedVersionInfo versionInfo,
-        Provider<BwcTaskThrottle> bwcTaskThrottleProvider
-    ) {
+    private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
         Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch()));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, bwcTaskThrottleProvider, checkoutDir);
+            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
@@ -86,6 +77,15 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         TaskProvider<Task> buildBwcTaskProvider = project.getTasks().register("buildBwc");
         List<DistributionProject> distributionProjects = resolveArchiveProjects(checkoutDir.get(), bwcVersion.get());
+
+        // Setup gradle user home directory
+        project.getTasks().register("setupGradleUserHome", Copy.class, copy -> {
+            copy.into(project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+            copy.from(project.getGradle().getGradleUserHomeDir().getAbsolutePath(), copySpec -> {
+                copySpec.include("gradle.properties");
+                copySpec.include("init.d/*");
+            });
+        });
 
         for (DistributionProject distributionProject : distributionProjects) {
             createBuildBwcTask(
@@ -237,11 +237,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'main' branch", task -> {
-                String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi()
-                    && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
-            });
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> BuildParams.isCi() == false);
             c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
@@ -323,5 +319,4 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {}
 }

@@ -1,0 +1,5 @@
+pr: 92893
+summary: Register reserved routes so we do not register them by accident
+area: Infra/REST API
+type: tech debt
+issues: []

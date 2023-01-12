@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -35,17 +34,15 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         ActionListener<Void> listener
     ) {
         final SearchRequest request = (SearchRequest) indicesRequest;
-        final SearchSourceBuilder source = request.source();
-
         if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
-            if (source != null && source.suggest() != null) {
+            if (hasSuggest(request)) {
                 listener.onFailure(
                     new ElasticsearchSecurityException(
                         "Suggest isn't supported if document level security is enabled",
                         RestStatus.BAD_REQUEST
                     )
                 );
-            } else if (source != null && source.profile()) {
+            } else if (hasProfile(request)) {
                 listener.onFailure(
                     new ElasticsearchSecurityException(
                         "A search request cannot be profiled if document level security " + "is enabled",
@@ -63,10 +60,18 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     @Override
     public boolean supports(IndicesRequest request) {
         if (request instanceof SearchRequest searchRequest) {
-            return searchRequest.source() != null && (searchRequest.source().suggest() != null || searchRequest.source().profile());
+            return hasSuggest(searchRequest) || hasProfile(searchRequest);
         } else {
             return false;
         }
+    }
+
+    private static boolean hasSuggest(SearchRequest searchRequest) {
+        return searchRequest.source() != null && searchRequest.source().suggest() != null;
+    }
+
+    private static boolean hasProfile(SearchRequest searchRequest) {
+        return searchRequest.source() != null && searchRequest.source().profile();
     }
 
 }

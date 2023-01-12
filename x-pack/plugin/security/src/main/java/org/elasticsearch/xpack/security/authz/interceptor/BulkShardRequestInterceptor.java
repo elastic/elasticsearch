@@ -48,13 +48,9 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
-            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            if (isDlsLicensed == false && isFlsLicensed == false) {
-                listener.onResponse(null);
-                return;
-            }
+        final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+        final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+        if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest && (isDlsLicensed || isFlsLicensed)) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression

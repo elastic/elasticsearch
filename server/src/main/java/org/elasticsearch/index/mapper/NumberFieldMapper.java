@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -86,7 +87,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -118,12 +119,21 @@ public class NumberFieldMapper extends FieldMapper {
         private boolean allowMultipleValues = true;
         private final Version indexCreatedVersion;
 
-        public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings, Version indexCreatedVersion) {
-            this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings), indexCreatedVersion);
+        private final IndexMode indexMode;
+
+        public Builder(
+            String name,
+            NumberType type,
+            ScriptCompiler compiler,
+            Settings settings,
+            Version indexCreatedVersion,
+            IndexMode mode
+        ) {
+            this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings), indexCreatedVersion, mode);
         }
 
         public static Builder docValuesOnly(String name, NumberType type, Version indexCreatedVersion) {
-            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false, indexCreatedVersion);
+            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false, indexCreatedVersion, null);
             builder.indexed.setValue(false);
             builder.dimension.setValue(false);
             return builder;
@@ -135,7 +145,8 @@ public class NumberFieldMapper extends FieldMapper {
             ScriptCompiler compiler,
             boolean ignoreMalformedByDefault,
             boolean coerceByDefault,
-            Version indexCreatedVersion
+            Version indexCreatedVersion,
+            IndexMode mode
         ) {
             super(name);
             this.type = type;
@@ -158,7 +169,15 @@ public class NumberFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-
+            this.indexMode = mode;
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    var metricType = getMetric().getValue();
+                    return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
+                } else {
+                    return true;
+                }
+            });
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
                 if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
                     throw new IllegalArgumentException(
@@ -215,6 +234,10 @@ public class NumberFieldMapper extends FieldMapper {
         public Builder metric(MetricType metric) {
             this.metric.setValue(metric);
             return this;
+        }
+
+        private Parameter<MetricType> getMetric() {
+            return metric;
         }
 
         public Builder allowMultipleValues(boolean allowMultipleValues) {
@@ -1171,7 +1194,14 @@ public class NumberFieldMapper extends FieldMapper {
             this.name = name;
             this.numericType = numericType;
             this.parser = new TypeParser(
-                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()),
+                (n, c) -> new Builder(
+                    n,
+                    this,
+                    c.scriptCompiler(),
+                    c.getSettings(),
+                    c.indexVersionCreated(),
+                    c.getIndexSettings().getMode()
+                ),
                 MINIMUM_COMPATIBILITY_VERSION
             );
         }
@@ -1639,7 +1669,6 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private final NumberType type;
-
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
@@ -1656,6 +1685,8 @@ public class NumberFieldMapper extends FieldMapper {
     private boolean allowMultipleValues;
     private final Version indexCreatedVersion;
     private final boolean storeMalformedFields;
+
+    private final IndexMode indexMode;
 
     private NumberFieldMapper(
         String simpleName,
@@ -1683,6 +1714,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.allowMultipleValues = builder.allowMultipleValues;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.storeMalformedFields = storeMalformedFields;
+        this.indexMode = builder.indexMode;
     }
 
     boolean coerce() {
@@ -1784,9 +1816,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).dimension(
-            dimension
-        ).metric(metricType).allowMultipleValues(allowMultipleValues).init(this);
+        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion, indexMode)
+            .dimension(dimension)
+            .metric(metricType)
+            .allowMultipleValues(allowMultipleValues)
+            .init(this);
     }
 
     @Override

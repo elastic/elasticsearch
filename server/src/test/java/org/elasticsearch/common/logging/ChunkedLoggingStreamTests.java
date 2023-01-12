@@ -41,6 +41,7 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
 
     @TestLogging(reason = "testing logging", value = "org.elasticsearch.common.logging.ChunkedLoggingStreamTests:DEBUG")
     public void testLogMessageChunking() {
+        // bugs are most likely near chunk boundaries, so test sizes that are within +/- 3 bytes of 0, 1, and 2 chunks:
         IntStream.rangeClosed(-3, 3)
             .flatMap(i -> IntStream.iterate(i, j -> j + ChunkedLoggingStream.CHUNK_SIZE).limit(3))
             .filter(i -> i >= 0)

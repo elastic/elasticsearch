@@ -14,6 +14,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 
 public class NoShardAvailableActionException extends ElasticsearchException {
 
@@ -58,5 +59,16 @@ public class NoShardAvailableActionException extends ElasticsearchException {
     @Override
     public StackTraceElement[] getStackTrace() {
         return onShardFailureWrapper ? EMPTY_STACK_TRACE : super.getStackTrace();
+    }
+
+    @Override
+    public void printStackTrace(PrintWriter s) {
+        if (onShardFailureWrapper == false) {
+            super.printStackTrace(s);
+        } else {
+            // Override to simply print the first line of the trace, which is the current exception.
+            // Since we aren't serializing the repetitive stacktrace onShardFailureWrapper, we shouldn't print it out either
+            s.println(this);
+        }
     }
 }

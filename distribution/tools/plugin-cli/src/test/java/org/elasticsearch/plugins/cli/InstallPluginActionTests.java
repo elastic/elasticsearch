@@ -90,6 +90,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -137,6 +138,8 @@ public class InstallPluginActionTests extends ESTestCase {
 
     @SuppressForbidden(reason = "sets java.io.tmpdir")
     public InstallPluginActionTests(FileSystem fs, Function<String, Path> temp) {
+        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
+
         this.temp = temp;
         this.isPosix = fs.supportedFileAttributeViews().contains("posix");
         this.isReal = fs == PathUtils.getDefaultFileSystem();
@@ -149,7 +152,6 @@ public class InstallPluginActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         classReadersProvider = Mockito.mock(ClassReadersProvider.class);
         namedComponentScanner = Mockito.spy(new NamedComponentScanner());
         pluginDir = createPluginDir(temp);
@@ -354,7 +356,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     void assertNamedComponentFile(String name, Path pluginDir, String expectedContent) throws IOException {
-        Path namedComponents = pluginDir.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        Path namedComponents = pluginDir.resolve(name).resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
         assertThat(Files.readString(namedComponents), equalTo(expectedContent));
     }
 
@@ -1560,7 +1562,7 @@ public class InstallPluginActionTests extends ESTestCase {
         InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, true);
         installPlugins(List.of(stablePluginZip), env.v1());
         assertPlugin("stable1", pluginDir, env.v2());
-        assertNamedComponentFile("stable1", pluginDir, namedComponentsJSON());
+        assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
     }
 
     @SuppressWarnings("unchecked")
@@ -1573,18 +1575,24 @@ public class InstallPluginActionTests extends ESTestCase {
         Mockito.doReturn(namedComponentsMap()).when(namedComponentScanner).scanForNamedClasses(Mockito.eq(classReaders));
 
         installPlugins(List.of(stablePluginZip), env.v1());
-        assertPlugin("stable1", pluginDir, env.v2());
 
+        assertPlugin("stable1", pluginDir, env.v2());
+        assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
     }
 
     private Map<String, Map<String, String>> namedComponentsMap() {
-        return Map.of("org.elasticsearch..ExtensibleInterface", Map.of("a_component", "p.A", "b_component", "p.B"));
+        Map<String, Map<String, String>> result = new LinkedHashMap<>();
+        Map<String, String> extensibles = new LinkedHashMap<>();
+        extensibles.put("a_component", "p.A");
+        extensibles.put("b_component", "p.B");
+        result.put("org.elasticsearch.ExtensibleInterface", extensibles);
+        return result;
     }
 
     private static String namedComponentsJSON() {
         return """
             {
-              "org.elasticsearch..ExtensibleInterface": {
+              "org.elasticsearch.ExtensibleInterface": {
                 "a_component": "p.A",
                 "b_component": "p.B"
               }

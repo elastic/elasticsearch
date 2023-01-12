@@ -78,7 +78,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
         private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;

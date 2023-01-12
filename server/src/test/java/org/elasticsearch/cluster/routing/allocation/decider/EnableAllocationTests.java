@@ -153,7 +153,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(build, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AllocationService strategy = createAllocationService(build, clusterSettings, random());
+        AllocationService strategy = createAllocationService(build, clusterSettings);
         Settings indexSettings = useClusterSetting
             ? Settings.EMPTY
             : Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE).build();
@@ -285,7 +285,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), 3)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(build, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AllocationService strategy = createAllocationService(build, clusterSettings, random());
+        AllocationService strategy = createAllocationService(build, clusterSettings);
         Settings indexSettings = useClusterSetting
             ? Settings.EMPTY
             : Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE).build();

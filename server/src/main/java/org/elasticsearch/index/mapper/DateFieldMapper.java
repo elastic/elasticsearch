@@ -245,7 +245,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Resolution resolution;
         private final Version indexCreatedVersion;

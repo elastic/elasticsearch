@@ -250,7 +250,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-            putPipeline();
+            putPipeline(); // This is to work around the race condition described in #92888
         }, 2, TimeUnit.MINUTES);
 
         for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
@@ -307,7 +307,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
             assertNull(getTask().getState());
-            putPipeline();
+            putPipeline(); // This is to work around the race condition described in #92888
         });
         putNonGeoipPipeline();
         assertBusy(() -> { assertNull(getTask().getState()); });

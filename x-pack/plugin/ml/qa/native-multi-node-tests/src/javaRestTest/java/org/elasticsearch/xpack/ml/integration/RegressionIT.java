@@ -596,7 +596,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        // Very infrequently this test may fail as the algorithm underestimates the 
+        // Very infrequently this test may fail as the algorithm underestimates the
         // required number of trees for this simple problem. This failure is irrelevant
         // for non-trivial real-world problem and improving estimation of the number of trees
         // would introduce unnecessary overhead. Hence, to reduce the noise from this test we fix the seed.

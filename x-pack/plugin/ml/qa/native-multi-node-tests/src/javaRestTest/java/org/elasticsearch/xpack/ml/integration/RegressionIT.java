@@ -596,7 +596,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        long seed = 1000L; //fix seed
+        long seed = 1000L; // fix seed
 
         Regression regression = new Regression("field_2", BoostedTreeParams.builder().build(), null, 90.0, seed, null, null, null, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)

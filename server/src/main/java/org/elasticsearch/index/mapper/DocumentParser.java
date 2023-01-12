@@ -21,7 +21,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -133,7 +133,7 @@ public final class DocumentParser {
             (ft, lookup, fto) -> ft.fielddataBuilder(
                 new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            new SourceLookup.ReaderSourceProvider()
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source())
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we

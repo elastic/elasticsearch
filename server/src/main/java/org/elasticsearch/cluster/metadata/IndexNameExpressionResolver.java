@@ -246,7 +246,10 @@ public class IndexNameExpressionResolver {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
             } else {
-                return ExplicitResourceNameFilter.filter(context, DateMathExpressionResolver.resolve(context, List.of(expressions)));
+                return ExplicitResourceNameFilter.filterUnavailable(
+                    context,
+                    DateMathExpressionResolver.resolve(context, List.of(expressions))
+                );
             }
         } else {
             if (expressions == null
@@ -256,7 +259,7 @@ public class IndexNameExpressionResolver {
             } else {
                 return WildcardExpressionResolver.resolve(
                     context,
-                    ExplicitResourceNameFilter.filter(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
+                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
                 );
             }
         }
@@ -1515,7 +1518,11 @@ public class IndexNameExpressionResolver {
             // Utility class
         }
 
-        public static List<String> filter(Context context, List<String> expressions) {
+        /**
+         * Returns an expression list with "unavailable" (missing or not acceptable) resource names filtered out.
+         * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
+         */
+        public static List<String> filterUnavailable(Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 validateAliasOrIndex(expression);

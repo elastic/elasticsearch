@@ -1,0 +1,5 @@
+pr: 92879
+summary: Rename GET /_health to GET /_health_report
+area: Health
+type: bug
+issues: []

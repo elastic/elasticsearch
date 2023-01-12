@@ -108,7 +108,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         for (RoutingNode routingNode : client().admin().cluster().prepareState().get().getState().getRoutingNodes()) {
             for (ShardRouting shardRouting : routingNode) {
-                assertThat(shardRouting.getRole(), Matchers.oneOf(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY));
+                assertThat(shardRouting.role(), Matchers.oneOf(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY));
             }
         }
     }

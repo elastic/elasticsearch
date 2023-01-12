@@ -895,7 +895,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return recoverySource;
     }
 
-    public Role getRole() {
+    public Role role() {
         return role;
     }
 

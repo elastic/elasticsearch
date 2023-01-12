@@ -141,7 +141,7 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize(),
-                        otherRouting.getRole()
+                        otherRouting.role()
                     );
                     break;
                 case 1:
@@ -157,7 +157,7 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize(),
-                        otherRouting.getRole()
+                        otherRouting.role()
                     );
                     break;
                 case 2:
@@ -176,7 +176,7 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.getRole()
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -196,7 +196,7 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.getRole()
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -221,7 +221,7 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.getRole()
+                            otherRouting.role()
                         );
                     }
                     break;

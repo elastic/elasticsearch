@@ -223,7 +223,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         assertObjectStoreConsistency();
 
+        // Index more documents
         indexDocuments(indexName);
+        // Force a flush if necessary since it is possible that indexDocuments(indexName) only refreshed
+        flush(indexName);
 
         final Map<Index, Integer> indices = resolveIndices();
         assertThat(indices.isEmpty(), is(false));
@@ -238,8 +241,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             }
         }
 
-        // Index more documents and produce new commit
+        // Index more documents
         indexDocuments(indexName);
+        // Force a flush if necessary since it is possible that indexDocuments(indexName) only refreshed
+        flush(indexName);
 
         for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
             assertThat(entry.getValue(), greaterThan(0));

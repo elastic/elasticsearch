@@ -203,6 +203,26 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         assertThat(request.passwordHash(), equalTo(hash));
     }
 
+    public void testWithPasswordHashAndNoopSystemHahser() throws IOException {
+        final Hasher systemHasher = Hasher.NOOP;
+        final Hasher userHasher = getFastStoredHashAlgoForTests();
+        final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
+        final String json = Strings.format("""
+            {
+              "password_hash": "%s",
+              "roles": []
+            }""", new String(hash));
+
+        PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
+        PutUserRequest request = builder.source(
+            "hash_user",
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON,
+            systemHasher
+        ).request();
+        assertThat(request.passwordHash(), equalTo(hash));
+    }
+
     public void testWithPasswordHashThatsNotReallyAHash() throws IOException {
         final Hasher systemHasher = Hasher.PBKDF2;
         final String json = """

@@ -75,6 +75,22 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         assertThat(request.passwordHash(), equalTo(hash));
     }
 
+    public void testWithHashedPasswordAndNoopSystemHasher() throws IOException {
+        final Hasher systemHasher = Hasher.NOOP;
+        final Hasher userHasher = getFastStoredHashAlgoForTests();
+        final char[] hash = userHasher.hash(new SecureString("superlongpassword".toCharArray()));
+        final String json = Strings.format("""
+            {"password_hash": "%s"}
+            """, new String(hash));
+        ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
+        final ChangePasswordRequest request = builder.source(
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON,
+            systemHasher
+        ).request();
+        assertThat(request.passwordHash(), equalTo(hash));
+    }
+
     public void testWithHashedPasswordNotHash() {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
         final char[] hash = randomAlphaOfLength(20).toCharArray();

@@ -30,6 +30,7 @@ import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -50,16 +51,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -141,8 +143,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(clusterAdminClient).nodesInfo(any(), any());
 
         nodeClient = mock(NodeClient.class);
-        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, nodeClient));
-        doAnswer(i -> clusterAdminClient).when(fileSettingsService).clusterAdminClient();
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
     }
 
     @After
@@ -223,28 +224,56 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testInitialFile() throws Exception {
+    public void testInitialFileError() throws Exception {
         ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
 
         doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
+            return null;
+        }).when(stateService).process(any(), (XContentParser) any(), any());
+
+        final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
+        Files.createDirectories(service.operatorSettingsDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(service.operatorSettingsFile(), "{}");
+
+        Exception startupException = expectThrows(ExecutionException.class, () -> {
+            service.start();
+            service.startWatcher(clusterService.state());
+            service.getStartupLatch().get();
+        });
+
+        assertThat(
+            startupException.getCause(),
+            allOf(instanceOf(IllegalStateException.class), hasToString("java.lang.IllegalStateException: Some exception"))
+        );
+
+        verify(service, times(1)).processFileSettings(any());
+
+        service.stop();
+        service.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInitialFileWorks() throws Exception {
+        ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
+
+        // Let's check that if we didn't throw an error that everything works
+        doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
-        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
+        }).when(stateService).process(any(), (XContentParser) any(), any());
 
-        FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env, nodeClient));
-        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
-
+        final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
         Files.createDirectories(service.operatorSettingsDir());
-
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(service.operatorSettingsFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
-        service.processSettingsAndNotifyListeners();
+        service.getStartupLatch().get();
 
-        verify(service, atLeastOnce()).processFileSettings(any());
-        verify(stateService, atLeastOnce()).process(anyString(), (ReservedStateChunk) isNull(), any());
+        verify(service, times(1)).processFileSettings(any());
 
         service.stop();
         service.close();
@@ -253,9 +282,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStopWorksInMiddleOfProcessing() throws Exception {
         var spiedController = spy(controller);
-        var fsService = new FileSettingsService(clusterService, spiedController, env, nodeClient);
+        var fsService = new FileSettingsService(clusterService, spiedController, env);
         FileSettingsService service = spy(fsService);
-        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
 
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
@@ -298,10 +326,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
         var spiedController = spy(controller);
-        var fsService = new FileSettingsService(clusterService, spiedController, env, nodeClient);
+        var service = new FileSettingsService(clusterService, spiedController, env);
 
-        FileSettingsService service = spy(fsService);
-        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 

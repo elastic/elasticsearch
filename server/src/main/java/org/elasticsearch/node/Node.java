@@ -862,8 +862,7 @@ public class Node implements Closeable {
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
-                environment,
-                client
+                environment
             );
 
             RestoreService restoreService = new RestoreService(
@@ -1461,6 +1460,12 @@ public class Node implements Closeable {
                 ReadinessService readiness = injector.getInstance(ReadinessService.class);
                 readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
             }
+        }
+
+        try {
+            fileSettingsService.getStartupLatch().get();
+        } catch (Exception startupException) {
+            throw new IllegalStateException("error applying file settings", startupException);
         }
 
         logger.info("started {}", transportService.getLocalNode());

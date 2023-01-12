@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -129,12 +128,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         );
 
         fileSettingsService = spy(
-            new FileSettingsService(
-                clusterService,
-                mock(ReservedClusterStateService.class),
-                newEnvironment(Settings.EMPTY),
-                mock(NodeClient.class)
-            )
+            new FileSettingsService(clusterService, mock(ReservedClusterStateService.class), newEnvironment(Settings.EMPTY))
         );
     }
 

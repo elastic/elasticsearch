@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.reservedstate.service.FileSettingsChangedEvent;
 import org.elasticsearch.reservedstate.service.FileSettingsChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -50,6 +49,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
     private volatile boolean fileSettingsApplied = false;
+    private volatile boolean masterElected = false;
+    private volatile boolean shuttingDown = false;
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
@@ -216,16 +217,19 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
-
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
-        if (shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId())) {
+
+        this.masterElected = clusterState.nodes().getMasterNodeId() != null;
+        this.shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
+
+        if (shuttingDown) {
             setReady(false);
             logger.info("marking node as not ready because it's shutting down");
         } else {
             if (clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId())) {
                 setReady(fileSettingsApplied);
             } else {
-                setReady(clusterState.nodes().getMasterNodeId() != null);
+                setReady(masterElected);
             }
         }
     }
@@ -247,8 +251,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     @Override
-    public void settingsChanged(FileSettingsChangedEvent event) {
+    public void settingsChanged() {
         fileSettingsApplied = true;
+        setReady(masterElected && (shuttingDown == false));
     }
 
     /**

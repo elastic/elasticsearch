@@ -79,7 +79,7 @@ public class FileSettingsRoleMappingsStartupIT extends ESIntegTestCase {
         internalCluster().stopNode(dataNode);
         logger.info("--> start master node");
         assertEquals(
-            "unable to launch a new watch service",
+            "error applying file settings",
             expectThrows(IllegalStateException.class, () -> internalCluster().startMasterOnlyNode()).getMessage()
         );
     }

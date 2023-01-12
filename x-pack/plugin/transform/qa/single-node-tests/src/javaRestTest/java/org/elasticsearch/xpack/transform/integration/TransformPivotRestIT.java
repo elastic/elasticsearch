@@ -510,7 +510,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -548,7 +548,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         final StringBuilder bulk = new StringBuilder();
-        bulk.append(formatted("""
+        bulk.append(Strings.format("""
             {"index":{"_index":"%s"}}
             {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
             """, indexName, 666, 777, 7, 888, "\"2017-01-20\""));

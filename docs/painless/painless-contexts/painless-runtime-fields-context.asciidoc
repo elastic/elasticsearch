@@ -73,10 +73,6 @@ The signature for `emit` depends on the `type` of the field.
         Contains the fields of the specified document where each field is a
         `List` of values.
 
-{ref}/mapping-source-field.html[`params['_source']`] (`Map`, read-only)::
-        Contains extracted JSON in a `Map` and `List` structure for the fields
-        existing in a stored document.
-
 *Return*
 
 `void`::

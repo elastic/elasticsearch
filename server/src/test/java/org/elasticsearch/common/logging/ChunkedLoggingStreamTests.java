@@ -67,8 +67,9 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
     public void testEncodingRoundTrip() {
         final var bytes = randomByteArrayOfLength(between(0, 10000));
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        assertEquals(new BytesArray(bytes), getDecodedLoggedBody(logger, level, "prefix", ReferenceDocs.DISCOVERY_TROUBLESHOOTING, () -> {
-            try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", ReferenceDocs.DISCOVERY_TROUBLESHOOTING)) {
+        final var referenceDocs = randomFrom(ReferenceDocs.values());
+        assertEquals(new BytesArray(bytes), getDecodedLoggedBody(logger, level, "prefix", referenceDocs, () -> {
+            try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", referenceDocs)) {
                 writeRandomly(stream, bytes);
             }
         }));

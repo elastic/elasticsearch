@@ -28,7 +28,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -142,7 +143,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         static Object sourceScript(Map<String, Object> vars, String path) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> source = ((SourceLookup) vars.get("_source")).source();
+            Map<String, Object> source = ((Supplier<Source>) vars.get("_source")).get().source();
             return XContentMapValues.extractValue(path, source);
         }
 

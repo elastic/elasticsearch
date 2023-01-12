@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
@@ -38,6 +39,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
@@ -220,9 +223,13 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version version = request.isForceSyntheticSource()
-                ? VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.CURRENT)
-                : VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            if (request.isForceSyntheticSource()) {
+                version = VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.CURRENT);
+            }
+            if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
+                version = VersionUtils.randomVersionBetween(random(), Version.V_8_7_0, Version.CURRENT);
+            }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = Version.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));

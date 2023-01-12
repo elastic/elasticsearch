@@ -355,10 +355,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     );
                     return;
                 }
-                handleLoadFailure(
-                    modelId,
-                    new ElasticsearchStatusException("Trained model [{}] is not deployed.", RestStatus.BAD_REQUEST, modelId)
-                );
+                handleLoadFailure(modelId, modelMustBeDeployedError(modelId));
                 return;
             }
             auditNewReferencedModel(modelId);
@@ -409,13 +406,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     );
                     return;
                 }
-                modelActionListener.onFailure(
-                    new ElasticsearchStatusException(
-                        "model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
-                        RestStatus.BAD_REQUEST,
-                        modelId
-                    )
-                );
+                modelActionListener.onFailure(modelMustBeDeployedError(modelId));
                 return;
             }
             // Verify we can pull the model into memory without causing OOM
@@ -481,6 +472,14 @@ public class ModelLoadingService implements ClusterStateListener {
                 throw ex;
             }
         }
+    }
+
+    private ElasticsearchStatusException modelMustBeDeployedError(String modelId) {
+        return new ElasticsearchStatusException(
+            "Model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
+            RestStatus.BAD_REQUEST,
+            modelId
+        );
     }
 
     private void handleLoadSuccess(

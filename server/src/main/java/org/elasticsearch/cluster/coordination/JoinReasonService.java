@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
@@ -261,7 +262,7 @@ public class JoinReasonService {
                 description.append(", [").append(removalCount).append("] total removals");
             }
 
-            return new JoinReason(description.toString());
+            return new JoinReason(description.toString(), isRestarted ? null : ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
         }
 
         @Override
@@ -270,7 +271,7 @@ public class JoinReasonService {
         }
     }
 
-    private static final JoinReason COMPLETING_ELECTION = new JoinReason("completing election");
-    private static final JoinReason NEW_NODE_JOINING = new JoinReason("joining");
-    private static final JoinReason KNOWN_NODE_REJOINING = new JoinReason("rejoining");
+    private static final JoinReason COMPLETING_ELECTION = new JoinReason("completing election", null);
+    private static final JoinReason NEW_NODE_JOINING = new JoinReason("joining", null);
+    private static final JoinReason KNOWN_NODE_REJOINING = new JoinReason("rejoining", null);
 }

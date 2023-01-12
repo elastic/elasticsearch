@@ -239,7 +239,7 @@ public class Reindexer {
             }
             String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
             if (template == null) {
-                return null;
+                return Settings.EMPTY;
             }
             return MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
         }

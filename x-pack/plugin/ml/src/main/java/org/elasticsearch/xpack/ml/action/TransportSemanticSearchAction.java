@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 
 import java.util.List;
 
-import java.util.List;
-
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportSemanticSearchAction extends HandledTransportAction<SemanticSearchAction.Request, SemanticSearchAction.Response> {

@@ -327,7 +327,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * Takes the store info for nodes that have a shard store and adds them to the node decisions,
      * leaving the node explanations untouched for those nodes that do not have any store information.
      */
-    private static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
+    public static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
         Map<String, NodeAllocationResult> nodeDecisions,
         Map<String, NodeAllocationResult> withShardStores
     ) {

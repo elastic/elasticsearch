@@ -253,7 +253,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> {
             GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), tiler, circuitBreakerConsumer);
             assertTrue(values.advanceExact(0));
-            assertThat(values.getValuesBytes(), equalTo(curNumBytes));
+            assertThat((long) values.getValues().length * Long.BYTES, equalTo(curNumBytes));
             assertThat(limitedBreaker.getUsed(), equalTo(curNumBytes));
         });
     }

@@ -43,6 +43,9 @@ public class InputStreamIndexInput extends InputStream {
         } else if (off < 0 || len < 0 || len > b.length - off) {
             throw new IndexOutOfBoundsException();
         }
+        if (len == 0) {
+            return 0;
+        }
         if (indexInput.getFilePointer() >= indexInput.length()) {
             return -1;
         }
@@ -53,7 +56,7 @@ public class InputStreamIndexInput extends InputStream {
             len = (int) (limit - counter);
         }
         if (len <= 0) {
-            return 0;
+            return -1;
         }
         indexInput.readBytes(b, off, len, false);
         counter += len;

@@ -70,10 +70,8 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
      */
     public ChangePasswordRequestBuilder passwordHash(char[] passwordHashChars, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHashChars);
-        if (resolvedHasher.equals(configuredHasher) == false) {
-            throw new IllegalArgumentException(
-                "Provided password hash uses [" + resolvedHasher + "] but the configured hashing algorithm is [" + configuredHasher + "]"
-            );
+        if (resolvedHasher == Hasher.NOOP) {
+            throw new IllegalArgumentException("Provided password hash is either using unsupported format or it is not hashed text");
         }
         if (request.passwordHash() != null) {
             throw validationException("password_hash has already been set");

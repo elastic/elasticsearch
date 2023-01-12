@@ -56,7 +56,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         assertThat(request.passwordHash(), equalTo(hash));
     }
 
-    public void testWithHashedPasswordWithWrongAlgo() {
+    public void testWithHashedPasswordWithDifferentAlgo() throws IOException {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
         Hasher userHasher = getFastStoredHashAlgoForTests();
         while (userHasher.name().equals(systemHasher.name())) {
@@ -67,12 +67,12 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
             {"password_hash": "%s"}
             """, new String(hash));
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
-        );
-        assertThat(e.getMessage(), containsString(userHasher.name()));
-        assertThat(e.getMessage(), containsString(systemHasher.name()));
+        final ChangePasswordRequest request = builder.source(
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON,
+            systemHasher
+        ).request();
+        assertThat(request.passwordHash(), equalTo(hash));
     }
 
     public void testWithHashedPasswordNotHash() {
@@ -87,8 +87,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
         );
-        assertThat(e.getMessage(), containsString(Hasher.NOOP.name()));
-        assertThat(e.getMessage(), containsString(systemHasher.name()));
+        assertThat(e.getMessage(), containsString("Provided password hash is either using unsupported format or it is not hashed text"));
     }
 
     public void testWithPasswordAndHash() throws IOException {
@@ -97,6 +96,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
         final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
         fields.put("password", password);
+        System.out.println("password_hash: " +new String(hash));
         fields.put("password_hash", new String(hash));
         BytesReference json = BytesReference.bytes(
             XContentBuilder.builder(XContentType.JSON.xContent()).map(shuffleMap(fields, Collections.emptySet()))

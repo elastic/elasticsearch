@@ -180,7 +180,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         assertThat(request.username(), equalTo("hash_user"));
     }
 
-    public void testWithMismatchedPasswordHashingAlgorithm() throws IOException {
+    public void testWithDifferentPasswordHashingAlgorithm() throws IOException {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
         Hasher userHasher = getFastStoredHashAlgoForTests();
         while (userHasher.name().equals(systemHasher.name())) {
@@ -194,15 +194,13 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             }""", new String(hash));
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher)
-                    .request();
-            }
-        );
-        assertThat(ex.getMessage(), containsString(userHasher.name()));
-        assertThat(ex.getMessage(), containsString(systemHasher.name()));
+        PutUserRequest request = builder.source(
+            "hash_user",
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON,
+            systemHasher
+        ).request();
+        assertThat(request.passwordHash(), equalTo(hash));
     }
 
     public void testWithPasswordHashThatsNotReallyAHash() throws IOException {
@@ -221,8 +219,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
                     .request();
             }
         );
-        assertThat(ex.getMessage(), containsString(Hasher.NOOP.name()));
-        assertThat(ex.getMessage(), containsString(systemHasher.name()));
+        assertThat(ex.getMessage(), containsString("Provided password hash is either using unsupported format or it is not hashed text"));
     }
 
     public void testWithBothPasswordAndHash() throws IOException {

@@ -219,7 +219,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
                     .request();
             }
         );
-        assertThat(ex.getMessage(), containsString("Provided password hash is either using unsupported format or it is not hashed text"));
+        assertThat(ex.getMessage(), containsString("Provided password hash is either using unsupported format or it is a clear text"));
     }
 
     public void testWithBothPasswordAndHash() throws IOException {

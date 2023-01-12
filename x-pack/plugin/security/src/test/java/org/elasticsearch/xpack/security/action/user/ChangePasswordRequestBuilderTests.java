@@ -87,7 +87,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
         );
-        assertThat(e.getMessage(), containsString("Provided password hash is either using unsupported format or it is not hashed text"));
+        assertThat(e.getMessage(), containsString("Provided password hash is either using unsupported format or it is a clear text"));
     }
 
     public void testWithPasswordAndHash() throws IOException {

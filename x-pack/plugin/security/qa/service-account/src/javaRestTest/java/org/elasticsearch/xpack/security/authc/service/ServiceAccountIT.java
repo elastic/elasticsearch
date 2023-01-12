@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -134,6 +137,36 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "    }\n"
         + "  }";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .module("analysis-common")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "node.crt")
+        .setting("xpack.security.http.ssl.key", "node.key")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "node.crt")
+        .setting("xpack.security.transport.ssl.key", "node.key")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "node-password")
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "node-password")
+        .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
+        .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test_admin", "x-pack-test-password")
+        .user("elastic/fleet-server", "x-pack-test-password", "superuser")
+        .user("service_account_manager", "x-pack-test-password", "service_account_manager")
+        .build();
+
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {
         URL resource = ServiceAccountIT.class.getResource("/ssl/ca.crt");
@@ -141,6 +174,11 @@ public class ServiceAccountIT extends ESRestTestCase {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
         caPath = PathUtils.get(resource.toURI());
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override
@@ -510,6 +548,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
-        assertThat((List<String>) token1.get("nodes"), equalTo(org.elasticsearch.core.List.of("javaRestTest-0", "javaRestTest-1")));
+        assertThat((List<String>) token1.get("nodes"), equalTo(org.elasticsearch.core.List.of("test-cluster-0", "test-cluster-1")));
     }
 }

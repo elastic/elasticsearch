@@ -90,7 +90,6 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
-import org.elasticsearch.index.engine.RefreshResult;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -1218,7 +1217,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
      */
-    public RefreshResult refresh(String source) {
+    public Engine.RefreshResult refresh(String source) {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with source [{}]", source);
@@ -3803,7 +3802,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (logger.isTraceEnabled()) {
                     logger.trace("refresh with source [schedule]");
                 }
-                return getEngine().maybeRefresh("schedule").isRefreshed();
+                return getEngine().maybeRefresh("schedule").refreshed();
             }
         }
         final Engine engine = getEngine();

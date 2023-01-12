@@ -1965,4 +1965,17 @@ public abstract class Engine implements Closeable {
     public void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
         throw new UnsupportedOperationException();
     }
+
+    /*
+     * Captures the result of a {@link org.elasticsearch.index.engine.Engine#refresh(String)} call.
+     */
+    public record RefreshResult(boolean refreshed, long segmentGeneration) {
+
+        public static final long UNKNOWN_SEGMENT_GEN = -1L;
+        public static final RefreshResult EMPTY = new RefreshResult(false);
+
+        public RefreshResult(boolean refreshed) {
+            this(refreshed, UNKNOWN_SEGMENT_GEN);
+        }
+    }
 }

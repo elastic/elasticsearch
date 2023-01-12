@@ -912,6 +912,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    public static String randomIdentifier() {
+        return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
         return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }

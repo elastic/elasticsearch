@@ -11,16 +11,127 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class ShardRoutingTests extends ESTestCase {
+import static java.util.Objects.requireNonNullElseGet;
+import static org.hamcrest.Matchers.containsString;
+
+public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRouting> {
+
+    @Override
+    protected Writeable.Reader<ShardRouting> instanceReader() {
+        return ShardRouting::new;
+    }
+
+    @Override
+    protected ShardRouting createTestInstance() {
+        ShardRoutingState state = randomFrom(ShardRoutingState.values());
+        return TestShardRouting.newShardRouting(
+            randomIdentifier(),
+            randomIntBetween(0, 9),
+            state == ShardRoutingState.UNASSIGNED ? null : randomIdentifier(),
+            state == ShardRoutingState.RELOCATING ? randomIdentifier() : null,
+            state != ShardRoutingState.UNASSIGNED && randomBoolean(),
+            state
+        );
+    }
+
+    @Override
+    protected ShardRouting mutateInstance(ShardRouting instance) throws IOException {
+        return switch (randomInt(3)) {
+            case 0 -> mutateShardId(instance);
+            case 1 -> mutateCurrentNodeId(instance);
+            case 2 -> mutateState(instance);
+            default -> randomValueOtherThan(instance, this::createTestInstance);
+        };
+    }
+
+    private static ShardRouting mutateShardId(ShardRouting instance) {
+        var newShardId = switch (randomInt(2)) {
+            case 0 -> new ShardId(
+                randomValueOtherThan(instance.getIndexName(), ESTestCase::randomIdentifier),
+                instance.shardId().getIndex().getUUID(),
+                instance.id()
+            );
+            case 1 -> new ShardId(
+                instance.getIndexName(),
+                randomValueOtherThan(instance.shardId().getIndex().getUUID(), UUIDs::randomBase64UUID),
+                instance.id()
+            );
+            case 2 -> new ShardId(
+                instance.getIndexName(),
+                instance.shardId().getIndex().getUUID(),
+                randomValueOtherThan(instance.id(), () -> randomIntBetween(0, 99))
+            );
+            default -> throw new RuntimeException("unreachable");
+        };
+        return TestShardRouting.newShardRouting(
+            newShardId,
+            instance.currentNodeId(),
+            instance.relocatingNodeId(),
+            instance.primary(),
+            instance.state()
+        );
+    }
+
+    private static ShardRouting mutateState(ShardRouting instance) {
+        var newState = randomValueOtherThan(instance.state(), () -> randomFrom(ShardRoutingState.values()));
+        return TestShardRouting.newShardRouting(
+            instance.shardId(),
+            newState == ShardRoutingState.UNASSIGNED ? null : requireNonNullElseGet(instance.currentNodeId(), ESTestCase::randomIdentifier),
+            newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.STARTED
+                ? null
+                : requireNonNullElseGet(instance.relocatingNodeId(), ESTestCase::randomIdentifier),
+            instance.primary(),
+            newState
+        );
+    }
+
+    private static ShardRouting mutateCurrentNodeId(ShardRouting instance) {
+        if (instance.unassigned()) {
+            // initialize or start
+            return TestShardRouting.newShardRouting(
+                instance.shardId(),
+                randomIdentifier(),
+                null,
+                instance.primary(),
+                randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)
+            );
+        } else if (randomBoolean()) {
+            // move
+            return TestShardRouting.newShardRouting(
+                instance.shardId(),
+                randomIdentifier(),
+                null,
+                instance.primary(),
+                ShardRoutingState.STARTED
+            );
+        } else {
+            // unassign
+            return TestShardRouting.newShardRouting(instance.shardId(), null, null, instance.primary(), ShardRoutingState.UNASSIGNED);
+        }
+    }
+
+    private ShardRouting randomShardRouting(String index, int shard) {
+        ShardRoutingState state = randomFrom(ShardRoutingState.values());
+        return TestShardRouting.newShardRouting(
+            index,
+            shard,
+            state == ShardRoutingState.UNASSIGNED ? null : "1",
+            state == ShardRoutingState.RELOCATING ? "2" : null,
+            state != ShardRoutingState.UNASSIGNED && randomBoolean(),
+            state
+        );
+    }
 
     public void testIsSameAllocation() {
         ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);
@@ -44,18 +155,6 @@ public class ShardRoutingTests extends ESTestCase {
         assertFalse(unassignedShard0.isSameAllocation(initializingShard0));
         assertFalse(unassignedShard0.isSameAllocation(initializingShard1));
         assertFalse(unassignedShard0.isSameAllocation(startedShard1));
-    }
-
-    private ShardRouting randomShardRouting(String index, int shard) {
-        ShardRoutingState state = randomFrom(ShardRoutingState.values());
-        return TestShardRouting.newShardRouting(
-            index,
-            shard,
-            state == ShardRoutingState.UNASSIGNED ? null : "1",
-            state == ShardRoutingState.RELOCATING ? "2" : null,
-            state != ShardRoutingState.UNASSIGNED && randomBoolean(),
-            state
-        );
     }
 
     public void testIsSourceTargetRelocation() {
@@ -314,5 +413,18 @@ public class ShardRoutingTests extends ESTestCase {
                 assertEquals(byteSize, routing.getExpectedShardSize());
             }
         }
+    }
+
+    public void testSummaryContainsImportantFields() {
+        var shard = createTestInstance();
+
+        assertThat("index name", shard.shortSummary(), containsString('[' + shard.getIndexName() + ']'));
+        assertThat("shard id", shard.shortSummary(), containsString(shard.shardId().toString()));
+        assertThat("primary/replica", shard.shortSummary(), containsString(shard.primary() ? "[P]" : "[R]"));
+        assertThat("current node id", shard.shortSummary(), containsString("node[" + shard.currentNodeId() + ']'));
+        if (shard.relocating()) {
+            assertThat("relocating node id", shard.shortSummary(), containsString("relocating [" + shard.relocatingNodeId() + ']'));
+        }
+        assertThat("state", shard.shortSummary(), containsString("s[" + shard.state() + "]"));
     }
 }

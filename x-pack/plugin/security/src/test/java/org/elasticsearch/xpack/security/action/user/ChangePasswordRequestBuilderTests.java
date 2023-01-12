@@ -96,7 +96,6 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
         final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
         fields.put("password", password);
-        System.out.println("password_hash: " +new String(hash));
         fields.put("password_hash", new String(hash));
         BytesReference json = BytesReference.bytes(
             XContentBuilder.builder(XContentType.JSON.xContent()).map(shuffleMap(fields, Collections.emptySet()))

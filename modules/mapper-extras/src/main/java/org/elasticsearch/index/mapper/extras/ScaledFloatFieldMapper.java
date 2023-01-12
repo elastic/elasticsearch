@@ -310,7 +310,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     name(),
                     valuesSourceType,
                     sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
+                    searchLookup,
                     ScaledFloatDocValuesField::new
                 );
             }

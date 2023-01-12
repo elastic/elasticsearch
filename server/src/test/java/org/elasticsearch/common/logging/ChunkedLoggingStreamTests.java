@@ -158,7 +158,7 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
      * @param prefix        The prefix used by the logging stream.
      * @param referenceDocs A link to the reference docs about the output.
      * @param runnable      The action which emits the logs.
-     * @return A {@link BytesReference} containing the captured data.
+     * @return              A {@link BytesReference} containing the captured data.
      */
     public static BytesReference getDecodedLoggedBody(
         Logger captureLogger,

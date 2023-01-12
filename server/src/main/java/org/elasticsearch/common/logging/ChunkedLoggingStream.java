@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -33,7 +34,7 @@ public class ChunkedLoggingStream extends OutputStream {
      * to the given logger. If the data fits into a single chunk then the output looks like this:
      *
      * <pre>
-     * $PREFIX (gzip compressed and base64-encoded): H4sIAAAAA...
+     * $PREFIX (gzip compressed and base64-encoded; for details see ...): H4sIAAAAA...
      * </pre>
      *
      * If there are multiple chunks then they are written like this:
@@ -43,13 +44,15 @@ public class ChunkedLoggingStream extends OutputStream {
      * $PREFIX [part 2]: r38c4MBHO...
      * $PREFIX [part 3]: ECyRFONaL...
      * $PREFIX [part 4]: kTgm+Qswm...
-     * $PREFIX (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
+     * $PREFIX (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines; for details see ...)
      * </pre>
      *
-     * @param logger The logger to receive the chunks of data.
-     * @param level  The log level to use for the logging.
-     * @param prefix A prefix for each chunk, which should be reasonably unique to allow for reconstruction of the original message even if
-     *               multiple such streams are used concurrently.
+     * @param logger        The logger to receive the chunks of data.
+     * @param level         The log level to use for the logging.
+     * @param prefix        A prefix for each chunk, which should be reasonably unique to allow for reconstruction of the original message
+     *                      even if multiple such streams are used concurrently.
+     * @param referenceDocs A link to the relevant reference docs to help users interpret the output. Relevant reference docs are required
+     *                      because the output is rather human-unfriendly and we need somewhere to describe how to decode it.
      */
     public static OutputStream create(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) throws IOException {
         return new GZIPOutputStream(Base64.getEncoder().wrap(new ChunkedLoggingStream(logger, level, prefix, referenceDocs)));
@@ -66,10 +69,10 @@ public class ChunkedLoggingStream extends OutputStream {
     private final byte[] buffer = new byte[CHUNK_SIZE];
 
     ChunkedLoggingStream(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
-        this.logger = logger;
-        this.level = level;
-        this.prefix = prefix;
-        this.referenceDocs = referenceDocs;
+        this.logger = Objects.requireNonNull(logger);
+        this.level = Objects.requireNonNull(level);
+        this.prefix = Objects.requireNonNull(prefix);
+        this.referenceDocs = Objects.requireNonNull(referenceDocs);
     }
 
     private void flushBuffer() {

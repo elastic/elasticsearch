@@ -34,7 +34,7 @@ public class ShardRefreshRequest extends ReplicationRequest<ShardRefreshRequest>
     public ShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-            this.segmentGeneration = in.readOptionalLong();
+            this.segmentGeneration = in.readOptionalVLong();
         } else {
             this.segmentGeneration = null;
         }
@@ -44,7 +44,7 @@ public class ShardRefreshRequest extends ReplicationRequest<ShardRefreshRequest>
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-            out.writeOptionalLong(segmentGeneration);
+            out.writeOptionalVLong(segmentGeneration);
         }
     }
 

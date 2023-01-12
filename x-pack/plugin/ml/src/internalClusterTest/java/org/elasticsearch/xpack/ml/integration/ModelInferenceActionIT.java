@@ -171,14 +171,14 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         });
 
         // Test regression
-        InferModelAction.Request request = new InferModelAction.Request(modelId1, toInfer, RegressionConfigUpdate.EMPTY_PARAMS, true);
+        InferModelAction.Request request = InferModelAction.Request.forDocs(modelId1, toInfer, RegressionConfigUpdate.EMPTY_PARAMS, true);
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults) i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25)
         );
 
-        request = new InferModelAction.Request(modelId1, toInfer2, RegressionConfigUpdate.EMPTY_PARAMS, true);
+        request = InferModelAction.Request.forDocs(modelId1, toInfer2, RegressionConfigUpdate.EMPTY_PARAMS, true);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults) i).value()).collect(Collectors.toList()),
@@ -186,7 +186,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         );
 
         // Test classification
-        request = new InferModelAction.Request(modelId2, toInfer, ClassificationConfigUpdate.EMPTY_PARAMS, true);
+        request = InferModelAction.Request.forDocs(modelId2, toInfer, ClassificationConfigUpdate.EMPTY_PARAMS, true);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults()
@@ -197,7 +197,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         );
 
         // Get top classes
-        request = new InferModelAction.Request(modelId2, toInfer, new ClassificationConfigUpdate(2, null, null, null, null), true);
+        request = InferModelAction.Request.forDocs(modelId2, toInfer, new ClassificationConfigUpdate(2, null, null, null, null), true);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults()
@@ -220,7 +220,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         );
 
         // Test that top classes restrict the number returned
-        request = new InferModelAction.Request(modelId2, toInfer2, new ClassificationConfigUpdate(1, null, null, null, null), true);
+        request = InferModelAction.Request.forDocs(modelId2, toInfer2, new ClassificationConfigUpdate(1, null, null, null, null), true);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults().get(0);
@@ -319,7 +319,12 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         });
 
         // Test regression
-        InferModelAction.Request request = new InferModelAction.Request(modelId, toInfer, ClassificationConfigUpdate.EMPTY_PARAMS, true);
+        InferModelAction.Request request = InferModelAction.Request.forDocs(
+            modelId,
+            toInfer,
+            ClassificationConfigUpdate.EMPTY_PARAMS,
+            true
+        );
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults()
@@ -329,7 +334,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("option_0", "option_2")
         );
 
-        request = new InferModelAction.Request(modelId, toInfer2, ClassificationConfigUpdate.EMPTY_PARAMS, true);
+        request = InferModelAction.Request.forDocs(modelId, toInfer2, ClassificationConfigUpdate.EMPTY_PARAMS, true);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults()
@@ -340,7 +345,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         );
 
         // Get top classes
-        request = new InferModelAction.Request(modelId, toInfer, new ClassificationConfigUpdate(3, null, null, null, null), true);
+        request = InferModelAction.Request.forDocs(modelId, toInfer, new ClassificationConfigUpdate(3, null, null, null, null), true);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults()
@@ -358,7 +363,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
     public void testInferMissingModel() {
         String model = "test-infer-missing-model";
-        InferModelAction.Request request = new InferModelAction.Request(
+        InferModelAction.Request request = InferModelAction.Request.forDocs(
             model,
             Collections.emptyList(),
             RegressionConfigUpdate.EMPTY_PARAMS,
@@ -404,7 +409,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             }
         });
 
-        InferModelAction.Request request = new InferModelAction.Request(
+        InferModelAction.Request request = InferModelAction.Request.forDocs(
             modelId,
             toInferMissingField,
             RegressionConfigUpdate.EMPTY_PARAMS,

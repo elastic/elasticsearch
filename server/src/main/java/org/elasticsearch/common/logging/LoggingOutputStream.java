@@ -107,13 +107,17 @@ class LoggingOutputStream extends OutputStream {
         threadLocal = null;
     }
 
-    // pkg private for testing
-    void log(String msg) {
+    private void log(String msg) {
         for (String filter : messageFilters) {
             if (msg.contains(filter)) {
                 return;
             }
         }
+        this.log0(msg);
+    }
+
+    // pkg private for testing
+    protected void log0(String msg) {
         logger.log(level, msg);
     }
 }

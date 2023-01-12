@@ -173,7 +173,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
-                    return metricType != MetricType.counter && metricType != MetricType.gauge;
+                    return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
                 } else {
                     return true;
                 }

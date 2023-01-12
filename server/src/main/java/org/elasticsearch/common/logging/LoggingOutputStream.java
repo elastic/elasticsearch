@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * A stream whose output is sent to the configured logger, line by line.
@@ -42,9 +43,12 @@ class LoggingOutputStream extends OutputStream {
 
     private final Level level;
 
-    LoggingOutputStream(Logger logger, Level level) {
+    private final List<String> messageFilters;
+
+    LoggingOutputStream(Logger logger, Level level, List<String> messageFilters) {
         this.logger = logger;
         this.level = level;
+        this.messageFilters = messageFilters;
     }
 
     @Override
@@ -105,6 +109,11 @@ class LoggingOutputStream extends OutputStream {
 
     // pkg private for testing
     void log(String msg) {
+        for (String filter : messageFilters) {
+            if (msg.contains(filter)) {
+                return;
+            }
+        }
         logger.log(level, msg);
     }
 }

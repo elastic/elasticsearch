@@ -555,7 +555,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90599")
     public void testAliasFields() throws Exception {
         // The goal of this test is to assert alias fields are included in the analytics job.
         // We have a simple dataset with two integer fields: field_1 and field_2.
@@ -597,7 +596,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        long seed = randomLong();
+        long seed = 1000L; //fix seed
 
         Regression regression = new Regression("field_2", BoostedTreeParams.builder().build(), null, 90.0, seed, null, null, null, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)

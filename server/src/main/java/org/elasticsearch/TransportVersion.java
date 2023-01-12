@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
@@ -105,6 +106,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_5_3 = new TransportVersion(8_05_03_99, "9ca3c835-e3b7-4622-a08e-d51e42403b06");
     public static final TransportVersion V_8_5_4 = new TransportVersion(8_05_04_99, "97ee525c-555d-45ca-83dc-59cd592c8e86");
     public static final TransportVersion V_8_6_0 = new TransportVersion(8_06_00_99, "e209c5ed-3488-4415-b561-33492ca3b789");
+    public static final TransportVersion V_8_6_1 = new TransportVersion(8_06_01_99, "9f113acb-1b21-4fda-bef9-2a3e669b5c7b");
     public static final TransportVersion V_8_7_0 = new TransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     /*
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
@@ -127,9 +129,13 @@ public class TransportVersion implements Comparable<TransportVersion> {
         Map<Integer, TransportVersion> builder = new HashMap<>();
         Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
+        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
         for (Field declaredField : TransportVersion.class.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
+                if (ignore.contains(fieldName)) {
+                    continue;
+                }
                 try {
                     TransportVersion version = (TransportVersion) declaredField.get(null);
 

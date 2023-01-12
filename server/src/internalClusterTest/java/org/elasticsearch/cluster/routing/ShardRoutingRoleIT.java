@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -44,6 +46,8 @@ import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("resource")
 public class ShardRoutingRoleIT extends ESIntegTestCase {
+
+    private static final Logger logger = LogManager.getLogger(ShardRoutingRoleIT.class);
 
     public static class TestPlugin extends Plugin implements ClusterPlugin {
 
@@ -132,6 +136,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
 
         Settings getIndexSettings() {
+            logger.info("--> numShards={}, numReplicas={}", numShards, numReplicas);
             return Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
@@ -164,83 +169,92 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
-        // verify the correct number of shard copies of each role as the routing table evolves
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(routingTableWatcher);
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
 
-        createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
+            createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
-        final var clusterState = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            final var clusterState = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
 
-        // verify non-DEFAULT roles reported in cluster state XContent
-        assertRolesInRoutingTableXContent(clusterState);
+            // verify non-DEFAULT roles reported in cluster state XContent
+            assertRolesInRoutingTableXContent(clusterState);
 
-        // verify non-DEFAULT roles reported in cluster state string representation
-        var stateAsString = clusterState.toString();
-        assertThat(stateAsString, containsString("[" + ShardRouting.Role.INDEX_ONLY + "]"));
-        assertThat(stateAsString, not(containsString("[" + ShardRouting.Role.DEFAULT + "]")));
-        if (routingTableWatcher.numReplicas + 1 > routingTableWatcher.numIndexingCopies) {
-            assertThat(stateAsString, containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]"));
-        }
+            // verify non-DEFAULT roles reported in cluster state string representation
+            var stateAsString = clusterState.toString();
+            assertThat(stateAsString, containsString("[" + ShardRouting.Role.INDEX_ONLY + "]"));
+            assertThat(stateAsString, not(containsString("[" + ShardRouting.Role.DEFAULT + "]")));
+            if (routingTableWatcher.numReplicas + 1 > routingTableWatcher.numIndexingCopies) {
+                assertThat(stateAsString, containsString("[" + ShardRouting.Role.SEARCH_ONLY + "]"));
+            }
 
-        ensureGreen(INDEX_NAME);
+            ensureGreen(INDEX_NAME);
 
-        // new replicas get the SEARCH_ONLY role
-        routingTableWatcher.numReplicas += 1;
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
-        );
-
-        ensureGreen(INDEX_NAME);
-
-        // removing replicas drops SEARCH_ONLY copies first
-        while (routingTableWatcher.numReplicas > 0) {
-            routingTableWatcher.numReplicas -= 1;
+            // new replicas get the SEARCH_ONLY role
+            routingTableWatcher.numReplicas += 1;
             assertAcked(
                 client().admin()
                     .indices()
                     .prepareUpdateSettings("test")
                     .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
             );
-        }
 
-        // restoring the index from a snapshot may change the number of indexing replicas because the routing table is created afresh
-        var repoPath = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", repoPath))
-        );
-
-        assertEquals(
-            SnapshotState.SUCCESS,
-            client().admin().cluster().prepareCreateSnapshot("repo", "snap").setWaitForCompletion(true).get().getSnapshotInfo().state()
-        );
-
-        if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-        } else {
-            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
             ensureGreen(INDEX_NAME);
+
+            // removing replicas drops SEARCH_ONLY copies first
+            while (routingTableWatcher.numReplicas > 0) {
+                routingTableWatcher.numReplicas -= 1;
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
+                );
+            }
+
+            // restoring the index from a snapshot may change the number of indexing replicas because the routing table is created afresh
+            var repoPath = randomRepoPath();
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .preparePutRepository("repo")
+                    .setType("fs")
+                    .setSettings(Settings.builder().put("location", repoPath))
+            );
+
+            assertEquals(
+                SnapshotState.SUCCESS,
+                client().admin().cluster().prepareCreateSnapshot("repo", "snap").setWaitForCompletion(true).get().getSnapshotInfo().state()
+            );
+
+            if (randomBoolean()) {
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+            } else {
+                assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+                ensureGreen(INDEX_NAME);
+            }
+
+            routingTableWatcher.numReplicas = between(0, numDataNodes - 1);
+            routingTableWatcher.numIndexingCopies = between(1, 2);
+            getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
+
+            assertEquals(
+                0,
+                client().admin()
+                    .cluster()
+                    .prepareRestoreSnapshot("repo", "snap")
+                    .setIndices("test")
+                    .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
+                    .setWaitForCompletion(true)
+                    .get()
+                    .getRestoreInfo()
+                    .failedShards()
+            );
+            ensureGreen("test");
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
         }
-
-        routingTableWatcher.numReplicas = between(0, numDataNodes - 1);
-        routingTableWatcher.numIndexingCopies = between(1, 2);
-        getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
-
-        assertEquals(
-            0,
-            client().admin()
-                .cluster()
-                .prepareRestoreSnapshot("repo", "snap")
-                .setIndices("test")
-                .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
-                .setWaitForCompletion(true)
-                .get()
-                .getRestoreInfo()
-                .failedShards()
-        );
-        ensureGreen("test");
     }
 
     public void testRelocation() {
@@ -250,19 +264,24 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
-        // verify the correct number of shard copies of each role as the routing table evolves
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(routingTableWatcher);
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
 
-        createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
+            createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
-        for (String nodeName : internalCluster().getNodeNames()) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeName))
-            );
-            ensureGreen(INDEX_NAME);
+            for (String nodeName : internalCluster().getNodeNames()) {
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeName))
+                );
+                ensureGreen(INDEX_NAME);
+            }
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
         }
     }
 
@@ -273,22 +292,27 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
-        // verify the correct number of shard copies of each role as the routing table evolves
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(routingTableWatcher);
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
 
-        createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
-        ensureGreen(INDEX_NAME);
+            createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
+            ensureGreen(INDEX_NAME);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"))
-        );
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"))
+            );
 
-        AllocationCommand cancelPrimaryCommand;
-        while ((cancelPrimaryCommand = getCancelPrimaryCommand()) != null) {
-            client().admin().cluster().prepareReroute().add(cancelPrimaryCommand).get();
+            AllocationCommand cancelPrimaryCommand;
+            while ((cancelPrimaryCommand = getCancelPrimaryCommand()) != null) {
+                client().admin().cluster().prepareReroute().add(cancelPrimaryCommand).get();
+            }
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
         }
     }
 
@@ -332,40 +356,45 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numReplicas + 1);
 
-        // verify the correct number of shard copies of each role as the routing table evolves
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(routingTableWatcher);
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
 
-        createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
-        indexRandom(true, INDEX_NAME, between(1, 100));
-        ensureGreen(INDEX_NAME);
+            createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
+            indexRandom(true, INDEX_NAME, between(1, 100));
+            ensureGreen(INDEX_NAME);
 
-        final var searchShardProfileKeys = new HashSet<String>();
-        final var indexRoutingTable = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setRoutingTable(true)
-            .get()
-            .getState()
-            .routingTable()
-            .index(INDEX_NAME);
+            final var searchShardProfileKeys = new HashSet<String>();
+            final var indexRoutingTable = client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setRoutingTable(true)
+                .get()
+                .getState()
+                .routingTable()
+                .index(INDEX_NAME);
 
-        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-            final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
-            for (int shardCopy = 0; shardCopy < indexShardRoutingTable.size(); shardCopy++) {
-                final var shardRouting = indexShardRoutingTable.shard(shardCopy);
-                if (shardRouting.role() == ShardRouting.Role.SEARCH_ONLY) {
-                    searchShardProfileKeys.add("[" + shardRouting.currentNodeId() + "][" + INDEX_NAME + "][" + shardId + "]");
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int shardCopy = 0; shardCopy < indexShardRoutingTable.size(); shardCopy++) {
+                    final var shardRouting = indexShardRoutingTable.shard(shardCopy);
+                    if (shardRouting.role() == ShardRouting.Role.SEARCH_ONLY) {
+                        searchShardProfileKeys.add("[" + shardRouting.currentNodeId() + "][" + INDEX_NAME + "][" + shardId + "]");
+                    }
                 }
             }
-        }
 
-        for (int i = 0; i < 10; i++) {
-            final var profileResults = client().prepareSearch(INDEX_NAME).setProfile(true).get().getProfileResults();
-            assertThat(profileResults, not(anEmptyMap()));
-            for (final var searchShardProfileKey : profileResults.keySet()) {
-                assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+            for (int i = 0; i < 10; i++) {
+                final var profileResults = client().prepareSearch(INDEX_NAME).setProfile(true).get().getProfileResults();
+                assertThat(profileResults, not(anEmptyMap()));
+                for (final var searchShardProfileKey : profileResults.keySet()) {
+                    assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+                }
             }
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
         }
     }
 

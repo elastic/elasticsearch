@@ -12,12 +12,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EmptyExecutable;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DateUtils;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.Assert;
@@ -54,6 +54,6 @@ public final class EsqlTestUtils {
     }
 
     public static Map<String, EsField> loadMapping(String name) {
-        return TypesTests.loadMapping(DefaultDataTypeRegistry.INSTANCE, name, true);
+        return TypesTests.loadMapping(EsqlDataTypeRegistry.INSTANCE, name, true);
     }
 }

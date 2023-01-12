@@ -76,7 +76,7 @@ public class EsqlActionIT extends ESIntegTestCase {
                     "count_d",
                     "type=double",
                     "time",
-                    "type=date",
+                    "type=long",
                     "color",
                     "type=keyword"
                 )
@@ -310,7 +310,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals("avg(count)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
         assertEquals("time", results.columns().get(1).name());
-        assertEquals("date", results.columns().get(1).type());
+        assertEquals("long", results.columns().get(1).type());
 
         // assert column values
         List<Long> expectedValues = LongStream.range(0, 40).map(i -> epoch + i).sorted().boxed().toList();
@@ -404,7 +404,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count_d", "double"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data", "long"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data_d", "double"))));
-        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("time", "date"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("time", "long"))));
         // TODO: we have some extra internal columns as well (_doc_id, ...) that we should drop
     }
 

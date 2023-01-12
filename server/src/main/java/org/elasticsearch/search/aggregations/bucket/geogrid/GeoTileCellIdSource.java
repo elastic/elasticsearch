@@ -13,13 +13,15 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
+import java.util.function.LongConsumer;
+
 /**
  * {@link CellIdSource} implementation for GeoTile aggregation
  */
 public class GeoTileCellIdSource extends CellIdSource {
 
-    public GeoTileCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
-        super(valuesSource, precision, geoBoundingBox);
+    public GeoTileCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox, LongConsumer circuitBreakerConsumer) {
+        super(valuesSource, precision, geoBoundingBox, circuitBreakerConsumer);
     }
 
     @Override
@@ -53,7 +55,7 @@ public class GeoTileCellIdSource extends CellIdSource {
 
     @Override
     protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
-        return new CellMultiValues(values, precision()) {
+        return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 values[valuesIdx] = GeoTileUtils.longEncode(target.getLon(), target.getLat(), precision);
@@ -66,7 +68,7 @@ public class GeoTileCellIdSource extends CellIdSource {
     protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
         final int tiles = 1 << precision();
-        return new CellMultiValues(values, precision()) {
+        return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 final int x = GeoTileUtils.getXTile(target.getLon(), tiles);

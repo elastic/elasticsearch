@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +20,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -357,9 +355,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             transportService.disconnectFromNode(disconnectedNode);
         }
         MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+        try (var ignored = appender.capturing(NodeConnectionsService.class)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode)) {
                     appender.addExpectation(
@@ -400,10 +396,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
             runTasksUntil(deterministicTaskQueue, CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
-            appender.stop();
         }
+
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
@@ -414,9 +408,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             transportService.disconnectFromNode(disconnectedNode);
         }
         appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
+        try (var ignored = appender.capturing(NodeConnectionsService.class)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode) && newTargetNodes.get(targetNode.getId()) != null) {
                     appender.addExpectation(
@@ -497,9 +489,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             service.connectToNodes(newTargetNodes, () -> {});
             deterministicTaskQueue.runAllRunnableTasks();
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.cluster.NodeConnectionsService"), appender);
-            appender.stop();
         }
     }
 

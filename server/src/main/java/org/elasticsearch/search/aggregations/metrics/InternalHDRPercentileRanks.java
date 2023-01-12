@@ -73,7 +73,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     }
 
     public static double percentileRank(DoubleHistogram state, double value) {
-        if (state.getTotalCount() == 0) {
+        if (state == null || state.getTotalCount() == 0) {
             return Double.NaN;
         }
         double percentileRank = state.getPercentileAtOrBelowValue(value);

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import io.netty.handler.ssl.SslHandshakeTimeoutException;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -25,8 +27,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -36,6 +40,7 @@ import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -47,6 +52,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
@@ -78,6 +85,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTransportTestCase {
     @Override
@@ -469,6 +477,151 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 assertThat(sslEngine.getNeedClientAuth(), is(false));
                 assertThat(sslEngine.getWantClientAuth(), is(true));
             }
+        }
+    }
+
+    public void testTcpHandshakeTimeout() throws IOException {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
+        SSLService sslService = createSSLService();
+
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
+        // use latch to to ensure that the accepted socket below isn't closed before the handshake times out
+        final CountDownLatch doneLatch = new CountDownLatch(1);
+        try (ServerSocket socket = serverSocketFactory.createServerSocket()) {
+            socket.bind(getLocalEphemeral(), 1);
+            socket.setReuseAddress(true);
+            new Thread(() -> {
+                SSLSocket acceptedSocket = null;
+                try {
+                    acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(socket::accept);
+                    // A read call will execute the ssl handshake
+                    int byteRead = acceptedSocket.getInputStream().read();
+                    assertEquals('E', byteRead);
+                    doneLatch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                } finally {
+                    IOUtils.closeWhileHandlingException(acceptedSocket);
+                }
+            }).start();
+            DiscoveryNode dummy = new DiscoveryNode(
+                "TEST",
+                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
+                emptyMap(),
+                emptySet(),
+                version0
+            );
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(
+                1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE
+            );
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
+            Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
+            try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
+                ConnectTransportException ex = expectThrows(
+                    ConnectTransportException.class,
+                    () -> connectToNode(serviceC, dummy, builder.build())
+                );
+                assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
+            }
+        } finally {
+            doneLatch.countDown();
+        }
+    }
+
+    public void testTlsHandshakeTimeout() throws IOException {
+        final CountDownLatch doneLatch = new CountDownLatch(1);
+        try (ServerSocket socket = new MockServerSocket()) {
+            socket.bind(getLocalEphemeral(), 1);
+            socket.setReuseAddress(true);
+            new Thread(() -> {
+                try (Socket ignored = socket.accept()) {
+                    doneLatch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }).start();
+            DiscoveryNode dummy = new DiscoveryNode(
+                "TEST",
+                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
+                emptyMap(),
+                emptySet(),
+                version0
+            );
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(
+                1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE
+            );
+            ConnectTransportException ex = expectThrows(
+                ConnectTransportException.class,
+                () -> connectToNode(serviceA, dummy, builder.build())
+            );
+            assertEquals("[][" + dummy.getAddress() + "] connect_exception", ex.getMessage());
+            assertNotNull(ExceptionsHelper.unwrap(ex, SslHandshakeTimeoutException.class));
+        } finally {
+            doneLatch.countDown();
+        }
+    }
+
+    public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
+        SSLService sslService = createSSLService();
+
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
+        try (ServerSocket socket = serverSocketFactory.createServerSocket()) {
+            socket.bind(getLocalEphemeral(), 1);
+            socket.setReuseAddress(true);
+            DiscoveryNode dummy = new DiscoveryNode(
+                "TEST",
+                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
+                emptyMap(),
+                emptySet(),
+                version0
+            );
+            Thread t = new Thread(() -> {
+                try (Socket accept = SocketAccess.doPrivileged(socket::accept)) {
+                    // A read call will execute the ssl handshake
+                    int byteRead = accept.getInputStream().read();
+                    assertEquals('E', byteRead);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            t.start();
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(
+                1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE
+            );
+            builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
+            Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
+            try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
+                ConnectTransportException ex = expectThrows(
+                    ConnectTransportException.class,
+                    () -> connectToNode(serviceC, dummy, builder.build())
+                );
+                assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
+                assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
+            }
+            t.join();
         }
     }
 

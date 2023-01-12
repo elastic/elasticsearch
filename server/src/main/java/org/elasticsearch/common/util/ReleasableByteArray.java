@@ -81,10 +81,10 @@ public class ReleasableByteArray implements ByteArray {
 
     @Override
     public byte[] array() {
-        // This assumption of this method is that the return array has valid entries starting from 0 and
+        // The assumption of this method is that the returned array has valid entries starting from sloy 0 and
         // this isn't case when just returning the array from ReleasableBytesReference#array().
-        // The interface this class implements should have something like an arrayOffset() method,
-        // so that callers from what array offset the first elements starts.
+        // The interface that this class implements should have something like an arrayOffset() method,
+        // so that callers know from what array offset the first actual byte starts.
         throw new UnsupportedOperationException();
     }
 

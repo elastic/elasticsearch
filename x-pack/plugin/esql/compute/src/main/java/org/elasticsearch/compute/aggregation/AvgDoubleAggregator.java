@@ -161,6 +161,7 @@ class AvgDoubleAggregator {
 
     static class GroupingAvgState implements AggregatorState<GroupingAvgState> {
         private final BigArrays bigArrays;
+        static final long BYTES_SIZE = Double.BYTES + Double.BYTES + Long.BYTES;
 
         DoubleArray values;
         DoubleArray deltas;
@@ -224,7 +225,7 @@ class AvgDoubleAggregator {
 
         @Override
         public long getEstimatedSize() {
-            return Long.BYTES + (largestGroupId + 1) * GroupingAvgAggregator.AvgStateSerializer.BYTES_SIZE;
+            return Long.BYTES + (largestGroupId + 1) * BYTES_SIZE;
         }
 
         @Override

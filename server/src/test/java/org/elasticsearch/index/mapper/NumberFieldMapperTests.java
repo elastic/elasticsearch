@@ -305,7 +305,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
         var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
             minimalMapping(b);
-            b.field("time_series_metric", randomMetricType.name());
+            b.field("time_series_metric", randomMetricType.toString());
         }));
         var ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));

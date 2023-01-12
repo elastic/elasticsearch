@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.blobcache.BlobCacheTestUtils.FSyncTrackingFileSystemProvider;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.CacheFile;
+import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -21,10 +25,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.ShardEviction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -43,8 +43,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySortedSet;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomRanges;
+import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomPopulateAndReads;
+import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -253,7 +253,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         for (int i = 0; i < between(1, 3); i++) {
-            cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
         }
 
         blockingListener.waitForBlock();
@@ -277,7 +277,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
         if (randomBoolean()) {
             // mark shard as evicted after cache service is stopped should have no effect
-            cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
             assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
         }
     }
@@ -298,11 +298,11 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(Files.exists(randomCacheFile.getFile()));
         randomCacheFile.acquire(blockingListener);
 
-        cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+        cacheService.markShardAsEvictedInCache(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
 
         final Map<CacheFile, Boolean> afterShardRecoveryCacheFiles = ConcurrentCollections.newConcurrentMap();
         final Future<?> waitForShardEvictionFuture = threadPool.generic().submit(() -> {
-            cacheService.waitForCacheFilesEvictionIfNeeded(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            cacheService.waitForCacheFilesEvictionIfNeeded(shard.snapshotUUID(), shard.snapshotIndexName(), shard.shardId());
             for (CacheFile cacheFile : cacheFilesAssociatedWithShard) {
                 afterShardRecoveryCacheFiles.put(cacheFile, Files.exists(cacheFile.getFile()));
             }

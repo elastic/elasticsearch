@@ -1,5 +1,0 @@
-pr: 92416
-summary: Don't account for the unassigned reason when diagnosing NO_VALID_SHARD_COPY
-area: Health
-type: bug
-issues: []

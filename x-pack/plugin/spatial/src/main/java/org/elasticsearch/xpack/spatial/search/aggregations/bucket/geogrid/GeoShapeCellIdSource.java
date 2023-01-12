@@ -22,20 +22,11 @@ import java.util.function.LongConsumer;
 public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
     private final GeoGridTiler encoder;
-    private LongConsumer circuitBreakerConsumer;
+    private final LongConsumer circuitBreakerConsumer;
 
-    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, GeoGridTiler encoder) {
+    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, GeoGridTiler encoder, LongConsumer circuitBreakerConsumer) {
         this.valuesSource = valuesSource;
         this.encoder = encoder;
-        this.circuitBreakerConsumer = (l) -> {};
-    }
-
-    /**
-     * This setter exists since the aggregator's circuit-breaking accounting needs to be
-     * accessible from within the values-source. Problem is that this values-source needs to
-     * be created and passed to the aggregator before we have access to this functionality.
-     */
-    public void setCircuitBreakerConsumer(LongConsumer circuitBreakerConsumer) {
         this.circuitBreakerConsumer = circuitBreakerConsumer;
     }
 

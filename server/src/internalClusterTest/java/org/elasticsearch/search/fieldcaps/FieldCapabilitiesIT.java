@@ -125,7 +125,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .startObject("some_metric")
             .field("type", "long")
-            .field("time_series_metric", TimeSeriesParams.MetricType.counter)
+            .field("time_series_metric", TimeSeriesParams.MetricType.COUNTER)
             .endObject()
             .startObject("secret_soundtrack")
             .field("type", "alias")
@@ -168,7 +168,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .startObject("some_metric")
             .field("type", "long")
-            .field("time_series_metric", TimeSeriesParams.MetricType.gauge)
+            .field("time_series_metric", TimeSeriesParams.MetricType.GAUGE)
             .endObject()
             .endObject()
             .endObject()
@@ -393,7 +393,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(response.get().get("some_dimension").get("keyword").isDimension());
         assertNull(response.get().get("some_dimension").get("keyword").nonDimensionIndices());
         assertTrue(response.get().containsKey("some_metric"));
-        assertEquals(TimeSeriesParams.MetricType.counter, response.get().get("some_metric").get("long").getMetricType());
+        assertEquals(TimeSeriesParams.MetricType.COUNTER, response.get().get("some_metric").get("long").getMetricType());
         assertNull(response.get().get("some_metric").get("long").metricConflictsIndices());
 
         response = client().prepareFieldCaps("old_index", "new_index").setFields("some_dimension", "some_metric").get();

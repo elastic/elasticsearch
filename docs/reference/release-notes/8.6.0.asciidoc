@@ -3,6 +3,12 @@
 
 Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 
+[[known-issues-8.6.0]]
+[float]
+=== Known issues
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
 [[bug-8.6.0]]
 [float]
 === Bug fixes

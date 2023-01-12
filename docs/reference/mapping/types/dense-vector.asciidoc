@@ -51,8 +51,6 @@ It is not possible to store multiple values in one `dense_vector` field.
 [[index-vectors-knn-search]]
 ==== Index vectors for kNN search
 
-experimental::[]
-
 include::{es-repo-dir}/search/search-your-data/knn-search.asciidoc[tag=knn-def]
 
 Dense vector fields can be used to rank documents in

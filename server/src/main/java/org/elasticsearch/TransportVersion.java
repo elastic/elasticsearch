@@ -18,6 +18,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Represents the version of the wire protocol used to communicate between ES nodes.
+ * <pr/>
+ * Prior to 8.7.0, the node {@link Version} was used everywhere. This class separates the wire protocol version
+ * from the running node version. Each node version has a reference to a specific transport version used by that node.
+ * <pr/>
+ * Each transport version constant has got an id number, which for versions prior to 8.7.0 is the same as the node version for compatibility.
+ * There is also a unique id string. This is not actually used in the protocol, but is there to ensure each protocol version
+ * is only added once. This string needs to be unique (here, a UUID, but can be any other unique nonempty string).
+ * If two concurrent PRs added the same protocol version, the unique string causes a git conflict, ensuring the second PR to be merged
+ * must be updated with the next free version. Without the unique id string, git will happily merge the two versions together,
+ * causing problems when you try to upgrade between those two PRs.
+ * <pr/>
+ * When adding new transport versions, it is recommended to leave a gap in the numbering scheme (say, 100)
+ * to leave space for any intermediate fixes that may be needed in the future.
+ */
 public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
     /*
@@ -49,39 +65,39 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_7_9_1 = new TransportVersion(7_09_01_99, "30fa10fc-df6b-4435-bd9e-acdb9ae1b268");
     public static final TransportVersion V_7_9_2 = new TransportVersion(7_09_02_99, "b58bb181-cecc-464e-b955-f6c1c1e7b4d0");
     public static final TransportVersion V_7_9_3 = new TransportVersion(7_09_03_99, "4406926c-e2b6-4b9a-a72a-1bee8357ad3e");
-    public static final TransportVersion V_7_10_0 = new TransportVersion(7_10_00_90, "4efca195-38e4-4f74-b877-c26fb2a40733");
-    public static final TransportVersion V_7_10_1 = new TransportVersion(7_10_01_90, "0070260c-aa0b-4fc2-9c87-5cd5f23b005f");
-    public static final TransportVersion V_7_10_2 = new TransportVersion(7_10_02_90, "b369e2ed-261c-4b2f-8b42-0f0ba0549f8c");
-    public static final TransportVersion V_7_11_0 = new TransportVersion(7_11_00_90, "3b43bcbc-1c5e-4cc2-a3b4-8ac8b64239e8");
-    public static final TransportVersion V_7_11_1 = new TransportVersion(7_11_01_90, "2f75d13c-adde-4762-a46e-def8acce62b7");
-    public static final TransportVersion V_7_11_2 = new TransportVersion(7_11_02_90, "2c852a4b-236d-4e8b-9373-336c9b52685a");
-    public static final TransportVersion V_7_12_0 = new TransportVersion(7_12_00_90, "3be9ff6f-2d9f-4fc2-ba91-394dd5ebcf33");
-    public static final TransportVersion V_7_12_1 = new TransportVersion(7_12_01_90, "ee4fdfac-2039-4b00-b42d-579cbde7120c");
-    public static final TransportVersion V_7_13_0 = new TransportVersion(7_13_00_92, "e1fe494a-7c66-4571-8f8f-1d7e6d8df1b3");
-    public static final TransportVersion V_7_13_1 = new TransportVersion(7_13_01_92, "66bc8d82-36da-4d54-b22d-aca691dc3d70");
-    public static final TransportVersion V_7_13_2 = new TransportVersion(7_13_02_92, "2a6fc74c-4c44-4264-a619-37437cd2c5a0");
-    public static final TransportVersion V_7_13_3 = new TransportVersion(7_13_03_92, "a31592f5-f8d2-490c-a02e-da9501823d8d");
-    public static final TransportVersion V_7_13_4 = new TransportVersion(7_13_04_92, "3143240d-1831-4186-8a19-963336c4cea0");
-    public static final TransportVersion V_7_14_0 = new TransportVersion(7_14_00_90, "8cf0954c-b085-467f-b20b-3cb4b2e69e3e");
-    public static final TransportVersion V_7_14_1 = new TransportVersion(7_14_01_90, "3dbb62c3-cf73-4c76-8d5a-4ca70afe2c70");
-    public static final TransportVersion V_7_14_2 = new TransportVersion(7_14_02_90, "7943ae20-df60-45e5-97ba-82fc0dfc8b89");
-    public static final TransportVersion V_7_15_0 = new TransportVersion(7_15_00_90, "2273ac0e-00bb-4024-9e2e-ab78981623c6");
-    public static final TransportVersion V_7_15_1 = new TransportVersion(7_15_01_90, "a8c3503d-3452-45cf-b385-e855e16547fe");
-    public static final TransportVersion V_7_15_2 = new TransportVersion(7_15_02_90, "fbb8ad69-02e2-4c90-b2e4-23947107f8b4\n");
-    public static final TransportVersion V_7_16_0 = new TransportVersion(7_16_00_9_1, "59abadd2-25db-4547-a991-c92306a3934e");
-    public static final TransportVersion V_7_16_1 = new TransportVersion(7_16_01_9_1, "4ace6b6b-8bba-427f-8755-9e3b40092138");
-    public static final TransportVersion V_7_16_2 = new TransportVersion(7_16_02_9_1, "785567b9-b320-48ef-b538-1753228904cd");
-    public static final TransportVersion V_7_16_3 = new TransportVersion(7_16_03_9_1, "facf5ae7-3d4e-479c-9142-72529b784e30");
-    public static final TransportVersion V_7_17_0 = new TransportVersion(7_17_00_9_1, "322efe93-4c73-4e15-9274-bb76836c8fa8");
-    public static final TransportVersion V_7_17_1 = new TransportVersion(7_17_01_9_1, "51c72842-7974-4669-ad25-bf13ba307307");
-    public static final TransportVersion V_7_17_2 = new TransportVersion(7_17_02_9_1, "82bea8d0-bfea-47c2-b7d3-217d8feb67e3");
-    public static final TransportVersion V_7_17_3 = new TransportVersion(7_17_03_9_1, "a909c2f4-5cb8-46bf-af0f-cd18d1b7e9d2");
-    public static final TransportVersion V_7_17_4 = new TransportVersion(7_17_04_9_1, "5076e164-18a4-4373-8be7-15f1843c46db");
-    public static final TransportVersion V_7_17_5 = new TransportVersion(7_17_05_9_1, "da7e3509-7f61-4dd2-8d23-a61f628a62f6");
-    public static final TransportVersion V_7_17_6 = new TransportVersion(7_17_06_9_1, "a47ecf02-e457-474f-887d-ee15a7ebd969");
-    public static final TransportVersion V_7_17_7 = new TransportVersion(7_17_07_9_1, "108ba576-bb28-42f4-bcbf-845a0ce52560");
-    public static final TransportVersion V_7_17_8 = new TransportVersion(7_17_08_9_1, "82a3e70d-cf0e-4efb-ad16-6077ab9fe19f");
-    public static final TransportVersion V_7_17_9 = new TransportVersion(7_17_09_9_1, "afd50dda-735f-4eae-9309-3218ffec1b2d");
+    public static final TransportVersion V_7_10_0 = new TransportVersion(7_10_00_99, "4efca195-38e4-4f74-b877-c26fb2a40733");
+    public static final TransportVersion V_7_10_1 = new TransportVersion(7_10_01_99, "0070260c-aa0b-4fc2-9c87-5cd5f23b005f");
+    public static final TransportVersion V_7_10_2 = new TransportVersion(7_10_02_99, "b369e2ed-261c-4b2f-8b42-0f0ba0549f8c");
+    public static final TransportVersion V_7_11_0 = new TransportVersion(7_11_00_99, "3b43bcbc-1c5e-4cc2-a3b4-8ac8b64239e8");
+    public static final TransportVersion V_7_11_1 = new TransportVersion(7_11_01_99, "2f75d13c-adde-4762-a46e-def8acce62b7");
+    public static final TransportVersion V_7_11_2 = new TransportVersion(7_11_02_99, "2c852a4b-236d-4e8b-9373-336c9b52685a");
+    public static final TransportVersion V_7_12_0 = new TransportVersion(7_12_00_99, "3be9ff6f-2d9f-4fc2-ba91-394dd5ebcf33");
+    public static final TransportVersion V_7_12_1 = new TransportVersion(7_12_01_99, "ee4fdfac-2039-4b00-b42d-579cbde7120c");
+    public static final TransportVersion V_7_13_0 = new TransportVersion(7_13_00_99, "e1fe494a-7c66-4571-8f8f-1d7e6d8df1b3");
+    public static final TransportVersion V_7_13_1 = new TransportVersion(7_13_01_99, "66bc8d82-36da-4d54-b22d-aca691dc3d70");
+    public static final TransportVersion V_7_13_2 = new TransportVersion(7_13_02_99, "2a6fc74c-4c44-4264-a619-37437cd2c5a0");
+    public static final TransportVersion V_7_13_3 = new TransportVersion(7_13_03_99, "a31592f5-f8d2-490c-a02e-da9501823d8d");
+    public static final TransportVersion V_7_13_4 = new TransportVersion(7_13_04_99, "3143240d-1831-4186-8a19-963336c4cea0");
+    public static final TransportVersion V_7_14_0 = new TransportVersion(7_14_00_99, "8cf0954c-b085-467f-b20b-3cb4b2e69e3e");
+    public static final TransportVersion V_7_14_1 = new TransportVersion(7_14_01_99, "3dbb62c3-cf73-4c76-8d5a-4ca70afe2c70");
+    public static final TransportVersion V_7_14_2 = new TransportVersion(7_14_02_99, "7943ae20-df60-45e5-97ba-82fc0dfc8b89");
+    public static final TransportVersion V_7_15_0 = new TransportVersion(7_15_00_99, "2273ac0e-00bb-4024-9e2e-ab78981623c6");
+    public static final TransportVersion V_7_15_1 = new TransportVersion(7_15_01_99, "a8c3503d-3452-45cf-b385-e855e16547fe");
+    public static final TransportVersion V_7_15_2 = new TransportVersion(7_15_02_99, "fbb8ad69-02e2-4c90-b2e4-23947107f8b4");
+    public static final TransportVersion V_7_16_0 = new TransportVersion(7_16_00_99, "59abadd2-25db-4547-a991-c92306a3934e");
+    public static final TransportVersion V_7_16_1 = new TransportVersion(7_16_01_99, "4ace6b6b-8bba-427f-8755-9e3b40092138");
+    public static final TransportVersion V_7_16_2 = new TransportVersion(7_16_02_99, "785567b9-b320-48ef-b538-1753228904cd");
+    public static final TransportVersion V_7_16_3 = new TransportVersion(7_16_03_99, "facf5ae7-3d4e-479c-9142-72529b784e30");
+    public static final TransportVersion V_7_17_0 = new TransportVersion(7_17_00_99, "322efe93-4c73-4e15-9274-bb76836c8fa8");
+    public static final TransportVersion V_7_17_1 = new TransportVersion(7_17_01_99, "51c72842-7974-4669-ad25-bf13ba307307");
+    public static final TransportVersion V_7_17_2 = new TransportVersion(7_17_02_99, "82bea8d0-bfea-47c2-b7d3-217d8feb67e3");
+    public static final TransportVersion V_7_17_3 = new TransportVersion(7_17_03_99, "a909c2f4-5cb8-46bf-af0f-cd18d1b7e9d2");
+    public static final TransportVersion V_7_17_4 = new TransportVersion(7_17_04_99, "5076e164-18a4-4373-8be7-15f1843c46db");
+    public static final TransportVersion V_7_17_5 = new TransportVersion(7_17_05_99, "da7e3509-7f61-4dd2-8d23-a61f628a62f6");
+    public static final TransportVersion V_7_17_6 = new TransportVersion(7_17_06_99, "a47ecf02-e457-474f-887d-ee15a7ebd969");
+    public static final TransportVersion V_7_17_7 = new TransportVersion(7_17_07_99, "108ba576-bb28-42f4-bcbf-845a0ce52560");
+    public static final TransportVersion V_7_17_8 = new TransportVersion(7_17_08_99, "82a3e70d-cf0e-4efb-ad16-6077ab9fe19f");
+    public static final TransportVersion V_7_17_9 = new TransportVersion(7_17_09_99, "afd50dda-735f-4eae-9309-3218ffec1b2d");
     public static final TransportVersion V_8_0_0 = new TransportVersion(8_00_00_99, "c7d2372c-9f01-4a79-8b11-227d862dfe4f");
     public static final TransportVersion V_8_0_1 = new TransportVersion(8_00_01_99, "56e044c3-37e5-4f7e-bd38-f493927354ac");
     public static final TransportVersion V_8_1_0 = new TransportVersion(8_01_00_99, "3dc49dce-9cef-492a-ac8d-3cc79f6b4280");
@@ -111,14 +127,14 @@ public class TransportVersion implements Comparable<TransportVersion> {
     /*
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
      */
-    // public static final TransportVersion V10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
+    public static final TransportVersion V10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
     /*
      * When adding a new transport version, ensure there is a gap (say, 100) between versions
      * This is to make it possible to add intermediate versions for any bug fixes that may be required.
      */
 
-    /** Reference to the latest transport version */
-    public static final TransportVersion CURRENT = V_8_7_0;
+    /** Reference to the current transport version */
+    public static final TransportVersion CURRENT = V10_000_000;
 
     /** Reference to the earliest compatible transport version to this version of the codebase */
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;

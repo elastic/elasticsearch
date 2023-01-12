@@ -477,10 +477,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
         throws IOException {
-        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.valueOf(
+        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
-        if (TimeSeriesParams.MetricType.counter.equals(metricType)) {
+        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
             // For counters, we keep the same field type, because they store
             // only one value (the last value of the counter)
             builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();

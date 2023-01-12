@@ -628,28 +628,7 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    private static class RegionKey {
-        RegionKey(CacheKey file, int region) {
-            this.file = file;
-            this.region = region;
-        }
-
-        final CacheKey file;
-        final int region;
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            RegionKey regionKey = (RegionKey) o;
-            return region == regionKey.region && file.equals(regionKey.file);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(file, region);
-        }
-
+    private record RegionKey(CacheKey file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';

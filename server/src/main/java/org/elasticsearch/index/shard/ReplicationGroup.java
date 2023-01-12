@@ -33,6 +33,7 @@ public class ReplicationGroup {
         IndexShardRoutingTable routingTable,
         Set<String> inSyncAllocationIds,
         Set<String> trackedAllocationIds,
+        Set<String> unavailableInSyncShards,
         long version
     ) {
         this.routingTable = routingTable;
@@ -40,7 +41,9 @@ public class ReplicationGroup {
         this.trackedAllocationIds = trackedAllocationIds;
         this.version = version;
 
-        this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
+        this.unavailableInSyncShards = unavailableInSyncShards;
+        assert unavailableInSyncShards.equals(Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds()))
+            : "incorrect unavailable, in-sync shards set [" + unavailableInSyncShards + "] for [" + routingTable + "]";
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
         for (int copy = 0; copy < routingTable.size(); copy++) {

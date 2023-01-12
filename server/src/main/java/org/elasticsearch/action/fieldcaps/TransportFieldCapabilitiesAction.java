@@ -29,6 +29,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -93,6 +94,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
+        assert task instanceof CancellableTask;
+        final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
@@ -129,7 +132,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final FailureCollector indexFailures = new FailureCollector();
         // One for each cluster including the local cluster
         final CountDown completionCounter = new CountDown(1 + remoteClusterIndices.size());
-        final Runnable countDown = createResponseMerger(request, completionCounter, indexResponses, indexFailures, listener);
+        final Runnable countDown = createResponseMerger(request, fieldCapTask, completionCounter, indexResponses, indexFailures, listener);
         final RequestDispatcher requestDispatcher = new RequestDispatcher(
             clusterService,
             transportService,
@@ -180,6 +183,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private Runnable createResponseMerger(
         FieldCapabilitiesRequest request,
+        CancellableTask task,
         CountDown completionCounter,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
@@ -193,7 +197,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
                         // on a transport thread in case of large numbers of indices and/or fields
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                            .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, request, new ArrayList<>(failures))));
+                            .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, task, request, new ArrayList<>(failures))));
                     } else {
                         listener.onResponse(
                             new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures))
@@ -238,9 +242,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        CancellableTask task,
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
+        task.ensureNotCancelled();
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values()
             .stream()
             .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
@@ -261,6 +267,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         }
 
+        task.ensureNotCancelled();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
             Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
@@ -387,6 +394,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private class NodeTransportHandler implements TransportRequestHandler<FieldCapabilitiesNodeRequest> {
         @Override
         public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
+            assert task instanceof CancellableTask;
             final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
             ActionListener.completeWith(listener, () -> {
                 final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
@@ -404,6 +412,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
+                                (CancellableTask) task,
                                 shardId,
                                 request.fields(),
                                 request.filters(),

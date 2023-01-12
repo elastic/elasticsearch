@@ -497,7 +497,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .putList("node.roles", Arrays.asList("master", "data", "ingest"))
             .put("node.attr.box", "all")
             .build();
-        internalCluster().startNode(nodeSettings);
+        startNodeAndWait(nodeSettings);
     }
 
     public void startContentOnlyNode() {
@@ -505,7 +505,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .putList("node.roles", Arrays.asList("master", "data_content", "ingest"))
             .put("node.attr.box", "content")
             .build();
-        internalCluster().startNode(nodeSettings);
+        startNodeAndWait(nodeSettings);
     }
 
     public void startHotOnlyNode() {
@@ -521,7 +521,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
 
-        internalCluster().startNode(nodeSettings);
+        startNodeAndWait(nodeSettings.build());
     }
 
     public void startWarmOnlyNode() {
@@ -536,7 +536,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         if (externalId != null) {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
-        return internalCluster().startNode(nodeSettings);
+        return startNodeAndWait(nodeSettings.build());
     }
 
     public void startColdOnlyNode() {
@@ -552,7 +552,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
 
-        return internalCluster().startNode(nodeSettings);
+        return startNodeAndWait(nodeSettings.build());
     }
 
     public void startFrozenOnlyNode() {
@@ -560,7 +560,13 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
             .put("node.attr.box", "frozen")
             .build();
-        internalCluster().startNode(nodeSettings);
+        startNodeAndWait(nodeSettings);
+    }
+
+    public String startNodeAndWait(Settings settings) {
+        var node = internalCluster().startNode(settings);
+        internalCluster().validateClusterFormed(); // autoManageMasterNodes is false so we must wait explicitly
+        return node;
     }
 
     private DesiredNode desiredNode(String externalId, DiscoveryNodeRole... roles) {

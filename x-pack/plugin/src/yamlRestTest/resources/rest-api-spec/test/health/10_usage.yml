@@ -10,7 +10,7 @@ setup:
             index.routing.allocation.enable: none
 
   - do:
-      health: {}
+      health_report: {}
 
   - do:
       health_report:

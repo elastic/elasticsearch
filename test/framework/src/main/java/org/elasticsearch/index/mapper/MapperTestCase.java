@@ -354,7 +354,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
-        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
+        assertThat(checker.apply(fieldType).toString(), equalTo(metricType));
     }
 
     public final void testEmptyName() {

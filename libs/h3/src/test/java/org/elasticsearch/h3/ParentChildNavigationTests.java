@@ -173,4 +173,21 @@ public class ParentChildNavigationTests extends ESTestCase {
         }
         return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
     }
+
+    public void testHexRingPos() {
+        String[] h3Addresses = H3.getStringRes0Cells();
+        for (int i = 0; i < H3.MAX_H3_RES; i++) {
+            String h3Address = RandomPicks.randomFrom(random(), h3Addresses);
+            assertHexRing3(h3Address);
+            h3Addresses = H3.h3ToChildren(h3Address);
+        }
+    }
+
+    private void assertHexRing3(String h3Address) {
+        String[] ring = H3.hexRing(h3Address);
+        assertEquals(ring.length, H3.hexRingSize(h3Address));
+        for (int i = 0; i < H3.hexRingSize(h3Address); i++) {
+            assertEquals(ring[i], H3.hexRingPosToH3(h3Address, i));
+        }
+    }
 }

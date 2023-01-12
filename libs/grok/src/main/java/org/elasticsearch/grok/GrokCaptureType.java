@@ -9,7 +9,6 @@
 package org.elasticsearch.grok;
 
 import org.elasticsearch.grok.GrokCaptureConfig.NativeExtracterMap;
-import org.joni.Region;
 
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
@@ -70,16 +69,12 @@ enum GrokCaptureType {
     }
 
     protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
-        return new GrokCaptureExtracter() {
-            @Override
-            void extract(byte[] utf8Bytes, int offset, Region region) {
-                for (int number : backRefs) {
-                    if (region.beg[number] >= 0) {
-                        int matchOffset = offset + region.beg[number];
-                        int matchLength = region.end[number] - region.beg[number];
-                        emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
-                        return; // Capture only the first value.
-                    }
+        return (utf8Bytes, offset, region) -> {
+            for (int number : backRefs) {
+                if (region.beg[number] >= 0) {
+                    int matchOffset = offset + region.beg[number];
+                    int matchLength = region.end[number] - region.beg[number];
+                    emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
                 }
             }
         };

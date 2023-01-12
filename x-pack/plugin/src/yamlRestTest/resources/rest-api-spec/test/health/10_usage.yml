@@ -13,7 +13,7 @@ setup:
       health: {}
 
   - do:
-      health:
+      health_report:
         feature: disk
 ---
 "Usage stats on the health API":

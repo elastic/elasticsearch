@@ -8,14 +8,8 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryNormalizer;
-import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
-import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -172,18 +166,7 @@ enum GridAggregation {
 
         @Override
         public byte[] toGrid(String bucketKey, FeatureFactory featureFactory) {
-            final CellBoundary boundary = H3.h3ToGeoBoundary(bucketKey);
-            final double[] lats = new double[boundary.numPoints() + 1];
-            final double[] lons = new double[boundary.numPoints() + 1];
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                final LatLng latLng = boundary.getLatLon(i);
-                lats[i] = latLng.getLatDeg();
-                lons[i] = latLng.getLonDeg();
-            }
-            lats[boundary.numPoints()] = lats[0];
-            lons[boundary.numPoints()] = lons[0];
-            final Polygon polygon = new Polygon(new LinearRing(lons, lats));
-            final List<byte[]> x = featureFactory.getFeatures(GeometryNormalizer.apply(Orientation.CCW, polygon));
+            final List<byte[]> x = featureFactory.getFeatures(H3CartesianUtil.getNormalizeGeometry(H3.stringToH3(bucketKey)));
             return x.size() > 0 ? x.get(0) : null;
         }
 

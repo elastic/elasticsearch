@@ -53,10 +53,18 @@ def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   user username: "test_user", password: "x-pack-test-password"
 
+  // CCS via HTTP - directly send HTTP requests in TransportSearchAction
   setting 'cluster.http_remote.my_remote_cluster.host', {
     fulfillingCluster.get().getAllHttpSocketURI().collect { "\"$it\"" }.toString()
   }
   setting 'cluster.http_remote.my_remote_cluster.authorization', 'Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk'
+
+  // CCS via HTTP - intercept and send HTTP requests in SecurityServerTransportInterceptor
+  setting 'cluster.remote.my_other_remote.mode', 'http'
+  setting 'cluster.remote.my_other_remote.http_address', {
+    "\"${fulfillingCluster.get().getAllHttpSocketURI().get(0)}\""
+  }
+  setting 'cluster.remote.my_other_remote.http_authorization', 'Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk'
 
 }
 

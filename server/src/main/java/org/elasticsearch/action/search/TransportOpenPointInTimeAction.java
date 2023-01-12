@@ -141,12 +141,12 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
     }
 
-    private static final class ShardOpenReaderResponse extends SearchPhaseResult {
+    public static final class ShardOpenReaderResponse extends SearchPhaseResult {
         ShardOpenReaderResponse(ShardSearchContextId contextId) {
             this.contextId = contextId;
         }
 
-        ShardOpenReaderResponse(StreamInput in) throws IOException {
+        public ShardOpenReaderResponse(StreamInput in) throws IOException {
             super(in);
             contextId = new ShardSearchContextId(in);
         }

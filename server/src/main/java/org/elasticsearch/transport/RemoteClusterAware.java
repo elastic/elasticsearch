@@ -113,7 +113,9 @@ public abstract class RemoteClusterAware {
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
             ProxyConnectionStrategy.PROXY_ADDRESS,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
+            ProxyConnectionStrategy.SERVER_NAME,
+            HttpConnectionStrategy.HTTP_ADDRESS,
+            HttpConnectionStrategy.HTTP_AUTHORIZATION
         ).filter(Objects::nonNull).collect(Collectors.toList());
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }

@@ -111,6 +111,7 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.HttpConnectionStrategy;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -341,6 +342,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
         SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
         SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
+        HttpConnectionStrategy.HTTP_ADDRESS,
+        HttpConnectionStrategy.HTTP_AUTHORIZATION,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,

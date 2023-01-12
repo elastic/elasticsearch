@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -18,10 +19,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.TransportRelayAction;
 import org.elasticsearch.xpack.core.security.action.TransportRelayRequest;
@@ -69,7 +77,7 @@ public class TransportTransportRelayAction extends HandledTransportAction<Transp
             throw new UncheckedIOException(e);
         }
 
-        final ActionListenerResponseHandler<ActionResponse> actionListenerResponseHandler = new ActionListenerResponseHandler<>(
+        final ActionListenerResponseHandler<TransportResponse> actionListenerResponseHandler = new ActionListenerResponseHandler<>(
             listener.map((actionResponse -> {
                 final BytesStreamOutput out = new BytesStreamOutput();
                 try {
@@ -79,7 +87,7 @@ public class TransportTransportRelayAction extends HandledTransportAction<Transp
                 }
                 return new TransportRelayResponse(Base64.getEncoder().encodeToString(out.bytes().array()));
             })),
-            nodeClient.getResponseReader(request.getAction())
+            getResponseReader(request.getAction(), transportRequest)
         );
 
         transportService.sendChildRequest(
@@ -90,5 +98,20 @@ public class TransportTransportRelayAction extends HandledTransportAction<Transp
             TransportRequestOptions.EMPTY,
             actionListenerResponseHandler
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends TransportResponse> Writeable.Reader<T> getResponseReader(String action, TransportRequest request) {
+        if (request instanceof ShardSearchRequest shardSearchRequest) {
+            assert SearchTransportService.QUERY_ACTION_NAME.equals(action);
+            final boolean fetchDocuments = shardSearchRequest.numberOfShards() == 1;
+            return fetchDocuments ? in -> (T) new QueryFetchSearchResult(in) : in -> (T) new QuerySearchResult(in, true);
+        } else if (request instanceof ShardFetchRequest shardFetchRequest) {
+            assert SearchTransportService.FETCH_ID_ACTION_NAME.equals(action);
+            return in -> (T) new FetchSearchResult(in);
+        } else if (TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME.equals(action)) {
+            return in -> (T) new TransportOpenPointInTimeAction.ShardOpenReaderResponse(in);
+        }
+        return (Writeable.Reader<T>) nodeClient.getResponseReader(action);
     }
 }

@@ -67,6 +67,16 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             public String toString() {
                 return "proxy";
             }
+        },
+        HTTP(
+            HttpConnectionStrategy.CHANNELS_PER_CONNECTION,
+            HttpConnectionStrategy::enablementSettings,
+            HttpConnectionStrategy::infoReader
+        ) {
+            @Override
+            public String toString() {
+                return "http";
+            }
         };
 
         private final int numberOfChannels;
@@ -172,6 +182,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return switch (mode) {
             case SNIFF -> new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
             case PROXY -> new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            case HTTP -> new HttpConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
         };
     }
 
@@ -183,7 +194,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        if (mode.equals(ConnectionStrategy.SNIFF)) {
+        if (mode.equals(ConnectionStrategy.HTTP)) {
+            return true;
+        } else if (mode.equals(ConnectionStrategy.SNIFF)) {
             List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return seeds.isEmpty() == false;
         } else {

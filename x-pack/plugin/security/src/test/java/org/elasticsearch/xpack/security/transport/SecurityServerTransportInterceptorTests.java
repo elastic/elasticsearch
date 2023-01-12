@@ -133,7 +133,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
+            null
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -183,7 +184,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
+            null
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -226,7 +228,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
+            null
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -287,7 +290,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
+            null
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -354,7 +358,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
+            null
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -417,7 +422,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
+            null
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -585,6 +591,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             remoteClusterAuthorizationResolver,
+            null,
             ignored -> Optional.of(remoteClusterAlias)
         );
 
@@ -698,6 +705,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             remoteClusterAuthorizationResolver,
+            null,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
 
@@ -765,6 +773,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             remoteClusterAuthorizationResolver,
+            null,
             ignored -> Optional.of(remoteClusterAlias)
         );
 

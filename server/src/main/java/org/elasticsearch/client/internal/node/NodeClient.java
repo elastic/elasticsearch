@@ -76,12 +76,12 @@ public class NodeClient extends AbstractClient {
     }
 
     @SuppressWarnings("unchecked")
-    public Writeable.Reader<ActionResponse> getResponseReader(String actionName) {
-        return (Writeable.Reader<ActionResponse>) actions.keySet()
+    public Writeable.Reader<? extends ActionResponse> getResponseReader(String actionName) {
+        return actions.keySet()
             .stream()
             .filter(action -> action.name().equals(actionName))
             .findFirst()
-            .orElseThrow()
+            .orElseThrow(() -> new RuntimeException("response reader not found for action [" + actionName + "]"))
             .getResponseReader();
     }
 

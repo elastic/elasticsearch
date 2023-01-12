@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -14,6 +18,9 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -22,12 +29,14 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.HttpConnectionStrategy;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -44,12 +53,17 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.SecurityHttpRemoteClusterService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
+import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -97,6 +111,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
     public SecurityServerTransportInterceptor(
@@ -107,7 +122,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this(
             settings,
@@ -118,6 +134,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             remoteClusterAuthorizationResolver,
+            namedWriteableRegistry,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
@@ -131,6 +148,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        NamedWriteableRegistry namedWriteableRegistry,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -142,6 +160,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
     }
 
@@ -164,6 +183,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
+
+                // TODO: this should be moved after the remote access privileges is prepared
+                if (connection instanceof final HttpConnectionStrategy.StubConnection stubConnection) {
+                    sendCcsViaHttp(action, request, handler, stubConnection, namedWriteableRegistry);
+                    return;
+                }
+
                 assertNoRemoteAccessHeadersInContext();
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
@@ -399,6 +425,43 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
     }
 
+    private static <T extends TransportResponse> void sendCcsViaHttp(
+        String action,
+        TransportRequest request,
+        TransportResponseHandler<T> handler,
+        HttpConnectionStrategy.StubConnection stubConnection,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
+        final HttpConnectionStrategy httpConnectionStrategy = stubConnection.getHttpConnectionStrategy();
+        HttpConnectionStrategy.TransportRequestRelay transportRequestRelay = httpConnectionStrategy.getTransportRequestRelay();
+        if (transportRequestRelay == null) {
+            httpConnectionStrategy.setTransportRequestRelay(
+                new SecurityTransportRequestRelay(
+                    httpConnectionStrategy.getConfiguredAddress(),
+                    httpConnectionStrategy.getHttpAuthorization()
+                )
+            );
+        }
+        httpConnectionStrategy.getTransportRequestRelay()
+            .relayRequest(httpConnectionStrategy.getClusterAlias(), action, request, new ActionListener<byte[]>() {
+                @Override
+                public void onResponse(byte[] bytes) {
+                    final var in = new NamedWriteableAwareStreamInput(new ByteArrayStreamInput(bytes), namedWriteableRegistry);
+                    try {
+                        final T response = handler.read(in);
+                        handler.handleResponse(response);
+                    } catch (IOException e) {
+                        handler.handleException(new TransportException(e));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    handler.handleException(new TransportException(e));
+                }
+            });
+    }
+
     // pkg-private method to allow overriding for tests
     void assertNoAuthentication(String action) {
         assert false : "there should always be a user when sending a message for action [" + action + "]";
@@ -586,6 +649,35 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             } finally {
                 receiveMessage.onAfter();
             }
+        }
+    }
+
+    private static class SecurityTransportRequestRelay implements HttpConnectionStrategy.TransportRequestRelay {
+
+        private final SecurityHttpRemoteClusterService.MinimalRestClient minimalRestClient;
+
+        private SecurityTransportRequestRelay(String address, String authorization) {
+            final HttpHost httpHost = new HttpHost(address);
+            final List<Header> defaultHeaders = List.of(new BasicHeader("Authorization", authorization));
+            final CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
+                (PrivilegedAction<CloseableHttpAsyncClient>) SecurityHttpRemoteClusterService::createHttpClient
+            );
+            this.minimalRestClient = new SecurityHttpRemoteClusterService.MinimalRestClient(httpClient, List.of(httpHost), defaultHeaders);
+        }
+
+        @Override
+        public void relayRequest(String clusterAlias, String action, TransportRequest transportRequest, ActionListener<byte[]> listener) {
+            SecurityHttpRemoteClusterService.doRelayRequest(minimalRestClient, action, transportRequest, listener);
+        }
+
+        @Override
+        public void start() {
+            minimalRestClient.getClient().start();
+        }
+
+        @Override
+        public void close() throws IOException {
+            minimalRestClient.getClient().close();
         }
     }
 }

@@ -69,7 +69,7 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
             final List<String> hosts = HTTP_REMOTE_HOST.getConcreteSettingForNamespace(key).get(settings);
             final List<HttpHost> httpHosts = hosts.stream().map(HttpHost::new).toList();
             final CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-                (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
+                (PrivilegedAction<CloseableHttpAsyncClient>) SecurityHttpRemoteClusterService::createHttpClient
             );
             httpClient.start();
             // TODO: lifecycle management for closing the client
@@ -98,6 +98,15 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
         if (restClient == null) {
             throw new IllegalStateException("no http remote cluster client found for [" + clusterAlias + "]");
         }
+        doRelayRequest(restClient, action, transportRequest, listener);
+    }
+
+    public static void doRelayRequest(
+        MinimalRestClient restClient,
+        String action,
+        TransportRequest transportRequest,
+        ActionListener<byte[]> listener
+    ) {
         final BytesStreamOutput out = new BytesStreamOutput();
         try {
             transportRequest.writeTo(out);
@@ -146,7 +155,7 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
         });
     }
 
-    private CloseableHttpAsyncClient createHttpClient() {
+    public static CloseableHttpAsyncClient createHttpClient() {
         // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom().setConnectTimeout(1000).setSocketTimeout(30000);
 
@@ -165,12 +174,12 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
         }
     }
 
-    private static class MinimalRestClient {
+    public static class MinimalRestClient {
         final CloseableHttpAsyncClient client;
         final List<HttpHost> httpHosts;
         final List<Header> defaultHeaders;
 
-        private MinimalRestClient(CloseableHttpAsyncClient client, List<HttpHost> httpHosts, List<Header> defaultHeaders) {
+        public MinimalRestClient(CloseableHttpAsyncClient client, List<HttpHost> httpHosts, List<Header> defaultHeaders) {
             this.client = client;
             this.httpHosts = httpHosts;
             this.defaultHeaders = defaultHeaders;
@@ -179,6 +188,10 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
         @Override
         public String toString() {
             return "MinimalRestClient{" + "client=" + client + ", httpHosts=" + httpHosts + ", defaultHeaders=" + defaultHeaders + '}';
+        }
+
+        public CloseableHttpAsyncClient getClient() {
+            return client;
         }
     }
 }

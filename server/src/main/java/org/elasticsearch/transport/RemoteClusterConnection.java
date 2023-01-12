@@ -145,10 +145,16 @@ final class RemoteClusterConnection implements Closeable {
      * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
+        if (connectionStrategy instanceof final HttpConnectionStrategy httpConnectionStrategy) {
+            return httpConnectionStrategy.getConnection();
+        }
         return remoteConnectionManager.getConnection(remoteClusterNode);
     }
 
     Transport.Connection getConnection() {
+        if (connectionStrategy instanceof final HttpConnectionStrategy httpConnectionStrategy) {
+            return httpConnectionStrategy.getConnection();
+        }
         return remoteConnectionManager.getAnyRemoteConnection();
     }
 

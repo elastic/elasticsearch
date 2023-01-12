@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
@@ -70,7 +70,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("script", "test");
                 b.field("on_script_error", "continue");
-            }, m -> assertThat((m).onScriptError, equalTo("continue")));
+            }, m -> assertThat((m).onScriptError, is(OnScriptError.CONTINUE)));
         }
     }
 
@@ -264,7 +264,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     public void testMetricType() throws IOException {
         // Test default setting
-        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertNull(ft.getMetricType());
 

@@ -21,13 +21,15 @@ import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 
+import java.util.function.LongConsumer;
+
 /**
 * {@link CellIdSource} implementation for GeoHex aggregation
 */
 public class GeoHexCellIdSource extends CellIdSource {
 
-    public GeoHexCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
-        super(valuesSource, precision, geoBoundingBox);
+    public GeoHexCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox, LongConsumer circuitBreakerConsumer) {
+        super(valuesSource, precision, geoBoundingBox, circuitBreakerConsumer);
     }
 
     @Override
@@ -63,7 +65,7 @@ public class GeoHexCellIdSource extends CellIdSource {
 
     @Override
     protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
-        return new CellMultiValues(values, precision()) {
+        return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 values[valuesIdx] = H3.geoToH3(target.getLat(), target.getLon(), precision);
@@ -75,7 +77,7 @@ public class GeoHexCellIdSource extends CellIdSource {
     @Override
     protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoHexPredicate predicate = new GeoHexPredicate(boundingBox, precision());
-        return new CellMultiValues(values, precision()) {
+        return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 final double lat = target.getLat();
@@ -118,8 +120,8 @@ public class GeoHexCellIdSource extends CellIdSource {
         GeoHexPredicate(GeoBoundingBox bbox, int precision) {
             this.crossesDateline = bbox.right() < bbox.left();
             this.bbox = bbox;
-            northPoleHex = H3.geoToH3(90, 0, precision);
-            southPoleHex = H3.geoToH3(-90, 0, precision);
+            northPoleHex = H3.northPolarH3(precision);
+            southPoleHex = H3.southPolarH3(precision);
         }
 
         public boolean validHex(long hex) {

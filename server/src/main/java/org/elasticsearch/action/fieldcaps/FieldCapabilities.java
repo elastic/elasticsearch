@@ -211,7 +211,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             isDimension == null ? false : isDimension,
-            metricType != null ? Enum.valueOf(TimeSeriesParams.MetricType.class, metricType) : null,
+            metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,

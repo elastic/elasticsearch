@@ -1,6 +1,0 @@
-pr: 91501
-summary: Fix compile with hex literals ending with d/f
-area: Infra/Scripting
-type: bug
-issues:
- - 88614

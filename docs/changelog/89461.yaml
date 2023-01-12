@@ -1,5 +1,0 @@
-pr: 89461
-summary: Add certificate start/expiry dates to SSL Diagnostic message
-area: TLS
-type: enhancement
-issues: []

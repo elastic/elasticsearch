@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -328,13 +327,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             String source = "{\"foo\": " + values + "}";
             XContentParser parser = createParser(JsonXContent.jsonXContent, source);
             SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
-            DocumentParserContext ctx = new TestDocumentParserContext(
-                MappingLookup.EMPTY,
-                MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
-                null,
-                null,
-                sourceToParse
-            ) {
+            DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
                 @Override
                 public XContentParser parser() {
                     return parser;

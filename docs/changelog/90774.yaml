@@ -1,5 +1,0 @@
-pr: 90774
-summary: Add support for indexing byte-sized knn vectors
-area: Vector Search
-type: feature
-issues: []

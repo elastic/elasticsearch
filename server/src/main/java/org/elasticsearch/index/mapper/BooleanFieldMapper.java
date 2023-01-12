@@ -96,7 +96,7 @@ public class BooleanFieldMapper extends FieldMapper {
         ).acceptsNull();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

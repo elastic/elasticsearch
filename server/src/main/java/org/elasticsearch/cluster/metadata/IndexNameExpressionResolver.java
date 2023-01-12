@@ -1526,15 +1526,20 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
+        /**
+         * This returns `true` if the given {@param name} is of a resource that exists.
+         * Otherwise, it returns `false` if the `ignore_unvailable` option is `true`, or, if `false`, it throws a "not found" type of
+         * exception.
+         */
         @Nullable
-        private static boolean ensureAliasOrIndexExists(Context context, String expression) {
+        private static boolean ensureAliasOrIndexExists(Context context, String name) {
             boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
-            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
+            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(name);
             if (indexAbstraction == null) {
                 if (ignoreUnavailable) {
                     return false;
                 } else {
-                    throw notFoundException(expression);
+                    throw notFoundException(name);
                 }
             }
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
@@ -1542,14 +1547,14 @@ public class IndexNameExpressionResolver {
                 if (ignoreUnavailable) {
                     return false;
                 } else {
-                    throw aliasesNotSupportedException(expression);
+                    throw aliasesNotSupportedException(name);
                 }
             }
             if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
                 if (ignoreUnavailable) {
                     return false;
                 } else {
-                    IndexNotFoundException infe = notFoundException(expression);
+                    IndexNotFoundException infe = notFoundException(name);
                     // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
                     infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
                     throw infe;

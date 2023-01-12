@@ -10,6 +10,7 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 
 import java.io.IOException;
@@ -50,23 +51,25 @@ public class ChunkedLoggingStream extends OutputStream {
      * @param prefix A prefix for each chunk, which should be reasonably unique to allow for reconstruction of the original message even if
      *               multiple such streams are used concurrently.
      */
-    public static OutputStream create(Logger logger, Level level, String prefix) throws IOException {
-        return new GZIPOutputStream(Base64.getEncoder().wrap(new ChunkedLoggingStream(logger, level, prefix)));
+    public static OutputStream create(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) throws IOException {
+        return new GZIPOutputStream(Base64.getEncoder().wrap(new ChunkedLoggingStream(logger, level, prefix, referenceDocs)));
     }
 
     private final Logger logger;
     private final Level level;
     private final String prefix;
+    private final ReferenceDocs referenceDocs;
 
     private int chunk;
     private int offset;
     private boolean closed;
     private final byte[] buffer = new byte[CHUNK_SIZE];
 
-    ChunkedLoggingStream(Logger logger, Level level, String prefix) {
+    ChunkedLoggingStream(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
         this.logger = logger;
         this.level = level;
         this.prefix = prefix;
+        this.referenceDocs = referenceDocs;
     }
 
     private void flushBuffer() {
@@ -78,7 +81,7 @@ public class ChunkedLoggingStream extends OutputStream {
         offset = 0;
 
         if (closed && chunk == 1) {
-            logger.log(level, "{} (gzip compressed and base64-encoded): {}", prefix, chunkString);
+            logger.log(level, "{} (gzip compressed and base64-encoded; for details see {}): {}", prefix, referenceDocs, chunkString);
         } else {
             logger.log(level, "{} [part {}]: {}", prefix, chunk, chunkString);
         }
@@ -117,7 +120,13 @@ public class ChunkedLoggingStream extends OutputStream {
             closed = true;
             flushBuffer();
             if (chunk > 1) {
-                logger.log(level, "{} (gzip compressed, base64-encoded, and split into {} parts on preceding log lines)", prefix, chunk);
+                logger.log(
+                    level,
+                    "{} (gzip compressed, base64-encoded, and split into {} parts on preceding log lines; for details see {})",
+                    prefix,
+                    chunk,
+                    referenceDocs
+                );
             }
         }
     }

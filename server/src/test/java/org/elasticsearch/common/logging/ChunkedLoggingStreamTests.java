@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -53,8 +54,9 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
         final var expectedBody = new String(bytes, StandardCharsets.ISO_8859_1);
         final var prefix = randomAlphaOfLength(10);
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        assertEquals(expectedBody, getLoggedBody(logger, level, prefix, () -> {
-            try (var stream = new ChunkedLoggingStream(logger, level, prefix)) {
+        final var referenceDocs = randomFrom(ReferenceDocs.values());
+        assertEquals(expectedBody, getLoggedBody(logger, level, prefix, referenceDocs, () -> {
+            try (var stream = new ChunkedLoggingStream(logger, level, prefix, referenceDocs)) {
                 writeRandomly(stream, bytes);
             }
         }));
@@ -64,14 +66,20 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
     public void testEncodingRoundTrip() {
         final var bytes = randomByteArrayOfLength(between(0, 10000));
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
-        assertEquals(new BytesArray(bytes), getDecodedLoggedBody(logger, level, "prefix", () -> {
-            try (var stream = ChunkedLoggingStream.create(logger, level, "prefix")) {
+        assertEquals(new BytesArray(bytes), getDecodedLoggedBody(logger, level, "prefix", ReferenceDocs.DISCOVERY_TROUBLESHOOTING, () -> {
+            try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", ReferenceDocs.DISCOVERY_TROUBLESHOOTING)) {
                 writeRandomly(stream, bytes);
             }
         }));
     }
 
-    private static String getLoggedBody(Logger captureLogger, final Level level, String prefix, CheckedRunnable<Exception> runnable) {
+    private static String getLoggedBody(
+        Logger captureLogger,
+        final Level level,
+        String prefix,
+        final ReferenceDocs referenceDocs,
+        CheckedRunnable<Exception> runnable
+    ) {
         class ChunkReadingAppender extends AbstractAppender {
             final StringBuilder encodedResponseBuilder = new StringBuilder();
             int chunks;
@@ -91,7 +99,7 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
                 }
                 assertFalse(seenTotal);
                 final var message = event.getMessage().getFormattedMessage();
-                final var onePartPrefix = prefix + " (gzip compressed and base64-encoded): ";
+                final var onePartPrefix = prefix + " (gzip compressed and base64-encoded; for details see " + referenceDocs + "): ";
                 final var partPrefix = prefix + " [part " + (chunks + 1) + "]: ";
                 if (message.startsWith(partPrefix)) {
                     chunks += 1;
@@ -107,7 +115,12 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
                     seenTotal = true;
                 } else {
                     assertEquals(
-                        prefix + " (gzip compressed, base64-encoded, and split into " + chunks + " parts on preceding log lines)",
+                        prefix
+                            + " (gzip compressed, base64-encoded, and split into "
+                            + chunks
+                            + " parts on preceding log lines; for details see "
+                            + referenceDocs
+                            + ")",
                         message
                     );
                     assertThat(chunks, greaterThan(1));
@@ -141,16 +154,18 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
      * @param captureLogger The logger whose output should be captured.
      * @param level         The log level for the data.
      * @param prefix        The prefix used by the logging stream.
+     * @param referenceDocs A link to the reference docs about the output.
      * @param runnable      The action which emits the logs.
-     * @return              A {@link BytesReference} containing the captured data.
+     * @return A {@link BytesReference} containing the captured data.
      */
     public static BytesReference getDecodedLoggedBody(
         Logger captureLogger,
         Level level,
         String prefix,
+        ReferenceDocs referenceDocs,
         CheckedRunnable<Exception> runnable
     ) {
-        final var loggedBody = getLoggedBody(captureLogger, level, prefix, runnable);
+        final var loggedBody = getLoggedBody(captureLogger, level, prefix, referenceDocs, runnable);
 
         try (
             var bytesStreamOutput = new BytesStreamOutput();

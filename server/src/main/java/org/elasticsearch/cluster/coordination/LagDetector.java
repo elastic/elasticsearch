@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Setting;
@@ -313,7 +314,12 @@ public class LagDetector {
 
         @Override
         protected void doRun() throws Exception {
-            try (var writer = new OutputStreamWriter(ChunkedLoggingStream.create(logger, Level.DEBUG, prefix), StandardCharsets.UTF_8)) {
+            try (
+                var writer = new OutputStreamWriter(
+                    ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING),
+                    StandardCharsets.UTF_8
+                )
+            ) {
                 writer.write(nodeHotThreads);
             }
         }

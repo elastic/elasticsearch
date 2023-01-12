@@ -51,15 +51,15 @@ public class LatLngTests extends ESTestCase {
         return point;
     }
 
-    public void testMaxMinLatitude() {
+    public void testGreatCircleMaxMinLatitude() {
         for (int i = 0; i < 10; i++) {
             final GeoPoint point1 = safePoint();
             final GeoPoint point2 = safePoint();
             final LatLng latLng1 = new LatLng(point1.getLatitude(), point1.getLongitude());
             final LatLng latLng2 = new LatLng(point2.getLatitude(), point2.getLongitude());
             final LatLonBounds bounds = getBounds(point1, point2);
-            assertEquals(bounds.getMaxLatitude(), latLng1.maxLatitude(latLng2), 1e-7);
-            assertEquals(bounds.getMinLatitude(), latLng1.minLatitude(latLng2), 1e-7);
+            assertEquals(bounds.getMaxLatitude(), latLng1.greatCircleMaxLatitude(latLng2), 1e-7);
+            assertEquals(bounds.getMinLatitude(), latLng1.greatCircleMinLatitude(latLng2), 1e-7);
         }
     }
 

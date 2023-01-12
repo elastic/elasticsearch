@@ -98,11 +98,11 @@ public final class H3SphericalUtil {
         }
         if (minLat < 0) {
             // we only correct the min latitude if negative
-            minLat = boundary.getLatLon(minLatPos).minLatitude(computeEdge(boundary, minLatPos, MIN_COMPARATOR));
+            minLat = boundary.getLatLon(minLatPos).greatCircleMinLatitude(computeEdge(boundary, minLatPos, MIN_COMPARATOR));
         }
         if (maxLat > 0) {
             // we only correct the max latitude if positive
-            maxLat = boundary.getLatLon(maxLatPos).maxLatitude(computeEdge(boundary, maxLatPos, MAX_COMPARATOR));
+            maxLat = boundary.getLatLon(maxLatPos).greatCircleMaxLatitude(computeEdge(boundary, maxLatPos, MAX_COMPARATOR));
         }
         // the min / max longitude is computed the same way as in cartesian, being careful with polygons crossing the dateline
         final boolean crossesDateline = maxLon - minLon > Math.PI;

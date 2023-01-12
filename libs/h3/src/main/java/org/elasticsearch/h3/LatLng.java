@@ -66,7 +66,7 @@ public final class LatLng {
      * @param lon The longitude in radians.
      * @return The azimuth in radians.
      */
-    public double geoAzimuthRads(double lat, double lon) {
+    double geoAzimuthRads(double lat, double lon) {
         final double cosLat = FastMath.cos(lat);
         return FastMath.atan2(
             cosLat * FastMath.sin(lon - this.lon),
@@ -80,14 +80,14 @@ public final class LatLng {
      * @param latLng The LatLng.
      * @return The maximum latitude of the great circle in radians.
      */
-    public double maxLatitude(LatLng latLng) {
+    public double greatCircleMaxLatitude(LatLng latLng) {
         if (isNumericallyIdentical(latLng)) {
             return latLng.lat;
         }
-        return latLng.lat > this.lat ? maxLatitude(latLng, this) : maxLatitude(this, latLng);
+        return latLng.lat > this.lat ? greatCircleMaxLatitude(latLng, this) : greatCircleMaxLatitude(this, latLng);
     }
 
-    private static double maxLatitude(LatLng latLng1, LatLng latLng2) {
+    private static double greatCircleMaxLatitude(LatLng latLng1, LatLng latLng2) {
         // we compute the max latitude using Clairaut's formula (https://streckenflug.at/download/formeln.pdf)
         assert latLng1.lat >= latLng2.lat;
         final double az = latLng1.geoAzimuthRads(latLng2.lat, latLng2.lon);
@@ -99,19 +99,19 @@ public final class LatLng {
     }
 
     /**
-     * Determines the minimum latitude if the great circle defined by this LatLng to the provided LatLng.
+     * Determines the minimum latitude of the great circle defined by this LatLng to the provided LatLng.
      *
      * @param latLng The LatLng.
      * @return The minimum latitude of the great circle in radians.
      */
-    public double minLatitude(LatLng latLng) {
+    public double greatCircleMinLatitude(LatLng latLng) {
         if (isNumericallyIdentical(latLng)) {
             return latLng.lat;
         }
-        return latLng.lat < this.lat ? minLatitude(latLng, this) : minLatitude(this, latLng);
+        return latLng.lat < this.lat ? greatCircleMinLatitude(latLng, this) : greatCircleMinLatitude(this, latLng);
     }
 
-    private static double minLatitude(LatLng latLng1, LatLng latLng2) {
+    private static double greatCircleMinLatitude(LatLng latLng1, LatLng latLng2) {
         assert latLng1.lat <= latLng2.lat;
         // we compute the min latitude using Clairaut's formula (https://streckenflug.at/download/formeln.pdf)
         final double az = latLng1.geoAzimuthRads(latLng2.lat, latLng2.lon);

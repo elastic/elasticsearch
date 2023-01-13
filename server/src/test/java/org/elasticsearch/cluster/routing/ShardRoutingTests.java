@@ -48,12 +48,16 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     @Override
     protected ShardRouting mutateInstance(ShardRouting instance) throws IOException {
-        return switch (randomInt(3)) {
-            case 0 -> mutateShardId(instance);
-            case 1 -> mutateCurrentNodeId(instance);
-            case 2 -> mutateState(instance);
-            default -> randomValueOtherThan(instance, this::createTestInstance);
-        };
+        var mutation = randomInt(3);
+        if (mutation == 0) {
+            return mutateShardId(instance);
+        } else if (mutation == 1) {
+            return mutateState(instance);
+        } else if (mutation == 2 && instance.state() == ShardRoutingState.STARTED) {
+            return mutateCurrentNodeId(instance);
+        } else {
+            return randomValueOtherThan(instance, this::createTestInstance);
+        }
     }
 
     private static ShardRouting mutateShardId(ShardRouting instance) {
@@ -101,58 +105,18 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     private static ShardRouting mutateCurrentNodeId(ShardRouting instance) {
-        if (instance.unassigned()) {
-            // initialize or start
-            var newState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
-            return new ShardRouting(
-                instance.shardId(),
-                randomIdentifier(),
-                null,
-                instance.primary(),
-                newState,
-                newState != ShardRoutingState.INITIALIZING
-                    ? null
-                    : requireNonNullElseGet(
-                        instance.recoverySource(),
-                        () -> TestShardRouting.buildRecoveryTarget(instance.primary(), newState)
-                    ),
-                null,
-                instance.relocationFailureInfo(),
-                AllocationId.newInitializing(),
-                instance.getExpectedShardSize()
-            );
-        } else if (randomBoolean()) {
-            // move
-            return new ShardRouting(
-                instance.shardId(),
-                randomIdentifier(),
-                null,
-                instance.primary(),
-                ShardRoutingState.STARTED,
-                null,
-                instance.unassignedInfo(),
-                instance.relocationFailureInfo(),
-                instance.allocationId(),
-                instance.getExpectedShardSize()
-            );
-        } else {
-            // unassign
-            return new ShardRouting(
-                instance.shardId(),
-                null,
-                null,
-                instance.primary(),
-                ShardRoutingState.UNASSIGNED,
-                requireNonNullElseGet(
-                    instance.recoverySource(),
-                    () -> TestShardRouting.buildRecoveryTarget(instance.primary(), ShardRoutingState.UNASSIGNED)
-                ),
-                requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(ShardRoutingState.UNASSIGNED)),
-                instance.relocationFailureInfo(),
-                null,
-                instance.getExpectedShardSize()
-            );
-        }
+        return new ShardRouting(
+            instance.shardId(),
+            randomIdentifier(),
+            instance.relocatingNodeId(),
+            instance.primary(),
+            instance.state(),
+            instance.recoverySource(),
+            instance.unassignedInfo(),
+            instance.relocationFailureInfo(),
+            instance.allocationId(),
+            instance.getExpectedShardSize()
+        );
     }
 
     private ShardRouting randomShardRouting(String index, int shard) {

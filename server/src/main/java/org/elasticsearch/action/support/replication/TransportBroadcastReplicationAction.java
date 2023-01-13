@@ -147,17 +147,18 @@ public abstract class TransportBroadcastReplicationAction<
                 public void onFailure(Exception e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
                     final int numCopies = indexMetadataByName.get(shardId.getIndexName()).getNumberOfReplicas() + 1;
-                    addShardResponse(numCopies, 0, createSyntheticFailures(numCopies, e));
-                }
-
-                private List<DefaultShardOperationFailedException> createSyntheticFailures(int numCopies, Exception e) {
+                    final List<DefaultShardOperationFailedException> result;
                     if (TransportActions.isShardNotAvailableException(e)) {
-                        return List.of();
+                        result = List.of();
+                    } else {
+                        final var failures = new DefaultShardOperationFailedException[numCopies];
+                        Arrays.fill(
+                            failures,
+                            new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(shardId, e))
+                        );
+                        result = Arrays.asList(failures);
                     }
-
-                    final var failures = new DefaultShardOperationFailedException[numCopies];
-                    Arrays.fill(failures, new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(shardId, e)));
-                    return Arrays.asList(failures);
+                    addShardResponse(numCopies, 0, result);
                 }
             }
 

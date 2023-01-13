@@ -4,7 +4,6 @@
 A time series data stream (TSDS) models timestamped metrics data as one or
 more time series.
 
-// TODO: Replace XX% with actual percentage
 You can use a TSDS to store metrics data more efficiently. In our benchmarks,
 metrics data stored in a TSDS used 44% less disk space than a regular data
 stream.

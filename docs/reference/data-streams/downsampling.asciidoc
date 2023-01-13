@@ -1,8 +1,6 @@
 [[downsampling]]
 === Downsampling a time series data stream
 
-preview::[]
-
 Downsampling provides a method to reduce the footprint of your <<tsds,time
 series data>> by storing it at reduced granularity.
 

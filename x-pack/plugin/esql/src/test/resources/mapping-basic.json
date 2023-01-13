@@ -4,16 +4,16 @@
             "type" : "integer"
         },
         "first_name" : {
-            "type" : "text"
+            "type" : "keyword"
         },
         "gender" : {
-            "type" : "keyword"
+            "type" : "text"
         },
         "languages" : {
             "type" : "byte"
         },
         "last_name" : {
-            "type" : "text"
+            "type" : "keyword"
         },
         "salary" : {
             "type" : "integer"

@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -250,6 +251,33 @@ public class FileSettingsServiceTests extends ESTestCase {
         );
 
         verify(service, times(1)).processFileSettings(any());
+
+        service.stop();
+        service.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInitialFileTransientErrorRetry() throws Exception {
+        ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
+
+        doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(2)).accept(new NotMasterException("Not master exception"));
+            return null;
+        }).doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
+            return null;
+        }).when(stateService).process(any(), (XContentParser) any(), any());
+
+        final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
+        Files.createDirectories(service.operatorSettingsDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(service.operatorSettingsFile(), "{}");
+
+        service.start();
+        service.startWatcher(clusterService.state());
+        service.getStartupLatch().get();
+
+        verify(service, times(2)).processFileSettings(any());
 
         service.stop();
         service.close();

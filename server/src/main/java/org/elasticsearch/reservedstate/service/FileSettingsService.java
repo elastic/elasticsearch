@@ -38,7 +38,6 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -360,12 +359,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 }
                 break;
             } catch (ExecutionException e) {
+                logger.error("Error processing operator settings json file", e.getCause());
                 if (retryCount > 0 && MasterService.isPublishFailureException((Exception) e.getCause())) {
+                    logger.warn("retrying...");
                     retryCount--;
                     continue;
                 }
-                logger.error("Error processing operator settings json file", e.getCause());
                 startupLatch.onFailure((Exception) e.getCause());
+                break;
             }
         }
     }
@@ -433,8 +434,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         } while (true);
     }
 
-    CompletableFuture<Void> processFileSettings(Path path) {
-        CompletableFuture<Void> completion = new CompletableFuture<>();
+    PlainActionFuture<Void> processFileSettings(Path path) {
+        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (
             var fis = Files.newInputStream(path);
@@ -443,17 +444,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         ) {
             stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
         } catch (Exception e) {
-            completion.completeExceptionally(e);
+            completion.onFailure(e);
         }
 
         return completion;
     }
 
-    private void completeProcessing(Exception e, CompletableFuture<Void> completion) {
+    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
-            completion.completeExceptionally(e);
+            completion.onFailure(e);
         } else {
-            completion.complete(null);
+            completion.onResponse(null);
         }
     }
 

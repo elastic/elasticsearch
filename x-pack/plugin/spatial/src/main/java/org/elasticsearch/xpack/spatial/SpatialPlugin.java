@@ -52,18 +52,15 @@ import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHexGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexCellIdSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.InternalGeoHexGrid;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHexGridTiler;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregationBuilder;
@@ -307,9 +304,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
-                        ? new UnboundedGeoHashGridTiler(precision)
-                        : new BoundedGeoHashGridTiler(precision, geoBoundingBox);
+                    final GeoGridTiler tiler = GeoHashGridTiler.makeGridTiler(precision, geoBoundingBox);
                     return new GeoHashGridAggregator(
                         name,
                         factories,
@@ -343,9 +338,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
-                        ? new UnboundedGeoTileGridTiler(precision)
-                        : new BoundedGeoTileGridTiler(precision, geoBoundingBox);
+                    final GeoGridTiler tiler = GeoTileGridTiler.makeGridTiler(precision, geoBoundingBox);
                     return new GeoTileGridAggregator(
                         name,
                         factories,
@@ -379,9 +372,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 collectsFromSingleBucket,
                 metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
-                    final GeoGridTiler tiler = geoBoundingBox.isUnbounded()
-                        ? new UnboundedGeoHexGridTiler(precision)
-                        : new BoundedGeoHexGridTiler(precision, geoBoundingBox);
+                    final GeoGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, geoBoundingBox);
                     return new GeoHexGridAggregator(
                         name,
                         factories,

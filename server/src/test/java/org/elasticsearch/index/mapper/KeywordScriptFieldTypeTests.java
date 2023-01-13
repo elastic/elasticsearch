@@ -40,7 +40,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -293,23 +292,6 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
-    public void testSyntheticSourceAccess() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
-            try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> {
-                        searcher.count(fieldType.termQuery("1-suffix", mockContext(true, null, new SourceLookup.NullSourceProvider())));
-                    }
-                );
-            }
-        }
-    }
-
     @Override
     protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);
@@ -413,8 +395,10 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 ctx
             ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(foo.toString());
                     }
                 }
@@ -427,8 +411,10 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 ctx
             ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit(foo.toString() + getParams().get("param").toString());
                     }
                 }

@@ -17,6 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -88,11 +89,11 @@ public class TransportRelaySingleNodeTests extends SecuritySingleNodeTestCase {
                     )
                 )
         );
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "action": "%s",
               "payload": "%s"
-            }""".formatted(actionName, payload));
+            }""", actionName, payload));
         final Response response = getRestClient().performRequest(request);
         return response;
     }

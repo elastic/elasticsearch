@@ -88,16 +88,40 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
-        assert (state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) == false : "unassigned shard must be created with meta";
+
         assert relocationFailureInfo != null : "relocation failure info must be always set";
-        assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null)
-            : "recovery source only available on unassigned or initializing shard but was " + state;
-        assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary
-            : "replica shards always recover from primary";
-        assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)
-            : "unassigned shard must not be assigned to a node " + this;
-        assert relocatingNodeId == null || state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING
-            : state + " shard must not have relocating node " + this;
+        switch (state) {
+            case UNASSIGNED -> {
+                assert currentNodeId == null : state + " shard must not be assigned to a node " + this;
+                assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
+                assert unassignedInfo != null : state + " shard must be created with unassigned info " + this;
+                assert recoverySource != null : state + "shard must be created with a recovery source" + this;
+                if (primary == false) {
+                    assert recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary";
+                }
+            }
+            case INITIALIZING -> {
+                assert currentNodeId != null : state + " shard must be assigned to a node " + this;
+                // relocatingNodeId is not set for initializing shard but set for relocating shard counterpart
+                // unassignedInfo is kept after starting unassigned shard but not present for relocating shard counterpart
+                assert recoverySource != null : state + "shard must be created with a recovery source" + this;
+                if (primary == false) {
+                    assert recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary";
+                }
+            }
+            case STARTED -> {
+                assert currentNodeId != null : state + " shard must be assigned to a node " + this;
+                assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
+                assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
+                assert recoverySource == null : state + "shard must be created without a recovery source" + this;
+            }
+            case RELOCATING -> {
+                assert currentNodeId != null : state + " shard must be assigned to a node " + this;
+                assert relocatingNodeId != null : state + " shard must be relocating to a node " + this;
+                assert unassignedInfo == null : "relocating shard must be created without unassigned info " + this;
+                assert recoverySource == null : state + "shard must be created without a recovery source" + this;
+            }
+        }
     }
 
     @Nullable

@@ -580,16 +580,12 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                     builder.addShard(shardRouting);
                 }
 
-                boolean removed = false;
-                for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
-                    if (removed == false) {
-                        for (int copy = 0; copy < indexShard.size(); copy++) {
-                            ShardRouting shardRouting = indexShard.shard(copy);
-                            if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
-                                builder.removeShard(shardRouting);
-                                removed = true;
-                                break;
-                            }
+                findAndRemove: for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
+                    for (int copy = 0; copy < indexShard.size(); copy++) {
+                        ShardRouting shardRouting = indexShard.shard(copy);
+                        if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
+                            builder.removeShard(shardRouting);
+                            break findAndRemove;
                         }
                     }
                 }

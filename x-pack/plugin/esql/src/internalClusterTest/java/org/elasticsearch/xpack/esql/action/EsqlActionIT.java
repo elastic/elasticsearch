@@ -113,6 +113,36 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(List.of(List.of(value)), response.values());
     }
 
+    public void testSimpleAvg() {
+        EsqlQueryResponse results = run("from test | where color == \"red\" | stats avg(data)");
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+
+        // assert column metadata
+        assertEquals("avg(data)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+
+        // assert values ( 1 + 2 / 2 = 1.5 )
+        assertThat(results.values().get(0).get(0), equalTo(1.5));
+    }
+
+    public void testSimpleGroupingAvg() {
+        EsqlQueryResponse results = run("from test | where color == \"red\" | stats avg(data) by color");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+
+        // assert column metadata
+        assertEquals("avg(data)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals("color", results.columns().get(1).name());
+        assertEquals("keyword", results.columns().get(1).type());
+
+        // assert values ( 1 + 2 / 2 = 1.5 )
+        assertThat(results.values().get(0).get(0), equalTo(1.5));
+    }
+
     public void testFromStatsAvg() {
         testFromStatsAvgImpl("from test | stats avg(count)", "avg(count)");
     }

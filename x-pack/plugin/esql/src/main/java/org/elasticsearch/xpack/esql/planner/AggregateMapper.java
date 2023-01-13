@@ -27,19 +27,19 @@ class AggregateMapper {
 
     static AggregatorFunction.Factory map(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof Avg avg) {
-            return avg.dataType().isRational() ? AggregatorFunction.AVG_DOUBLES : AggregatorFunction.AVG_LONGS;
+            return avg.field().dataType().isRational() ? AggregatorFunction.AVG_DOUBLES : AggregatorFunction.AVG_LONGS;
         }
         if (aggregateFunction instanceof Count) {
             return AggregatorFunction.COUNT;
         }
         if (aggregateFunction instanceof Max) {
-            return aggregateFunction.dataType().isRational() ? AggregatorFunction.MAX_DOUBLES : AggregatorFunction.MAX_LONGS;
+            return aggregateFunction.field().dataType().isRational() ? AggregatorFunction.MAX_DOUBLES : AggregatorFunction.MAX_LONGS;
         }
         if (aggregateFunction instanceof Min) {
-            return aggregateFunction.dataType().isRational() ? AggregatorFunction.MIN_DOUBLES : AggregatorFunction.MIN_LONGS;
+            return aggregateFunction.field().dataType().isRational() ? AggregatorFunction.MIN_DOUBLES : AggregatorFunction.MIN_LONGS;
         }
         if (aggregateFunction instanceof Sum) {
-            return aggregateFunction.dataType().isRational() ? AggregatorFunction.SUM_DOUBLES : AggregatorFunction.SUM_LONGS;
+            return aggregateFunction.field().dataType().isRational() ? AggregatorFunction.SUM_DOUBLES : AggregatorFunction.SUM_LONGS;
         }
         throw new UnsupportedOperationException("No provider available for aggregate function=" + aggregateFunction);
     }
@@ -47,21 +47,21 @@ class AggregateMapper {
     static GroupingAggregatorFunction.Factory mapGrouping(AggregateFunction aggregateFunction) {
         GroupingAggregatorFunction.Factory aggregatorFunc;
         if (aggregateFunction instanceof Avg) {
-            aggregatorFunc = aggregateFunction.dataType().isRational()
+            aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.AVG_DOUBLES
                 : GroupingAggregatorFunction.AVG_LONGS;
         } else if (aggregateFunction instanceof Count) {
             aggregatorFunc = GroupingAggregatorFunction.COUNT;
         } else if (aggregateFunction instanceof Max) {
-            aggregatorFunc = aggregateFunction.dataType().isRational()
+            aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.MAX_DOUBLES
                 : GroupingCountAggregator.MAX_LONGS;
         } else if (aggregateFunction instanceof Min) {
-            aggregatorFunc = aggregateFunction.dataType().isRational()
+            aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.MIN_DOUBLES
                 : GroupingAggregatorFunction.MIN_LONGS;
         } else if (aggregateFunction instanceof Sum) {
-            aggregatorFunc = aggregateFunction.dataType().isRational()
+            aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.SUM_DOUBLES
                 : GroupingAggregatorFunction.SUM_LONGS;
         } else {

@@ -13,7 +13,7 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockBuilder;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -60,11 +60,11 @@ class AvgLongAggregator {
 
     public static Block evaluateFinal(GroupingAvgState state) {
         int positions = state.largestGroupId + 1;
-        long[] result = new long[positions];
+        double[] result = new double[positions];
         for (int i = 0; i < positions; i++) {
-            result[i] = state.values.get(i) / state.counts.get(i);
+            result[i] = (double) state.values.get(i) / state.counts.get(i);
         }
-        return new LongVector(result, positions).asBlock();
+        return new DoubleVector(result, positions).asBlock();
     }
 
     static class AvgState implements AggregatorState<AvgLongAggregator.AvgState> {

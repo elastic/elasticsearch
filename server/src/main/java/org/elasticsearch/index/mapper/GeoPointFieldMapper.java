@@ -389,7 +389,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     name(),
                     CoreValuesSourceType.GEOPOINT,
                     valueFetcher(sourcePaths, null, null),
-                    searchLookup.source(),
+                    searchLookup,
                     GeoPointDocValuesField::new
                 );
             }

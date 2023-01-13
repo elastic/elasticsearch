@@ -735,7 +735,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 sourceValueFetcher(sourcePaths),
-                fieldDataContext.lookupSupplier().get().source(),
+                fieldDataContext.lookupSupplier().get(),
                 KeywordDocValuesField::new
             );
         }

@@ -280,7 +280,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     name(),
                     CoreValuesSourceType.BOOLEAN,
                     sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
+                    searchLookup,
                     BooleanDocValuesField::new
                 );
             }

@@ -108,7 +108,11 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 ? null
                 : requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(newState)),
             instance.relocationFailureInfo(),
-            TestShardRouting.buildAllocationId(newState),
+            switch (newState) {
+            case UNASSIGNED -> null;
+            case INITIALIZING, STARTED -> requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing);
+            case RELOCATING -> AllocationId.newRelocation(requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing));
+            },
             instance.getExpectedShardSize()
         );
     }
@@ -131,7 +135,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     ),
                 null,
                 instance.relocationFailureInfo(),
-                TestShardRouting.buildAllocationId(newState),
+                AllocationId.newInitializing(),
                 instance.getExpectedShardSize()
             );
         } else if (randomBoolean()) {

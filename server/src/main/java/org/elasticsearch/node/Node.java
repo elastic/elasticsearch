@@ -65,6 +65,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -214,6 +215,7 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
@@ -1848,6 +1850,15 @@ public class Node implements Closeable {
         DiscoveryNode getNode() {
             assert localNode.get() != null;
             return localNode.get();
+        }
+    }
+
+    static {
+        // Force loading of the ReferenceDocs class, validating early in startup that all its links are defined.
+        try {
+            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
         }
     }
 }

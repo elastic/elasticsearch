@@ -62,9 +62,6 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
     static final String BOOTSTRAP_PLACEHOLDER_PREFIX = "{bootstrap-placeholder}-";
 
-    // extract the docs link here to force loading of the ReferenceDocs class, validating early in startup that all its links are defined.
-    private static final ReferenceDocs INITIAL_MASTER_NODES_DOCS = ReferenceDocs.INITIAL_MASTER_NODES;
-
     private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);
     private final Set<String> bootstrapRequirements;
     @Nullable // null if discoveryIsConfigured()
@@ -155,7 +152,7 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
             clusterUUID,
             INITIAL_MASTER_NODES_SETTING.getKey(),
             bootstrapRequirements,
-            INITIAL_MASTER_NODES_DOCS
+            ReferenceDocs.INITIAL_MASTER_NODES
         );
     }
 

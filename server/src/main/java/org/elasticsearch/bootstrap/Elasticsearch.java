@@ -17,6 +17,7 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -39,6 +40,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -458,6 +460,15 @@ class Elasticsearch {
             Thread.currentThread().interrupt();
         } finally {
             es.keepAliveLatch.countDown();
+        }
+    }
+
+    static {
+        // Force loading of the ReferenceDocs class, validating early in startup that all its links are defined.
+        try {
+            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
         }
     }
 }

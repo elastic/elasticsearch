@@ -13,6 +13,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 
 public class TestShardRoutingRoleStrategies {
 
+    /**
+     * A strategy which only returns the default role in all situations. This is deliberately not available to production code to avoid any
+     * possibility of using it instead of the strategy provided by the plugin (if so configured).
+     */
     public static final ShardRoutingRoleStrategy DEFAULT_ROLE_ONLY = new ShardRoutingRoleStrategy() {
         @Override
         public ShardRouting.Role newReplicaRole() {

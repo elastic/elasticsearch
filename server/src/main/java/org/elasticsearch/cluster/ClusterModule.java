@@ -156,6 +156,10 @@ public class ClusterModule extends AbstractModule {
         final var strategies = clusterPlugins.stream().map(ClusterPlugin::getShardRoutingRoleStrategy).filter(Objects::nonNull).toList();
         return switch (strategies.size()) {
             case 0 -> new ShardRoutingRoleStrategy() {
+
+                // NOTE: this is deliberately an anonymous class to avoid any possibility of using this DEFAULT-only strategy when a plugin
+                // has injected a different strategy.
+
                 @Override
                 public ShardRouting.Role newReplicaRole() {
                     return ShardRouting.Role.DEFAULT;

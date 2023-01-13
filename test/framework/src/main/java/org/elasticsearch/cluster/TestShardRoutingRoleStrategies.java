@@ -15,7 +15,8 @@ import java.util.List;
 public class TestShardRoutingRoleStrategies {
 
     /**
-     * A strategy which only returns the default role in all situations.
+     * A strategy which only returns the default role in all situations. This is deliberately not available to production code to avoid any
+     * possibility of using it instead of the strategy provided by the plugin (if so configured).
      */
     public static final ShardRoutingRoleStrategy DEFAULT_ROLE_ONLY = ClusterModule.getShardRoutingRoleStrategy(List.of());
 

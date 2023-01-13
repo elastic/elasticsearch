@@ -1,0 +1,6 @@
+ext.stableApiSince = "8.5.0"
+
+// TODO: got this idea from JDBC gradle config, seems to make us pull from maven
+group = 'org.elasticsearch.qa.stable-api.plugin-analysis-api'
+
+apply plugin: 'elasticsearch.stable-api'

@@ -7,14 +7,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
 
-configurations {
-  stableApi
-}
-
 BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
   && it != VersionProperties.elasticsearchVersion
-})
-   { bwcVersion, baseName ->
+}) { bwcVersion, baseName ->
 
   BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
   Configuration stableApiConfiguration = configurations.create("stableApi${baseName}") {
@@ -35,8 +30,10 @@ BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
   }
 
   def jarApiComparisonTask = tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
+    // TODO: I know cross-project dependencies are bad, but I just wanted to get this working...
+    dependsOn project(":libs:" + project.name).tasks.named("jar")
     oldJar = stableApiConfiguration
-    newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
+    newJar = files(project(":libs:" + project.name).tasks.named("jar")).getSingleFile()
   }
 
   jarApiComparisonTask.configure {

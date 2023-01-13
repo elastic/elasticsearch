@@ -14,16 +14,18 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 import java.io.IOException;
 
-public class Skip1TokenFilter extends FilteringTokenFilter {
+public class SkipStartingWithDigitTokenFilter extends FilteringTokenFilter {
 
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+    private final long tokenFilterNumber;
 
-    public Skip1TokenFilter(TokenStream in) {
+    public SkipStartingWithDigitTokenFilter(TokenStream in, long tokenFilterNumber) {
         super(in);
+        this.tokenFilterNumber = tokenFilterNumber;
     }
 
     @Override
     protected boolean accept() throws IOException {
-        return termAtt.buffer()[0] != '1';
+        return termAtt.buffer()[0] != (char) (tokenFilterNumber + '0');
     }
 }

@@ -9,9 +9,6 @@ your application to {es} 8.6.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.6.0]
-
-
 [discrete]
 [[breaking-changes-8.6]]
 === Breaking changes

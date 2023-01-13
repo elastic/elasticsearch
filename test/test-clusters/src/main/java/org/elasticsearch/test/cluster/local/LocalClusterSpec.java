@@ -161,8 +161,20 @@ public class LocalClusterSpec implements ClusterSpec {
             );
         }
 
+        /**
+         * Return node configured setting or the provided default if no explicit value has been configured. This method returns all
+         * settings, to include security settings provided to the keystore
+         *
+         * @param setting the setting name
+         * @param defaultValue a default value
+         * @return the configured setting value or provided default
+         */
         public String getSetting(String setting, String defaultValue) {
-            return resolveSettings().getOrDefault(setting, defaultValue);
+            Map<String, String> allSettings = new HashMap<>();
+            allSettings.putAll(resolveSettings());
+            allSettings.putAll(keystoreSettings);
+
+            return allSettings.getOrDefault(setting, defaultValue);
         }
 
         /**

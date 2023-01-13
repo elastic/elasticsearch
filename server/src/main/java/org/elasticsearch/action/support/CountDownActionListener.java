@@ -37,15 +37,6 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
         countDown = new AtomicInteger(groupSize);
     }
 
-    /**
-     * Creates a new listener
-     * @param groupSize the group size
-     * @param runnable the runnable
-     */
-    public CountDownActionListener(int groupSize, Runnable runnable) {
-        this(groupSize, ActionListener.wrap(Objects.requireNonNull(runnable)));
-    }
-
     private boolean countDown() {
         final var result = countDown.getAndUpdate(current -> Math.max(0, current - 1));
         assert result > 0;

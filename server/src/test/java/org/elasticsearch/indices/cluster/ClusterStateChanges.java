@@ -40,14 +40,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.coordination.JoinReason;
 import org.elasticsearch.cluster.coordination.JoinTask;
-import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
-import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
+import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
+import org.elasticsearch.cluster.coordination.NodeLeftExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -136,7 +138,7 @@ public class ClusterStateChanges {
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
 
-    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final NodeLeftExecutor nodeLeftExecutor;
 
     @SuppressWarnings("unchecked")
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
@@ -154,7 +156,8 @@ public class ClusterStateChanges {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
@@ -347,7 +350,7 @@ public class ClusterStateChanges {
             EmptySystemIndices.INSTANCE
         );
 
-        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
+        nodeLeftExecutor = new NodeLeftExecutor(allocationService);
     }
 
     private void resetMasterService() {
@@ -396,14 +399,16 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
+    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
+
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
-            new JoinTaskExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.singleNode(
                     discoveryNode,
-                    "dummy reason",
+                    DUMMY_REASON,
                     ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); }),
                     clusterState.term()
                 )
@@ -413,7 +418,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            new JoinTaskExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.completingElection(
@@ -421,7 +426,7 @@ public class ClusterStateChanges {
                         .map(
                             node -> new JoinTask.NodeJoinTask(
                                 node,
-                                "dummy reason",
+                                DUMMY_REASON,
                                 ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
                             )
                         ),
@@ -433,9 +438,9 @@ public class ClusterStateChanges {
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            nodeRemovalExecutor,
+            nodeLeftExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).toList()
+            nodes.stream().map(n -> new NodeLeftExecutor.Task(n, "dummy reason", () -> {})).toList()
         );
     }
 

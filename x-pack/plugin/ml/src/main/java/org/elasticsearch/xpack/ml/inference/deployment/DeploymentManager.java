@@ -17,7 +17,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -260,13 +259,6 @@ public class DeploymentManager {
         Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
-        assert ((EsThreadPoolExecutor) executorServiceForProcess).getPoolSize() % 3 == 0
-            : "Thread pool size ["
-                + ((EsThreadPoolExecutor) executorServiceForProcess).getPoolSize()
-                + "] should be a multiple of 3. Num contexts = ["
-                + processContextByAllocation.size()
-                + "]";
-
         var processContext = getProcessContext(task, listener::onFailure);
         if (processContext == null) {
             // error reporting handled in the call to getProcessContext

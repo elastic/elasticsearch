@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -91,6 +92,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
+    private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
     private static final Predicate<String> REMOVE_NODE_LOCKED_FILTER_INITIAL = removeNodeLockedFilterPredicate(
         IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey()
@@ -110,9 +112,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         );
     }
 
-    public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
+    public ReactiveStorageDeciderService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        AllocationDeciders allocationDeciders,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+    ) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.allocationDeciders = allocationDeciders;
+        this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
     }
 
     @Override
@@ -177,7 +185,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     AllocationState allocationState(AutoscalingDeciderContext context) {
-        return new AllocationState(context, diskThresholdSettings, allocationDeciders);
+        return new AllocationState(context, diskThresholdSettings, allocationDeciders, shardRoutingRoleStrategy);
     }
 
     static String message(long unassignedBytes, long assignedBytes) {
@@ -241,6 +249,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final ClusterState state;
         private final ClusterState originalState;
         private final AllocationDeciders allocationDeciders;
+        private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
         private final DiskThresholdSettings diskThresholdSettings;
         private final ClusterInfo info;
         private final SnapshotShardSizeInfo shardSizeInfo;
@@ -252,11 +261,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         AllocationState(
             AutoscalingDeciderContext context,
             DiskThresholdSettings diskThresholdSettings,
-            AllocationDeciders allocationDeciders
+            AllocationDeciders allocationDeciders,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy
         ) {
             this(
                 context.state(),
                 allocationDeciders,
+                shardRoutingRoleStrategy,
                 diskThresholdSettings,
                 context.info(),
                 context.snapshotShardSizeInfo(),
@@ -268,6 +279,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         AllocationState(
             ClusterState state,
             AllocationDeciders allocationDeciders,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy,
             DiskThresholdSettings diskThresholdSettings,
             ClusterInfo info,
             SnapshotShardSizeInfo shardSizeInfo,
@@ -277,6 +289,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.state = removeNodeLockFilters(state);
             this.originalState = state;
             this.allocationDeciders = allocationDeciders;
+            this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
             this.diskThresholdSettings = diskThresholdSettings;
             this.info = info;
             this.shardSizeInfo = shardSizeInfo;
@@ -665,7 +678,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             public void applyRouting(RoutingTable.Builder routing) {
-                additionalIndices.keySet().forEach(routing::addAsNew);
+                additionalIndices.keySet().forEach(indexMetadata -> routing.addAsNew(indexMetadata));
             }
 
             public void applyMetadata(Metadata.Builder metadataBuilder) {
@@ -703,7 +716,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return this;
             }
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-            RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
+            RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, state.routingTable());
             Map<String, Long> sizeBuilder = new HashMap<>();
             singleForecasts.forEach(p -> p.applyMetadata(metadataBuilder));
             singleForecasts.forEach(p -> p.applyRouting(routingTableBuilder));
@@ -715,6 +728,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new AllocationState(
                 forecastClusterState,
                 allocationDeciders,
+                shardRoutingRoleStrategy,
                 diskThresholdSettings,
                 forecastInfo,
                 shardSizeInfo,

@@ -105,7 +105,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     () -> TestShardRouting.buildRecoveryTarget(instance.primary(), newState)
                 ),
             newState != ShardRoutingState.UNASSIGNED
-                ? null
+                ? instance.unassignedInfo()
                 : requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(newState)),
             instance.relocationFailureInfo(),
             switch (newState) {

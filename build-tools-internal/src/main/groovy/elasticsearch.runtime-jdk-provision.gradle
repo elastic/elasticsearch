@@ -34,6 +34,13 @@ configure(allprojects) {
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
+
+            test.doFirst {
+                println "%%%%%%%% ${test.path} DEBUG START %%%%%%%"
+                println test.executable
+                println test.javaLauncher.get().executablePath.asFile.path
+                println "%%%%%%%% ${test.path} DEBUG END   %%%%%%%"
+            }
             println "test.path = ${test.path}  + ${test.executable} -- runtime java"
         } else {
             test.dependsOn(project.jdks.provisioned_runtime)

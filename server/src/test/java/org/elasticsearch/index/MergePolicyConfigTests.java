@@ -236,7 +236,7 @@ public class MergePolicyConfigTests extends ESTestCase {
             0
         );
         assertEquals(
-            ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMergeFactor(),
+            ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMergeFactor() - 1,
             MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER,
             0
         );
@@ -257,7 +257,7 @@ public class MergePolicyConfigTests extends ESTestCase {
             0
         );
         assertEquals(
-            ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMergeFactor(),
+            ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMergeFactor() - 1,
             MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER + 1,
             0
         );
@@ -322,8 +322,8 @@ public class MergePolicyConfigTests extends ESTestCase {
             0
         );
         assertEquals(
-            ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMergeFactor(),
-            MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER,
+            ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMergeFactor() - 1,
+            MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER ,
             0
         );
         assertEquals(

@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -173,14 +172,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(
                 new IndexShardRoutingTable.Builder(shardId).addShard(
-                    TestShardRouting.newShardRouting(
-                        shardId,
-                        currentNodeId,
-                        null,
-                        true,
-                        state,
-                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-                    )
+                    TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state)
                 )
             );
             indexRoutingTableBuilder.addReplica();

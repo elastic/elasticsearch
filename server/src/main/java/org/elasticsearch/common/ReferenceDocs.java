@@ -21,7 +21,8 @@ import java.util.List;
 public enum ReferenceDocs {
     INITIAL_MASTER_NODES("important-settings.html#initial_master_nodes"),
     DISCOVERY_TROUBLESHOOTING("discovery-troubleshooting.html"),
-    UNSTABLE_CLUSTER_TROUBLESHOOTING("cluster-fault-detection.html#cluster-fault-detection-troubleshooting");
+    UNSTABLE_CLUSTER_TROUBLESHOOTING("cluster-fault-detection.html#cluster-fault-detection-troubleshooting"),
+    LAGGING_NODE_TROUBLESHOOTING("cluster-fault-detection.html#_diagnosing_lagging_nodes");
 
     private final String relativePath;
 

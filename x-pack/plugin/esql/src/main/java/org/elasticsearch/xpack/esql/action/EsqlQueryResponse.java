@@ -30,6 +30,7 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
 
     private final List<ColumnInfo> columns;
     private final List<List<Object>> values;
+    private final boolean columnar;
 
     private static final InstantiatingObjectParser<EsqlQueryResponse, Void> PARSER;
     static {
@@ -65,11 +66,18 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
         }
 
         this.values = unmodifiableList(values);
+
+        this.columnar = in.readBoolean();
     }
 
     public EsqlQueryResponse(List<ColumnInfo> columns, List<List<Object>> values) {
+        this(columns, values, false);
+    }
+
+    public EsqlQueryResponse(List<ColumnInfo> columns, List<List<Object>> values, boolean columnar) {
         this.columns = columns;
         this.values = values;
+        this.columnar = columnar;
     }
 
     public List<ColumnInfo> columns() {
@@ -78,6 +86,10 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
 
     public List<List<Object>> values() {
         return values;
+    }
+
+    public boolean columnar() {
+        return columnar;
     }
 
     @Override
@@ -89,12 +101,24 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
         }
         builder.endArray();
         builder.startArray("values");
-        for (List<Object> rows : values) {
-            builder.startArray();
-            for (Object value : rows) {
-                builder.value(value);
+        if (columnar) {
+            if (values.size() > 0) {
+                for (int c = 0; c < values.get(0).size(); c++) {
+                    builder.startArray();
+                    for (List<Object> value : values) {
+                        builder.value(value.get(c));
+                    }
+                    builder.endArray();
+                }
             }
-            builder.endArray();
+        } else {
+            for (List<Object> rows : values) {
+                builder.startArray();
+                for (Object value : rows) {
+                    builder.value(value);
+                }
+                builder.endArray();
+            }
         }
         builder.endArray();
         return builder.endObject();
@@ -115,6 +139,8 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
                 out.writeGenericValue(value);
             }
         }
+
+        out.writeBoolean(columnar);
     }
 
     public static EsqlQueryResponse fromXContent(XContentParser parser) {
@@ -126,12 +152,12 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EsqlQueryResponse that = (EsqlQueryResponse) o;
-        return Objects.equals(columns, that.columns) && Objects.equals(values, that.values);
+        return Objects.equals(columns, that.columns) && Objects.equals(values, that.values) && columnar == that.columnar;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(columns, values);
+        return Objects.hash(columns, values, columnar);
     }
 
     @Override

@@ -24,7 +24,9 @@ public class EsqlQueryResponseTests extends AbstractXContentSerializingTestCase<
         List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noRows = randomIntBetween(1, 20);
         List<List<Object>> values = randomList(noRows, noRows, () -> randomRow(noCols));
-        return new EsqlQueryResponse(columns, values);
+        // columnar param can't be different from the default value (false) since the EsqlQueryResponse will be serialized (by some random
+        // XContentType, not to a StreamOutput) and parsed back, which doesn't preserve columnar field's value.
+        return new EsqlQueryResponse(columns, values, false);
     }
 
     private List<Object> randomRow(int noCols) {
@@ -37,7 +39,11 @@ public class EsqlQueryResponseTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected EsqlQueryResponse mutateInstance(EsqlQueryResponse instance) throws IOException {
-        EsqlQueryResponse newInstance = new EsqlQueryResponse(new ArrayList<>(instance.columns()), new ArrayList<>(instance.values()));
+        EsqlQueryResponse newInstance = new EsqlQueryResponse(
+            new ArrayList<>(instance.columns()),
+            new ArrayList<>(instance.values()),
+            instance.columnar() == false
+        );
 
         int modCol = randomInt(instance.columns().size() - 1);
         newInstance.columns().set(modCol, randomColumnInfo());

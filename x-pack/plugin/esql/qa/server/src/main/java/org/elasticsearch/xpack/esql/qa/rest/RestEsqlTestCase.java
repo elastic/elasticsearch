@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -95,8 +96,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testGetAnswer() throws IOException {
-        RequestObjectBuilder builder = new RequestObjectBuilder();
-        Map<String, Object> answer = runEsql(builder.query("row a = 1, b = 2").build());
+        Map<String, Object> answer = runEsql(builder().query("row a = 1, b = 2").build());
         assertEquals(2, answer.size());
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -105,11 +105,42 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testUseUnknownIndex() throws IOException {
-        RequestObjectBuilder request = new RequestObjectBuilder().query("from doesNotExist").build();
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(request));
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder().query("from doesNotExist").build()));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
+    }
+
+    public void testColumnarMode() throws IOException {
+        int docCount = randomIntBetween(3, 10);
+        bulkLoadTestData(docCount);
+
+        boolean columnar = randomBoolean();
+        var query = builder().query("from test | project keyword, integer");
+        if (columnar || randomBoolean()) {
+            query.columnar(columnar);
+        }
+        Map<String, Object> answer = runEsql(query.build());
+
+        Map<String, String> colKeyword = Map.of("name", "keyword", "type", "keyword");
+        Map<String, String> colInteger = Map.of("name", "integer", "type", "integer");
+        assertEquals(List.of(colKeyword, colInteger), answer.get("columns"));
+
+        if (columnar) {
+            List<String> valKeyword = new ArrayList<>();
+            List<Integer> valInteger = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                valKeyword.add("keyword" + i);
+                valInteger.add(i);
+            }
+            assertEquals(List.of(valKeyword, valInteger), answer.get("values"));
+        } else {
+            List<Object> rows = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                rows.add(List.of("keyword" + i, i));
+            }
+            assertEquals(rows, answer.get("values"));
+        }
     }
 
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
@@ -122,7 +153,11 @@ public class RestEsqlTestCase extends ESRestTestCase {
         }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Accept", mediaType);
+        if (randomBoolean()) {
+            options.addHeader("Accept", mediaType);
+        } else {
+            request.addParameter("format", requestObject.contentType().queryParameter());
+        }
         options.addHeader("Content-Type", mediaType);
         request.setOptions(options);
 
@@ -130,8 +165,42 @@ public class RestEsqlTestCase extends ESRestTestCase {
         HttpEntity entity = response.getEntity();
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-            assertNotNull(xContentType);
+            assertEquals(requestObject.contentType(), xContentType);
             return XContentHelper.convertToMap(xContentType.xContent(), content, false);
         }
+    }
+
+    private static void bulkLoadTestData(int count) throws IOException {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "keyword": {
+                    "type": "keyword"
+                  },
+                  "integer": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }""");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/test/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            bulk.append(org.elasticsearch.core.Strings.format("""
+                {"index":{"_id":"%s"}}
+                {"keyword":"keyword%s", "integer":%s}
+                """, i, i, i));
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
+    private static RequestObjectBuilder builder() throws IOException {
+        return new RequestObjectBuilder();
     }
 }

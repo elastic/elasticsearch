@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,7 +47,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             @Override
             public void onResponse(EsqlQueryResponse esqlQueryResponse) {
                 try {
-                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), XContentType.JSON, true);
+                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), null, true);
                     esqlQueryResponse.toXContent(builder, request);
                     channel.sendResponse(new RestResponse(RestStatus.OK, builder));
                 } catch (Exception e) {

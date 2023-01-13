@@ -122,28 +122,31 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             "assemble"
         );
 
-        for (Project stableApiProject : resolveStableProjects(project)) {
+        // only run this section for versions where the stable projects would exist
+        if (bwcVersion.get().onOrAfter(Version.fromString("8.5.0"))) {
+            for (Project stableApiProject : resolveStableProjects(project)) {
 
-            String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
+                String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
 
-            DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
-                new File(
-                    checkoutDir.get(),
-                    relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
-                ),
-                null
-            );
+                DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
+                    new File(
+                        checkoutDir.get(),
+                        relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
+                    ),
+                    null
+                );
 
-            createBuildBwcTask(
-                bwcSetupExtension,
-                project,
-                bwcVersion,
-                stableApiProject.getName(),
-                "libs/" + stableApiProject.getName(),
-                stableAnalysisPluginProjectArtifact,
-                buildBwcTaskProvider,
-                "assemble"
-            );
+                createBuildBwcTask(
+                    bwcSetupExtension,
+                    project,
+                    bwcVersion,
+                    stableApiProject.getName(),
+                    "libs/" + stableApiProject.getName(),
+                    stableAnalysisPluginProjectArtifact,
+                    buildBwcTaskProvider,
+                    "assemble"
+                );
+            }
         }
     }
 

@@ -29,6 +29,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -576,6 +577,25 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertThat(paginatedResponse2.getSnapshots(), is(List.of(snapshot1, snapshot2)));
         assertThat(paginatedResponse2.totalCount(), is(3));
+    }
+
+    public void testRetrievingSnapshotsWhenRepositoryIsMissing() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "fs", repoPath);
+        final String missingRepoName = "missing";
+        createRepository(missingRepoName, "fs");
+
+        final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(1, 10));
+        snapshotNames.sort(String::compareTo);
+
+        deleteRepository(missingRepoName);
+
+        final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName)
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get();
+        assertThat(response.getSnapshots().stream().map(info -> info.snapshotId().getName()).toList(), equalTo(snapshotNames));
+        assertTrue(response.getFailures().containsKey(missingRepoName));
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.

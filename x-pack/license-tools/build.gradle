@@ -26,3 +26,13 @@ tasks.register("buildZip", Zip) {
 }
 
 tasks.named("assemble").configure { dependsOn("buildZip") }
+
+
+tasks.named('test').configure {Test test ->
+  doFirst {
+    println "%%%%%%%% DEBUG %%%%%%%"
+    println test.executable
+    println test.javaLauncher.get().executablePath.asFile.path
+    println "%%%%%%%% DEBUG %%%%%%%"
+  }
+}

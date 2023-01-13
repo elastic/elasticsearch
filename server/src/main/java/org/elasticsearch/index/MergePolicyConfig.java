@@ -272,7 +272,9 @@ public final class MergePolicyConfig {
 
     void setSegmentsPerTier(double segmentsPerTier) {
         tieredMergePolicy.setSegmentsPerTier(segmentsPerTier);
-        logByteSizeMergePolicy.setMergeFactor((int) segmentsPerTier);
+        // LogByteSizeMergePolicy merges segments as soon as it finds `mergeFactor` segments on the same tier. So if you want to allow
+        // `segmentsPerTier` segments on each tier, you need a merge factor equal to `1 + segmentsPerTier`.
+        logByteSizeMergePolicy.setMergeFactor(1 + (int) segmentsPerTier);
     }
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {

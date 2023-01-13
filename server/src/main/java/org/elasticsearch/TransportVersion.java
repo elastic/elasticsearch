@@ -214,7 +214,8 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return version1.id > version2.id ? version1 : version2;
     }
 
-    private final int id;
+    // TODO for testing or a getter? should this be used?
+    final int id;
     private final String uniqueId;
 
     TransportVersion(int id, String uniqueId) {

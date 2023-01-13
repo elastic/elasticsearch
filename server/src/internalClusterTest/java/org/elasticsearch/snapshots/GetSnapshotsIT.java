@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestB
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
@@ -596,6 +598,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertThat(response.getSnapshots().stream().map(info -> info.snapshotId().getName()).toList(), equalTo(snapshotNames));
         assertTrue(response.getFailures().containsKey(missingRepoName));
+        assertThat(response.getFailures().get(missingRepoName), instanceOf(RepositoryMissingException.class));
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.

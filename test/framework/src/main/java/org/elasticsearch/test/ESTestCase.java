@@ -1731,7 +1731,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
-    private static final int MAX_PRIVATE_PORT = 36600;
+    private static final int MAX_PRIVATE_PORT = 32767;
 
     /**
      * Wrap around after reaching this worker ID.

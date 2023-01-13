@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -90,7 +92,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                     .numberOfReplicas(0)
             )
             .build();
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .addAsNew(metadata.index("test_1"))
             .addAsNew(metadata.index("test_2"))
@@ -121,10 +123,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         ) {
 
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
 
@@ -216,10 +218,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
 
@@ -276,7 +278,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
                 throw new AssertionError("unexpected");
             }
         };
@@ -434,7 +436,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test_1")).addAsNew(metadata.index("test_2")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test_1"))
+            .addAsNew(metadata.index("test_2"))
+            .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
@@ -472,13 +477,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
         indicesToMarkReadOnly.set(null);
@@ -564,13 +569,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
         // When free disk on any of node1 or node2 goes below the flood watermark, then apply index block on indices not having the block
@@ -767,7 +772,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test_1")).addAsNew(metadata.index("test_2")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test_1"))
+            .addAsNew(metadata.index("test_2"))
+            .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
@@ -807,13 +815,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             }
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
                     assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
                 }
-                listener.onResponse(null);
+                onCompletion.close();
             }
         };
         indicesToMarkReadOnly.set(null);
@@ -1051,8 +1059,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())
         ) {
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
-                listener.onResponse(null);
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {
+                onCompletion.close();
             }
 
             @Override

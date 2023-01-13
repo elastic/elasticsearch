@@ -76,9 +76,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
+        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
-        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
     }
@@ -133,7 +133,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             nodeAndShard.shardId,
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "fake")
+            new UnassignedInfo(REINITIALIZED, "fake"),
+            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
         ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 

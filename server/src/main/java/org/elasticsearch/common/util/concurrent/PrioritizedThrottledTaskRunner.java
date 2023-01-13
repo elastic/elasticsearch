@@ -51,8 +51,7 @@ public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Compara
         pollAndSpawn();
     }
 
-    // visible for testing
-    protected void pollAndSpawn() {
+    private void pollAndSpawn() {
         // A pollAndSpawn attempts to run a new task. There could be many concurrent pollAndSpawn calls competing
         // to get a "free slot", since we attempt to run a new task on every enqueueTask call and every time an
         // existing task is finished.

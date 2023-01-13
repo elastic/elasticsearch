@@ -19,9 +19,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -467,7 +470,22 @@ public class SnapshotsServiceTests extends ESTestCase {
         final RoutingTable.Builder routingTable = RoutingTable.builder();
         for (String index : indexNames) {
             final Index idx = metaBuilder.get(index).getIndex();
-            routingTable.add(IndexRoutingTable.builder(idx).addIndexShard(IndexShardRoutingTable.builder(new ShardId(idx, 0))));
+            final ShardId shardId = new ShardId(idx, 0);
+            routingTable.add(
+                IndexRoutingTable.builder(idx)
+                    .addIndexShard(
+                        IndexShardRoutingTable.builder(shardId)
+                            .addShard(
+                                ShardRouting.newUnassigned(
+                                    shardId,
+                                    true,
+                                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
+                                    ShardRouting.Role.DEFAULT
+                                )
+                            )
+                    )
+            );
         }
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).routingTable(routingTable.build()).build();
     }

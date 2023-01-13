@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
@@ -349,15 +350,23 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
-        try {
-            processFileSettings(operatorSettingsFile()).get();
-            unlockStartup();
-            for (var listener : eventListeners) {
-                listener.settingsChanged();
+        int retryCount = 1;
+        while (retryCount >= 0) {
+            try {
+                processFileSettings(operatorSettingsFile()).get();
+                unlockStartup();
+                for (var listener : eventListeners) {
+                    listener.settingsChanged();
+                }
+                break;
+            } catch (ExecutionException e) {
+                if (retryCount > 0 && MasterService.isPublishFailureException((Exception) e.getCause())) {
+                    retryCount--;
+                    continue;
+                }
+                logger.error("Error processing operator settings json file", e.getCause());
+                startupLatch.onFailure((Exception) e.getCause());
             }
-        } catch (ExecutionException e) {
-            logger.error("Error processing operator settings json file", e.getCause());
-            startupLatch.onFailure((Exception) e.getCause());
         }
     }
 

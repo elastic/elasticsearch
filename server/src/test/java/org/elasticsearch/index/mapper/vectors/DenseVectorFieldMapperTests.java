@@ -223,7 +223,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testIndexedVector() throws Exception {
         VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", similarity.name()))
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", similarity))
         );
 
         float[] vector = { -0.5f, 0.5f, 0.7071f };
@@ -245,7 +245,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "dense_vector")
                     .field("dims", 3)
                     .field("index", true)
-                    .field("similarity", similarity.name())
+                    .field("similarity", similarity)
                     .field("element_type", "byte")
             )
         );
@@ -270,7 +270,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testDotProductWithInvalidNorm() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.dot_product)
+                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.DOT_PRODUCT)
             )
         );
         float[] vector = { -12.1f, 2.7f, -4 };
@@ -285,7 +285,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapperWithLargerDim = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 6).field("index", true).field("similarity", VectorSimilarity.dot_product)
+                b -> b.field("type", "dense_vector").field("dims", 6).field("index", true).field("similarity", VectorSimilarity.DOT_PRODUCT)
             )
         );
         float[] largerVector = { -12.1f, 2.7f, -4, 1.05f, 10.0f, 29.9f };
@@ -303,7 +303,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testCosineWithZeroVector() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.cosine)
+                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.COSINE)
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
@@ -323,7 +323,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "dense_vector")
                     .field("dims", 3)
                     .field("index", true)
-                    .field("similarity", VectorSimilarity.cosine)
+                    .field("similarity", VectorSimilarity.COSINE)
                     .field("element_type", "byte")
             )
         );
@@ -534,7 +534,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .field("element_type", "byte")
                     .field("dims", 3)
                     .field("index", true)
-                    .field("similarity", VectorSimilarity.cosine)
+                    .field("similarity", VectorSimilarity.COSINE)
             )
         );
 

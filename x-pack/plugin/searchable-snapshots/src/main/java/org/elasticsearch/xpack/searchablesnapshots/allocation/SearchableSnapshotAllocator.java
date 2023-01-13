@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
@@ -445,28 +446,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             );
         }
         return new AsyncShardFetch.FetchResult<>(shardId, asyncFetch.data(), Collections.emptySet());
-    }
-
-    /**
-     * Takes the store info for nodes that have a shard store and adds them to the node decisions,
-     * leaving the node explanations untouched for those nodes that do not have any store information.
-     */
-    private static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
-        Map<String, NodeAllocationResult> nodeDecisions,
-        Map<String, NodeAllocationResult> withShardStores
-    ) {
-        if (nodeDecisions == null || withShardStores == null) {
-            return null;
-        }
-        List<NodeAllocationResult> augmented = new ArrayList<>();
-        for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
-            if (withShardStores.containsKey(entry.getKey())) {
-                augmented.add(withShardStores.get(entry.getKey()));
-            } else {
-                augmented.add(entry.getValue());
-            }
-        }
-        return augmented;
     }
 
     private static MatchingNodes findMatchingNodes(

@@ -104,7 +104,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             SearchRequest searchRequest = new SearchRequest();
             KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100);
-            searchRequest.source(new SearchSourceBuilder().knnSearch(knnSearch));
+            searchRequest.source(new SearchSourceBuilder().knnSearch(List.of(knnSearch)));
 
             Exception ex = expectThrows(
                 IllegalArgumentException.class,

@@ -200,6 +200,52 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
     }
 
+    public void testTroublesomeCellLevel2_BoundedGeoShapeCellValues() throws Exception {
+        int precision = 2;
+        String wkt = """
+            GEOMETRYCOLLECTION (
+              GEOMETRYCOLLECTION (
+                POINT(-170 0),
+                POINT (-178.5 0)
+              )
+            )
+            """;
+        GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(4E-4, 179.999), new GeoPoint(-4E-4, -179.999));
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, wkt);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getBoundedGridTiler(boundingBox, precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(cellValues.advanceExact(0));
+        int numBuckets = cellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, boundingBox);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
+    public void testTroublesomeCellLevel4_BoundedGeoShapeCellValues() throws Exception {
+        int precision = 4;
+        String polygon = "POLYGON ((150.0 70.0, 150.0 85.91811374669217, 168.77544806565834 85.91811374669217, 150.0 70.0))";
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, polygon);
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(86.17678739494652, 172.21916569181505),
+            new GeoPoint(83.01600086049713, 179)
+        );
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getBoundedGridTiler(boundingBox, precision),
+            NOOP_BREAKER
+        );
+
+        assertTrue(cellValues.advanceExact(0));
+        int numBuckets = cellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, boundingBox);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
     private void assertCorner(long[] h3bins, Point point, int precision, String msg) throws IOException {
         GeoShapeValues.GeoShapeValue cornerValue = geoShapeValue(point);
         GeoShapeCellValues cornerValues = new GeoShapeCellValues(
@@ -260,37 +306,40 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected int expectedBuckets(GeoShapeValues.GeoShapeValue geoValue, int precision, GeoBoundingBox bbox) throws Exception {
-        return computeBuckets(H3.getLongRes0Cells(), bbox, geoValue, precision);
+        BoundedGeoHexGridTiler bounded = bbox == null ? null : new BoundedGeoHexGridTiler(precision, bbox);
+        UnboundedGeoHexGridTiler predicate = new UnboundedGeoHexGridTiler(precision);
+        return computeBuckets(H3.getLongRes0Cells(), bounded, predicate, geoValue, precision);
     }
 
-    private int computeBuckets(long[] children, GeoBoundingBox bbox, GeoShapeValues.GeoShapeValue geoValue, int finalPrecision)
-        throws IOException {
+    private int computeBuckets(
+        long[] children,
+        BoundedGeoHexGridTiler bounded,
+        UnboundedGeoHexGridTiler predicate,
+        GeoShapeValues.GeoShapeValue geoValue,
+        int finalPrecision
+    ) throws IOException {
         int count = 0;
         for (long child : children) {
             if (H3.getResolution(child) == finalPrecision) {
-                if (intersects(child, geoValue, bbox, finalPrecision)) {
+                if (intersects(child, geoValue, bounded, predicate)) {
                     count++;
                 }
             } else {
-                count += computeBuckets(H3.h3ToChildren(child), bbox, geoValue, finalPrecision);
+                count += computeBuckets(H3.h3ToChildren(child), bounded, predicate, geoValue, finalPrecision);
             }
         }
         return count;
     }
 
-    private boolean intersects(long h3, GeoShapeValues.GeoShapeValue geoValue, GeoBoundingBox bbox, int finalPrecision) throws IOException {
-        if (addressIntersectsBounds(h3, bbox, finalPrecision) == false) {
+    private boolean intersects(
+        long h3,
+        GeoShapeValues.GeoShapeValue geoValue,
+        BoundedGeoHexGridTiler bounded,
+        UnboundedGeoHexGridTiler predicate
+    ) throws IOException {
+        if (bounded != null && bounded.h3IntersectsBounds(h3) == false) {
             return false;
         }
-        UnboundedGeoHexGridTiler predicate = new UnboundedGeoHexGridTiler(finalPrecision);
         return predicate.relateTile(geoValue, h3) != GeoRelation.QUERY_DISJOINT;
-    }
-
-    private boolean addressIntersectsBounds(long h3, GeoBoundingBox bbox, int finalPrecision) {
-        if (bbox == null) {
-            return true;
-        }
-        BoundedGeoHexGridTiler predicate = new BoundedGeoHexGridTiler(finalPrecision, bbox);
-        return predicate.h3IntersectsBounds(h3);
     }
 }

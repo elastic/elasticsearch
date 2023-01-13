@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.junit.AfterClass;
+import org.junit.Before;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -52,6 +56,25 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+    }
+
+    @Before
+    public void setup() throws IOException {
+        if (indexExists(DataLoader.TEST_INDEX_SIMPLE) == false) {
+            DataLoader.loadDatasetIntoEs(client(), this::createParser);
+        }
+    }
+
+    @AfterClass
+    public static void wipeTestData() throws IOException {
+        try {
+            adminClient().performRequest(new Request("DELETE", "/*"));
+        } catch (ResponseException e) {
+            // 404 here just means we had no indexes
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     public final void test() throws Throwable {
@@ -134,5 +157,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 }

@@ -1,0 +1,27 @@
+[
+  {
+    "longField": 10,
+    "intField": 1,
+    "keywordField": "a"
+  },
+  {
+    "longField": 20,
+    "intField": 2,
+    "keywordField": "b"
+  },
+  {
+    "longField": 30,
+    "intField": 3,
+    "keywordField": "c"
+  },
+  {
+    "longField": 40,
+    "intField": 4,
+    "keywordField": "d"
+  },
+  {
+    "longField": 50,
+    "intField": 5,
+    "keywordField": "e"
+  }
+]

@@ -1,0 +1,39 @@
+sort
+from simple | sort intField;
+
+intField:integer | keywordField:keyword | longField:long
+1                | a                    | 10
+2                | b                    | 20
+3                | c                    | 30
+4                | d                    | 40
+5                | e                    | 50
+;
+
+sortDesc
+from simple | sort intField desc;
+
+intField:integer | keywordField:keyword | longField:long
+5                | e                    | 50
+4                | d                    | 40
+3                | c                    | 30
+2                | b                    | 20
+1                | a                    | 10
+;
+
+
+sortLimit
+from simple | sort intField | limit 2;
+
+intField:integer | keywordField:keyword | longField:long
+1                | a                    | 10
+2                | b                    | 20
+;
+
+
+sortDescLimit
+from simple | sort intField desc | limit 2;
+
+intField:integer | keywordField:keyword | longField:long
+5                | e                    | 50
+4                | d                    | 40
+;

@@ -34,9 +34,12 @@ configure(allprojects) {
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
+            println "test.path = ${test.path}  + ${test.executable} -- runtime java"
         } else {
             test.dependsOn(project.jdks.provisioned_runtime)
             test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+            println "test.path = ${test.path}  + ${test.executable} -- no runtime java"
+
         }
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->

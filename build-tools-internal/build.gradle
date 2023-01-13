@@ -344,12 +344,6 @@ def resolveMainWrapperVersion() {
   new URL("https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }
 
-tasks.named('jar').configure {
-  eachFile {
-    println it.path
-  }
-}
-
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {
   void execute(ComponentMetadataContext ctx) {
     ctx.details.with {d ->

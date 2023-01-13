@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.rest.action.profile;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -98,7 +99,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         )
             .withPath("/_security/profile/_suggest")
             .withParams(new HashMap<>(Map.of("data", randomAlphaOfLengthBetween(3, 8))))
-            .withContent(new BytesArray(formatted("{\"data\": \"%s\"}", randomAlphaOfLengthBetween(3, 8))), XContentType.JSON)
+            .withContent(new BytesArray(Strings.format("{\"data\": \"%s\"}", randomAlphaOfLengthBetween(3, 8))), XContentType.JSON)
             .build();
 
         final IllegalArgumentException e = expectThrows(

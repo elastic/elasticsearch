@@ -483,14 +483,14 @@ A boost value greater than `1.0` increases the score. A boost value between
 experimental::[]
 [[search-api-knn]]
 `knn`::
-(Optional, object) 
+(Optional, object or array of objects)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
 +
 .Properties of `knn` object
 [%collapsible%open]
 ====
 `field`::
-(Required, string) 
+(Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
 `filter`::
@@ -498,11 +498,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `k`::
-(Required, integer) 
+(Required, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 
 `num_candidates`::
-(Required, integer) 
+(Required, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::

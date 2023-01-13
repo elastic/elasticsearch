@@ -38,6 +38,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
@@ -399,7 +400,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             shardId,
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            unassignedInfo
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -444,7 +446,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        final String expectedJson = formatted("""
+        Object[] args = new Object[] {
+            needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
+            mockNodeVersion,
+            Version.CURRENT,
+            apmIndicesExist };
+        final String expectedJson = Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -754,7 +761,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""", needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
+            }""", args);
         assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
     }
 

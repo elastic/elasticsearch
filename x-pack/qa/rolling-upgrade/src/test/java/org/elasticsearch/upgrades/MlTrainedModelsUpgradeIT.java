@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.BeforeClass;
 
@@ -153,7 +154,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createAndRunRegressionJob() throws Exception {
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -172,7 +173,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createAndRunClassificationJob() throws Exception {
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -205,7 +206,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createPipeline(String id, String modelType, String modelId) throws Exception {
-        String body = formatted("""
+        String body = Strings.format("""
             {
               "processors": [
                 {
@@ -225,7 +226,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createIndexWithName(String index) throws IOException {
-        String mapping = formatted("""
+        String mapping = Strings.format("""
             "properties": {
                 "%s": {
                   "type": "boolean"

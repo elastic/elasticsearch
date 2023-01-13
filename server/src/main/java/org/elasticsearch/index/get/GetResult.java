@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -225,7 +225,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
     }
 

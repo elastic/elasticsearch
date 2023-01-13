@@ -294,10 +294,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
         IndexMode indexMode = this.indexMode;
-        // This allows for migrating a data stream to be a tsdb data stream:
-        // (only if index_mode=null|standard then allow it to be set to time_series)
         if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
+            // This allows for migrating a data stream to be a tsdb data stream:
+            // (only if index_mode=null|standard then allow it to be set to time_series)
             indexMode = IndexMode.TIME_SERIES;
+        } else if (indexMode == IndexMode.TIME_SERIES && timeSeries == false) {
+            // Allow downgrading a time series data stream to a regular data stream
+            indexMode = null;
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);

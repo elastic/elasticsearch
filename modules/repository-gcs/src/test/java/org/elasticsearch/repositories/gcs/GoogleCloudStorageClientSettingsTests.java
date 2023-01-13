@@ -13,6 +13,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -307,7 +308,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         URI tokenServerUri = URI.create("http://localhost/oauth2/token");
         credentialBuilder.setTokenServerUri(tokenServerUri);
         final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
-        final String serviceAccount = formatted("""
+        final String serviceAccount = Strings.format("""
             {
               "type": "service_account",
               "project_id": "project_id_%s",

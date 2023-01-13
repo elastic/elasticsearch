@@ -1,5 +1,0 @@
-pr: 90807
-summary: Check `NodesShutdownMetadata` type before assuming restart
-area: Allocation
-type: bug
-issues: []

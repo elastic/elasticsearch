@@ -221,6 +221,7 @@ public class Constants {
         "cluster:admin/xpack/security/token/create",
         "cluster:admin/xpack/security/token/invalidate",
         "cluster:admin/xpack/security/token/refresh",
+        "cluster:admin/xpack/security/transport_relay",
         "cluster:admin/xpack/security/user/authenticate",
         "cluster:admin/xpack/security/user/change_password",
         "cluster:admin/xpack/security/user/delete",

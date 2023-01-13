@@ -66,7 +66,7 @@ public final class Profilers {
      */
     public DfsProfiler getDfsProfiler() {
         if (dfsProfiler == null) {
-            dfsProfiler = new DfsProfiler(getCurrentQueryProfiler());
+            dfsProfiler = new DfsProfiler();
         }
 
         return dfsProfiler;

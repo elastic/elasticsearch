@@ -1248,7 +1248,8 @@ One of the `dfs.knn` sections for a shard looks like the following:
 [source,js]
 --------------------------------------------------
 "dfs" : {
-    "knn" : {
+    "knn" : [
+        {
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
@@ -1286,7 +1287,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
                 "time_in_nanos" : 17163
             }
         ]
-    }
+    }   ]
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n/]

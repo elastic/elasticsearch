@@ -79,8 +79,7 @@ public class ClassReaders {
     }
 
     private static Stream<ClassReader> classesInPath(Path root) {
-        try {
-            Stream<Path> stream = Files.walk(root);
+        try (Stream<Path> stream = Files.walk(root)) {
             return stream.filter(p -> p.toString().endsWith(".class"))
                 .filter(p -> p.toString().endsWith("module-info.class") == false)
                 .map(p -> {

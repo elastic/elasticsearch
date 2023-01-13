@@ -201,7 +201,25 @@ logger.org.elasticsearch.cluster.coordination.LagDetector: DEBUG
 
 When this logger is enabled, {es} will attempt to run the
 <<cluster-nodes-hot-threads>> API on the faulty node and report the results in
-the logs on the elected master.
+the logs on the elected master. The results are compressed, encoded, and split
+into chunks to avoid truncation:
+
+[source,text]
+----
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 1]: H4sIAAAAAAAA/x...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 2]: p7x3w1hmOQVtuV...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 3]: v7uTboMGDbyOy+...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] [part 4]: 4tse0RnPnLeDNN...
+[DEBUG][o.e.c.c.LagDetector      ] [master] hot threads from node [{node}{g3cCUaMDQJmQ2ZLtjr-3dg}{10.0.0.1:9300}] lagging at version [183619] despite commit of cluster state version [183620] (gzip compressed, base64-encoded, and split into 4 parts on preceding log lines)
+----
+
+To reconstruct the output, base64-decode the data and decompress it using
+`gzip`. For instance, on Unix-like systems:
+
+[source,sh]
+----
+cat lagdetector.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
+----
 
 ===== Diagnosing `follower check retry count exceeded` nodes
 

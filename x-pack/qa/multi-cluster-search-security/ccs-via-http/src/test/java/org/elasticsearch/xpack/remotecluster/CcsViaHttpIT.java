@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -109,13 +110,13 @@ public class CcsViaHttpIT extends ESRestTestCase {
             final String pitId = ObjectPath.createFromResponse(openPitResponse).evaluate("id");
             assertThat(pitId, notNullValue());
             final Request pitSearchRequest = new Request("GET", "/_search");
-            pitSearchRequest.setJsonEntity("""
+            pitSearchRequest.setJsonEntity(Strings.format("""
                 {
                   "pit": {
                     "id": "%s",
                     "keep_alive": "1h"
                   }
-                }""".formatted(pitId));
+                }""", pitId));
             assertSearchResponse(client().performRequest(pitSearchRequest), 4);
 
             // Search with scroll
@@ -124,10 +125,10 @@ public class CcsViaHttpIT extends ESRestTestCase {
             final String scrollId = ObjectPath.createFromResponse(client().performRequest(openScrollRequest)).evaluate("_scroll_id");
             assertThat(scrollId, notNullValue());
             final Request scrollSearchRequest = new Request("GET", "/_search/scroll");
-            scrollSearchRequest.setJsonEntity("""
+            scrollSearchRequest.setJsonEntity(Strings.format("""
                 {
                   "scroll_id": "%s"
-                }""".formatted(scrollId));
+                }""", scrollId));
             assertSearchResponse(client().performRequest(scrollSearchRequest), 4);
 
             // Async Search

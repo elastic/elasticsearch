@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -35,6 +36,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Avg.class, Avg::new, "avg"),
                 def(Count.class, Count::new, "count"),
                 def(Max.class, Max::new, "max"),
+                def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "median_absolute_deviation"),
                 def(Min.class, Min::new, "min"),
                 def(Sum.class, Sum::new, "sum") },
             // math

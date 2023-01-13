@@ -361,6 +361,22 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values().get(1).get(0), equalTo(44.0));
     }
 
+    public void testMedianAbsoluteDeviation() {
+        for (String field : List.of("count", "count_d")) {
+            EsqlQueryResponse results = run("from test | stats mad=median_absolute_deviation(" + field + ")");
+            assertEquals(results.columns(), List.of(new ColumnInfo("mad", "double")));
+            assertEquals(results.values(), List.of(List.of(2.0)));
+        }
+    }
+
+    public void testGroupingMedianAbsoluteDeviation() {
+        for (String field : List.of("count", "count_d")) {
+            EsqlQueryResponse results = run("from test | stats mad=median_absolute_deviation(" + field + ") by color | sort color");
+            assertEquals(results.columns(), List.of(new ColumnInfo("mad", "double"), new ColumnInfo("color", "keyword")));
+            assertEquals(results.values(), List.of(List.of(0.0, "blue"), List.of(0.0, "green"), List.of(3.0, "red")));
+        }
+    }
+
     public void testFromStatsMultipleAggs() {
         EsqlQueryResponse results = run(
             "from test | stats a=avg(count), mi=min(count), ma=max(count), s=sum(count), c=count(count) by color"

@@ -362,6 +362,7 @@ public final class BulkRequestParser {
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias)
                             );
                         }

@@ -42,4 +42,9 @@
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+          if [ "$os" == "amazon-2022&&immutable" ]; then
+            # Skip BWC testing on Amazon 2022 as there's an incompatibility with older ES versions on this system
+            $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true checkPart1 checkPart2
+          else
+            $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+          fi

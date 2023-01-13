@@ -5,7 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
@@ -14,21 +13,12 @@ restResources {
   }
 }
 
-File repo = file("$buildDir/testclusters/repo")
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  numberOfNodes = 2
-  setting 'path.repo', repo.absolutePath
-}
-
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
+dependencies {
+  clusterModules project(":modules:mapper-extras")
+  clusterModules project(":modules:ingest-common")
 }
 
 tasks.named("yamlRestTest").configure {
-  doFirst {
-    project.delete(repo)
-    repo.mkdirs()
-  }
   systemProperty 'tests.rest.blacklist', [
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',

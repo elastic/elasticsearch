@@ -1066,6 +1066,30 @@ public class XTessellatorTests extends LuceneTestCase {
         );
     }
 
+    public void testComplexPolygon53() throws Exception {
+        String geoJson = GeoTestUtil.readShape("github-11986-1.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        for (Polygon polygon : polygons) {
+            List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
+            assertEquals(area(polygon), area(tessellation), 0.0);
+            for (XTessellator.Triangle t : tessellation) {
+                checkTriangleEdgesFromPolygon(polygon, t);
+            }
+        }
+    }
+
+    public void testComplexPolygon54() throws Exception {
+        String geoJson = GeoTestUtil.readShape("github-11986-2.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        for (Polygon polygon : polygons) {
+            List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
+            assertEquals(area(polygon), area(tessellation), 0.0);
+            for (XTessellator.Triangle t : tessellation) {
+                checkTriangleEdgesFromPolygon(polygon, t);
+            }
+        }
+    }
+
     private void checkPolygon(String wkt) throws Exception {
         Polygon polygon = (Polygon) SimpleWKTShapeParser.parse(wkt);
         List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);

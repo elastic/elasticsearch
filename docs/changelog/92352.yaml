@@ -1,0 +1,6 @@
+pr: 92352
+summary: Remove unnecessary `thirdPartyAudit` exclusions
+area: Infra/Core
+type: bug
+issues:
+ - 92346

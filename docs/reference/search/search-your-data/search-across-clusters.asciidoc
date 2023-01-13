@@ -439,6 +439,8 @@ in the following matrix.
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
+Local clusters version 7.17.7 or later also support cross-cluster search to
+<<remote-clusters,remote clusters>> version 7.15.0 or later.
 
 [%collapsible%open]
 .Version compatibility matrix

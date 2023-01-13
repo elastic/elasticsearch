@@ -17,6 +17,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,11 +28,13 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -143,6 +146,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
 
@@ -169,6 +173,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         // <4> Validate transform query
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(validateConfigResponse -> {
             getPreview(
+                parentTaskId,
+                request.timeout(),
                 config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
                 function,
                 config.getSource(),
@@ -204,7 +210,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
-                client,
+                new ParentTaskAssigningClient(client, parentTaskId),
                 config,
                 // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
                 // early in the REST action so the only possibility we have here is string comparison.
@@ -218,6 +224,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @SuppressWarnings("unchecked")
     private void getPreview(
+        TaskId parentTaskId,
+        TimeValue timeout,
         String transformId,
         Function function,
         SourceConfig source,
@@ -226,6 +234,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SyncConfig syncConfig,
         ActionListener<Response> listener
     ) {
+        Client parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
+
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
@@ -285,7 +295,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     builder.endObject();
                     SimulatePipelineRequest pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                     pipelineRequest.setId(pipeline);
-                    client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+                    parentTaskAssigningClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }
             }
         }, listener::onFailure);
@@ -293,7 +303,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
             function.preview(
-                client,
+                parentTaskAssigningClient,
+                timeout,
                 ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
                 source,
                 deducedMappings,
@@ -302,6 +313,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         }, listener::onFailure);
 
-        function.deduceMappings(client, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskAssigningClient, source, deduceMappingsListener);
     }
 }

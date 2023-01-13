@@ -1,6 +1,0 @@
-pr: 90426
-summary: Allowing `xpack.notification.email.account.domain_allowlist` to be set dynamically
-area: Watcher
-type: bug
-issues:
- - 89913

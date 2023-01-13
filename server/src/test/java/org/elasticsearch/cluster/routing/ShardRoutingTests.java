@@ -74,50 +74,97 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             );
             default -> throw new RuntimeException("unreachable");
         };
-        return TestShardRouting.newShardRouting(
+        return new ShardRouting(
             newShardId,
             instance.currentNodeId(),
             instance.relocatingNodeId(),
             instance.primary(),
-            instance.state()
+            instance.state(),
+            instance.recoverySource(),
+            instance.unassignedInfo(),
+            instance.relocationFailureInfo(),
+            instance.allocationId(),
+            instance.getExpectedShardSize()
         );
     }
 
     private static ShardRouting mutateState(ShardRouting instance) {
         var newState = randomValueOtherThan(instance.state(), () -> randomFrom(ShardRoutingState.values()));
-        return TestShardRouting.newShardRouting(
+        return new ShardRouting(
             instance.shardId(),
             newState == ShardRoutingState.UNASSIGNED ? null : requireNonNullElseGet(instance.currentNodeId(), ESTestCase::randomIdentifier),
             newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.STARTED
                 ? null
                 : requireNonNullElseGet(instance.relocatingNodeId(), ESTestCase::randomIdentifier),
             instance.primary(),
-            newState
+            newState,
+            newState != ShardRoutingState.UNASSIGNED && newState != ShardRoutingState.INITIALIZING
+                ? null
+                : requireNonNullElseGet(
+                    instance.recoverySource(),
+                    () -> TestShardRouting.buildRecoveryTarget(instance.primary(), newState)
+                ),
+            newState != ShardRoutingState.UNASSIGNED
+                ? null
+                : requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(newState)),
+            instance.relocationFailureInfo(),
+            TestShardRouting.buildAllocationId(newState),
+            instance.getExpectedShardSize()
         );
     }
 
     private static ShardRouting mutateCurrentNodeId(ShardRouting instance) {
         if (instance.unassigned()) {
             // initialize or start
-            return TestShardRouting.newShardRouting(
+            var newState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
+            return new ShardRouting(
                 instance.shardId(),
                 randomIdentifier(),
                 null,
                 instance.primary(),
-                randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)
+                newState,
+                newState != ShardRoutingState.INITIALIZING
+                    ? null
+                    : requireNonNullElseGet(
+                        instance.recoverySource(),
+                        () -> TestShardRouting.buildRecoveryTarget(instance.primary(), newState)
+                    ),
+                null,
+                instance.relocationFailureInfo(),
+                TestShardRouting.buildAllocationId(newState),
+                instance.getExpectedShardSize()
             );
         } else if (randomBoolean()) {
             // move
-            return TestShardRouting.newShardRouting(
+            return new ShardRouting(
                 instance.shardId(),
                 randomIdentifier(),
                 null,
                 instance.primary(),
-                ShardRoutingState.STARTED
+                ShardRoutingState.STARTED,
+                null,
+                null,
+                instance.relocationFailureInfo(),
+                instance.allocationId(),
+                instance.getExpectedShardSize()
             );
         } else {
             // unassign
-            return TestShardRouting.newShardRouting(instance.shardId(), null, null, instance.primary(), ShardRoutingState.UNASSIGNED);
+            return new ShardRouting(
+                instance.shardId(),
+                null,
+                null,
+                instance.primary(),
+                ShardRoutingState.UNASSIGNED,
+                requireNonNullElseGet(
+                    instance.recoverySource(),
+                    () -> TestShardRouting.buildRecoveryTarget(instance.primary(), ShardRoutingState.UNASSIGNED)
+                ),
+                requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(ShardRoutingState.UNASSIGNED)),
+                instance.relocationFailureInfo(),
+                null,
+                instance.getExpectedShardSize()
+            );
         }
     }
 

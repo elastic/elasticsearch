@@ -62,6 +62,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    static final Set<String> RESERVED_PATHS = org.elasticsearch.core.Set.of(
+        "/__elb_health__",
+        "/__elb_health__/zk",
+        "/_health",
+        "/_health/zk"
+    );
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -206,6 +212,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+        if (RESERVED_PATHS.contains(path)) {
+            throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
+        }
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, maybeWrappedHandler),

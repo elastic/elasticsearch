@@ -6,18 +6,26 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api.settings;
+package org.elasticsearch.plugin.settings;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.TYPE;
-
 /**
- * An annotation used to mark analysis setting interface
+ * An annotation used to mark a setting of type String
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(value = { TYPE })
-public @interface AnalysisSettings {
+@Target(ElementType.METHOD)
+public @interface StringSetting {
+    /**
+     * A name of a setting
+     */
+    String path();
+
+    /**
+     * A default value of a String setting
+     */
+    String defaultValue();
 }

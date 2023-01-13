@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import org.elasticsearch.plugin.api.Extensible;
+import org.elasticsearch.plugin.Extensible;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.objectweb.asm.ClassReader;

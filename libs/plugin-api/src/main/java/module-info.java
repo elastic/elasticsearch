@@ -7,6 +7,6 @@
  */
 
 module org.elasticsearch.plugin.api {
-    exports org.elasticsearch.plugin.api;
-    exports org.elasticsearch.plugin.api.settings;
+    exports org.elasticsearch.plugin;
+    exports org.elasticsearch.plugin.settings;
 }

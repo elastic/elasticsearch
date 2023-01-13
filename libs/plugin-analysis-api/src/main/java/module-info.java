@@ -10,5 +10,5 @@ module org.elasticsearch.plugin.analysis.api {
     requires org.apache.lucene.core;
     requires org.elasticsearch.plugin.api;
 
-    exports org.elasticsearch.plugin.analysis.api;
+    exports org.elasticsearch.plugin.analysis;
 }

@@ -17,7 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
@@ -795,7 +795,7 @@ public class PluginsServiceTests extends ESTestCase {
             package p;
             import java.util.Map;
             import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
-            import org.elasticsearch.plugin.api.NamedComponent;
+            import NamedComponent;
             import java.io.Reader;
             @NamedComponent( "a_name")
             public class A  implements CharFilterFactory {

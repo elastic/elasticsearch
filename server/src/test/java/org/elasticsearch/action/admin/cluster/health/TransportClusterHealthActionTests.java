@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
@@ -90,7 +91,10 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         }
 
         final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
-        final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex());
+        final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            indexMetadata.getIndex()
+        );
 
         // Primary
         {

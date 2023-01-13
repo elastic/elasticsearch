@@ -124,8 +124,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
  * First {@link #restoreSnapshot(RestoreSnapshotRequest, org.elasticsearch.action.ActionListener)}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
- * to be restored and adds this shard to the routing table using
- * {@link RoutingTable.Builder#addAsRestore(IndexMetadata, SnapshotRecoverySource)} method.
+ * to be restored and adds this shard to the routing table using {@link RoutingTable.Builder#addAsRestore} method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
  * {@link IndexShard#restoreFromRepository} )}
@@ -1260,7 +1259,10 @@ public class RestoreService implements ClusterStateApplier {
             // Updating cluster state
             final Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-            final RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
+            final RoutingTable.Builder rtBuilder = RoutingTable.builder(
+                allocationService.getShardRoutingRoleStrategy(),
+                currentState.routingTable()
+            );
 
             final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
 

@@ -22,6 +22,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -110,7 +111,7 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
         final HttpPost httpPost = new HttpPost(restClient.httpHosts.get(0).toURI() + "/_transport_relay");
         httpPost.setHeaders(restClient.defaultHeaders.toArray(Header[]::new));
         httpPost.setEntity(
-            new StringEntity("{\"action\":\"%s\",\"payload\":\"%s\"}".formatted(action, payload), ContentType.APPLICATION_JSON)
+            new StringEntity(Strings.format("{\"action\":\"%s\",\"payload\":\"%s\"}", action, payload), ContentType.APPLICATION_JSON)
         );
         // TODO: extract user's remote privileges
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

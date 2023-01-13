@@ -1,5 +1,5 @@
 pr: 92668
-summary: "[WIP] Shard copy role experiments"
+summary: "Introduce ShardRouting.Role"
 area: Allocation
 type: enhancement
 issues: []

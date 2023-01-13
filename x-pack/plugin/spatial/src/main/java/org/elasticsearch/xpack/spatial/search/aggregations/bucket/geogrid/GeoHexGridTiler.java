@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.geo.GeoUtils.centeredModulus;
+
 /**
  * Implements the logic for the GeoHex aggregation over a geoshape doc value.
  */
@@ -235,7 +237,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
      * parent cells, since child cells can exceed the bounds of their parent. We inflate the bounds
      * by half of the width and half of the height.
      */
-    private static class BoundedGeoHexGridTiler extends GeoHexGridTiler {
+    static class BoundedGeoHexGridTiler extends GeoHexGridTiler {
         private final GeoBoundingBox[] inflatedBboxes;
         private final GeoBoundingBox bbox;
         private final GeoHexVisitor visitor;
@@ -249,20 +251,22 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
             this.resolution = resolution;
             inflatedBboxes = new GeoBoundingBox[resolution];
             for (int i = 0; i < resolution; i++) {
-                inflatedBboxes[i] = inflateBbox(i, bbox);
+                inflatedBboxes[i] = inflateBbox(i, bbox, FACTOR);
             }
         }
 
-        private static GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox) {
-            /*
-             * Here is the tricky part of this approach. We need to be able to filter cells at higher precisions
-             * because they are not in bounds, but we need to make sure we don't filter too much.
-             *
-             * We use h3 bins at the given resolution to check the height ands width at that level, and we add half of it.
-             *
-             * The values have been tune using test GeoHexTilerTests#testLargeShapeWithBounds
-             */
-            final double factor = FACTOR;
+        /**
+         * Since H3 cells do not fully contain their child cells, we need to take care that when
+         * filtering cells at a lower precision than the final precision, we must not exclude
+         * parents that do not match the filter, but their own children or descendents might match.
+         * For this reason the filter needs to be expanded to cover all descendent cells.
+         *
+         * This is done by taking the H3 cells at two corners, and expanding the filter width
+         * by 50% of the max width of those cells, and filter height by 50% of the max height of those cells.
+         *
+         * The inflation factor of 50% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
+         */
+        static GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox, double factor) {
             final Rectangle minMin = H3CartesianUtil.toBoundingBox(H3.geoToH3(bbox.bottom(), bbox.left(), precision));
             final Rectangle maxMax = H3CartesianUtil.toBoundingBox(H3.geoToH3(bbox.top(), bbox.right(), precision));
             // compute height and width at the given precision
@@ -281,11 +285,11 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
             }
         }
 
-        private static double height(Rectangle rectangle) {
+        static double height(Rectangle rectangle) {
             return rectangle.getMaxY() - rectangle.getMinY();
         }
 
-        private static double width(Rectangle rectangle) {
+        static double width(Rectangle rectangle) {
             if (rectangle.getMinX() > rectangle.getMaxX()) {
                 return 360d + rectangle.getMaxX() - rectangle.getMinX();
             } else {
@@ -293,12 +297,104 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
             }
         }
 
-        private static double width(GeoBoundingBox bbox) {
+        static double width(GeoBoundingBox bbox) {
             if (bbox.left() > bbox.right()) {
                 return 360d + bbox.right() - bbox.left();
             } else {
                 return bbox.right() - bbox.left();
             }
+        }
+
+        /**
+         * Since H3 cells do not fully contain their child cells, we need to take care that when
+         * filtering cells at a lower precision than the final precision, we must not exclude
+         * parents that do not match the filter, but their own children or descendents might match.
+         * For this reason the filter needs to be expanded to cover all descendent cells.
+         *
+         * This is done by taking the H3 cells at the four corners, and expanding the filter
+         * to cover 50% of the height and width of those cells.
+         *
+         * The inflation factor of 50% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
+         */
+        static GeoBoundingBox inflateBbox2(final int precision, final GeoBoundingBox bbox, final double factor) {
+            final long minMinCell = H3.geoToH3(bbox.bottom(), bbox.left(), precision);
+            final long maxMaxCell = H3.geoToH3(bbox.top(), bbox.right(), precision);
+            final long minMaxCell = H3.geoToH3(bbox.bottom(), bbox.right(), precision);
+            final long maxMinCell = H3.geoToH3(bbox.top(), bbox.left(), precision);
+            // Calculated inflated bounds to cover all cells at all corners
+            final Rectangle boundsOfCells = boundsOfCells(minMinCell, maxMaxCell, minMaxCell, maxMinCell);
+            double boundsLeft = boundsOfCells.getMinX();
+            double boundsRight = boundsOfCells.getMaxX();
+            double bboxLeft = bbox.left();
+            double bboxRight = bbox.right();
+            boolean boundsCrossesDateline = boundsLeft > boundsRight;
+            boolean bboxCrossesDateline = bboxLeft > bboxRight;
+            if (bboxCrossesDateline || boundsCrossesDateline) {
+                bboxRight = bboxCrossesDateline ? bboxRight + 360 : bboxRight;
+                boundsRight = boundsCrossesDateline ? boundsRight + 360 : boundsRight;
+                if (bboxCrossesDateline == false && bboxLeft < 0) {
+                    // Other crosses dateline, but bbox does not, make sure they have comparable signs
+                    bboxLeft += 360;
+                    bboxRight += 360;
+                }
+                if (boundsCrossesDateline == false && boundsLeft < 0) {
+                    // Bbox crosses dateline, but bounds does not, make sure they have comparable signs
+                    boundsLeft += 360;
+                    boundsRight += 360;
+                }
+            }
+            // inflate the bbox to a weighted average of the bbox and the cell bounds using the factor
+            final double minY = Math.max(wAvg(bbox.bottom(), boundsOfCells.getMinY(), factor), -90d);
+            final double maxY = Math.min(wAvg(bbox.top(), boundsOfCells.getMaxY(), factor), 90d);
+            final double left = normalizeLon(wAvg(bboxLeft, boundsLeft, factor));
+            final double right = normalizeLon(wAvg(bboxRight, boundsRight, factor));
+            if (right - left >= 360d) {
+                // if the total width bigger than the world, then it covers all longitude range.
+                return new GeoBoundingBox(new GeoPoint(maxY, -180d), new GeoPoint(minY, 180d));
+            } else {
+                return new GeoBoundingBox(new GeoPoint(maxY, left), new GeoPoint(minY, right));
+            }
+        }
+
+        /** Similar to GeoUtils.normalizeLon, but we allow -180 for bounding box min values */
+        private static double normalizeLon(double lon) {
+            if (lon > 180d || lon < -180d) {
+                lon = centeredModulus(lon, 360);
+            }
+            // avoid -0.0
+            return lon + 0d;
+        }
+
+        /** Calculate weighted average: 1 means second dominates, 0 means first dominates */
+        static double wAvg(double first, double second, double weight) {
+            double width = (second - first) * weight;
+            return first + width;
+        }
+
+        /** Calling H3CartesianUtil.toBoundingBox has a cost, so we only call it for unique cells */
+        private static Rectangle boundsOfCells(long... cells) {
+            Rectangle bounds = H3CartesianUtil.toBoundingBox(cells[0]);
+            double minX = bounds.getMinX();
+            double maxX = bounds.getMaxX();
+            double minY = bounds.getMinY();
+            double maxY = bounds.getMaxY();
+            for (int i = 1; i < cells.length; i++) {
+                boolean unique = true;
+                for (int j = 0; j < i; j++) {
+                    if (cells[i] == cells[j]) {
+                        unique = false;
+                        break;
+                    }
+                }
+                if (unique) {
+                    bounds = H3CartesianUtil.toBoundingBox(cells[i]);
+                    minX = Math.min(minX, bounds.getMinX());
+                    maxX = Math.max(maxX, bounds.getMaxX());
+                    minY = Math.min(minY, bounds.getMinY());
+                    maxY = Math.max(maxY, bounds.getMaxY());
+                }
+            }
+            return new Rectangle(minX, maxX, maxY, minY);
         }
 
         @Override

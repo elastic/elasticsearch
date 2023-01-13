@@ -3,6 +3,31 @@
 
 Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 
+[[known-issues-8.4.0]]
+[float]
+=== Known issues
+
+// tag::ml-pre-7-datafeeds-known-issue[]
+* {ml-cap} {dfeeds} cannot be listed if any are not modified since version 6.x
++
+If you have a {dfeed} that was created in version 5.x or 6.x and has not
+been updated since 7.0, it is not possible to list {dfeeds} in 
+8.4 and 8.5. This means that {anomaly-jobs} cannot be managed using
+{kib}. This issue is fixed in 8.6.0.
++
+If you upgrade to 8.4 or 8.5 with such a {dfeed}, you need to
+work around the problem by updating each {dfeed}'s authorization information
+using https://support.elastic.dev/knowledge/view/b5a879db[these steps].
+// end::ml-pre-7-datafeeds-known-issue[]
+
+// tag::file-based-settings-deadlock-known-issue[]
+* Orchestrators which use a `settings.json` file to configure Elasticsearch may
+encounter deadlocks during master elections (issue: {es-issue}92812[#92812])
++
+To resolve the deadlock, remove the `settings.json` file and restart the
+affected node.
+// end::file-based-settings-deadlock-known-issue[]
+
 [[bug-8.4.0]]
 [float]
 === Bug fixes

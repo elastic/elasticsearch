@@ -1,9 +1,13 @@
 [[release-notes-8.6.0]]
 == {es} version 8.6.0
 
-coming[8.6.0]
-
 Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
+
+[[known-issues-8.6.0]]
+[float]
+=== Known issues
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
 
 [[bug-8.6.0]]
 [float]
@@ -20,52 +24,57 @@ Authentication::
 * Fix time unit for connection request timeout of JWKs reload {es-pull}92080[#92080]
 * Improve performance for role mapping with DNs {es-pull}92074[#92074]
 * Improve robustness of `JwkSet` reloading {es-pull}92081[#92081]
+* Support stored authentication headers prior to version 6.7 {es-pull}92221[#92221]
 
 Authorization::
-* Avoid potential unsupported operation exception in doc bitset cache {es-pull}91490[#91490]
 * Make adding auth info to REST responses more robust {es-pull}92168[#92168]
 * Security remove datemath special handling {es-pull}91047[#91047]
 
 Cluster Coordination::
 * Fix `TransportMasterNodeAction` holding a CS reference needlessly {es-pull}90724[#90724] (issue: {es-issue}89220[#89220])
+* Include last-committed data in publication {es-pull}92259[#92259] (issue: {es-issue}90158[#90158])
+* Unsafe bootstrap memory optimization {es-pull}92493[#92493]
 
 EQL::
 * EQL sequences: support join on multi-values {es-pull}89965[#89965]
-* Refine bwc version checks on `EqlSearchRequest` {es-pull}91510[#91510]
 
 Graph::
 * Fix potential issue with graph api's timed out field in response {es-pull}91006[#91006]
 
 Health::
-* SLM unhealthy policies diagnosis recommends correct URL in action {es-pull}91506[#91506]
+* Don't account for the unassigned reason when diagnosing NO_VALID_SHARD_COPY {es-pull}92416[#92416]
+* Fix NPE when evaluating the disk health for non-data nodes {es-pull}92643[#92643]
+* Use https in the short URLs for the `shards_availability` indicator {es-pull}92310[#92310]
 
 Indices APIs::
 * Trigger index settings providers when updating component templates {es-pull}91615[#91615] (issue: {es-issue}91592[#91592])
 
 Infra/Core::
-* Add `trace.id` to request trace logs {es-pull}91772[#91772] (issue: {es-issue}88174[#88174])
 * Check reserved state in Metadata.isGlobalStateEquals {es-pull}92124[#92124]
 * Datastream unavailable exception metadata {es-pull}91461[#91461]
 * Fix `BytesRefArray` on append empty `BytesRef` {es-pull}91364[#91364]
 * Fix index expression options for requests with a single name or pattern {es-pull}91231[#91231]
+* Force init of Unbox in log4j {es-pull}92377[#92377] (issue: {es-issue}91964[#91964])
+* In file based settings, wait until security index is ready for role mappings {es-pull}92173[#92173] (issue: {es-issue}91939[#91939])
 * Index expression exclusions never trigger "not found" {es-pull}90902[#90902]
 * Update error states from inside the main state executor {es-pull}90346[#90346] (issue: {es-issue}90337[#90337])
-* `DoPrivileged` in `ElasticsearchEncaughtExceptionHandler` and check modify thread {es-pull}91704[#91704] (issue: {es-issue}91650[#91650])
 
 Infra/Scripting::
 * Fix compile with hex literals ending with d/f {es-pull}91501[#91501] (issue: {es-issue}88614[#88614])
 
 Ingest Node::
 * Fixing a race condition in `EnrichCoordinatorProxyAction` that can leave an item stuck in its queue {es-pull}90688[#90688] (issue: {es-issue}90598[#90598])
-* Handle any exception thrown while generating source for an `IngestDocument` {es-pull}91981[#91981]
-* Refactor `DatabaseNodeService` as a cluster state listener {es-pull}91567[#91567] (issue: {es-issue}86999[#86999])
 
 Machine Learning::
 * Copy more settings when creating DF analytics destination index {es-pull}91546[#91546] (issue: {es-issue}89795[#89795])
+* Fix for 'No statistics' error message {ml-pull}2410[#2410]
+* Fix for 'No counts available' error message {ml-pull}2414[#2414]
 * Guard against input sequences that are too long for Question Answering models {es-pull}91924[#91924]
-* ML stats failures should not stop the usage API working {es-pull}91917[#91917] (issue: {es-issue}91893[#91893])
+* Improve performance of closing files before spawning {ml-pull}2424[#2424]
 * Skip remote clusters when performing up front privileges validation for datafeeds {es-pull}91895[#91895] (issue: {es-issue}87832[#87832])
 * Support fields with commas in data frame analytics `analyzed_fields` {es-pull}91710[#91710] (issue: {es-issue}72541[#72541])
+* Validate rule filters are present on open anomaly detection api {es-pull}92207[#92207]
+
 
 Mapping::
 * Consolidate field name validation when parsing mappings and documents {es-pull}91328[#91328]
@@ -77,15 +86,23 @@ Monitoring::
 
 Network::
 * Clean up on exception while chunking XContent {es-pull}92024[#92024]
+* Fix Chunked APIs sending incorrect responses to HEAD requests {es-pull}92042[#92042] (issue: {es-issue}92032[#92032])
+* Reject connection attempts while closing {es-pull}92465[#92465]
+
+SQL::
+* Fix NPE on logging when not tracking total hits {es-pull}92425[#92425]
 
 Search::
 * Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
+* Fix timing bug with DFS profiling {es-pull}92421[#92421]
 
-Stats::
-* Fix NPE in IndexService getNodeMappingStats {es-pull}91334[#91334] (issue: {es-issue}91259[#91259])
+Snapshot/Restore::
+* Simplify and optimize deduplication of `RepositoryData` for a non-caching repository instance {es-pull}91851[#91851] (issue: {es-issue}89952[#89952])
+
+Store::
+* Fix numOpenOutputs and modCount in ByteSizeCachingDirectory {es-pull}92440[#92440] (issue: {es-issue}92434[#92434])
 
 Transform::
-* Fix failure when resolving indices from CCS {es-pull}91622[#91622] (issue: {es-issue}91550[#91550])
 * Skip remote clusters when performing up front privileges validation {es-pull}91788[#91788]
 
 Vector Search::
@@ -128,9 +145,6 @@ Authorization::
 CRUD::
 * Keep track of average shard write load {es-pull}90768[#90768] (issue: {es-issue}90102[#90102])
 
-EQL::
-* Remove version limitations for CCS {es-pull}91409[#91409]
-
 Geo::
 * Centroid aggregation for cartesian points and shapes {es-pull}89216[#89216] (issue: {es-issue}90156[#90156])
 * Improve H3#hexRing logic and add H3#areNeighborCells method {es-pull}91140[#91140]
@@ -159,9 +173,6 @@ Infra/Plugins::
 
 Infra/Scripting::
 * Use an explicit null check for null receivers in painless, rather than an NPE {es-pull}91347[#91347] (issue: {es-issue}91236[#91236])
-
-Ingest Node::
-* Refactor enrich maintenance coordination logic {es-pull}90931[#90931]
 
 Machine Learning::
 * Add a filter parameter to frequent items {es-pull}91137[#91137]
@@ -203,7 +214,6 @@ Store::
 
 TLS::
 * Add certificate start/expiry dates to SSL Diagnostic message {es-pull}89461[#89461]
-* Support SAN/dnsName for restricted trust {es-pull}91946[#91946]
 
 TSDB::
 * Generate 'index.routing_path' from dynamic mapping templates {es-pull}90552[#90552] (issue: {es-issue}90528[#90528])
@@ -252,14 +262,14 @@ Infra/Core::
 [float]
 === Upgrades
 
-Engine::
-* Upgrade Lucene to version 9.4.2 {es-pull}91823[#91823]
-
 Infra/Logging::
 * Upgrade to log4j 2.19.0 {es-pull}90589[#90589] (issue: {es-issue}90584[#90584])
 
 Network::
 * Upgrade to Netty 4.1.82.Final {es-pull}90604[#90604]
 * Upgrade to Netty 4.1.84 {es-pull}91271[#91271]
+
+Snapshot/Restore::
+* Upgrade GCS SDK to 2.13.1 {es-pull}92327[#92327]
 
 

@@ -1,9 +1,15 @@
 [[release-notes-8.5.3]]
 == {es} version 8.5.3
 
-coming[8.5.3]
-
 Also see <<breaking-changes-8.5,Breaking changes in 8.5>>.
+
+[[known-issues-8.5.3]]
+[float]
+=== Known issues
+
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
 
 [[bug-8.5.3]]
 [float]

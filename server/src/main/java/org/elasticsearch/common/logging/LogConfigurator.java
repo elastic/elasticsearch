@@ -30,6 +30,7 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.logging.log4j.util.Unbox;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +42,7 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -122,6 +124,7 @@ public class LogConfigurator {
         }
         configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+        initializeStatics();
     }
 
     public static void configureESLogging() {
@@ -142,6 +145,17 @@ public class LogConfigurator {
      */
     public static void setNodeName(String nodeName) {
         NodeNamePatternConverter.setNodeName(nodeName);
+    }
+
+    // Some classes within log4j have static initializers that require security manager permissions.
+    // Here we aggressively initialize those classes during logging configuration so that
+    // actual logging calls at runtime do not trigger that initialization.
+    private static void initializeStatics() {
+        try {
+            MethodHandles.publicLookup().ensureInitialized(Unbox.class);
+        } catch (IllegalAccessException impossible) {
+            throw new AssertionError(impossible);
+        }
     }
 
     private static void checkErrorListener() {
@@ -246,8 +260,22 @@ public class LogConfigurator {
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that. Note that we do NOT close the streams because other code may have
         // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
-        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
+        System.setOut(
+            new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO, List.of()), false, StandardCharsets.UTF_8)
+        );
+        System.setErr(
+            new PrintStream(
+                new LoggingOutputStream(
+                    LogManager.getLogger("stderr"),
+                    Level.WARN,
+                    // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
+                    // the JDK
+                    List.of("MMapDirectory")
+                ),
+                false,
+                StandardCharsets.UTF_8
+            )
+        );
 
         final Logger rootLogger = LogManager.getRootLogger();
         Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);

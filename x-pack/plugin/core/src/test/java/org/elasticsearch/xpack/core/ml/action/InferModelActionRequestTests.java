@@ -53,7 +53,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
                 randomBoolean()
             )
-            : new Request(randomAlphaOfLength(10), randomMap(), randomInferenceConfigUpdate(), randomBoolean());
+            : new Request(randomAlphaOfLength(10), List.of(randomMap()), randomInferenceConfigUpdate(), randomBoolean());
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
@@ -115,6 +115,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         } else {
             adjustedUpdate = currentUpdate;
         }
+
         return version.before(Version.V_8_3_0)
             ? new Request(
                 instance.getModelId(),

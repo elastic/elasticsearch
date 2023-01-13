@@ -91,7 +91,7 @@ public class GroupingAggregatorImplementer {
     }
 
     private String primitiveType() {
-        String initReturn = TypeName.get(init.getReturnType()).toString().toLowerCase(Locale.ROOT);
+        String initReturn = declarationType.toString().toLowerCase(Locale.ROOT);
         if (initReturn.contains("double")) {
             return "double";
         } else if (initReturn.contains("long")) {

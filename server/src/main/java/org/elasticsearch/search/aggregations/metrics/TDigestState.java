@@ -86,4 +86,18 @@ public class TDigestState extends AVLTreeDigest {
         }
         return h;
     }
+
+    public double computeMedianAbsoluteDeviation() {
+        if (size() == 0) {
+            return Double.NaN;
+        }
+        final double approximateMedian = quantile(0.5);
+        final TDigestState approximatedDeviationsSketch = new TDigestState(compression());
+        centroids().forEach(centroid -> {
+            final double deviation = Math.abs(approximateMedian - centroid.mean());
+            approximatedDeviationsSketch.add(deviation, centroid.count());
+        });
+
+        return approximatedDeviationsSketch.quantile(0.5);
+    }
 }

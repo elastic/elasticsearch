@@ -45,6 +45,7 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -815,6 +816,15 @@ public class EsqlActionIT extends ESIntegTestCase {
         logger.info(results);
         assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
+    }
+
+    public void testEmptyIndex() {
+        ElasticsearchAssertions.assertAcked(
+            client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get()
+        );
+        EsqlQueryResponse results = run("from test_empty");
+        assertThat(results.columns(), equalTo(List.of(new ColumnInfo("k", "keyword"), new ColumnInfo("v", "long"))));
+        assertThat(results.values(), empty());
     }
 
     static EsqlQueryResponse run(String esqlCommands) {

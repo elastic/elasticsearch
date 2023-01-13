@@ -45,6 +45,18 @@ import java.util.zip.ZipEntry;
  * Jar Scanner.
  * <p>
  * We also assume that we will not be comparing multi-version JARs.
+ * <p>
+ * This "javap" approach has a few further drawbacks:
+ * <ol>
+ *     <li>We don't account for class visibility when examining fields and methods.</li>
+ *     <li>We don't consider what is exported from the module. Is a public method from
+ *     a non-exported package considered part of the stable api?</li>
+ *     <li>Changing method types to their superclass or return types to an implementation
+ *     class will be considered a change by this approach, even though that doesn't break
+ *     an API.</li>
+ *     <li>Finally, moving a method up the class hierarchy is not really a breaking change,
+ *     but it will trip this test.</li>
+ * </ol>
  */
 public abstract class JarApiComparisonTask extends DefaultTask {
 
@@ -54,8 +66,12 @@ public abstract class JarApiComparisonTask extends DefaultTask {
         File newJarFile = getNewJar().get().getAsFile();
 
         Set<String> oldJarNames = fileCollection.getFiles().stream().map(File::getName).collect(Collectors.toSet());
+        if (oldJarNames.size() > 1) {
+            throw new IllegalStateException("Expected a single original jar, but found: " + oldJarNames);
+        }
         if (oldJarNames.contains(newJarFile.getName())) {
-            throw new IllegalStateException("what? " + oldJarNames);
+            throw new IllegalStateException("We should be comparing different jars, but original and new jars were both: "
+                + newJarFile.getAbsolutePath());
         }
 
         JarScanner oldJS = new JarScanner(getOldJar().get().getSingleFile().toString());

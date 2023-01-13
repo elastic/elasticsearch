@@ -120,12 +120,21 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
         this.active = Files.exists(operatorSettingsDir().getParent());
+        if (active == false) {
+            // we don't have a config directory, we can't possibly launch the file settings service
+            unlockStartup();
+            return;
+        }
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addListener(this);
         } else {
             // if we are not a master eligible node, this service doesn't run
-            startupLatch.onResponse(null);
+            unlockStartup();
         }
+    }
+
+    private void unlockStartup() {
+        startupLatch.onResponse(null);
     }
 
     @Override
@@ -148,7 +157,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         startIfMaster(clusterState);
         // if master has been elected, but it's not us, we don't run the watch service, so unlock the startup condition
         if (clusterState.nodes().getMasterNodeId() != null && currentNodeMaster(clusterState) == false) {
-            startupLatch.onResponse(null);
+            unlockStartup();
         }
     }
 
@@ -247,6 +256,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             // register it once for watching.
             configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
         } catch (Exception e) {
+            // We failed to watch for file changes, unlock startup since we won't launch the watcher.
+            unlockStartup();
             if (watchService != null) {
                 try {
                     // this will also close any keys
@@ -276,7 +287,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 processSettingsAndNotifyListeners();
             } else {
                 // complete the startup latch future, there are no file based settings when we are starting up
-                startupLatch.onResponse(null);
+                unlockStartup();
                 // Notify everyone we don't have any initial file settings
                 for (var listener : eventListeners) {
                     listener.settingsChanged();
@@ -337,7 +348,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileSettings(operatorSettingsFile()).get();
-            startupLatch.onResponse(null);
+            unlockStartup();
             for (var listener : eventListeners) {
                 listener.settingsChanged();
             }

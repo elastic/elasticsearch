@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
@@ -2186,20 +2185,16 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                if (Constants.WINDOWS == false) {
-                    // log messages containing control characters are hidden from the log assertions framework, and this includes the
-                    // `\r` that Windows uses in its line endings, so we only see this message on systems with `\n` line endings:
-                    mockLogAppender.addExpectation(
-                        new MockLogAppender.SeenEventExpectation(
-                            "hot threads from lagging node",
-                            LagDetector.class.getCanonicalName(),
-                            Level.DEBUG,
-                            "hot threads from node ["
-                                + brokenNode.getLocalNode().descriptionWithoutAttributes()
-                                + "] lagging at version [*] despite commit of cluster state version [*]:\nHot threads at*"
-                        )
-                    );
-                }
+                mockLogAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "hot threads from lagging node",
+                        LagDetector.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "hot threads from node ["
+                            + brokenNode.getLocalNode().descriptionWithoutAttributes()
+                            + "] lagging at version [*] despite commit of cluster state version [*]*"
+                    )
+                );
 
                 // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
                 // health checks

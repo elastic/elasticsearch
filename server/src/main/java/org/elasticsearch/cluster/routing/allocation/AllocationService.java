@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -76,6 +77,7 @@ public class AllocationService {
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
+    private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -83,9 +85,10 @@ public class AllocationService {
         GatewayAllocator gatewayAllocator,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -93,12 +96,14 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
+        this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
     }
 
     /**
@@ -115,6 +120,10 @@ public class AllocationService {
      */
     public AllocationDeciders getAllocationDeciders() {
         return allocationDeciders;
+    }
+
+    public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
+        return shardRoutingRoleStrategy;
     }
 
     /**
@@ -297,7 +306,7 @@ public class AllocationService {
         if (autoExpandReplicaChanges.isEmpty()) {
             return clusterState;
         } else {
-            final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
+            final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, clusterState.routingTable());
             final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
             for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
                 final int numberOfReplicas = entry.getKey();

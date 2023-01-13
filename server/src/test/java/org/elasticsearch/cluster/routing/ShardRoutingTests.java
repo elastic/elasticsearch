@@ -48,13 +48,15 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     @Override
     protected ShardRouting mutateInstance(ShardRouting instance) throws IOException {
-        var mutation = randomInt(3);
+        var mutation = randomInt(4);
         if (mutation == 0) {
             return mutateShardId(instance);
         } else if (mutation == 1) {
             return mutateState(instance);
         } else if (mutation == 2 && instance.state() == ShardRoutingState.STARTED) {
             return mutateCurrentNodeId(instance);
+        } else if (mutation == 3) {
+            return mutateRole(instance);
         } else {
             return randomValueOtherThan(instance, this::createTestInstance);
         }
@@ -71,7 +73,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             instance.unassignedInfo(),
             instance.relocationFailureInfo(),
             instance.allocationId(),
-            instance.getExpectedShardSize()
+            instance.getExpectedShardSize(),
+            instance.role()
         );
     }
 
@@ -100,7 +103,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             case INITIALIZING, STARTED -> requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing);
             case RELOCATING -> AllocationId.newRelocation(requireNonNullElseGet(instance.allocationId(), AllocationId::newInitializing));
             },
-            instance.getExpectedShardSize()
+            instance.getExpectedShardSize(),
+            instance.role()
         );
     }
 
@@ -115,7 +119,28 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             instance.unassignedInfo(),
             instance.relocationFailureInfo(),
             instance.allocationId(),
-            instance.getExpectedShardSize()
+            instance.getExpectedShardSize(),
+            instance.role()
+        );
+    }
+
+    private static ShardRouting mutateRole(ShardRouting instance) {
+        var newRole = randomValueOtherThan(
+            instance.role(),
+            () -> randomFrom(ShardRouting.Role.DEFAULT, (instance.primary() ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY))
+        );
+        return new ShardRouting(
+            instance.shardId(),
+            instance.currentNodeId(),
+            instance.relocatingNodeId(),
+            instance.primary(),
+            instance.state(),
+            instance.recoverySource(),
+            instance.unassignedInfo(),
+            instance.relocationFailureInfo(),
+            instance.allocationId(),
+            instance.getExpectedShardSize(),
+            newRole
         );
     }
 
@@ -429,5 +454,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             assertThat("relocating node id", shard.shortSummary(), containsString("relocating [" + shard.relocatingNodeId() + ']'));
         }
         assertThat("state", shard.shortSummary(), containsString("s[" + shard.state() + "]"));
+        if (shard.role() != ShardRouting.Role.DEFAULT) {
+            assertThat("role", shard.shortSummary(), containsString("[" + shard.role() + "]"));
+        }
     }
 }

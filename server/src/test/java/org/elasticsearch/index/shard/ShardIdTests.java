@@ -11,8 +11,8 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -30,22 +30,13 @@ public class ShardIdTests extends AbstractWireSerializingTestCase<ShardId> {
 
     @Override
     protected ShardId mutateInstance(ShardId instance) throws IOException {
-        return switch (randomInt(2)) {
-            case 0 -> new ShardId(
-                randomValueOtherThan(instance.getIndex().getName(), ESTestCase::randomIdentifier),
-                instance.getIndex().getUUID(),
-                instance.id()
-            );
-            case 1 -> new ShardId(
-                instance.getIndex().getName(),
-                randomValueOtherThan(instance.getIndex().getUUID(), UUIDs::randomBase64UUID),
-                instance.id()
-            );
-            case 2 -> new ShardId(
-                instance.getIndex().getName(),
-                instance.getIndex().getUUID(),
-                randomValueOtherThan(instance.id(), () -> randomIntBetween(0, 99))
-            );
+        return mutate(instance);
+    }
+
+    public static ShardId mutate(ShardId instance) {
+        return switch (randomInt(1)) {
+            case 0 -> new ShardId(IndexTests.mutate(instance.getIndex()), instance.id());
+            case 1 -> new ShardId(instance.getIndex(), randomValueOtherThan(instance.id(), () -> randomIntBetween(0, 99)));
             default -> throw new RuntimeException("unreachable");
         };
     }

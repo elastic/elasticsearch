@@ -40,6 +40,10 @@ public class IndexTests extends AbstractXContentSerializingTestCase<Index> {
 
     @Override
     protected Index mutateInstance(Index instance) throws IOException {
+        return mutate(instance);
+    }
+
+    public static Index mutate(Index instance) {
         return switch (randomInt(1)) {
             case 0 -> new Index(randomValueOtherThan(instance.getName(), ESTestCase::randomIdentifier), instance.getUUID());
             case 1 -> new Index(instance.getName(), randomValueOtherThan(instance.getUUID(), UUIDs::randomBase64UUID));

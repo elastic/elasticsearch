@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardIdTests;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -56,26 +57,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     private static ShardRouting mutateShardId(ShardRouting instance) {
-        var newShardId = switch (randomInt(2)) {
-            case 0 -> new ShardId(
-                randomValueOtherThan(instance.getIndexName(), ESTestCase::randomIdentifier),
-                instance.shardId().getIndex().getUUID(),
-                instance.id()
-            );
-            case 1 -> new ShardId(
-                instance.getIndexName(),
-                randomValueOtherThan(instance.shardId().getIndex().getUUID(), UUIDs::randomBase64UUID),
-                instance.id()
-            );
-            case 2 -> new ShardId(
-                instance.getIndexName(),
-                instance.shardId().getIndex().getUUID(),
-                randomValueOtherThan(instance.id(), () -> randomIntBetween(0, 99))
-            );
-            default -> throw new RuntimeException("unreachable");
-        };
         return new ShardRouting(
-            newShardId,
+            ShardIdTests.mutate(instance.shardId()),
             instance.currentNodeId(),
             instance.relocatingNodeId(),
             instance.primary(),
@@ -98,14 +81,14 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 : requireNonNullElseGet(instance.relocatingNodeId(), ESTestCase::randomIdentifier),
             instance.primary(),
             newState,
-            newState != ShardRoutingState.UNASSIGNED && newState != ShardRoutingState.INITIALIZING
+            newState == ShardRoutingState.STARTED || newState == ShardRoutingState.RELOCATING
                 ? null
                 : requireNonNullElseGet(
                     instance.recoverySource(),
                     () -> TestShardRouting.buildRecoveryTarget(instance.primary(), newState)
                 ),
-            newState != ShardRoutingState.UNASSIGNED
-                ? instance.unassignedInfo()
+            newState == ShardRoutingState.STARTED || newState == ShardRoutingState.RELOCATING
+                ? null
                 : requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(newState)),
             instance.relocationFailureInfo(),
             switch (newState) {

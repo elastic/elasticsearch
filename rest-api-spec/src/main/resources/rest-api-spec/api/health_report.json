@@ -1,5 +1,5 @@
 {
-  "health": {
+  "health_report": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/health-api.html",
       "description": "Returns the health of the cluster."
@@ -14,13 +14,13 @@
     "url": {
       "paths": [
         {
-          "path": "/_health",
+          "path": "/_health_report",
           "methods": [
             "GET"
           ]
         },
         {
-          "path": "/_health/{feature}",
+          "path": "/_health_report/{feature}",
           "methods": [
             "GET"
           ],

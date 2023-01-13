@@ -112,33 +112,33 @@ public class TransportVersionTests extends ESTestCase {
 //        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("WRONG.VERSION"));
 //        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
 //    }
-
-    public void testMinCompatVersion() {
-        Version major = Version.fromString("2.0.0");
-        assertThat(Version.fromString("2.0.0").minimumCompatibilityVersion(), equalTo(major));
-        assertThat(Version.fromString("2.2.0").minimumCompatibilityVersion(), equalTo(major));
-        assertThat(Version.fromString("2.3.0").minimumCompatibilityVersion(), equalTo(major));
-
-        Version major5x = Version.fromString("5.0.0");
-        assertThat(Version.fromString("5.0.0").minimumCompatibilityVersion(), equalTo(major5x));
-        assertThat(Version.fromString("5.2.0").minimumCompatibilityVersion(), equalTo(major5x));
-        assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
-
-        Version major56x = Version.fromString("5.6.0");
-        assertThat(Version.fromString("6.4.0").minimumCompatibilityVersion(), equalTo(major56x));
-        assertThat(Version.fromString("6.3.1").minimumCompatibilityVersion(), equalTo(major56x));
-
-        // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
-        // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = Version.fromString("6.8.0"); // TODO: remove this once min compat version is a constant instead of method
-        assertEquals(lastVersion.major, Version.V_7_0_0.minimumCompatibilityVersion().major);
-        assertEquals(
-            "did you miss to bump the minor in Version#minimumCompatibilityVersion()",
-            lastVersion.minor,
-            Version.V_7_0_0.minimumCompatibilityVersion().minor
-        );
-        assertEquals(0, Version.V_7_0_0.minimumCompatibilityVersion().revision);
-    }
+//
+//    public void testMinCompatVersion() {
+//        Version major = Version.fromString("2.0.0");
+//        assertThat(Version.fromString("2.0.0").minimumCompatibilityVersion(), equalTo(major));
+//        assertThat(Version.fromString("2.2.0").minimumCompatibilityVersion(), equalTo(major));
+//        assertThat(Version.fromString("2.3.0").minimumCompatibilityVersion(), equalTo(major));
+//
+//        Version major5x = Version.fromString("5.0.0");
+//        assertThat(Version.fromString("5.0.0").minimumCompatibilityVersion(), equalTo(major5x));
+//        assertThat(Version.fromString("5.2.0").minimumCompatibilityVersion(), equalTo(major5x));
+//        assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
+//
+//        Version major56x = Version.fromString("5.6.0");
+//        assertThat(Version.fromString("6.4.0").minimumCompatibilityVersion(), equalTo(major56x));
+//        assertThat(Version.fromString("6.3.1").minimumCompatibilityVersion(), equalTo(major56x));
+//
+//        // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
+//        // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
+//        Version lastVersion = Version.fromString("6.8.0"); // TODO: remove this once min compat version is a constant instead of method
+//        assertEquals(lastVersion.major, Version.V_7_0_0.minimumCompatibilityVersion().major);
+//        assertEquals(
+//            "did you miss to bump the minor in Version#minimumCompatibilityVersion()",
+//            lastVersion.minor,
+//            Version.V_7_0_0.minimumCompatibilityVersion().minor
+//        );
+//        assertEquals(0, Version.V_7_0_0.minimumCompatibilityVersion().revision);
+//    }
 
     public void testToString() {
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());

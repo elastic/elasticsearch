@@ -17,6 +17,7 @@ import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +37,7 @@ public abstract class RemoteClusterAware {
     private final ClusterNameExpressionResolver clusterNameResolver;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;
+    private final Set<String> httpRemoteClusters;
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
@@ -46,6 +48,7 @@ public abstract class RemoteClusterAware {
         this.clusterNameResolver = new ClusterNameExpressionResolver();
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
+        this.httpRemoteClusters = settings.getGroups("cluster.http_remote").keySet();
     }
 
     /**
@@ -75,7 +78,15 @@ public abstract class RemoteClusterAware {
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
                 String remoteClusterName = index.substring(0, i);
-                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
+                // TODO: HTTP remote cluster with approach 1 does not work automatically with existing remote cluster management logic
+                final Set<String> allRemoteClusterNames;
+                if (httpRemoteClusters.isEmpty()) {
+                    allRemoteClusterNames = remoteClusterNames;
+                } else {
+                    allRemoteClusterNames = new HashSet<>(remoteClusterNames);
+                    allRemoteClusterNames.addAll(httpRemoteClusters);
+                }
+                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(allRemoteClusterNames, remoteClusterName);
                 String indexName = index.substring(i + 1);
                 for (String clusterName : clusters) {
                     perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);

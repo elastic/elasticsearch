@@ -38,8 +38,7 @@ public final class ClusterNameExpressionResolver {
         } else if (Regex.isSimpleMatchPattern(clusterExpression)) {
             return WildcardExpressionResolver.resolve(remoteClusters, clusterExpression);
         } else {
-            return Collections.singletonList(clusterExpression);
-            // throw new NoSuchRemoteClusterException(clusterExpression);
+            throw new NoSuchRemoteClusterException(clusterExpression);
         }
     }
 

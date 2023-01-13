@@ -62,10 +62,12 @@ public class DlsFlsFeatureTrackingIndicesAccessControlWrapper {
 
         private void trackUsage(IndexAccessControl iac) {
             if (iac.getDocumentPermissions().hasDocumentLevelPermissions()) {
-                DOCUMENT_LEVEL_SECURITY_FEATURE.check(licenseState);
+                boolean dlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.check(licenseState);
+                assert dlsLicensed : "DLS feature should be licensed before usage";
             }
             if (iac.getFieldPermissions().hasFieldLevelSecurity()) {
-                FIELD_LEVEL_SECURITY_FEATURE.check(licenseState);
+                boolean flsLicensed = FIELD_LEVEL_SECURITY_FEATURE.check(licenseState);
+                assert flsLicensed : "FLS feature should be licensed before usage";
             }
         }
     }

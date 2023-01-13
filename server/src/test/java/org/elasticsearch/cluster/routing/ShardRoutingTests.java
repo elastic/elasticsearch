@@ -147,7 +147,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 instance.primary(),
                 ShardRoutingState.STARTED,
                 null,
-                null,
+                instance.unassignedInfo(),
                 instance.relocationFailureInfo(),
                 instance.allocationId(),
                 instance.getExpectedShardSize()

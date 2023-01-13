@@ -31,7 +31,7 @@ import java.io.IOException;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
-    ShardRefreshRequest,
+    ReplicaShardRefreshRequest,
     ReplicationResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
@@ -62,7 +62,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             shardStateAction,
             actionFilters,
             BasicReplicationRequest::new,
-            ShardRefreshRequest::new,
+            ReplicaShardRefreshRequest::new,
             ThreadPool.Names.REFRESH
         );
         this.settings = settings;
@@ -77,20 +77,21 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     protected void shardOperationOnPrimary(
         BasicReplicationRequest shardRequest,
         IndexShard primary,
-        ActionListener<PrimaryResult<ShardRefreshRequest, ReplicationResponse>> listener
+        ActionListener<PrimaryResult<ReplicaShardRefreshRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             var refreshResult = primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            // TODO(PS): probably we need to do more to maintain BwC?
-            var shardRefreshRequest = new ShardRefreshRequest(primary.shardId(), refreshResult.segmentGeneration());
+            var shardRefreshRequest = new ReplicaShardRefreshRequest(primary.shardId(), refreshResult.segmentGeneration());
+            // Since we are not reusing the same request on the replica shards and create a new ReplicaShardRefreshRequest, we
+            // need to explicitly set the parent task so the resulting refresh[s][r] task has the same refresh[s] task as parent.
             shardRefreshRequest.setParentTask(shardRequest.getParentTask());
             return new PrimaryResult<>(shardRefreshRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected void shardOperationOnReplica(ShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+    protected void shardOperationOnReplica(ReplicaShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         if (DiscoveryNode.isStateless(settings)) {
             replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(gen -> new ReplicaResult()));
         } else {

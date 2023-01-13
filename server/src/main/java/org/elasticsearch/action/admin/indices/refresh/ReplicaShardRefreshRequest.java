@@ -17,21 +17,21 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ShardRefreshRequest extends ReplicationRequest<ShardRefreshRequest> {
+public class ReplicaShardRefreshRequest extends ReplicationRequest<ReplicaShardRefreshRequest> {
 
     @Nullable
     private final Long segmentGeneration;
 
-    public ShardRefreshRequest(ShardId shardId) {
+    public ReplicaShardRefreshRequest(ShardId shardId) {
         this(shardId, null);
     }
 
-    public ShardRefreshRequest(ShardId shardId, @Nullable Long segmentGeneration) {
+    public ReplicaShardRefreshRequest(ShardId shardId, @Nullable Long segmentGeneration) {
         super(shardId);
         this.segmentGeneration = segmentGeneration;
     }
 
-    public ShardRefreshRequest(StreamInput in) throws IOException {
+    public ReplicaShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
             this.segmentGeneration = in.readOptionalVLong();
@@ -55,6 +55,6 @@ public class ShardRefreshRequest extends ReplicationRequest<ShardRefreshRequest>
 
     @Override
     public String toString() {
-        return "BasicReplicationRequest{" + shardId + '}';
+        return "ReplicaShardRefreshRequest{" + shardId + '}';
     }
 }

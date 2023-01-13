@@ -55,6 +55,6 @@ public class ShardRefreshRequest extends ReplicationRequest<ShardRefreshRequest>
 
     @Override
     public String toString() {
-        return "ShardRefreshRequest{" + "shardId=" + shardId + ", segmentGeneration=" + segmentGeneration + '}';
+        return "BasicReplicationRequest{" + shardId + '}';
     }
 }

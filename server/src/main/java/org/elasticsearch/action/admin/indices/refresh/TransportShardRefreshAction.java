@@ -84,6 +84,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             logger.trace("{} refresh request executed on primary", primary.shardId());
             // TODO(PS): probably we need to do more to maintain BwC?
             var shardRefreshRequest = new ShardRefreshRequest(primary.shardId(), refreshResult.segmentGeneration());
+            shardRefreshRequest.setParentTask(shardRequest.getParentTask());
             return new PrimaryResult<>(shardRefreshRequest, new ReplicationResponse());
         });
     }

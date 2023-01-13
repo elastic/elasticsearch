@@ -31,7 +31,8 @@ import java.util.Map;
 public enum ReferenceDocs {
     INITIAL_MASTER_NODES,
     DISCOVERY_TROUBLESHOOTING,
-    UNSTABLE_CLUSTER_TROUBLESHOOTING;
+    UNSTABLE_CLUSTER_TROUBLESHOOTING,
+    LAGGING_NODE_TROUBLESHOOTING;
 
     private static final Map<String, String> linksBySymbol;
 

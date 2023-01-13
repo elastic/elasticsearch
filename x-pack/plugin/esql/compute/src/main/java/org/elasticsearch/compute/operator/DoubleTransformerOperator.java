@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.LongFunction;
@@ -59,9 +59,9 @@ public class DoubleTransformerOperator implements Operator {
         if (lastInput == null) {
             return null;
         }
-        Block block = lastInput.getBlock(channel);
+        LongBlock block = lastInput.getBlock(channel);
         int len = block.getPositionCount();
-        BlockBuilder blockBuilder = BlockBuilder.newDoubleBlockBuilder(len);
+        var blockBuilder = DoubleBlock.newBlockBuilder(len);
         for (int i = 0; i < block.getPositionCount(); i++) {
             blockBuilder.appendDouble(doubleTransformer.apply(block.getLong(i)));
         }

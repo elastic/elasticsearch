@@ -7,10 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Experimental;
-
-import java.util.Optional;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -21,6 +18,7 @@ import java.util.Optional;
  * or dense data. A Block can represent either single or multi valued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
+ * TODO: update comment
  * <p> All Blocks share the same set of data retrieval methods, but actual concrete implementations
  * effectively support a subset of these, throwing {@code UnsupportedOperationException} where a
  * particular data retrieval method is not supported. For example, a Block of primitive longs may
@@ -33,10 +31,10 @@ public interface Block {
 
     /**
      * {@return an efficient dense single-value view of this block}.
-     * The optional is empty, if the block is not dense single-valued.
-     * mayHaveNulls == true optional is empty, otherwise the optional is non-empty
+     * Null, if the block is not dense single-valued. That is, if
+     * mayHaveNulls returns true, or getTotalValueCount is not equal to getPositionCount.
      */
-    Optional<Vector> asVector();
+    Vector asVector();
 
     /** {@return The total number of values in this block.} */
     int getTotalValueCount();
@@ -51,51 +49,10 @@ public interface Block {
     int getValueCount(int position);
 
     /**
-     * Retrieves the integer value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
-     * @param valueIndex the value index
-     * @return the data value (as an int)
-     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
-     */
-    int getInt(int valueIndex);
-
-    /**
-     * Retrieves the long value stored at the given value index, widening if necessary.
-     *
-     * @param valueIndex the value index
-     * @return the data value (as a long)
-     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
-     */
-    long getLong(int valueIndex);
-
-    /**
-     * Retrieves the value stored at the given value index as a double, widening if necessary.
-     *
-     * @param valueIndex the value index
-     * @return the data value (as a double)
-     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
-     */
-    double getDouble(int valueIndex);
-
-    /**
-     * Retrieves the value stored at the given value index  as a BytesRef.
-     *
-     * @param valueIndex the value index
-     * @param spare    the spare BytesRef that can be used as a temporary buffer during retrieving
-     * @return the data value (as a BytesRef)
-     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
-     */
-    BytesRef getBytesRef(int valueIndex, BytesRef spare);
-
-    /**
      * Retrieves the value stored at the given value index.
      *
      * @param valueIndex the value index
      * @return the data value
-     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
      */
     Object getObject(int valueIndex);
 
@@ -142,4 +99,34 @@ public interface Block {
      * @return a filtered block
      */
     Block filter(int... positions);
+
+    /**
+     * {@return a constant null block with the given number of positions}.
+     */
+    static Block constantNullBlock(int positions) {
+        return new ConstantNullBlock(positions);
+    }
+
+    interface Builder {
+
+        /**
+         * Appends a null value to the block.
+         */
+        Builder appendNull();
+
+        /**
+         * Begins a multi-value entry.
+         */
+        Builder beginPositionEntry();
+
+        /**
+         * Ends the current multi-value entry.
+         */
+        Builder endPositionEntry();
+
+        /**
+         * Builds the block. This method can be called multiple times.
+         */
+        Block build();
+    }
 }

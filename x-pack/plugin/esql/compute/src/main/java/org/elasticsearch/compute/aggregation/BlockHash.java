@@ -15,8 +15,10 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongArrayVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -28,7 +30,7 @@ import java.io.IOException;
  * @see LongHash
  * @see BytesRefHash
  */
-public abstract class BlockHash implements Releasable {
+public abstract sealed class BlockHash implements Releasable {
 
     /**
      * Try to add the value (as the key) at the given position of the Block to the hash.
@@ -59,7 +61,7 @@ public abstract class BlockHash implements Releasable {
         return new BytesRefBlockHash(bigArrays);
     }
 
-    private static class LongBlockHash extends BlockHash {
+    private static final class LongBlockHash extends BlockHash {
         private final LongHash longHash;
 
         LongBlockHash(BigArrays bigArrays) {
@@ -68,11 +70,11 @@ public abstract class BlockHash implements Releasable {
 
         @Override
         public long add(Block block, int position) {
-            return longHash.add(block.getLong(position));
+            return longHash.add(((LongBlock) block).getLong(position));
         }
 
         @Override
-        public Block getKeys() {
+        public LongBlock getKeys() {
             final int size = Math.toIntExact(longHash.size());
             final long[] keys = new long[size];
             for (int i = 0; i < size; i++) {
@@ -80,7 +82,7 @@ public abstract class BlockHash implements Releasable {
             }
 
             // TODO call something like takeKeyOwnership to claim the keys array directly
-            return new LongVector(keys, keys.length).asBlock();
+            return new LongArrayVector(keys, keys.length).asBlock();
         }
 
         @Override
@@ -89,7 +91,7 @@ public abstract class BlockHash implements Releasable {
         }
     }
 
-    private static class BytesRefBlockHash extends BlockHash {
+    private static final class BytesRefBlockHash extends BlockHash {
         private final BytesRefHash bytesRefHash;
         private BytesRef bytes = new BytesRef();
 
@@ -99,12 +101,12 @@ public abstract class BlockHash implements Releasable {
 
         @Override
         public long add(Block block, int position) {
-            bytes = block.getBytesRef(position, bytes);
+            bytes = ((BytesRefBlock) block).getBytesRef(position, bytes);
             return bytesRefHash.add(bytes);
         }
 
         @Override
-        public Block getKeys() {
+        public BytesRefBlock getKeys() {
             final int size = Math.toIntExact(bytesRefHash.size());
             /*
              * Create an un-owned copy of the data so we can close our BytesRefHash
@@ -114,7 +116,7 @@ public abstract class BlockHash implements Releasable {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 bytesRefHash.getBytesRefs().writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
-                    return new BytesRefVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock();
+                    return new BytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock();
                 }
             } catch (IOException e) {
                 throw new IllegalStateException(e);

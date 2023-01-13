@@ -16,7 +16,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testFilterAllPositions() {
         var positionCount = 100;
-        var vector = new IntVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var filteredVector = vector.filter();
 
         assertEquals(0, filteredVector.getPositionCount());
@@ -29,7 +29,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testKeepAllPositions() {
         var positionCount = 100;
-        var vector = new IntVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).toArray();
 
         var filteredVector = vector.filter(positions);
@@ -44,7 +44,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testKeepSomePositions() {
         var positionCount = 100;
-        var vector = new IntVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).filter(i -> i % 2 == 0).toArray();
 
         var filteredVector = vector.filter(positions);
@@ -60,7 +60,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testFilterOnFilter() {  // TODO: tired of this sv / mv block here. do more below
         var positionCount = 100;
-        var vector = new IntVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
 
         var filteredVector = vector.filter(IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
         var filteredTwice = filteredVector.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
@@ -71,13 +71,13 @@ public class FilteredBlockTests extends ESTestCase {
     }
 
     public void testFilterOnNull() {
-        Block block;
+        IntBlock block;
         if (randomBoolean()) {
             var nulls = new BitSet();
             nulls.set(1);
-            block = new IntBlock(new int[] { 10, 0, 30, 40 }, 4, null, nulls);
+            block = new IntArrayBlock(new int[] { 10, 0, 30, 40 }, 4, null, nulls);
         } else {
-            BlockBuilder blockBuilder = BlockBuilder.newIntBlockBuilder(4);
+            var blockBuilder = IntBlock.newBlockBuilder(4);
             blockBuilder.appendInt(10);
             blockBuilder.appendNull();
             blockBuilder.appendInt(30);
@@ -101,9 +101,9 @@ public class FilteredBlockTests extends ESTestCase {
         if (randomBoolean()) {
             var nulls = new BitSet();
             nulls.set(0, 4);
-            block = new IntBlock(new int[] { 0, 0, 0, 0 }, 4, null, nulls);
+            block = new IntArrayBlock(new int[] { 0, 0, 0, 0 }, 4, null, nulls);
         } else {
-            BlockBuilder blockBuilder = BlockBuilder.newIntBlockBuilder(4);
+            var blockBuilder = IntBlock.newBlockBuilder(4);
             blockBuilder.appendNull();
             blockBuilder.appendNull();
             blockBuilder.appendNull();
@@ -121,11 +121,11 @@ public class FilteredBlockTests extends ESTestCase {
     }
 
     public void testFilterOnNoNullsBlock() {
-        Block block;
+        IntBlock block;
         if (randomBoolean()) {
-            block = new IntVector(new int[] { 10, 20, 30, 40 }, 4).asBlock();
+            block = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4).asBlock();
         } else {
-            BlockBuilder blockBuilder = BlockBuilder.newIntBlockBuilder(4);
+            var blockBuilder = IntBlock.newBlockBuilder(4);
             blockBuilder.appendInt(10);
             blockBuilder.appendInt(20);
             blockBuilder.appendInt(30);
@@ -140,9 +140,9 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(0, filtered.nullValuesCount());
         assertEquals(3, filtered.validPositionCount());
 
-        assertEquals(20, filtered.asVector().get().getInt(0));
-        assertEquals(30, filtered.asVector().get().getInt(1));
-        assertEquals(40, filtered.asVector().get().getInt(2));
+        assertEquals(20, filtered.asVector().getInt(0));
+        assertEquals(30, filtered.asVector().getInt(1));
+        assertEquals(40, filtered.asVector().getInt(2));
 
     }
 

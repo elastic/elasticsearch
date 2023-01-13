@@ -7,12 +7,9 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.core.Nullable;
 
 import java.util.BitSet;
-import java.util.Optional;
 
 abstract class AbstractBlock implements Block {
 
@@ -23,11 +20,6 @@ abstract class AbstractBlock implements Block {
 
     @Nullable
     protected final BitSet nullsMask;
-
-    @Override
-    public Optional<Vector> asVector() {
-        return Optional.empty();
-    }
 
     /**
      * Constructor for SingletonBlock
@@ -82,31 +74,6 @@ abstract class AbstractBlock implements Block {
     }
 
     @Override
-    public int getInt(int valueIndex) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public long getLong(int valueIndex) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public double getDouble(int valueIndex) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public BytesRef getBytesRef(int valueIndex, BytesRef spare) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public Object getObject(int valueIndex) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
     public boolean isNull(int position) {
         return mayHaveNulls() && nullsMask.get(position);
     }
@@ -135,17 +102,5 @@ abstract class AbstractBlock implements Block {
         assert (position >= 0 || position < getPositionCount())
             : "illegal position, " + position + ", position count:" + getPositionCount();
         return true;
-    }
-
-    @Experimental
-    @Override
-    // TODO: improve implementation not to waste as much space
-    public Block getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
-    public Block filter(int... positions) {
-        return new FilteredBlock(this, positions);
     }
 }

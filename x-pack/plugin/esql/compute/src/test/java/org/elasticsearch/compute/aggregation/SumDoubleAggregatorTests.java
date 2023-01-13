@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
@@ -40,7 +41,7 @@ public class SumDoubleAggregatorTests extends AggregatorTestCase {
     @Override
     protected void assertSimpleResult(int end, Block result) {
         double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum();
-        assertThat(result.getDouble(0), equalTo(expected));
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo(expected));
     }
 
     public void testOverflowSucceeds() {
@@ -56,6 +57,6 @@ public class SumDoubleAggregatorTests extends AggregatorTestCase {
         ) {
             d.run();
         }
-        assertThat(results.get(0).getBlock(0).getDouble(0), equalTo(Double.MAX_VALUE + 1));
+        assertThat(results.get(0).<DoubleBlock>getBlock(0).getDouble(0), equalTo(Double.MAX_VALUE + 1));
     }
 }

@@ -17,6 +17,11 @@ final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
+    public Vector asVector() {
+        return null;
+    }
+
+    @Override
     public boolean isNull(int position) {
         return true;
     }
@@ -32,18 +37,13 @@ final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
+    public Block getRow(int position) {
+        return null;
+    }
+
+    @Override
     public boolean mayHaveNulls() {
         return true;
-    }
-
-    @Override
-    public long getLong(int position) {
-        return 0L;
-    }
-
-    @Override
-    public double getDouble(int position) {
-        return 0.0d;
     }
 
     @Override

@@ -7,52 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-
 /**
- * Vector implementation that stores an array of integers.
+ * Vector implementation that stores int values.
  */
-public final class IntVector extends AbstractVector {
+public sealed interface IntVector extends Vector permits ConstantIntVector,FilterIntVector,IntArrayVector {
 
-    private final int[] values;
-
-    public IntVector(int[] values, int positionCount) {
-        super(positionCount);
-        this.values = values;
-    }
+    int getInt(int position);
 
     @Override
-    public int getInt(int position) {
-        return values[position];
-    }
+    IntBlock asBlock();
 
     @Override
-    public long getLong(int position) {
-        return getInt(position);  // Widening primitive conversions, no loss of precision
-    }
+    IntVector filter(int... positions);
 
-    @Override
-    public double getDouble(int position) {
-        return getInt(position);  // Widening primitive conversions, no loss of precision
-    }
-
-    @Override
-    public Object getObject(int position) {
-        return getInt(position);
-    }
-
-    @Override
-    public ElementType elementType() {
-        return ElementType.INT;
-    }
-
-    @Override
-    public boolean isConstant() {
-        return false;
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
-    }
 }

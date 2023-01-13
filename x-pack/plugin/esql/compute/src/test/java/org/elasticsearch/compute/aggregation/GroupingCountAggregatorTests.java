@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 
 import java.util.stream.LongStream;
 
@@ -26,7 +27,7 @@ public class GroupingCountAggregatorTests extends GroupingAggregatorTestCase {
 
     @Override
     public void assertSimpleBucket(Block result, int end, int position, int bucket) {
-        double expected = LongStream.range(0, end).filter(l -> l % 5 == bucket).count();
-        assertThat(result.getDouble(position), equalTo(expected));
+        long expected = LongStream.range(0, end).filter(l -> l % 5 == bucket).count();
+        assertThat(((LongBlock) result).getLong(position), equalTo(expected));
     }
 }

@@ -11,8 +11,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
 
 import java.util.function.BiFunction;
@@ -20,9 +20,9 @@ import java.util.function.BiFunction;
 @Experimental
 public interface GroupingAggregatorFunction extends Releasable {
 
-    void addRawInput(Vector groupIdBlock, Page page);
+    void addRawInput(LongVector groupIdBlock, Page page);
 
-    void addIntermediateInput(Vector groupIdBlock, Block block);
+    void addIntermediateInput(LongVector groupIdBlock, Block block);
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId

@@ -9,19 +9,18 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.is;
 
 public class MultiValueBlockTests extends ESTestCase {
 
     public void testIntBlockTrivial1() {
-        BlockBuilder blockBuilder = BlockBuilder.newIntBlockBuilder(4);
+        var blockBuilder = IntBlock.newBlockBuilder(4);
         blockBuilder.appendInt(10);
         blockBuilder.beginPositionEntry();
         blockBuilder.appendInt(21);
         blockBuilder.appendInt(22);
         blockBuilder.appendInt(23);
-        Block block = blockBuilder.build();
+        IntBlock block = blockBuilder.build();
 
         // expect two positions
         assertThat(block.getPositionCount(), is(2));
@@ -44,11 +43,11 @@ public class MultiValueBlockTests extends ESTestCase {
         }
 
         // cannot get a Vector view
-        assertThat(block.asVector(), isEmpty());
+        assertNull(block.asVector());
     }
 
     public void testIntBlockTrivial() {
-        BlockBuilder blockBuilder = BlockBuilder.newIntBlockBuilder(10);
+        var blockBuilder = IntBlock.newBlockBuilder(10);
         blockBuilder.appendInt(1);
         blockBuilder.beginPositionEntry();
         blockBuilder.appendInt(21);
@@ -62,13 +61,13 @@ public class MultiValueBlockTests extends ESTestCase {
         blockBuilder.beginPositionEntry();
         blockBuilder.appendInt(41);
         blockBuilder.endPositionEntry();
-        Block block = blockBuilder.build();
+        IntBlock block = blockBuilder.build();
 
         assertThat(block.getPositionCount(), is(4));
         assertThat(block.getFirstValueIndex(0), is(0));
         assertThat(block.getValueCount(0), is(1));
         assertThat(block.getInt(block.getFirstValueIndex(0)), is(1));
-        assertThat(block.asVector(), isEmpty());
+        assertNull(block.asVector());
     }
 
     public void testIntBlock() {

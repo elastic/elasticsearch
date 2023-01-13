@@ -12,6 +12,11 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Iterator;
@@ -88,20 +93,22 @@ public class TopNOperator implements Operator {
         if (b1.elementType() != b2.elementType()) {
             throw new IllegalStateException("Blocks have incompatible element types: " + b1.elementType() + " != " + b2.elementType());
         }
-        final int cmp = switch (b1.elementType()) {
-            case INT -> Integer.compare(b1.getInt(0), b2.getInt(0));
-            case LONG -> Long.compare(b1.getLong(0), b2.getLong(0));
-            case DOUBLE -> Double.compare(b1.getDouble(0), b2.getDouble(0));
-            case BYTES_REF -> b1.getBytesRef(0, new BytesRef()).compareTo(b2.getBytesRef(0, new BytesRef()));
-            case NULL -> {
-                assert false : "Must not occur here as we check nulls above already";
-                throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
-            }
-            case UNKNOWN -> {
-                assert false : "Must not occur here as TopN should never receive intermediate blocks";
-                throw new UnsupportedOperationException("Block doesn't support retrieving elements");
-            }
-        };
+        int cmp;
+        if (b1 instanceof IntBlock block1 && b2 instanceof IntBlock block2) {
+            cmp = Integer.compare(block1.getInt(0), block2.getInt(0));
+        } else if (b1 instanceof LongBlock block1 && b2 instanceof LongBlock block2) {
+            cmp = Long.compare(block1.getLong(0), block2.getLong(0));
+        } else if (b1 instanceof DoubleBlock block1 && b2 instanceof DoubleBlock block2) {
+            cmp = Double.compare(block1.getDouble(0), block2.getDouble(0));
+        } else if (b1 instanceof BytesRefBlock block1 && b2 instanceof BytesRefBlock block2) {
+            cmp = block1.getBytesRef(0, new BytesRef()).compareTo(block2.getBytesRef(0, new BytesRef()));
+        } else if (b1.elementType() == ElementType.NULL) {
+            assert false : "Must not occur here as we check nulls above already";
+            throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
+        } else {
+            assert false : "Must not occur here as TopN should never receive intermediate blocks";
+            throw new UnsupportedOperationException("Block doesn't support retrieving elements");
+        }
         return asc ? -cmp : cmp;
     }
 

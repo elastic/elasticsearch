@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
@@ -39,9 +39,9 @@ public class CountRowsAggregator implements AggregatorFunction {
     @Override
     public void addIntermediateInput(Block block) {
         assert channel == -1;
-        if (block.asVector().isPresent() && block.asVector().get() instanceof AggregatorStateVector) {
+        if (block.asVector() != null && block.asVector() instanceof AggregatorStateVector) {
             @SuppressWarnings("unchecked")
-            AggregatorStateVector<LongState> blobVector = (AggregatorStateVector) block.asVector().get();
+            AggregatorStateVector<LongState> blobVector = (AggregatorStateVector) block.asVector();
             LongState state = this.state;
             LongState tmpState = new LongState();
             for (int i = 0; i < block.getPositionCount(); i++) {
@@ -65,7 +65,7 @@ public class CountRowsAggregator implements AggregatorFunction {
 
     @Override
     public Block evaluateFinal() {
-        return BlockBuilder.newConstantLongBlockWith(state.longValue(), 1);
+        return LongBlock.newConstantBlockWith(state.longValue(), 1);
     }
 
     @Override

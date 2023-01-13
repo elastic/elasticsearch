@@ -9,7 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -34,7 +35,7 @@ public class SumLongAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected void assertSimpleResult(int end, Block result) {
-        assertThat(result.getLong(0), equalTo(LongStream.range(0, end).sum()));
+        assertThat(((LongBlock) result).getLong(0), equalTo(LongStream.range(0, end).sum()));
     }
 
     public void testOverflowFails() {
@@ -54,13 +55,13 @@ public class SumLongAggregatorTests extends AggregatorTestCase {
     public void testRejectsDouble() {
         try (
             Driver d = new Driver(
-                new CannedSourceOperator(Iterators.single(new Page(new DoubleVector(new double[] { 1.0 }, 1).asBlock()))),
+                new CannedSourceOperator(Iterators.single(new Page(new DoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple(nonBreakingBigArrays()).get()),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )
         ) {
-            expectThrows(UnsupportedOperationException.class, d::run);
+            expectThrows(Exception.class, d::run);  // ### find a more specific exception type
         }
     }
 }

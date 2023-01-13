@@ -8,42 +8,58 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefArray;
-
-import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of {@link org.apache.lucene.util.BytesRef}.
+ * Block that stores BytesRef values.
  */
-final class BytesRefBlock extends AbstractBlock {
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock,BytesRefVectorBlock,FilterBytesRefBlock {
 
-    static final BytesRef NULL_VALUE = new BytesRef();
-
-    private final BytesRefArray bytesRefArray;
-
-    BytesRefBlock(BytesRefArray bytesRefArray, int positionCount, int[] firstValueIndexes, BitSet nullsMask) {
-        super(positionCount, firstValueIndexes, nullsMask);
-        assert bytesRefArray.size() == positionCount : bytesRefArray.size() + " != " + positionCount;
-        this.bytesRefArray = bytesRefArray;
-    }
-
-    @Override
-    public BytesRef getBytesRef(int position, BytesRef spare) {
-        return bytesRefArray.get(position, spare);
-    }
+    /**
+     * Retrieves the ByteRef value stored at the given value index.
+     *
+     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
+     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
+     *
+     * @param valueIndex the value index
+     * @param dest the destination
+     * @return the data value (as a long)
+     */
+    BytesRef getBytesRef(int valueIndex, BytesRef dest);
 
     @Override
-    public Object getObject(int position) {
-        return getBytesRef(position, new BytesRef());
-    }
+    BytesRefVector asVector();
 
     @Override
-    public ElementType elementType() {
-        return ElementType.BYTES_REF;
-    }
+    BytesRefBlock getRow(int position);
 
     @Override
-    public String toString() {
-        return "BytesRefBlock[positions=" + getPositionCount() + "]";
+    BytesRefBlock filter(int... positions);
+
+    static Builder newBytesRefBlockBuilder(int estimatedSize) {
+        return new BytesRefBlockBuilder(estimatedSize);
+    }
+
+    static BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
+        return new ConstantBytesRefVector(value, positions).asBlock();
+    }
+
+    sealed interface Builder extends Block.Builder permits BytesRefBlockBuilder {
+
+        /**
+         * Appends a T to the current entry.
+         */
+        Builder appendBytesRef(BytesRef value);
+
+        @Override
+        Builder appendNull();
+
+        @Override
+        Builder beginPositionEntry();
+
+        @Override
+        Builder endPositionEntry();
+
+        @Override
+        BytesRefBlock build();
     }
 }

@@ -14,8 +14,9 @@ import org.elasticsearch.compute.aggregation.AvgLongGroupingAggregatorTests;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.GroupingMaxDoubleAggregatorTests;
+import org.elasticsearch.compute.aggregation.GroupingMaxLongAggregatorTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
@@ -60,9 +61,9 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(results.get(0).getPositionCount(), equalTo(5));
 
         AvgLongGroupingAggregatorTests avg = new AvgLongGroupingAggregatorTests();
-        GroupingMaxDoubleAggregatorTests max = new GroupingMaxDoubleAggregatorTests();
+        GroupingMaxLongAggregatorTests max = new GroupingMaxLongAggregatorTests();
 
-        Block groups = results.get(0).getBlock(0);
+        LongBlock groups = results.get(0).getBlock(0);
         Block avgs = results.get(0).getBlock(1);
         Block maxs = results.get(0).getBlock(2);
         for (int i = 0; i < 5; i++) {

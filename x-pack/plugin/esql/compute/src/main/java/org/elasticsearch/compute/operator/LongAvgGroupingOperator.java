@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.HashMap;
@@ -62,8 +62,8 @@ public class LongAvgGroupingOperator implements Operator {
         finished = true;
 
         int len = sums.size();
-        BlockBuilder groupsBlockBuilder = BlockBuilder.newLongBlockBuilder(len);
-        BlockBuilder valuesBlockBuilder = BlockBuilder.newLongBlockBuilder(len);
+        var groupsBlockBuilder = LongBlock.newBlockBuilder(len);
+        var valuesBlockBuilder = LongBlock.newBlockBuilder(len);
         int i = 0;
         for (var e : sums.entrySet()) {
             groupsBlockBuilder.appendLong(e.getKey());
@@ -88,8 +88,8 @@ public class LongAvgGroupingOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        Block groupBlock = page.getBlock(groupChannel);
-        Block valuesBlock = page.getBlock(valueChannel);
+        LongBlock groupBlock = page.getBlock(groupChannel);
+        LongBlock valuesBlock = page.getBlock(valueChannel);
         assert groupBlock.getPositionCount() == valuesBlock.getPositionCount();
         int len = groupBlock.getPositionCount();
         for (int i = 0; i < len; i++) {

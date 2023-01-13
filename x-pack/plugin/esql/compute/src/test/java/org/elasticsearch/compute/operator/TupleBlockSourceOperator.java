@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
@@ -44,8 +44,8 @@ public class TupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        BlockBuilder blockBuilder1 = BlockBuilder.newLongBlockBuilder(length);
-        BlockBuilder blockBuilder2 = BlockBuilder.newLongBlockBuilder(length);
+        var blockBuilder1 = LongBlock.newBlockBuilder(length);
+        var blockBuilder2 = LongBlock.newBlockBuilder(length);
         for (int i = 0; i < length; i++) {
             Tuple<Long, Long> item = values.get(positionOffset + i);
             if (item.v1() == null) {

@@ -11,8 +11,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
 
 import java.util.function.Supplier;
@@ -54,7 +54,7 @@ public class GroupingAggregator implements Releasable {
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
     }
 
-    public void processPage(Vector groupIdVector, Page page) {
+    public void processPage(LongVector groupIdVector, Page page) {
         if (mode.isInputPartial()) {
             aggregatorFunction.addIntermediateInput(groupIdVector, page.getBlock(intermediateChannel));
         } else {

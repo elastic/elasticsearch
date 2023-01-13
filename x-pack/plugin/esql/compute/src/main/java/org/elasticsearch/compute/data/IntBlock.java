@@ -7,52 +7,58 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-import java.util.BitSet;
-
 /**
- * Block implementation that stores an array of integers.
+ * Block that stores int values.
  */
-public final class IntBlock extends AbstractBlock {
+public sealed interface IntBlock extends Block permits FilterIntBlock,IntArrayBlock,IntVectorBlock {
 
-    private final int[] values;
-
-    public IntBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
-        super(positionCount, firstValueIndexes, nulls);
-        this.values = values;
-    }
-
-    @Override
-    public int getInt(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
-    }
+    /**
+     * Retrieves the integer value stored at the given value index.
+     *
+     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
+     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
+     *
+     * @param valueIndex the value index
+     * @return the data value (as an int)
+     */
+    int getInt(int valueIndex);
 
     @Override
-    public long getLong(int position) {
-        assert assertPosition(position);
-        return getInt(position);  // Widening primitive conversions, no loss of precision
-    }
+    IntVector asVector();
 
     @Override
-    public double getDouble(int position) {
-        assert assertPosition(position);
-        return getInt(position);  // Widening primitive conversions, no loss of precision
-    }
+    IntBlock getRow(int position);
 
     @Override
-    public Object getObject(int position) {
-        return getInt(position);
+    IntBlock filter(int... positions);
+
+    LongBlock asLongBlock();
+
+    static Builder newBlockBuilder(int estimatedSize) {
+        return new IntBlockBuilder(estimatedSize);
     }
 
-    @Override
-    public ElementType elementType() {
-        return ElementType.INT;
+    static IntBlock newConstantBlockWith(int value, int positions) {
+        return new ConstantIntVector(value, positions).asBlock();
     }
 
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+    sealed interface Builder extends Block.Builder permits IntBlockBuilder {
+
+        /**
+         * Appends an int to the current entry.
+         */
+        Builder appendInt(int value);
+
+        @Override
+        Builder appendNull();
+
+        @Override
+        Builder beginPositionEntry();
+
+        @Override
+        Builder endPositionEntry();
+
+        @Override
+        IntBlock build();
     }
 }

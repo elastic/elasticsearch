@@ -10,22 +10,29 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefArray;
 
+import java.util.BitSet;
+
 /**
  * Block implementation that stores an array of {@link org.apache.lucene.util.BytesRef}.
  */
-public final class BytesRefArrayBlock extends AbstractVector {
+public final class BytesRefArrayBlock extends AbstractBlock implements BytesRefBlock {
 
-    private final BytesRefArray bytes;
+    private final BytesRefArray bytesRefArray;
 
-    public BytesRefArrayBlock(int positionCount, BytesRefArray bytes) {
-        super(positionCount);
-        assert bytes.size() == positionCount : bytes.size() + " != " + positionCount;
-        this.bytes = bytes;
+    BytesRefArrayBlock(BytesRefArray bytesRefArray, int positionCount, int[] firstValueIndexes, BitSet nullsMask) {
+        super(positionCount, firstValueIndexes, nullsMask);
+        assert bytesRefArray.size() == positionCount : bytesRefArray.size() + " != " + positionCount;
+        this.bytesRefArray = bytesRefArray;
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef spare) {
-        return bytes.get(position, spare);
+    public BytesRefVector asVector() {
+        return null;
+    }
+
+    @Override
+    public BytesRef getBytesRef(int position, BytesRef dest) {
+        return bytesRefArray.get(position, dest);
     }
 
     @Override
@@ -34,13 +41,18 @@ public final class BytesRefArrayBlock extends AbstractVector {
     }
 
     @Override
-    public ElementType elementType() {
-        return ElementType.BYTES_REF;
+    public BytesRefBlock getRow(int position) {
+        return filter(position);
     }
 
     @Override
-    public boolean isConstant() {
-        return false;
+    public BytesRefBlock filter(int... positions) {
+        return new FilterBytesRefBlock(this, positions);
+    }
+
+    @Override
+    public ElementType elementType() {
+        return ElementType.BYTES_REF;
     }
 
     @Override

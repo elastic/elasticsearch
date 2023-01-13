@@ -77,8 +77,10 @@ public final class Page {
      * @param blockIndex the block index
      * @return the block
      */
-    public Block getBlock(int blockIndex) {
-        return blocks[blockIndex];
+    public <B extends Block> B getBlock(int blockIndex) {
+        @SuppressWarnings("unchecked")
+        B block = (B) blocks[blockIndex];
+        return block;
     }
 
     /**

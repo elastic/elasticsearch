@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -24,6 +25,7 @@ public class MaxLongAggregatorTests extends AggregatorTestCase {
 
     @Override
     public void assertSimpleResult(int end, Block result) {
-        assertThat(result.getLong(0), equalTo(end - 1L));
+        LongBlock block = (LongBlock) result;
+        assertThat(block.getLong(0), equalTo(end - 1L));
     }
 }

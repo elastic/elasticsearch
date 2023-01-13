@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 
-final class BytesRefBlockBuilder extends AbstractBlockBuilder {
+final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
     private static final BytesRef NULL_VALUE = new BytesRef();
 
@@ -26,7 +26,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder {
     }
 
     @Override
-    public BlockBuilder appendBytesRef(BytesRef value) {
+    public BytesRefBlockBuilder appendBytesRef(BytesRef value) {
         ensureCapacity();
         values.append(value);
         hasNonNullValue = true;
@@ -45,28 +45,43 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder {
         throw new AssertionError("should not reach here");
     }
 
+    public BytesRefBlockBuilder appendNull() {
+        super.appendNull();
+        return this;
+    }
+
+    @Override
+    public BytesRefBlockBuilder beginPositionEntry() {
+        super.beginPositionEntry();
+        return this;
+    }
+
+    @Override
+    public BytesRefBlockBuilder endPositionEntry() {
+        super.endPositionEntry();
+        return this;
+    }
+
     protected void writeNullValue() {
         values.append(NULL_VALUE);
     }
 
     @Override
-    public Block build() {
+    public BytesRefBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue == false) {
-            return new ConstantNullBlock(positionCount);
-        } else if (positionCount == 1) {
-            return new VectorBlock(new ConstantBytesRefVector(values.get(0, new BytesRef()), 1));
+        if (hasNonNullValue && positionCount == 1) {
+            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
-                return new VectorBlock(new BytesRefArrayBlock(positionCount, values));
+                return new BytesRefArrayVector(values, positionCount).asBlock();
             } else {
                 if (firstValueIndexes != null) {
                     firstValueIndexes[positionCount] = valueCount;  // TODO remove hack
                 }
-                return new BytesRefBlock(values, positionCount, firstValueIndexes, nullsMask);
+                return new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }
     }

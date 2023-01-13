@@ -7,42 +7,14 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-
 /**
  * Vector implementation that stores an array of double values.
  */
-public final class DoubleVector extends AbstractVector {
+public interface DoubleVector extends Vector {
 
-    private final double[] values;
-
-    public DoubleVector(double[] values, int positionCount) {
-        super(positionCount);
-        this.values = values;
-    }
+    double getDouble(int position);
 
     @Override
-    public double getDouble(int position) {
-        return values[position];
-    }
+    DoubleVector filter(int... positions);
 
-    @Override
-    public Object getObject(int position) {
-        return getDouble(position);
-    }
-
-    @Override
-    public boolean isConstant() {
-        return false;
-    }
-
-    @Override
-    public ElementType elementType() {
-        return ElementType.DOUBLE;
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
-    }
 }

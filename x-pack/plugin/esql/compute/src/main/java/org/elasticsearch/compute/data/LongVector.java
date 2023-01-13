@@ -7,56 +7,14 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-
 /**
  * Vector implementation that stores an array of long values.
  */
-public final class LongVector extends AbstractVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector,FilterLongVector,LongArrayVector {
 
-    private final long[] values;
-
-    public LongVector(long[] values, int positionCount) {
-        super(positionCount);
-        this.values = values;
-    }
+    long getLong(int position);
 
     @Override
-    public long getLong(int position) {
-        return values[position];
-    }
+    LongVector filter(int... positions);
 
-    @Override
-    public double getDouble(int position) {
-        return getLong(position);  // Widening primitive conversions, possible loss of precision
-    }
-
-    @Override
-    public Object getObject(int position) {
-        return getLong(position);
-    }
-
-    @Override
-    public Vector filter(int... positions) {
-        return null; // new FilteredBlock(this, positions); TODO
-    }
-
-    @Override
-    public ElementType elementType() {
-        return ElementType.LONG;
-    }
-
-    @Override
-    public boolean isConstant() {
-        return false;
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
-    }
-
-    public long[] getRawLongArray() {
-        return values;
-    }
 }

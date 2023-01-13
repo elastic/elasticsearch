@@ -12,7 +12,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -42,7 +45,7 @@ public abstract class BlockDocValuesReader {
     /**
      * Reads the values of the given documents specified in the input block
      */
-    public abstract Block readValues(Block docs) throws IOException;
+    public abstract Block readValues(IntVector docs) throws IOException;
 
     /**
      * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
@@ -82,9 +85,9 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(Block docs) throws IOException {
+        public Block readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(positionCount);
+            var blockBuilder = LongBlock.newBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -117,9 +120,9 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(Block docs) throws IOException {
+        public Block readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            BlockBuilder blockBuilder = BlockBuilder.newDoubleBlockBuilder(positionCount);
+            var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -153,9 +156,9 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public Block readValues(Block docs) throws IOException {
+        public Block readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            BlockBuilder blockBuilder = BlockBuilder.newBytesRefBlockBuilder(positionCount);
+            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);

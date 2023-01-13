@@ -7,12 +7,10 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
-
 import java.util.BitSet;
 import java.util.stream.IntStream;
 
-abstract class AbstractBlockBuilder implements BlockBuilder {
+abstract class AbstractBlockBuilder {
 
     protected int[] firstValueIndexes; // lazily initialized, if multi-values
 
@@ -28,28 +26,7 @@ abstract class AbstractBlockBuilder implements BlockBuilder {
 
     protected AbstractBlockBuilder() {}
 
-    @Override
-    public BlockBuilder appendInt(int value) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public BlockBuilder appendLong(long value) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public BlockBuilder appendDouble(double value) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public BlockBuilder appendBytesRef(BytesRef value) {
-        throw new UnsupportedOperationException(getClass().getName());
-    }
-
-    @Override
-    public final BlockBuilder appendNull() {
+    public AbstractBlockBuilder appendNull() {
         ensureCapacity();
         if (nullsMask == null) {
             nullsMask = new BitSet();
@@ -66,8 +43,7 @@ abstract class AbstractBlockBuilder implements BlockBuilder {
     /** The length of the internal values array. */
     protected abstract int valuesLength();
 
-    @Override
-    public final BlockBuilder beginPositionEntry() {
+    public AbstractBlockBuilder beginPositionEntry() {
         if (firstValueIndexes == null) {
             firstValueIndexes = new int[valuesLength()];
             IntStream.range(0, positionCount).forEach(i -> firstValueIndexes[i] = i);
@@ -77,8 +53,7 @@ abstract class AbstractBlockBuilder implements BlockBuilder {
         return this;
     }
 
-    @Override
-    public final BlockBuilder endPositionEntry() {
+    public AbstractBlockBuilder endPositionEntry() {
         positionCount++;
         positionEntryIsOpen = false;
         return this;

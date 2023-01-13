@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
@@ -47,7 +48,7 @@ public class EvalOperator implements Operator {
         Page lastPage;
         int rowsCount = lastInput.getPositionCount();
         if (dataType.equals(Long.TYPE)) {
-            BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(rowsCount);
+            var blockBuilder = LongBlock.newBlockBuilder(rowsCount);
             for (int i = 0; i < rowsCount; i++) {
                 Number result = (Number) evaluator.computeRow(lastInput, i);
                 if (result == null) {
@@ -58,7 +59,7 @@ public class EvalOperator implements Operator {
             }
             lastPage = lastInput.appendBlock(blockBuilder.build());
         } else if (dataType.equals(Double.TYPE)) {
-            BlockBuilder blockBuilder = BlockBuilder.newDoubleBlockBuilder(rowsCount);
+            var blockBuilder = DoubleBlock.newBlockBuilder(rowsCount);
             for (int i = 0; i < lastInput.getPositionCount(); i++) {
                 Number result = (Number) evaluator.computeRow(lastInput, i);
                 if (result == null) {

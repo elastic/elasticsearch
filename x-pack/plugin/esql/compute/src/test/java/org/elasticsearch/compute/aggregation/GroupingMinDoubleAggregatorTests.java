@@ -8,10 +8,22 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Tuple;
+
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class GroupingMinDoubleAggregatorTests extends GroupingAggregatorTestCase {
+
+    @Override
+    protected SourceOperator simpleInput(int end) {
+        return new LongDoubleTupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l % 5, (double) l)));
+    }
+
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
         return GroupingAggregatorFunction.MIN_DOUBLES;
@@ -24,6 +36,6 @@ public class GroupingMinDoubleAggregatorTests extends GroupingAggregatorTestCase
 
     @Override
     public void assertSimpleBucket(Block result, int end, int position, int bucket) {
-        assertThat(result.getDouble(position), equalTo((double) bucket));
+        assertThat(((DoubleBlock) result).getDouble(position), equalTo((double) bucket));
     }
 }

@@ -7,51 +7,56 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-import java.util.BitSet;
-
 /**
- * Block implementation that stores an array of long values.
+ * Block that stores long values.
  */
-public final class LongBlock extends AbstractBlock {
+public sealed interface LongBlock extends Block permits FilterLongBlock,LongArrayBlock,LongVectorBlock {
 
-    private final long[] values;
-
-    public LongBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
-        super(positionCount, firstValueIndexes, nulls);
-        this.values = values;
-    }
-
-    @Override
-    public long getLong(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
-    }
+    /**
+     * Retrieves the long value stored at the given value index.
+     *
+     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
+     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
+     *
+     * @param valueIndex the value index
+     * @return the data value (as a long)
+     */
+    long getLong(int valueIndex);
 
     @Override
-    public double getDouble(int position) {
-        assert assertPosition(position);
-        return getLong(position);  // Widening primitive conversions, possible loss of precision
-    }
+    LongVector asVector();
 
     @Override
-    public Object getObject(int position) {
-        return getLong(position);
-    }
+    LongBlock getRow(int position);
 
     @Override
-    public ElementType elementType() {
-        return ElementType.LONG;
+    LongBlock filter(int... positions);
+
+    static Builder newBlockBuilder(int estimatedSize) {
+        return new LongBlockBuilder(estimatedSize);
     }
 
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+    static LongBlock newConstantBlockWith(long value, int positions) {
+        return new ConstantLongVector(value, positions).asBlock();
     }
 
-    public long[] getRawLongArray() {
-        assert nullValuesCount() == 0;
-        return values;
+    sealed interface Builder extends Block.Builder permits LongBlockBuilder {
+
+        /**
+         * Appends a long to the current entry.
+         */
+        Builder appendLong(long value);
+
+        @Override
+        Builder appendNull();
+
+        @Override
+        Builder beginPositionEntry();
+
+        @Override
+        Builder endPositionEntry();
+
+        @Override
+        LongBlock build();
     }
 }

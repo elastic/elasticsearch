@@ -9,17 +9,16 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantBytesRefBlockWith;
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantDoubleBlockWith;
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantIntBlockWith;
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantLongBlockWith;
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantNullBlockWith;
 
 public class RowOperator extends SourceOperator {
 
@@ -60,15 +59,15 @@ public class RowOperator extends SourceOperator {
         for (int i = 0; i < objects.size(); i++) {
             Object object = objects.get(i);
             if (object instanceof Integer intVal) {
-                blocks[i] = newConstantIntBlockWith(intVal, 1);
+                blocks[i] = IntBlock.newConstantBlockWith(intVal, 1);
             } else if (object instanceof Long longVal) {
-                blocks[i] = newConstantLongBlockWith(longVal, 1);
+                blocks[i] = LongBlock.newConstantBlockWith(longVal, 1);
             } else if (object instanceof Double doubleVal) {
-                blocks[i] = newConstantDoubleBlockWith(doubleVal, 1);
+                blocks[i] = DoubleBlock.newConstantBlockWith(doubleVal, 1);
             } else if (object instanceof String stringVal) {
-                blocks[i] = newConstantBytesRefBlockWith(new BytesRef(stringVal), 1);
+                blocks[i] = BytesRefBlock.newConstantBytesRefBlockWith(new BytesRef(stringVal), 1);
             } else if (object == null) {
-                blocks[i] = newConstantNullBlockWith(1);
+                blocks[i] = Block.constantNullBlock(1);
             } else {
                 throw new UnsupportedOperationException();
             }

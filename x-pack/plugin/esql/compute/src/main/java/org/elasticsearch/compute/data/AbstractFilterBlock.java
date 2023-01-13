@@ -7,55 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
-
 import java.util.Arrays;
 
-/**
- * Wraps another block and only allows access to positions that have not been filtered out.
- *
- * To ensure fast access, the filter is implemented as an array of positions that map positions
- * in the filtered block to positions in the wrapped block.
- */
-final class FilteredBlock extends AbstractBlock {
+abstract class AbstractFilterBlock extends AbstractBlock {
 
-    private final int[] positions;
+    protected final int[] positions;
+
     private final Block block;
 
-    FilteredBlock(Block block, int[] positions) {
+    AbstractFilterBlock(Block block, int[] positions) {
         super(positions.length);
         this.positions = positions;
         this.block = block;
     }
 
     @Override
-    public int getInt(int position) {
-        return block.getInt(mapPosition(position));
-    }
-
-    @Override
-    public long getLong(int position) {
-        return block.getLong(mapPosition(position));
-    }
-
-    @Override
-    public double getDouble(int position) {
-        return block.getDouble(mapPosition(position));
-    }
-
-    @Override
-    public Object getObject(int position) {
-        return block.getObject(mapPosition(position));
-    }
-
-    @Override
     public ElementType elementType() {
         return block.elementType();
-    }
-
-    @Override
-    public BytesRef getBytesRef(int position, BytesRef spare) {
-        return block.getBytesRef(mapPosition(position), spare);
     }
 
     @Override
@@ -90,7 +58,7 @@ final class FilteredBlock extends AbstractBlock {
         }
     }
 
-    private int mapPosition(int position) {
+    protected int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];
     }
@@ -99,4 +67,5 @@ final class FilteredBlock extends AbstractBlock {
     public String toString() {
         return "FilteredBlock{" + "positions=" + Arrays.toString(positions) + ", block=" + block + '}';
     }
+
 }

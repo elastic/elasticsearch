@@ -11,6 +11,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
@@ -45,7 +47,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
 
         int lastSetIndex = -1;
         for (int i = 0; i < out.getBlockCount(); i++) {
-            var block = out.getBlock(i);
+            var block = out.<IntBlock>getBlock(i);
             var shouldBeSetInMask = block.getInt(0);
             assertTrue(mask.get(shouldBeSetInMask));
             lastSetIndex = mask.nextSetBit(lastSetIndex + 1);
@@ -84,7 +86,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
         int total = 0;
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(1));
-            Block remaining = page.getBlock(0);
+            LongBlock remaining = page.getBlock(0);
             total += page.getPositionCount();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 assertThat(remaining.getLong(i), equalTo(expected));

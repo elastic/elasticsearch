@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * Vector implementation that stores a constant double value.
  */
-final class ConstantDoubleVector extends AbstractVector {
+public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
     private final double value;
 
@@ -25,12 +25,12 @@ final class ConstantDoubleVector extends AbstractVector {
     }
 
     @Override
-    public Object getObject(int position) {
-        return getDouble(position);
+    public DoubleBlock asBlock() {
+        return new DoubleVectorBlock(this);
     }
 
     @Override
-    public Vector filter(int... positions) {
+    public DoubleVector filter(int... positions) {
         return new ConstantDoubleVector(value, positions.length);
     }
 
@@ -44,8 +44,7 @@ final class ConstantDoubleVector extends AbstractVector {
         return true;
     }
 
-    @Override
     public String toString() {
-        return "ConstantDoubleVector[positions=" + getPositionCount() + ", value=" + value + "]";
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }
 }

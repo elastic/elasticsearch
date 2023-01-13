@@ -11,7 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -89,14 +91,14 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testCompareInts() {
         Block[] bs = new Block[] {
-            BlockBuilder.newIntBlockBuilder(1).appendInt(Integer.MIN_VALUE).build(),
-            BlockBuilder.newIntBlockBuilder(1).appendInt(randomIntBetween(-1000, -1)).build(),
-            BlockBuilder.newIntBlockBuilder(1).appendInt(0).build(),
-            BlockBuilder.newIntBlockBuilder(1).appendInt(randomIntBetween(1, 1000)).build(),
-            BlockBuilder.newIntBlockBuilder(1).appendInt(Integer.MAX_VALUE).build() };
+            IntBlock.newBlockBuilder(1).appendInt(Integer.MIN_VALUE).build(),
+            IntBlock.newBlockBuilder(1).appendInt(randomIntBetween(-1000, -1)).build(),
+            IntBlock.newBlockBuilder(1).appendInt(0).build(),
+            IntBlock.newBlockBuilder(1).appendInt(randomIntBetween(1, 1000)).build(),
+            IntBlock.newBlockBuilder(1).appendInt(Integer.MAX_VALUE).build() };
         for (Block b : bs) {
             assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b, b));
-            Block nullBlock = BlockBuilder.newConstantNullBlockWith(1);
+            Block nullBlock = Block.constantNullBlock(1);
             assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), true, b, nullBlock));
             assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), false, b, nullBlock));
             assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), true, nullBlock, b));
@@ -113,8 +115,8 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareBytesRef() {
-        Block b1 = BlockBuilder.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
-        Block b2 = BlockBuilder.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
+        Block b1 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
+        Block b2 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
         assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b1, b1));
         assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b2, b2));
 
@@ -125,9 +127,9 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareWithIncompatibleTypes() {
-        Block i1 = BlockBuilder.newIntBlockBuilder(1).appendInt(randomInt()).build();
-        Block l1 = BlockBuilder.newLongBlockBuilder(1).appendLong(randomLong()).build();
-        Block b1 = BlockBuilder.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
+        Block i1 = IntBlock.newBlockBuilder(1).appendInt(randomInt()).build();
+        Block l1 = LongBlock.newBlockBuilder(1).appendLong(randomLong()).build();
+        Block b1 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
         IllegalStateException error = expectThrows(
             IllegalStateException.class,
             () -> TopNOperator.compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), randomFrom(i1, l1), b1)
@@ -136,8 +138,8 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareWithNulls() {
-        Block i1 = BlockBuilder.newIntBlockBuilder(1).appendInt(100).build();
-        Block i2 = BlockBuilder.newIntBlockBuilder(1).appendNull().build();
+        Block i1 = IntBlock.newBlockBuilder(1).appendInt(100).build();
+        Block i2 = IntBlock.newBlockBuilder(1).appendNull().build();
         assertEquals(-1, compareFirstPositionsOfBlocks(randomBoolean(), true, i1, i2));
         assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), true, i2, i1));
         assertEquals(1, compareFirstPositionsOfBlocks(randomBoolean(), false, i1, i2));
@@ -179,8 +181,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
                 List.of(new TopNOperator(limit, sortOrders)),
                 new PageConsumerOperator(page -> {
-                    Block block1 = page.getBlock(0);
-                    Block block2 = page.getBlock(1);
+                    LongBlock block1 = page.getBlock(0);
+                    LongBlock block2 = page.getBlock(1);
                     for (int i = 0; i < block1.getPositionCount(); i++) {
                         outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
                     }

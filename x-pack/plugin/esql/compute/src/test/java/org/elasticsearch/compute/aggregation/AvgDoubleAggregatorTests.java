@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -34,6 +35,6 @@ public class AvgDoubleAggregatorTests extends AggregatorTestCase {
     @Override
     protected void assertSimpleResult(int end, Block result) {
         double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum() / end;
-        assertThat(result.getDouble(0), equalTo(expected));
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo(expected));
     }
 }

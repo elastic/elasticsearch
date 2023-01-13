@@ -34,30 +34,30 @@ public class BasicPageTests extends ESTestCase {
 
     public void testBasic() {
         int positions = randomInt(1024);
-        Page page = new Page(new IntVector(IntStream.range(0, positions).toArray(), positions).asBlock());
+        Page page = new Page(new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock());
         assertThat(1, is(page.getBlockCount()));
         assertThat(positions, is(page.getPositionCount()));
-        Block block = page.getBlock(0);
+        IntBlock block = page.getBlock(0);
         IntStream.range(0, positions).forEach(i -> assertThat(i, is(block.getInt(i))));
     }
 
     public void testAppend() {
-        Page page1 = new Page(new IntVector(IntStream.range(0, 10).toArray(), 10).asBlock());
-        Page page2 = page1.appendBlock(new LongVector(LongStream.range(0, 10).toArray(), 10).asBlock());
+        Page page1 = new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock());
+        Page page2 = page1.appendBlock(new LongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(2, is(page2.getBlockCount()));
-        Block block1 = page2.getBlock(0);
+        IntBlock block1 = page2.getBlock(0);
         IntStream.range(0, 10).forEach(i -> assertThat(i, is(block1.getInt(i))));
-        Block block2 = page2.getBlock(0);
+        LongBlock block2 = page2.getBlock(1);
         IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block2.getLong(i))));
     }
 
     public void testReplace() {
-        Page page1 = new Page(new IntVector(IntStream.range(0, 10).toArray(), 10).asBlock());
-        Page page2 = page1.replaceBlock(0, new LongVector(LongStream.range(0, 10).toArray(), 10).asBlock());
+        Page page1 = new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock());
+        Page page2 = page1.replaceBlock(0, new LongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(1, is(page2.getBlockCount()));
-        Block block = page2.getBlock(0);
+        LongBlock block = page2.getBlock(0);
         IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block.getLong(i))));
     }
 

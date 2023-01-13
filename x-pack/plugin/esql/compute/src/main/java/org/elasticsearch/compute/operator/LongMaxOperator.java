@@ -8,8 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -32,7 +31,7 @@ public class LongMaxOperator implements Operator {
     public Page getOutput() {
         if (finished && returnedResult == false) {
             returnedResult = true;
-            return new Page(BlockBuilder.newConstantLongBlockWith(max, 1));
+            return new Page(LongBlock.newConstantBlockWith(max, 1));
         }
         return null;
     }
@@ -54,7 +53,7 @@ public class LongMaxOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        Block block = page.getBlock(channel);
+        LongBlock block = page.getBlock(channel);
         for (int i = 0; i < block.getPositionCount(); i++) {
             max = Math.max(block.getLong(i), max);
         }

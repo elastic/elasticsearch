@@ -13,7 +13,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.AvgLongAggregatorTests;
-import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorTests;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
@@ -46,7 +46,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
         AvgLongAggregatorTests avg = new AvgLongAggregatorTests();
-        MaxDoubleAggregatorTests max = new MaxDoubleAggregatorTests();
+        MaxLongAggregatorTests max = new MaxLongAggregatorTests();
 
         Block avgs = results.get(0).getBlock(0);
         Block maxs = results.get(0).getBlock(1);

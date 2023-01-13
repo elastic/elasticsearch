@@ -16,8 +16,9 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongArrayVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -111,7 +112,7 @@ public class AggregatorBenchmark {
     }
 
     private static void checkGrouped(String prefix, String op, Page page) {
-        Block groups = page.getBlock(0);
+        LongBlock groups = page.getBlock(0);
         for (int g = 0; g < GROUPS; g++) {
             if (groups.getLong(g) != (long) g) {
                 throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
@@ -119,95 +120,105 @@ public class AggregatorBenchmark {
         }
         Block values = page.getBlock(1);
         switch (op) {
-            case "avg":
+            case "avg" -> {
+                DoubleBlock dValues = (DoubleBlock) values;
                 for (int g = 0; g < GROUPS; g++) {
                     long group = g;
                     double sum = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).mapToDouble(l -> (double) l).sum();
                     long count = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).count();
                     double expected = sum / count;
-                    if (values.getDouble(g) != expected) {
-                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + values.getDouble(g) + "]");
+                    if (dValues.getDouble(g) != expected) {
+                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
                     }
                 }
-                return;
-            case "count":
+            }
+            case "count" -> {
+                LongBlock lValues = (LongBlock) values;
                 for (int g = 0; g < GROUPS; g++) {
                     long group = g;
                     long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).count() * 1024;
-                    if (values.getLong(g) != expected) {
-                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + values.getLong(g) + "]");
+                    if (lValues.getLong(g) != expected) {
+                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                     }
                 }
-                return;
-            case "min":
+            }
+            case "min" -> {
+                LongBlock lValues = (LongBlock) values;
                 for (int g = 0; g < GROUPS; g++) {
-                    if (values.getLong(g) != (long) g) {
-                        throw new AssertionError(prefix + "expected [" + g + "] but was [" + values.getLong(g) + "]");
+                    if (lValues.getLong(g) != (long) g) {
+                        throw new AssertionError(prefix + "expected [" + g + "] but was [" + lValues.getLong(g) + "]");
                     }
                 }
-                return;
-            case "max":
+            }
+            case "max" -> {
+                LongBlock lValues = (LongBlock) values;
                 for (int g = 0; g < GROUPS; g++) {
                     long group = g;
                     long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).max().getAsLong();
-                    if (values.getLong(g) != expected) {
-                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + values.getLong(g) + "]");
+                    if (lValues.getLong(g) != expected) {
+                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                     }
                 }
-                return;
-            case "sum":
+            }
+            case "sum" -> {
+                LongBlock lValues = (LongBlock) values;
                 for (int g = 0; g < GROUPS; g++) {
                     long group = g;
                     long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).sum() * 1024;
-                    if (values.getLong(g) != expected) {
-                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + values.getLong(g) + "]");
+                    if (lValues.getLong(g) != expected) {
+                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
                     }
                 }
-                return;
-            default:
-                throw new IllegalArgumentException("bad op " + op);
+            }
+            default -> throw new IllegalArgumentException("bad op " + op);
         }
     }
 
     private static void checkUngrouped(String prefix, String op, Page page) {
         Block block = page.getBlock(0);
         switch (op) {
-            case "avg":
-                if (block.getDouble(0) != (BLOCK_LENGTH - 1) / 2.0) {
-                    throw new AssertionError(prefix + "expected [" + ((BLOCK_LENGTH - 1) / 2.0) + "] but was [" + block.getDouble(0) + "]");
+            case "avg" -> {
+                DoubleBlock dBlock = (DoubleBlock) block;
+                if (dBlock.getDouble(0) != (BLOCK_LENGTH - 1) / 2.0) {
+                    throw new AssertionError(
+                        prefix + "expected [" + ((BLOCK_LENGTH - 1) / 2.0) + "] but was [" + dBlock.getDouble(0) + "]"
+                    );
                 }
-                return;
-            case "count":
-                if (block.getLong(0) != BLOCK_LENGTH * 1024) {
-                    throw new AssertionError(prefix + "expected [" + (BLOCK_LENGTH * 1024) + "] but was [" + block.getLong(0) + "]");
+            }
+            case "count" -> {
+                LongBlock lBlock = (LongBlock) block;
+                if (lBlock.getLong(0) != BLOCK_LENGTH * 1024) {
+                    throw new AssertionError(prefix + "expected [" + (BLOCK_LENGTH * 1024) + "] but was [" + lBlock.getLong(0) + "]");
                 }
-                return;
-            case "min":
-                if (block.getLong(0) != 0L) {
-                    throw new AssertionError(prefix + "expected [0] but was [" + block.getLong(0) + "]");
+            }
+            case "min" -> {
+                LongBlock lBlock = (LongBlock) block;
+                if (lBlock.getLong(0) != 0L) {
+                    throw new AssertionError(prefix + "expected [0] but was [" + lBlock.getLong(0) + "]");
                 }
-                return;
-            case "max":
-                if (block.getLong(0) != BLOCK_LENGTH - 1) {
-                    throw new AssertionError(prefix + "expected [" + (BLOCK_LENGTH - 1) + "] but was [" + block.getLong(0) + "]");
+            }
+            case "max" -> {
+                LongBlock lBlock = (LongBlock) block;
+                if (lBlock.getLong(0) != BLOCK_LENGTH - 1) {
+                    throw new AssertionError(prefix + "expected [" + (BLOCK_LENGTH - 1) + "] but was [" + lBlock.getLong(0) + "]");
                 }
-                return;
-            case "sum":
+            }
+            case "sum" -> {
+                LongBlock lBlock = (LongBlock) block;
                 long expected = (BLOCK_LENGTH * (BLOCK_LENGTH - 1L)) * 1024L / 2;
-                if (block.getLong(0) != expected) {
-                    throw new AssertionError(prefix + "expected [" + expected + "] but was [" + block.getLong(0) + "]");
+                if (lBlock.getLong(0) != expected) {
+                    throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lBlock.getLong(0) + "]");
                 }
-                return;
-            default:
-                throw new IllegalArgumentException("bad op " + op);
+            }
+            default -> throw new IllegalArgumentException("bad op " + op);
         }
     }
 
     private static Page page(boolean grouping, String blockType) {
         Block dataBlock = switch (blockType) {
-            case "vector" -> new LongVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
+            case "vector" -> new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
             case "multivalued" -> {
-                BlockBuilder builder = BlockBuilder.newLongBlockBuilder(BLOCK_LENGTH);
+                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
                 builder.beginPositionEntry();
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i);
@@ -220,7 +231,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case "half_null" -> {
-                BlockBuilder builder = BlockBuilder.newLongBlockBuilder(BLOCK_LENGTH);
+                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i);
                     builder.appendNull();
@@ -234,9 +245,9 @@ public class AggregatorBenchmark {
 
     private static Block groupingBlock(String blockType) {
         return switch (blockType) {
-            case "vector" -> new LongVector(LongStream.range(0, BLOCK_LENGTH).map(l -> l % GROUPS).toArray(), BLOCK_LENGTH).asBlock();
+            case "vector" -> new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).map(l -> l % GROUPS).toArray(), BLOCK_LENGTH).asBlock();
             case "half_null" -> {
-                BlockBuilder builder = BlockBuilder.newLongBlockBuilder(BLOCK_LENGTH);
+                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i % GROUPS);
                     builder.appendLong(i % GROUPS);

@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
 
-final class DoubleBlockBuilder extends AbstractBlockBuilder {
+final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
     private double[] values;
 
@@ -18,7 +18,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder {
     }
 
     @Override
-    public BlockBuilder appendDouble(double value) {
+    public DoubleBlockBuilder appendDouble(double value) {
         ensureCapacity();
         values[valueCount] = value;
         hasNonNullValue = true;
@@ -37,24 +37,39 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder {
         values = Arrays.copyOf(values, newSize);
     }
 
+    public DoubleBlockBuilder appendNull() {
+        super.appendNull();
+        return this;
+    }
+
     @Override
-    public Block build() {
+    public DoubleBlockBuilder beginPositionEntry() {
+        super.beginPositionEntry();
+        return this;
+    }
+
+    @Override
+    public DoubleBlockBuilder endPositionEntry() {
+        super.endPositionEntry();
+        return this;
+    }
+
+    @Override
+    public DoubleBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue == false) {
-            return new ConstantNullBlock(positionCount);
-        } else if (positionCount == 1) {
-            return new VectorBlock(new ConstantDoubleVector(values[0], 1));
+        if (hasNonNullValue && positionCount == 1) {
+            return new ConstantDoubleVector(values[0], 1).asBlock();
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
-                return new VectorBlock(new DoubleVector(values, positionCount));
+                return new DoubleArrayVector(values, positionCount).asBlock();
             } else {
                 if (firstValueIndexes != null) {
                     firstValueIndexes[positionCount] = valueCount;  // TODO remove hack
                 }
-                return new DoubleBlock(values, positionCount, firstValueIndexes, nullsMask);
+                return new DoubleArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }
     }

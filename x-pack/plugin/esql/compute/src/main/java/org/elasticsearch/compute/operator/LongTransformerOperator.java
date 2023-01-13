@@ -8,8 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.LongFunction;
@@ -37,8 +36,8 @@ public class LongTransformerOperator implements Operator {
         if (lastInput == null) {
             return null;
         }
-        Block block = lastInput.getBlock(channel);
-        BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(block.getPositionCount());
+        LongBlock block = lastInput.getBlock(channel);
+        var blockBuilder = LongBlock.newBlockBuilder(block.getPositionCount());
         for (int i = 0; i < block.getPositionCount(); i++) {
             blockBuilder.appendLong(longTransformer.apply(block.getLong(i)));
         }

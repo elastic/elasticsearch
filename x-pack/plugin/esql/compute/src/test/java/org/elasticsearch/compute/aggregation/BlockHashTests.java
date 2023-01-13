@@ -10,9 +10,9 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongArrayVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -20,9 +20,9 @@ public class BlockHashTests extends ESTestCase {
 
     public void testBasicLongHash() {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
-        Block block = new LongVector(values, values.length).asBlock();
+        LongBlock block = new LongArrayVector(values, values.length).asBlock();
 
-        Block keysBlock;
+        LongBlock keysBlock;
         try (
             BlockHash longHash = BlockHash.newLongHash(
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
@@ -36,7 +36,7 @@ public class BlockHashTests extends ESTestCase {
             assertEquals(-2, longHash.add(block, 5));
             assertEquals(3, longHash.add(block, 6));
             assertEquals(-3, longHash.add(block, 7));
-            keysBlock = longHash.getKeys();
+            keysBlock = (LongBlock) longHash.getKeys();
         }
 
         long[] expectedKeys = new long[] { 2, 1, 4, 3 };
@@ -46,8 +46,9 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testBasicBytesRefHash() {
-        BlockBuilder builder = BlockBuilder.newBytesRefBlockBuilder(8);
+        var builder = BytesRefBlock.newBytesRefBlockBuilder(8);
         builder.appendBytesRef(new BytesRef("item-2"));
         builder.appendBytesRef(new BytesRef("item-1"));
         builder.appendBytesRef(new BytesRef("item-4"));
@@ -56,9 +57,9 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("item-1"));
         builder.appendBytesRef(new BytesRef("item-3"));
         builder.appendBytesRef(new BytesRef("item-4"));
-        Block block = builder.build();
+        BytesRefBlock block = builder.build();
 
-        Block keysBlock;
+        BytesRefBlock keysBlock;
         try (
             BlockHash longHash = BlockHash.newBytesRefHash(
                 new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService())
@@ -72,7 +73,7 @@ public class BlockHashTests extends ESTestCase {
             assertEquals(-2, longHash.add(block, 5));
             assertEquals(3, longHash.add(block, 6));
             assertEquals(-3, longHash.add(block, 7));
-            keysBlock = longHash.getKeys();
+            keysBlock = (BytesRefBlock) longHash.getKeys();
         }
 
         BytesRef[] expectedKeys = new BytesRef[] {

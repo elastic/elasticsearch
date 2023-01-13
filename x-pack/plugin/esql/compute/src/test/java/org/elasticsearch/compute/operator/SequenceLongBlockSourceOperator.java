@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -48,7 +48,7 @@ public class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator
             array[i] = values[positionOffset + i];
         }
         currentPosition += length;
-        return new Page(new LongVector(array, array.length).asBlock());
+        return new Page(new LongArrayVector(array, array.length).asBlock());
     }
 
     protected int remaining() {

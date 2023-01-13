@@ -40,8 +40,10 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -138,7 +140,7 @@ public class OperatorTests extends ESTestCase {
                 finish();
             }
             final int size = randomIntBetween(1, 10);
-            BlockBuilder blockBuilder = BlockBuilder.newLongBlockBuilder(size);
+            var blockBuilder = LongBlock.newBlockBuilder(size);
             for (int i = 0; i < size; i++) {
                 blockBuilder.appendLong(randomLongBetween(0, 5));
             }
@@ -229,7 +231,7 @@ public class OperatorTests extends ESTestCase {
                 }
                 assertEquals(1, pageCount.get());
                 assertEquals(1, rowCount.get());
-                assertEquals(numDocs, lastPage.get().getBlock(1).getLong(0));
+                assertEquals(numDocs, lastPage.get().<LongBlock>getBlock(1).getLong(0));
             }
         }
     }
@@ -369,10 +371,10 @@ public class OperatorTests extends ESTestCase {
                     ),
                     new PageConsumerOperator(page -> {
                         logger.debug("New page: {}", page);
-                        Block intValuesBlock = page.getBlock(3);
-                        Block longValuesBlock = page.getBlock(4);
-                        Block doubleValuesBlock = page.getBlock(5);
-                        Block keywordValuesBlock = page.getBlock(6);
+                        LongBlock intValuesBlock = page.getBlock(3);  // ###: they all longs for now
+                        LongBlock longValuesBlock = page.getBlock(4);
+                        DoubleBlock doubleValuesBlock = page.getBlock(5);
+                        BytesRefBlock keywordValuesBlock = page.getBlock(6);
 
                         for (int i = 0; i < page.getPositionCount(); i++) {
                             assertFalse(intValuesBlock.isNull(i));
@@ -409,8 +411,8 @@ public class OperatorTests extends ESTestCase {
                 Set<Integer> actualDocIds = Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
                 for (LuceneSourceOperator queryOperator : queryOperators) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
-                        Block idBlock = page.getBlock(0);
-                        Block segmentBlock = page.getBlock(1);
+                        IntBlock idBlock = page.getBlock(0);
+                        IntBlock segmentBlock = page.getBlock(1);
                         for (int i = 0; i < idBlock.getPositionCount(); i++) {
                             int docBase = reader.leaves().get(segmentBlock.getInt(i)).docBase;
                             int docId = docBase + idBlock.getInt(i);
@@ -626,7 +628,7 @@ public class OperatorTests extends ESTestCase {
                 assertEquals(1, pageCount.get());
                 assertEquals(2, lastPage.get().getBlockCount());
                 assertEquals(numDocs, rowCount.get());
-                Block valuesBlock = lastPage.get().getBlock(1);
+                LongBlock valuesBlock = lastPage.get().getBlock(1);
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(1, valuesBlock.getLong(i));
                 }
@@ -655,7 +657,7 @@ public class OperatorTests extends ESTestCase {
                 Driver driver = new Driver(
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(
-                        new MapPageOperator(p -> p.appendBlock(BlockBuilder.newConstantIntBlockWith(1, p.getPositionCount()))),
+                        new MapPageOperator(p -> p.appendBlock(IntBlock.newConstantBlockWith(1, p.getPositionCount()))),
                         new OrdinalsGroupingOperator(
                             List.of(
                                 new ValueSourceInfo(
@@ -679,8 +681,8 @@ public class OperatorTests extends ESTestCase {
                         )
                     ),
                     new PageConsumerOperator(page -> {
-                        Block keys = page.getBlock(0);
-                        Block counts = page.getBlock(1);
+                        BytesRefBlock keys = page.getBlock(0);
+                        LongBlock counts = page.getBlock(1);
                         for (int i = 0; i < keys.getPositionCount(); i++) {
                             BytesRef spare = new BytesRef();
                             actualCounts.put(keys.getBytesRef(i, spare), counts.getLong(i));
@@ -716,9 +718,9 @@ public class OperatorTests extends ESTestCase {
         try (
             var driver = new Driver(
                 new SequenceLongBlockSourceOperator(values),
-                List.of(new FilterOperator((page, position) -> condition.test(page.getBlock(0).getLong(position)))),
+                List.of(new FilterOperator((page, position) -> condition.test(page.<LongBlock>getBlock(0).getLong(position)))),
                 new PageConsumerOperator(page -> {
-                    Block block = page.getBlock(0);
+                    LongBlock block = page.getBlock(0);
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(block.getLong(i));
                     }
@@ -745,13 +747,13 @@ public class OperatorTests extends ESTestCase {
             var driver = new Driver(
                 new SequenceLongBlockSourceOperator(values),
                 List.of(
-                    new FilterOperator((page, position) -> condition1.test(page.getBlock(0).getLong(position))),
-                    new EvalOperator((page, position) -> transformation.apply(page.getBlock(0).getLong(position)), Long.TYPE),
-                    new FilterOperator((page, position) -> condition2.test(page.getBlock(1).getLong(position)))
+                    new FilterOperator((page, position) -> condition1.test(page.<LongBlock>getBlock(0).getLong(position))),
+                    new EvalOperator((page, position) -> transformation.apply(page.<LongBlock>getBlock(0).getLong(position)), Long.TYPE),
+                    new FilterOperator((page, position) -> condition2.test(page.<LongBlock>getBlock(1).getLong(position)))
                 ),
                 new PageConsumerOperator(page -> {
-                    Block block1 = page.getBlock(0);
-                    Block block2 = page.getBlock(1);
+                    LongBlock block1 = page.getBlock(0);
+                    LongBlock block2 = page.getBlock(1);
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(tuple(block1.getLong(i), block2.getLong(i)));
                     }
@@ -786,7 +788,7 @@ public class OperatorTests extends ESTestCase {
                 new SequenceLongBlockSourceOperator(values, 100),
                 List.of(new LimitOperator(limit)),
                 new PageConsumerOperator(page -> {
-                    Block block = page.getBlock(0);
+                    LongBlock block = page.getBlock(0);
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(block.getLong(i));
                     }

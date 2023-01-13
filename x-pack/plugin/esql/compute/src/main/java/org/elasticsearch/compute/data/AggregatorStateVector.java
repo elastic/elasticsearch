@@ -27,13 +27,14 @@ public class AggregatorStateVector<T extends AggregatorState<T>> extends Abstrac
         this.description = description;
     }
 
-    public void get(int position, T item) {
+    public T get(int position, T item) {
         item.serializer().deserialize(item, ba, position * itemSize);
+        return item;
     }
 
     @Override
     public String toString() {
-        return "ByteArrayBlock{"
+        return "AggregatorStateVector{"
             + "ba length="
             + ba.length
             + ", positionCount="
@@ -48,6 +49,16 @@ public class AggregatorStateVector<T extends AggregatorState<T>> extends Abstrac
         long estimatedSize
     ) {
         return new AggregatorStateBuilder<>(cls, estimatedSize);
+    }
+
+    @Override
+    public Block asBlock() {
+        return new AggregatorStateBlock<>(this, this.getPositionCount());
+    }
+
+    @Override
+    public Vector filter(int... positions) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

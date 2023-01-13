@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * Vector implementation that stores a constant long value.
  */
-final class ConstantLongVector extends AbstractVector {
+public final class ConstantLongVector extends AbstractVector implements LongVector {
 
     private final long value;
 
@@ -25,17 +25,12 @@ final class ConstantLongVector extends AbstractVector {
     }
 
     @Override
-    public double getDouble(int position) {
-        return value;  // Widening primitive conversions, no loss of precision
+    public LongBlock asBlock() {
+        return new LongVectorBlock(this);
     }
 
     @Override
-    public Object getObject(int position) {
-        return getLong(position);
-    }
-
-    @Override
-    public Vector filter(int... positions) {
+    public LongVector filter(int... positions) {
         return new ConstantLongVector(value, positions.length);
     }
 
@@ -51,6 +46,6 @@ final class ConstantLongVector extends AbstractVector {
 
     @Override
     public String toString() {
-        return "ConstantLongVector[positions=" + getPositionCount() + ", value=" + value + ']';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }
 }

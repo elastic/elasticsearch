@@ -3,10 +3,12 @@ package org.elasticsearch.compute.aggregation;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
-import java.util.Optional;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
@@ -30,25 +32,25 @@ public final class AvgDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addRawInput(Vector groupIdVector, Page page) {
+  public void addRawInput(LongVector groupIdVector, Page page) {
     assert channel >= 0;
-    Block block = page.getBlock(channel);
-    Optional<Vector> vector = block.asVector();
-    if (vector.isPresent()) {
-      addRawVector(groupIdVector, vector.get());
+    DoubleBlock block = page.getBlock(channel);
+    DoubleVector vector = block.asVector();
+    if (vector != null) {
+      addRawVector(groupIdVector, vector);
     } else {
       addRawBlock(groupIdVector, block);
     }
   }
 
-  private void addRawVector(Vector groupIdVector, Vector vector) {
+  private void addRawVector(LongVector groupIdVector, DoubleVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(i));
       AvgDoubleAggregator.combine(state, groupId, vector.getDouble(i));
     }
   }
 
-  private void addRawBlock(Vector groupIdVector, Block block) {
+  private void addRawBlock(LongVector groupIdVector, DoubleBlock block) {
     for (int i = 0; i < block.getTotalValueCount(); i++) {
       if (block.isNull(i) == false) {
         int groupId = Math.toIntExact(groupIdVector.getLong(i));
@@ -58,13 +60,13 @@ public final class AvgDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateInput(Vector groupIdVector, Block block) {
+  public void addIntermediateInput(LongVector groupIdVector, Block block) {
     assert channel == -1;
-    Optional<Vector> vector = block.asVector();
-    if (vector.isEmpty() || vector.get() instanceof AggregatorStateVector == false) {
+    Vector vector = block.asVector();
+    if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
-    @SuppressWarnings("unchecked") AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState> blobVector = (AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState>) vector.get();
+    @SuppressWarnings("unchecked") AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState> blobVector = (AggregatorStateVector<AvgDoubleAggregator.GroupingAvgState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     AvgDoubleAggregator.GroupingAvgState inState = AvgDoubleAggregator.initGrouping(bigArrays);

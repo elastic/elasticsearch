@@ -8,8 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
@@ -44,9 +43,9 @@ public class LongAvgOperator implements Operator {
         if (finished && returnedResult == false) {
             returnedResult = true;
             if (rawChannel != -1) {
-                return new Page(BlockBuilder.newConstantLongBlockWith(sum, 1), BlockBuilder.newConstantLongBlockWith(count, 1));
+                return new Page(LongBlock.newConstantBlockWith(sum, 1), LongBlock.newConstantBlockWith(count, 1));
             } else {
-                return new Page(BlockBuilder.newConstantLongBlockWith(sum / count, 1));
+                return new Page(LongBlock.newConstantBlockWith(sum / count, 1));
             }
         }
         return null;
@@ -70,14 +69,14 @@ public class LongAvgOperator implements Operator {
     @Override
     public void addInput(Page page) {
         if (rawChannel != -1) {
-            Block block = page.getBlock(rawChannel);
+            LongBlock block = page.getBlock(rawChannel);
             for (int i = 0; i < block.getPositionCount(); i++) {
                 sum += block.getLong(i);
             }
             count += block.getPositionCount();
         } else {
-            Block sumBlock = page.getBlock(sumChannel);
-            Block countBlock = page.getBlock(countChannel);
+            LongBlock sumBlock = page.getBlock(sumChannel);
+            LongBlock countBlock = page.getBlock(countChannel);
             for (int i = 0; i < page.getPositionCount(); i++) {
                 sum += sumBlock.getLong(i);
                 count += countBlock.getLong(i);

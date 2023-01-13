@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -24,6 +25,6 @@ public class GroupingMinLongAggregatorTests extends GroupingAggregatorTestCase {
 
     @Override
     public void assertSimpleBucket(Block result, int end, int position, int bucket) {
-        assertThat(result.getDouble(position), equalTo((double) bucket));
+        assertThat(((LongBlock) result).getLong(position), equalTo((long) bucket));
     }
 }

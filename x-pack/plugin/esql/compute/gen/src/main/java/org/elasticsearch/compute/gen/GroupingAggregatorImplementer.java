@@ -18,7 +18,6 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Aggregator;
 
 import java.util.Locale;
-import java.util.Optional;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -31,8 +30,12 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_ARRAY_VECTOR;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
+import static org.elasticsearch.compute.gen.Types.LONG_ARRAY_VECTOR;
+import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
@@ -85,6 +88,33 @@ public class GroupingAggregatorImplementer {
         String head = initReturn.toString().substring(0, 1).toUpperCase(Locale.ROOT);
         String tail = initReturn.toString().substring(1);
         return ClassName.get("org.elasticsearch.compute.aggregation", head + tail + "ArrayState");
+    }
+
+    private String primitiveType() {
+        String initReturn = TypeName.get(init.getReturnType()).toString().toLowerCase(Locale.ROOT);
+        if (initReturn.contains("double")) {
+            return "double";
+        } else if (initReturn.contains("long")) {
+            return "long";
+        } else {
+            throw new IllegalArgumentException("unknown primitive type for " + initReturn);
+        }
+    }
+
+    private ClassName valueBlockType() {
+        return switch (primitiveType()) {
+            case "double" -> DOUBLE_BLOCK;
+            case "long" -> LONG_BLOCK;
+            default -> throw new IllegalArgumentException("unknown block type for " + primitiveType());
+        };
+    }
+
+    private ClassName valueVectorType() {
+        return switch (primitiveType()) {
+            case "double" -> DOUBLE_VECTOR;
+            case "long" -> LONG_VECTOR;
+            default -> throw new IllegalArgumentException("unknown vector type for " + primitiveType());
+        };
     }
 
     public JavaFile sourceFile() {
@@ -145,18 +175,18 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(VECTOR, "groupIdVector").addParameter(PAGE, "page");
+        builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(PAGE, "page");
         builder.addStatement("assert channel >= 0");
-        builder.addStatement("$T block = page.getBlock(channel)", BLOCK);
-        builder.addStatement("$T vector = block.asVector()", ParameterizedTypeName.get(ClassName.get(Optional.class), VECTOR));
-        builder.beginControlFlow("if (vector.isPresent())").addStatement("addRawVector(groupIdVector, vector.get())");
+        builder.addStatement("$T block = page.getBlock(channel)", valueBlockType());
+        builder.addStatement("$T vector = block.asVector()", valueVectorType());
+        builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(groupIdVector, vector)");
         builder.nextControlFlow("else").addStatement("addRawBlock(groupIdVector, block)").endControlFlow();
         return builder.build();
     }
 
     private MethodSpec addRawVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(VECTOR, "groupIdVector").addParameter(VECTOR, "vector");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(LONG_VECTOR, "groupIdVector").addParameter(valueVectorType(), "vector");
         builder.beginControlFlow("for (int i = 0; i < vector.getPositionCount(); i++)");
         {
             combineRawInput(builder, "vector");
@@ -167,7 +197,7 @@ public class GroupingAggregatorImplementer {
 
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(VECTOR, "groupIdVector").addParameter(BLOCK, "block");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(LONG_VECTOR, "groupIdVector").addParameter(valueBlockType(), "block");
         builder.beginControlFlow("for (int i = 0; i < block.getTotalValueCount(); i++)");
         {
             builder.beginControlFlow("if (block.isNull(i) == false)");
@@ -215,15 +245,15 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(VECTOR, "groupIdVector").addParameter(BLOCK, "block");
+        builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(BLOCK, "block");
         builder.addStatement("assert channel == -1");
-        builder.addStatement("$T vector = block.asVector()", ParameterizedTypeName.get(ClassName.get(Optional.class), VECTOR));
-        builder.beginControlFlow("if (vector.isEmpty() || vector.get() instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
+        builder.addStatement("$T vector = block.asVector()", VECTOR);
+        builder.beginControlFlow("if (vector == null || vector instanceof $T == false)", AGGREGATOR_STATE_VECTOR);
         {
             builder.addStatement("throw new RuntimeException($S + block)", "expected AggregatorStateBlock, got:");
             builder.endControlFlow();
         }
-        builder.addStatement("@SuppressWarnings($S) $T blobVector = ($T) vector.get()", "unchecked", stateBlockType(), stateBlockType());
+        builder.addStatement("@SuppressWarnings($S) $T blobVector = ($T) vector", "unchecked", stateBlockType(), stateBlockType());
         builder.addComment("TODO exchange big arrays directly without funny serialization - no more copying");
         builder.addStatement("$T bigArrays = $T.NON_RECYCLING_INSTANCE", BIG_ARRAYS, BIG_ARRAYS);
         builder.addStatement("$T inState = $L", stateType, callInit());
@@ -294,11 +324,11 @@ public class GroupingAggregatorImplementer {
         TypeName elementType;
         switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.LongArrayState":
-                vectorType = LONG_VECTOR;
+                vectorType = LONG_ARRAY_VECTOR;
                 elementType = TypeName.get(long.class);
                 break;
             case "org.elasticsearch.compute.aggregation.DoubleArrayState":
-                vectorType = DOUBLE_VECTOR;
+                vectorType = DOUBLE_ARRAY_VECTOR;
                 elementType = TypeName.get(double.class);
                 break;
             default:

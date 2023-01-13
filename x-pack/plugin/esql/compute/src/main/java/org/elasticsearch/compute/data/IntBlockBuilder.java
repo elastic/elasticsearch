@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
 
-final class IntBlockBuilder extends AbstractBlockBuilder {
+final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Builder {
 
     private int[] values;
 
@@ -18,7 +18,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder {
     }
 
     @Override
-    public BlockBuilder appendInt(int value) {
+    public IntBlockBuilder appendInt(int value) {
         ensureCapacity();
         values[valueCount] = value;
         hasNonNullValue = true;
@@ -38,23 +38,39 @@ final class IntBlockBuilder extends AbstractBlockBuilder {
     }
 
     @Override
-    public Block build() {
+    public IntBlockBuilder appendNull() {
+        super.appendNull();
+        return this;
+    }
+
+    @Override
+    public IntBlockBuilder beginPositionEntry() {
+        super.beginPositionEntry();
+        return this;
+    }
+
+    @Override
+    public IntBlockBuilder endPositionEntry() {
+        super.endPositionEntry();
+        return this;
+    }
+
+    @Override
+    public IntBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue == false) {
-            return new ConstantNullBlock(positionCount);
-        } else if (positionCount == 1) {
-            return new VectorBlock(new ConstantIntVector(values[0], 1));
+        if (hasNonNullValue && positionCount == 1) {
+            return new ConstantIntVector(values[0], 1).asBlock();
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
-                return new VectorBlock(new IntVector(values, positionCount));
+                return new IntArrayVector(values, positionCount).asBlock();
             } else {
                 if (firstValueIndexes != null) {
                     firstValueIndexes[positionCount] = valueCount;  // hack
                 }
-                return new IntBlock(values, positionCount, firstValueIndexes, nullsMask);
+                return new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }
     }

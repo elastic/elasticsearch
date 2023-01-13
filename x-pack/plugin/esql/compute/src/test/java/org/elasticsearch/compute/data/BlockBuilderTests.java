@@ -9,18 +9,60 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.is;
 
 public class BlockBuilderTests extends ESTestCase {
 
-    public void testDouble() {
-        BlockBuilder builder = BlockBuilder.newDoubleBlockBuilder(0);
-        builder.appendNull();
-        builder.appendNull();
-        Block block = builder.build();
+    public void testAllNullsInt() {
+        for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
+            testAllNullsImpl(IntBlock.newBlockBuilder(0), numEntries);
+            testAllNullsImpl(IntBlock.newBlockBuilder(100), numEntries);
+            testAllNullsImpl(IntBlock.newBlockBuilder(1000), numEntries);
+            testAllNullsImpl(IntBlock.newBlockBuilder(randomIntBetween(0, 100)), numEntries);
+        }
+    }
 
-        assertThat(block.getPositionCount(), is(2));
+    public void testAllNullsLong() {
+        for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
+            testAllNullsImpl(LongBlock.newBlockBuilder(0), numEntries);
+            testAllNullsImpl(LongBlock.newBlockBuilder(100), numEntries);
+            testAllNullsImpl(LongBlock.newBlockBuilder(1000), numEntries);
+            testAllNullsImpl(LongBlock.newBlockBuilder(randomIntBetween(0, 100)), numEntries);
+        }
+    }
+
+    public void testAllNullsDouble() {
+        for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
+            testAllNullsImpl(DoubleBlock.newBlockBuilder(0), numEntries);
+            testAllNullsImpl(DoubleBlock.newBlockBuilder(100), numEntries);
+            testAllNullsImpl(DoubleBlock.newBlockBuilder(1000), numEntries);
+            testAllNullsImpl(DoubleBlock.newBlockBuilder(randomIntBetween(0, 100)), numEntries);
+        }
+    }
+
+    public void testAllNullsBytesRef() {
+        for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
+            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(0), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(100), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(1000), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(randomIntBetween(0, 100)), numEntries);
+        }
+    }
+
+    private void testAllNullsImpl(Block.Builder builder, int numEntries) {
+        for (int i = 0; i < numEntries; i++) {
+            builder.appendNull();
+        }
+        Block block = builder.build();
+        assertThat(block.getPositionCount(), is(numEntries));
         assertThat(block.isNull(0), is(true));
-        assertThat(block.isNull(1), is(true));
+        assertThat(block.isNull(numEntries - 1), is(true));
+        assertThat(block.isNull(randomPosition(numEntries)), is(true));
+    }
+
+    static int randomPosition(int positionCount) {
+        return positionCount == 1 ? 0 : randomIntBetween(0, positionCount - 1);
     }
 }

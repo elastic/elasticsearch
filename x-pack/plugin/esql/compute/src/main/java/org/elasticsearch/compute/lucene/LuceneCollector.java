@@ -11,11 +11,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
-
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantIntBlockWith;
 
 /**
  * Lucene {@link org.apache.lucene.search.Collector} that turns collected docs
@@ -28,7 +26,7 @@ public class LuceneCollector extends SimpleCollector {
     private static final int PAGE_SIZE = 4096;
 
     private final int pageSize;
-    private BlockBuilder currentBlockBuilder;
+    private IntBlock.Builder currentBlockBuilder;
     private int currentPos;
     private LeafReaderContext lastContext;
     private final ExchangeSink exchangeSink;
@@ -45,7 +43,7 @@ public class LuceneCollector extends SimpleCollector {
     @Override
     public void collect(int doc) {
         if (currentBlockBuilder == null) {
-            currentBlockBuilder = BlockBuilder.newIntBlockBuilder(pageSize);
+            currentBlockBuilder = IntBlock.newBlockBuilder(pageSize);
             currentPos = 0;
         }
         currentBlockBuilder.appendInt(doc);
@@ -65,7 +63,7 @@ public class LuceneCollector extends SimpleCollector {
 
     private void createPage() {
         if (currentPos > 0) {
-            Page page = new Page(currentPos, currentBlockBuilder.build(), newConstantIntBlockWith(lastContext.ord, currentPos));
+            Page page = new Page(currentPos, currentBlockBuilder.build(), IntBlock.newConstantBlockWith(lastContext.ord, currentPos));
             exchangeSink.waitForWriting().actionGet();
             exchangeSink.addPage(page);
         }

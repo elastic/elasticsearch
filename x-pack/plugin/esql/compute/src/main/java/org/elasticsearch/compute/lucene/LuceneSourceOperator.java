@@ -19,7 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.compute.data.BlockBuilder;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -36,8 +36,6 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
-import static org.elasticsearch.compute.data.BlockBuilder.newConstantIntBlockWith;
 
 /**
  * Source operator that incrementally runs Lucene searches
@@ -64,7 +62,7 @@ public class LuceneSourceOperator extends SourceOperator {
 
     private int currentPagePos;
 
-    private BlockBuilder currentBlockBuilder;
+    private IntBlock.Builder currentBlockBuilder;
 
     private int currentScorerPos;
 
@@ -146,7 +144,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.query = query;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentBlockBuilder = BlockBuilder.newIntBlockBuilder(maxPageSize);
+        currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
     }
 
     private LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
@@ -157,7 +155,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.weight = weight;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentBlockBuilder = BlockBuilder.newIntBlockBuilder(maxPageSize);
+        currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
     }
 
     @Override
@@ -323,10 +321,10 @@ public class LuceneSourceOperator extends SourceOperator {
                 page = new Page(
                     currentPagePos,
                     currentBlockBuilder.build(),
-                    newConstantIntBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
-                    newConstantIntBlockWith(shardId, currentPagePos)
+                    IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
+                    IntBlock.newConstantBlockWith(shardId, currentPagePos)
                 );
-                currentBlockBuilder = BlockBuilder.newIntBlockBuilder(maxPageSize);
+                currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
                 currentPagePos = 0;
             }
 

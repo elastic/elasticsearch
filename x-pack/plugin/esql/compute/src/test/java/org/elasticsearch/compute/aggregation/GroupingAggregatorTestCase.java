@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -56,7 +57,7 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
         assertThat(results.get(0).getBlockCount(), equalTo(2));
         assertThat(results.get(0).getPositionCount(), equalTo(5));
 
-        Block groups = results.get(0).getBlock(0);
+        LongBlock groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
         for (int i = 0; i < 5; i++) {
             int bucket = (int) groups.getLong(i);

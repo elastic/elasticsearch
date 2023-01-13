@@ -20,11 +20,12 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockBuilder;
-import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.LuceneDocRef;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
@@ -108,20 +109,21 @@ public class OrdinalsGroupingOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        Vector docs = page.getBlock(luceneDocRef.docRef()).asVector().get();
+        IntVector docs = page.<IntBlock>getBlock(luceneDocRef.docRef()).asVector();
         if (docs.getPositionCount() == 0) {
             return;
         }
         assert docs.elementType() == ElementType.INT;
-        final Vector shardIndexVector = page.getBlock(luceneDocRef.shardRef()).asVector().get();
+        final IntVector shardIndexVector = page.<IntBlock>getBlock(luceneDocRef.shardRef()).asVector();
         assert shardIndexVector.isConstant();
         assert shardIndexVector.elementType() == ElementType.INT;
         final int shardIndex = shardIndexVector.getInt(0);
         var source = sources.get(shardIndex);
         if (source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
-            final ConstantIntVector segmentIndexBlock = (ConstantIntVector) page.getBlock(luceneDocRef.segmentRef()).asVector().get();
+            final IntVector segmentIndexVector = page.<IntBlock>getBlock(luceneDocRef.segmentRef()).asVector();
+            assert segmentIndexVector.isConstant();
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
-                new SegmentID(shardIndex, segmentIndexBlock.getInt(0)),
+                new SegmentID(shardIndex, segmentIndexVector.getInt(0)),
                 k -> {
                     final List<GroupingAggregator> groupingAggregators = createGroupingAggregators();
                     boolean success = false;
@@ -224,7 +226,7 @@ public class OrdinalsGroupingOperator implements Operator {
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
             // Use NON_RECYCLING_INSTANCE as we don't have a lifecycle for pages/block yet
             // keys = new BytesRefArray(1, BigArrays.NON_RECYCLING_INSTANCE);
-            BlockBuilder blockBuilder = BlockBuilder.newBytesRefBlockBuilder(1);
+            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(1);
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
                 if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {
@@ -299,12 +301,12 @@ public class OrdinalsGroupingOperator implements Operator {
             this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
         }
 
-        void addInput(Vector docs, Page page) {
+        void addInput(IntVector docs, Page page) {
             try {
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
-                final Vector ordinals = currentReader.readOrdinals(docs);
+                final LongVector ordinals = currentReader.readOrdinals(docs);
                 for (int i = 0; i < ordinals.getPositionCount(); i++) {
                     long ord = ordinals.getLong(i);
                     visitedOrds.set(ord);

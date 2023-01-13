@@ -12,9 +12,9 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -103,7 +103,7 @@ public class HashAggregationOperator implements Operator {
             }
             groups[i] = bucketOrd;
         }
-        Vector groupIdVector = new LongVector(groups, groups.length);
+        LongVector groupIdVector = new LongArrayVector(groups, groups.length);
 
         for (GroupingAggregator aggregator : aggregators) {
             aggregator.processPage(groupIdVector, page);

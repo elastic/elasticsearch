@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -33,6 +34,6 @@ public class MinDoubleAggregatorTests extends AggregatorTestCase {
 
     @Override
     public void assertSimpleResult(int end, Block result) {
-        assertThat(result.getDouble(0), equalTo((double) 0));
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo((double) 0));
     }
 }

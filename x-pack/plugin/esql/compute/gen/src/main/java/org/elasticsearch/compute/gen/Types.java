@@ -23,10 +23,19 @@ public class Types {
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
 
+    static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
+    static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
+    static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
+
+    static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
+
     static final ClassName AGGREGATOR_STATE_VECTOR = ClassName.get(DATA_PACKAGE, "AggregatorStateVector");
     static final ClassName AGGREGATOR_STATE_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "AggregatorStateVector", "Builder");
+
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
+    static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
+    static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
 
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");

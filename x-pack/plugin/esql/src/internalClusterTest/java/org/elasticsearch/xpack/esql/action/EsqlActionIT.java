@@ -231,31 +231,31 @@ public class EsqlActionIT extends ESIntegTestCase {
         testFromStatsGroupingAvgImpl("from test | eval g = data | stats f = avg(count) by g", "g", "f");
     }
 
-    private void testFromStatsGroupingAvgImpl(String command, String expectedFieldName, String expectedGroupName) {
+    private void testFromStatsGroupingAvgImpl(String command, String expectedGroupName, String expectedFieldName) {
         EsqlQueryResponse results = run(command);
         logger.info(results);
         Assert.assertEquals(2, results.columns().size());
 
         // assert column metadata
-        ColumnInfo groupColumn = results.columns().get(0);
-        assertEquals(expectedGroupName, groupColumn.name());
-        assertEquals("double", groupColumn.type());
-        ColumnInfo valuesColumn = results.columns().get(1);
+        ColumnInfo valuesColumn = results.columns().get(0);
         assertEquals(expectedFieldName, valuesColumn.name());
-        assertEquals("long", valuesColumn.type());
+        assertEquals("double", valuesColumn.type());
+        ColumnInfo groupColumn = results.columns().get(1);
+        assertEquals(expectedGroupName, groupColumn.name());
+        assertEquals("long", groupColumn.type());
 
         // assert column values
         List<List<Object>> valueValues = results.values();
         assertEquals(2, valueValues.size());
         // This is loathsome, find a declarative way to assert the expected output.
         if ((long) valueValues.get(0).get(1) == 1L) {
-            assertEquals(42, (double) valueValues.get(0).get(0), 1d);
+            assertEquals(42.0, (double) valueValues.get(0).get(0), 0.0);
             assertEquals(2L, (long) valueValues.get(1).get(1));
-            assertEquals(44, (double) valueValues.get(1).get(0), 1d);
+            assertEquals(44.0, (double) valueValues.get(1).get(0), 0.0);
         } else if ((long) valueValues.get(0).get(1) == 2L) {
-            assertEquals(42, (double) valueValues.get(1).get(0), 1d);
+            assertEquals(42.0, (double) valueValues.get(1).get(0), 0.0);
             assertEquals(1L, (long) valueValues.get(1).get(1));
-            assertEquals(44, (double) valueValues.get(0).get(0), 1d);
+            assertEquals(44.0, (double) valueValues.get(0).get(0), 0.0);
         } else {
             fail("Unexpected group value: " + valueValues.get(0).get(0));
         }
@@ -332,7 +332,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         record Group(String color, double avg) {
 
         }
-        List<Group> expectedGroups = List.of(new Group("blue", 42), new Group("green", 44), new Group("red", 43));
+        List<Group> expectedGroups = List.of(new Group("blue", 42.0), new Group("green", 44.0), new Group("red", 43));
         List<Group> actualGroups = results.values()
             .stream()
             .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
@@ -733,6 +733,30 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertNull(results.values().get(0).get(6));
     }
 
+    public void testEvalRowWithNull() {
+        EsqlQueryResponse results = run("row a = 1, b = 2, c = null | eval z = c + b + a");
+        logger.info(results);
+        assertEquals(4, results.columns().size());
+        assertEquals(1, results.values().size());
+        assertEquals(4, results.values().get(0).size());
+
+        // assert column metadata
+        assertEquals("a", results.columns().get(0).name());
+        assertEquals("integer", results.columns().get(0).type());
+        assertEquals("b", results.columns().get(1).name());
+        assertEquals("integer", results.columns().get(1).type());
+        assertEquals("c", results.columns().get(2).name());
+        assertEquals("null", results.columns().get(2).type());
+        assertEquals("z", results.columns().get(3).name());
+        assertEquals("integer", results.columns().get(3).type());
+
+        // assert values
+        assertEquals(1, results.values().get(0).get(0));
+        assertEquals(2, results.values().get(0).get(1));
+        assertNull(results.values().get(0).get(2));
+        assertNull(results.values().get(0).get(3));
+    }
+
     public void testEvalWithNullAndAvg() {
         EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | stats avg(nullsum)");
         logger.info(results);
@@ -759,7 +783,31 @@ public class EsqlActionIT extends ESIntegTestCase {
         EsqlQueryResponse results = run("from test | stats ac = avg(count) by data | limit 1");
         logger.info(results);
         assertThat(results.columns(), contains(new ColumnInfo("ac", "double"), new ColumnInfo("data", "long")));
-        assertThat(results.values(), contains(anyOf(contains(42d, 1L), contains(44d, 2L))));
+        assertThat(results.values(), contains(anyOf(contains(42.0, 1L), contains(44.0, 2L))));
+    }
+
+    public void testRowStateSumWithNull() {
+        EsqlQueryResponse results = run("row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn)");
+        logger.info(results);
+        assertEquals(4, results.columns().size());
+        assertEquals(1, results.values().size());
+        assertEquals(4, results.values().get(0).size());
+
+        // assert column metadata
+        assertEquals("sum(l)", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals("sum(d)", results.columns().get(1).name());
+        assertEquals("double", results.columns().get(1).type());
+        assertEquals("sum(ln)", results.columns().get(2).name());
+        assertEquals("long", results.columns().get(2).type());
+        assertEquals("sum(dn)", results.columns().get(3).name());
+        assertEquals("double", results.columns().get(3).type());
+
+        // assert values
+        assertEquals(1L, results.values().get(0).get(0));
+        assertEquals(1D, results.values().get(0).get(1));
+        assertEquals(0L, results.values().get(0).get(2));
+        assertEquals(0D, results.values().get(0).get(3));
     }
 
     public void testFromLimit() {

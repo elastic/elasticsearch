@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * Vector implementation that stores a constant integer value.
  */
-public final class ConstantIntVector extends AbstractVector {
+public final class ConstantIntVector extends AbstractVector implements IntVector {
 
     private final int value;
 
@@ -19,24 +19,18 @@ public final class ConstantIntVector extends AbstractVector {
         this.value = value;
     }
 
+    @Override
     public int getInt(int position) {
         return value;
     }
 
-    public long getLong(int position) {
-        return getInt(position);  // Widening primitive conversions, no loss of precision
-    }
-
-    public double getDouble(int position) {
-        return getInt(position);  // Widening primitive conversions, no loss of precision
-    }
-
-    public Object getObject(int position) {
-        return getInt(position);
+    @Override
+    public IntBlock asBlock() {
+        return new IntVectorBlock(this);
     }
 
     @Override
-    public Vector filter(int... positions) {
+    public IntVector filter(int... positions) {
         return new ConstantIntVector(value, positions.length);
     }
 
@@ -51,6 +45,6 @@ public final class ConstantIntVector extends AbstractVector {
     }
 
     public String toString() {
-        return "ConstantIntVector[positions=" + getPositionCount() + ", value=" + value + ']';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }
 }

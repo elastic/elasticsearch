@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
 
-final class LongBlockBuilder extends AbstractBlockBuilder {
+final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.Builder {
 
     private long[] values;
 
@@ -18,7 +18,7 @@ final class LongBlockBuilder extends AbstractBlockBuilder {
     }
 
     @Override
-    public BlockBuilder appendLong(long value) {
+    public LongBlockBuilder appendLong(long value) {
         ensureCapacity();
         values[valueCount] = value;
         hasNonNullValue = true;
@@ -38,23 +38,39 @@ final class LongBlockBuilder extends AbstractBlockBuilder {
     }
 
     @Override
-    public Block build() {
+    public LongBlockBuilder appendNull() {
+        super.appendNull();
+        return this;
+    }
+
+    @Override
+    public LongBlockBuilder beginPositionEntry() {
+        super.beginPositionEntry();
+        return this;
+    }
+
+    @Override
+    public LongBlockBuilder endPositionEntry() {
+        super.endPositionEntry();
+        return this;
+    }
+
+    @Override
+    public LongBlock build() {
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
-        if (hasNonNullValue == false) {
-            return new ConstantNullBlock(positionCount);
-        } else if (positionCount == 1) {
-            return new VectorBlock(new ConstantLongVector(values[0], 1));
+        if (hasNonNullValue && positionCount == 1) {
+            return new ConstantLongVector(values[0], 1).asBlock();
         } else {
             // TODO: may wanna trim the array, if there N% unused tail space
             if (isDense() && singleValued()) {
-                return new VectorBlock(new LongVector(values, positionCount));
+                return new LongArrayVector(values, positionCount).asBlock();
             } else {
                 if (firstValueIndexes != null) {
                     firstValueIndexes[positionCount] = valueCount;  // TODO remove hack
                 }
-                return new LongBlock(values, positionCount, firstValueIndexes, nullsMask);
+                return new LongArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }
         }
     }

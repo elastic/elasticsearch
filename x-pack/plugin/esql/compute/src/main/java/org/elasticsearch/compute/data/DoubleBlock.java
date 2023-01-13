@@ -7,40 +7,56 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-import java.util.BitSet;
-
 /**
- * Block implementation that stores an array of double values.
+ * Block that stores double values.
  */
-final class DoubleBlock extends AbstractBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock,DoubleVectorBlock,FilterDoubleBlock {
 
-    private final double[] values;
-
-    DoubleBlock(double[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
-        super(positionCount, firstValueIndexes, nulls);
-        this.values = values;
-    }
-
-    @Override
-    public double getDouble(int position) {
-        assert assertPosition(position);
-        assert isNull(position) == false;
-        return values[position];
-    }
+    /**
+     * Retrieves the double value stored at the given value index.
+     *
+     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
+     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
+     *
+     * @param valueIndex the value index
+     * @return the data value (as a double)
+     */
+    double getDouble(int valueIndex);
 
     @Override
-    public Object getObject(int position) {
-        return getDouble(position);
-    }
+    DoubleVector asVector();
 
     @Override
-    public ElementType elementType() {
-        return ElementType.DOUBLE;
-    }
+    DoubleBlock getRow(int position);
 
     @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+    DoubleBlock filter(int... positions);
+
+    static Builder newBlockBuilder(int estimatedSize) {
+        return new DoubleBlockBuilder(estimatedSize);
+    }
+
+    static DoubleBlock newConstantBlockWith(double value, int positions) {
+        return new ConstantDoubleVector(value, positions).asBlock();
+    }
+
+    sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {
+
+        /**
+         * Appends a double to the current entry.
+         */
+        Builder appendDouble(double value);
+
+        @Override
+        Builder appendNull();
+
+        @Override
+        Builder beginPositionEntry();
+
+        @Override
+        Builder endPositionEntry();
+
+        @Override
+        DoubleBlock build();
     }
 }

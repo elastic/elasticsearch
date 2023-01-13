@@ -11,6 +11,12 @@ package org.elasticsearch.cluster.routing;
 public interface ShardRoutingRoleStrategy {
 
     /**
+     * @return the role for a copy of a new empty shard, where {@code copyIndex} is the index of the copy ({@code 0} for the primary and
+     * {@code 1..N} for replicas).
+     */
+    ShardRouting.Role newEmptyRole(int copyIndex);
+
+    /**
      * @return the role for a new replica copy of an existing shard.
      */
     ShardRouting.Role newReplicaRole();
@@ -24,24 +30,18 @@ public interface ShardRoutingRoleStrategy {
     }
 
     /**
-     * @return the role for a copy of a new empty shard, where {@code copyIndex} is the index of the copy ({@code 0} for the primary and
-     * {@code 1..N} for replicas).
-     */
-    ShardRouting.Role newEmptyRole(int copyIndex);
-
-    /**
      * A strategy that refuses to create any new shard copies, which is used (for instance) when reading shard copies from a remote node.
      */
     ShardRoutingRoleStrategy NO_SHARD_CREATION = new ShardRoutingRoleStrategy() {
         @Override
-        public ShardRouting.Role newReplicaRole() {
-            assert false : "no shard creation permitted";
-            throw new IllegalStateException("no shard creation permitted");
+        public ShardRouting.Role newEmptyRole(int copyIndex) {
+            return newReplicaRole();
         }
 
         @Override
-        public ShardRouting.Role newEmptyRole(int copyIndex) {
-            return newReplicaRole();
+        public ShardRouting.Role newReplicaRole() {
+            assert false : "no shard creation permitted";
+            throw new IllegalStateException("no shard creation permitted");
         }
     };
 }

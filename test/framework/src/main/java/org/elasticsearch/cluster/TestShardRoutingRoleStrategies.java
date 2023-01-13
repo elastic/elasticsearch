@@ -13,6 +13,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import java.util.List;
 
 public class TestShardRoutingRoleStrategies {
+
+    /**
+     * A strategy which only returns the default role in all situations.
+     */
     public static final ShardRoutingRoleStrategy DEFAULT_ROLE_ONLY = ClusterModule.getShardRoutingRoleStrategy(List.of());
 
     private TestShardRoutingRoleStrategies() {

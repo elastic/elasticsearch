@@ -824,7 +824,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (relocatingNodeId != null) {
             sb.append("relocating [").append(relocatingNodeId).append("], ");
         }
-        // TODO test role appears
         if (role != Role.DEFAULT) {
             sb.append("[").append(role).append("], ");
         }

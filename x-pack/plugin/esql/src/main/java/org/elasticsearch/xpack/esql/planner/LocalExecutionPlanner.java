@@ -27,6 +27,7 @@ import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AggregationOperator.AggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.EmptySourceOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
@@ -306,12 +307,16 @@ public class LocalExecutionPlanner {
             context.dataPartitioning,
             context.taskConcurrency
         );
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, operatorFactory.size()));
         Layout.Builder layout = new Layout.Builder();
         for (int i = 0; i < esQuery.output().size(); i++) {
             layout.appendChannel(esQuery.output().get(i).id());
         }
-        return PhysicalOperation.fromSource(operatorFactory, layout.build());
+        if (operatorFactory.size() > 0) {
+            context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, operatorFactory.size()));
+            return PhysicalOperation.fromSource(operatorFactory, layout.build());
+        } else {
+            return PhysicalOperation.fromSource(new EmptySourceOperator.Factory(), layout.build());
+        }
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {
@@ -580,6 +585,12 @@ public class LocalExecutionPlanner {
      * The count and type of driver parallelism.
      */
     record DriverParallelism(Type type, int instanceCount) {
+
+        DriverParallelism {
+            if (instanceCount <= 0) {
+                throw new IllegalArgumentException("instance count must be greater than zero; got: " + instanceCount);
+            }
+        }
 
         static final DriverParallelism SINGLE = new DriverParallelism(Type.SINGLETON, 1);
 

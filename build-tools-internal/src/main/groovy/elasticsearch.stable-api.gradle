@@ -11,14 +11,15 @@ configurations {
   stableApi
 }
 
-BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString(ext.stableApiSince)) && it != VersionProperties.
-  elasticsearchVersion
-}).
-  each { bwcVersion ->
-  def baseName = "v${bwcVersion}"
+BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
+  && it != VersionProperties.elasticsearchVersion
+})
+   { bwcVersion, baseName ->
 
   BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-  Configuration stableApiConfiguration = configurations.create("stableApi${baseName}")
+  Configuration stableApiConfiguration = configurations.create("stableApi${baseName}") {
+    transitive = false
+  }
   Object libDependency = null
 
   if (unreleasedVersion) {
@@ -34,7 +35,7 @@ BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromSt
   }
 
   def jarApiComparisonTask = tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
-    oldJar = configurations."stableApi${baseName}"
+    oldJar = stableApiConfiguration
     newJar = tasks.named("jar").flatMap(t -> t.archiveFile)
   }
 

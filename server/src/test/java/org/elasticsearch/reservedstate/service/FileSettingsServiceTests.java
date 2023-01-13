@@ -206,6 +206,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.start();
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
+        service.getStartupLatch().get();
 
         Files.createDirectories(service.operatorSettingsDir());
 

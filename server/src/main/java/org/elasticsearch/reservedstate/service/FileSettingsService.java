@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -125,7 +126,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             unlockStartup();
             return;
         }
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings()) &&
+            DiscoveryNode.getRolesFromSettings(clusterService.getSettings()).contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false
+        ) {
             clusterService.addListener(this);
         } else {
             // if we are not a master eligible node, this service doesn't run

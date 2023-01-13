@@ -184,6 +184,13 @@ class Elasticsearch {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
+        try {
+            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
+        }
+
         // install SM after natives, shutdown hooks, etc.
         org.elasticsearch.bootstrap.Security.configure(
             nodeEnv,
@@ -460,15 +467,6 @@ class Elasticsearch {
             Thread.currentThread().interrupt();
         } finally {
             es.keepAliveLatch.countDown();
-        }
-    }
-
-    static {
-        // Force loading of the ReferenceDocs class, validating early in startup that all its links are defined.
-        try {
-            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
-        } catch (IllegalAccessException unexpected) {
-            throw new AssertionError(unexpected);
         }
     }
 }

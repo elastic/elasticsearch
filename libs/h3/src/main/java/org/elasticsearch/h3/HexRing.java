@@ -309,7 +309,7 @@ final class HexRing {
      *     \\2/
      * </pre>
      */
-    private static final CoordIJK.Direction[] DIRECTIONS = new CoordIJK.Direction[] {
+    static final CoordIJK.Direction[] DIRECTIONS = new CoordIJK.Direction[] {
         CoordIJK.Direction.J_AXES_DIGIT,
         CoordIJK.Direction.JK_AXES_DIGIT,
         CoordIJK.Direction.K_AXES_DIGIT,
@@ -586,31 +586,6 @@ final class HexRing {
         CoordIJK.Direction.IJ_AXES_DIGIT,
         CoordIJK.Direction.I_AXES_DIGIT,
         CoordIJK.Direction.J_AXES_DIGIT };
-
-    /**
-     * Produce all neighboring cells. For Hexagons there will be 6 neighbors while
-     * for pentagon just 5.
-     * Output is placed in the provided array in no particular order.
-     *
-     * @param  origin   origin cell
-     */
-    public static long[] hexRing(long origin) {
-        final long[] out = H3Index.H3_is_pentagon(origin) ? new long[5] : new long[6];
-        int idx = 0;
-        long previous = -1;
-        for (int i = 0; i < 6; i++) {
-            long neighbor = h3NeighborInDirection(origin, DIRECTIONS[i].digit());
-            if (neighbor != -1) {
-                // -1 is an expected case when trying to traverse off of pentagons.
-                if (previous != neighbor) {
-                    out[idx++] = neighbor;
-                    previous = neighbor;
-                }
-            }
-        }
-        assert idx == out.length;
-        return out;
-    }
 
     /**
      * Returns whether or not the provided H3Indexes are neighbors.

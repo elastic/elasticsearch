@@ -8,16 +8,15 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -661,13 +660,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         );
     }
 
-    public void testBootstrapStateLogging() throws IllegalAccessException {
+    public void testBootstrapStateLogging() {
         final var mockAppender = new MockLogAppender();
-        mockAppender.start();
-        final var serviceLogger = LogManager.getLogger(ClusterBootstrapService.class);
-        Loggers.addAppender(serviceLogger, mockAppender);
-
-        try {
+        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "fresh node message",
@@ -710,14 +705,18 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
 
+            final var warningMessagePattern = """
+                this node is locked into cluster UUID [test-uuid] but [cluster.initial_master_nodes] is set to [node1, node2]; \
+                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
+                for further information see \
+                https://www.elastic.co/guide/en/elasticsearch/reference/*/important-settings.html#initial_master_nodes""";
+
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "bootstrapped node message if bootstrapping still configured",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.WARN,
-                    """
-                        this node is locked into cluster UUID [test-uuid] but [cluster.initial_master_nodes] is set to [node1, node2]; \
-                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts"""
+                    warningMessagePattern
                 )
             );
 
@@ -731,9 +730,22 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
             mockAppender.assertAllExpectationsMatched();
 
-        } finally {
-            Loggers.removeAppender(serviceLogger, mockAppender);
-            mockAppender.stop();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message if bootstrapping still configured",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.WARN,
+                    warningMessagePattern
+                )
+            );
+
+            var startTime = deterministicTaskQueue.getCurrentTimeMillis();
+            while (deterministicTaskQueue.getCurrentTimeMillis() <= startTime + TimeValue.timeValueHours(12).millis()) {
+                deterministicTaskQueue.runAllRunnableTasks();
+                deterministicTaskQueue.advanceTime();
+            }
+
+            mockAppender.assertAllExpectationsMatched();
         }
     }
 }

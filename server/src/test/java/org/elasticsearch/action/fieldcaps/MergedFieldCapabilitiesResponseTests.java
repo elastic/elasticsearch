@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-
 public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
@@ -168,7 +166,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                 true,
                 false,
                 false,
-                TimeSeriesParams.MetricType.counter,
+                TimeSeriesParams.MetricType.COUNTER,
                 new String[] { "index1", "index2" },
                 null,
                 new String[] { "index1" },
@@ -206,30 +204,12 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
     }
 
-    public void testExpectedChunkSizes() {
-        {
-            final FieldCapabilitiesResponse instance = FieldCapabilitiesResponseTests.createResponseWithFailures();
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            int chunks = 0;
-            while (iterator.hasNext()) {
-                iterator.next();
-                chunks++;
-            }
-            if (instance.getFailures().isEmpty()) {
-                assertEquals(2, chunks);
-            } else {
-                assertEquals(3 + instance.get().size() + instance.getFailures().size(), chunks);
-            }
-        }
-        {
-            final FieldCapabilitiesResponse instance = createTestInstance();
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            int chunks = 0;
-            while (iterator.hasNext()) {
-                iterator.next();
-                chunks++;
-            }
-            assertEquals(2 + instance.get().size(), chunks);
-        }
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            FieldCapabilitiesResponseTests.createResponseWithFailures(),
+            instance -> instance.getFailures().isEmpty() ? 2 : (3 + instance.get().size() + instance.getFailures().size())
+        );
+
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> 2 + instance.get().size());
     }
 }

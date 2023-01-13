@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.ZoneId;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -247,9 +248,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             void checkVectorMagnitude(VectorSimilarity similarity, float[] vector, float squaredMagnitude) {
                 StringBuilder errorBuilder = null;
 
-                if (similarity == VectorSimilarity.cosine && Math.sqrt(squaredMagnitude) == 0.0f) {
+                if (similarity == VectorSimilarity.COSINE && Math.sqrt(squaredMagnitude) == 0.0f) {
                     errorBuilder = new StringBuilder(
-                        "The [" + VectorSimilarity.cosine.name() + "] similarity does not support vectors with zero magnitude."
+                        "The [" + VectorSimilarity.COSINE + "] similarity does not support vectors with zero magnitude."
                     );
                 }
 
@@ -302,13 +303,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             void checkVectorMagnitude(VectorSimilarity similarity, float[] vector, float squaredMagnitude) {
                 StringBuilder errorBuilder = null;
 
-                if (similarity == VectorSimilarity.dot_product && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+                if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
                     errorBuilder = new StringBuilder(
-                        "The [" + VectorSimilarity.dot_product.name() + "] similarity can only be used with unit-length vectors."
+                        "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
                     );
-                } else if (similarity == VectorSimilarity.cosine && Math.sqrt(squaredMagnitude) == 0.0f) {
+                } else if (similarity == VectorSimilarity.COSINE && Math.sqrt(squaredMagnitude) == 0.0f) {
                     errorBuilder = new StringBuilder(
-                        "The [" + VectorSimilarity.cosine.name() + "] similarity does not support vectors with zero magnitude."
+                        "The [" + VectorSimilarity.COSINE + "] similarity does not support vectors with zero magnitude."
                     );
                 }
 
@@ -393,14 +394,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     );
 
     enum VectorSimilarity {
-        l2_norm(VectorSimilarityFunction.EUCLIDEAN),
-        cosine(VectorSimilarityFunction.COSINE),
-        dot_product(VectorSimilarityFunction.DOT_PRODUCT);
+        L2_NORM(VectorSimilarityFunction.EUCLIDEAN),
+        COSINE(VectorSimilarityFunction.COSINE),
+        DOT_PRODUCT(VectorSimilarityFunction.DOT_PRODUCT);
 
         public final VectorSimilarityFunction function;
 
         VectorSimilarity(VectorSimilarityFunction function) {
             this.function = function;
+        }
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -555,7 +561,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             elementType.checkVectorBounds(queryVector);
 
-            if (similarity == VectorSimilarity.dot_product || similarity == VectorSimilarity.cosine) {
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = 0.0f;
                 for (float e : queryVector) {
                     squaredMagnitude += e * e;

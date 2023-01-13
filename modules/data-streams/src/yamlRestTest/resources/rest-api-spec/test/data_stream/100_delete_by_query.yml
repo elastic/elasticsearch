@@ -112,7 +112,7 @@
       indices.refresh:
         index: simple-stream1,simple-stream2
 
-  # increment by one any docs with number <= 4
+  # delete any docs with number <= 4
   - do:
       delete_by_query:
         index: simple-stream*
@@ -134,7 +134,7 @@
       indices.refresh:
         index: simple-stream1,simple-stream2
 
-  # verify that both numbers originally <= 4 have been incremented by one
+  # verify that both documents with number originally <= 4 have been deleted
   - do:
       search:
         index: simple-stream*

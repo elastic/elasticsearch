@@ -9,8 +9,10 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -26,11 +28,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
+    private static final String CACHE_CAPACITY_SETTING = "es.ingest.date_processor.cache_capacity";
+    private static final Cache CACHE;
+
+    static {
+        var cacheSizeStr = System.getProperty(CACHE_CAPACITY_SETTING, "256");
+        try {
+            CACHE = new Cache(Integer.parseInt(cacheSizeStr));
+        } catch (NumberFormatException e) {
+            throw new SettingsException("{} must be a valid number but was [{}]", CACHE_CAPACITY_SETTING, cacheSizeStr);
+        }
+    }
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
     static final String DEFAULT_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 
@@ -72,9 +87,17 @@ public final class DateProcessor extends AbstractProcessor {
         this.targetField = targetField;
         this.formats = formats;
         this.dateParsers = new ArrayList<>(this.formats.size());
+
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
+            dateParsers.add((params) -> {
+                var documentZoneId = newDateTimeZone(params);
+                var documentLocale = newLocale(params);
+                return CACHE.getOrCompute(
+                    new Cache.Key(format, documentZoneId, documentLocale),
+                    () -> dateFormat.getFunction(format, documentZoneId, documentLocale)
+                );
+            });
         }
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);
@@ -197,5 +220,36 @@ public final class DateProcessor extends AbstractProcessor {
                 outputFormat
             );
         }
+    }
+
+    private static final class Cache {
+
+        private final ConcurrentMap<Key, Function<String, ZonedDateTime>> map;
+        private final int capacity;
+
+        private Cache(int capacity) {
+            if (capacity <= 0) {
+                throw new IllegalArgumentException("cache capacity must be a value greater than 0 but was " + capacity);
+            }
+            this.capacity = capacity;
+            this.map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(this.capacity);
+        }
+
+        Function<String, ZonedDateTime> getOrCompute(Key key, Supplier<Function<String, ZonedDateTime>> supplier) {
+            var element = map.get(key);
+
+            if (element != null) {
+                return element;
+            }
+
+            element = supplier.get();
+            if (map.size() >= capacity) {
+                map.clear();
+            }
+            map.put(key, element);
+            return element;
+        }
+
+        record Key(String format, ZoneId zoneId, Locale locale) {}
     }
 }

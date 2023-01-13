@@ -126,9 +126,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             unlockStartup();
             return;
         }
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings()) &&
-            DiscoveryNode.getRolesFromSettings(clusterService.getSettings()).contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false
-        ) {
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())
+            && DiscoveryNode.getRolesFromSettings(clusterService.getSettings())
+                .contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false) {
             clusterService.addListener(this);
         } else {
             // if we are not a master eligible node, this service doesn't run

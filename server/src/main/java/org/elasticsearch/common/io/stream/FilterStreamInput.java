@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
@@ -88,6 +89,11 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public Version getVersion() {
         return delegate.getVersion();
+    }
+
+    @Override
+    public TransportVersion getTransportVersion() {
+        return delegate.getTransportVersion();
     }
 
     @Override

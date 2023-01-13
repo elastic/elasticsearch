@@ -133,14 +133,15 @@ public class TransportVersion implements Comparable<TransportVersion> {
     /*
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
      */
-    public static final TransportVersion V_10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
+    // NOTE: DO NOT UNCOMMENT until all transport code uses TransportVersion
+    // public static final TransportVersion V_10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
     /*
      * When adding a new transport version, ensure there is a gap (say, 100) between versions
      * This is to make it possible to add intermediate versions for any bug fixes that may be required.
      */
 
     /** Reference to the current transport version */
-    public static final TransportVersion CURRENT = V_10_000_000;
+    public static final TransportVersion CURRENT = V_8_7_0;
 
     /** Reference to the earliest compatible transport version to this version of the codebase */
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion

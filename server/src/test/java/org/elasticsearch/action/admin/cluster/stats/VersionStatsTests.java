@@ -104,7 +104,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             shardId,
             true,
             RecoverySource.PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
+            ShardRouting.Role.DEFAULT
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())

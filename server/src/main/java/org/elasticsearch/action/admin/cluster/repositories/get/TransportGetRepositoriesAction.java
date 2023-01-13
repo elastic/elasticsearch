@@ -78,9 +78,10 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     ) {
         RepositoriesResult result = getRepositories(state, request.repositories());
         if (result.hasMissingRepositories()) {
-            throw new RepositoryMissingException(String.join(", ", result.missing()));
+            listener.onFailure(new RepositoryMissingException(String.join(", ", result.missing())));
+        } else {
+            listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(result.metadata)));
         }
-        listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(result.metadata)));
     }
 
     /**
@@ -88,7 +89,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
      *
      * @param state     Cluster state
      * @param repoNames Repository names or patterns to get metadata for
-     * @return a class that consists of a list of repository metadata that found in the cluster state and a list of the missing repositories
+     * @return a result with the repository metadata that were found in the cluster state and the missing repositories
      */
     public static RepositoriesResult getRepositories(ClusterState state, String[] repoNames) {
         RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
@@ -128,7 +129,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     }
 
     /**
-     * A wrapper class that consists of the repository metadata and the names of the repositories that were not found in the cluster state.
+     * A holder class that consists of the repository metadata and the names of the repositories that were not found in the cluster state.
      */
     public record RepositoriesResult(List<RepositoryMetadata> metadata, List<String> missing) {
 

@@ -18,6 +18,8 @@ public class TransportRelayRequest extends ActionRequest {
     private final String action;
     private final String payload;
 
+    // TODO: fields for remote privileges and other headers
+
     public TransportRelayRequest(String action, String payload) {
         this.action = action;
         this.payload = payload;

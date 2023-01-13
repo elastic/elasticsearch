@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -111,7 +112,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Supplier<NamedWriteableRegistry> namedWriteableRegistry;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
     public SecurityServerTransportInterceptor(
@@ -123,7 +124,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
-        NamedWriteableRegistry namedWriteableRegistry
+        Supplier<NamedWriteableRegistry> namedWriteableRegistry
     ) {
         this(
             settings,
@@ -148,7 +149,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
-        NamedWriteableRegistry namedWriteableRegistry,
+        Supplier<NamedWriteableRegistry> namedWriteableRegistry,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -186,7 +187,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 // TODO: this should be moved after the remote access privileges is prepared
                 if (connection instanceof final HttpConnectionStrategy.StubConnection stubConnection) {
-                    sendCcsViaHttp(action, request, handler, stubConnection, namedWriteableRegistry);
+                    sendCcsViaHttp(action, request, handler, stubConnection, namedWriteableRegistry.get());
                     return;
                 }
 
@@ -442,8 +443,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 )
             );
         }
+        String finalAction = action;
+        TransportRequest finalRequest = request;
+        if (stubConnection.targetIsSpecificRemoteNode()) {
+            finalAction = TransportActionProxy.getProxyAction(action);
+            finalRequest = TransportActionProxy.wrapRequest(stubConnection.getNode(), request);
+        }
+
         httpConnectionStrategy.getTransportRequestRelay()
-            .relayRequest(httpConnectionStrategy.getClusterAlias(), action, request, new ActionListener<byte[]>() {
+            .relayRequest(httpConnectionStrategy.getClusterAlias(), finalAction, finalRequest, new ActionListener<byte[]>() {
                 @Override
                 public void onResponse(byte[] bytes) {
                     final var in = new NamedWriteableAwareStreamInput(new ByteArrayStreamInput(bytes), namedWriteableRegistry);
@@ -531,6 +539,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             this.threadContext = threadPool.getThreadContext();
             this.threadPool = threadPool;
             this.forceExecution = forceExecution;
+        }
+
+        public TransportRequestHandler<T> getHandler() {
+            return handler;
         }
 
         AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task) {

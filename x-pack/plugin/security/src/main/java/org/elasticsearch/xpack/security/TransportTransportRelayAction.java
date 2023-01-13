@@ -27,7 +27,9 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -35,10 +37,12 @@ import org.elasticsearch.xpack.core.security.action.TransportRelayAction;
 import org.elasticsearch.xpack.core.security.action.TransportRelayRequest;
 import org.elasticsearch.xpack.core.security.action.TransportRelayResponse;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
+import java.util.function.Function;
 
 /**
  * Clears a security cache by name (with optional keys).
@@ -87,7 +91,7 @@ public class TransportTransportRelayAction extends HandledTransportAction<Transp
                 }
                 return new TransportRelayResponse(Base64.getEncoder().encodeToString(out.bytes().array()));
             })),
-            getResponseReader(request.getAction(), transportRequest)
+            getResponseReader(requestHandler, request.getAction(), transportRequest)
         );
 
         transportService.sendChildRequest(
@@ -100,8 +104,20 @@ public class TransportTransportRelayAction extends HandledTransportAction<Transp
         );
     }
 
-    @SuppressWarnings("unchecked")
-    private <T extends TransportResponse> Writeable.Reader<T> getResponseReader(String action, TransportRequest request) {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private <T extends TransportResponse> Writeable.Reader<T> getResponseReader(
+        RequestHandlerRegistry<? extends TransportRequest> requestHandler,
+        String action,
+        TransportRequest request
+    ) {
+        final TransportRequestHandler<?> unwrappedHandler = ((SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<
+            ?>) requestHandler.getHandler()).getHandler();
+        if (unwrappedHandler instanceof TransportActionProxy.ProxyRequestHandler proxyRequestHandler) {
+            final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction = proxyRequestHandler
+                .getResponseFunction();
+            return in -> (T) responseFunction.apply(request).read(in);
+        }
+
         if (request instanceof ShardSearchRequest shardSearchRequest) {
             assert SearchTransportService.QUERY_ACTION_NAME.equals(action);
             final boolean fetchDocuments = shardSearchRequest.numberOfShards() == 1;

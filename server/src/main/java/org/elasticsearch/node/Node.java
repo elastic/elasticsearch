@@ -819,7 +819,6 @@ public class Node implements Closeable {
                 tracer
             );
             final HttpRemoteClusterService httpRemoteClusterService = networkModule.getHttpRemoteClusterService();
-            httpRemoteClusterService.init(transportService);
             transportService.setHttpRemoteClusterService(httpRemoteClusterService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

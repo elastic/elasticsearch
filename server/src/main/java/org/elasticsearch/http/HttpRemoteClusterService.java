@@ -10,11 +10,8 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 
 public interface HttpRemoteClusterService {
-
-    void init(TransportService transportService);
 
     boolean isHttpRemoteClusterAlias(String clusterAlias);
 

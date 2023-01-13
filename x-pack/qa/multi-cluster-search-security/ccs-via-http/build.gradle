@@ -21,10 +21,9 @@ tasks.register("copyCerts", Sync) {
   into "${buildDir}/certs"
 }
 
-// randomise between sniff and proxy modes
-boolean proxyMode = BuildParams.random.nextBoolean()
-
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  testDistribution = 'DEFAULT'
+
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -40,6 +39,8 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
+  testDistribution = 'DEFAULT'
+
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.transport.ssl.enabled', 'true'

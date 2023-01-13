@@ -30,13 +30,13 @@ public final class TransportActionProxy {
 
     private TransportActionProxy() {} // no instance
 
-    private static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
+    public static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
 
         private final TransportService service;
         private final String action;
         private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
 
-        ProxyRequestHandler(
+        public ProxyRequestHandler(
             TransportService service,
             String action,
             Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
@@ -59,6 +59,10 @@ public final class TransportActionProxy {
                 wrappedRequest,
                 new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest))
             );
+        }
+
+        public Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> getResponseFunction() {
+            return responseFunction;
         }
 
         private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {

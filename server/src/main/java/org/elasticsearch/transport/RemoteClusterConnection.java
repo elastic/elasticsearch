@@ -115,7 +115,7 @@ final class RemoteClusterConnection implements Closeable {
                 request.clear();
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
-                Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
+                Transport.Connection connection = getConnection();
                 transportService.sendRequest(
                     connection,
                     ClusterStateAction.NAME,
@@ -146,7 +146,7 @@ final class RemoteClusterConnection implements Closeable {
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
         if (connectionStrategy instanceof final HttpConnectionStrategy httpConnectionStrategy) {
-            return httpConnectionStrategy.getConnection();
+            return httpConnectionStrategy.getConnection(remoteClusterNode);
         }
         return remoteConnectionManager.getConnection(remoteClusterNode);
     }

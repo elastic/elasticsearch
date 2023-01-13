@@ -117,6 +117,10 @@ public class HttpConnectionStrategy extends RemoteConnectionStrategy {
         return connection;
     }
 
+    public Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
+        return new StubConnection(this, remoteClusterNode);
+    }
+
     @Override
     public void close() {
         super.close();
@@ -188,13 +192,23 @@ public class HttpConnectionStrategy extends RemoteConnectionStrategy {
     public static class StubConnection implements Transport.Connection {
 
         private final HttpConnectionStrategy httpConnectionStrategy;
+        private final DiscoveryNode targetNode;
 
         public StubConnection(HttpConnectionStrategy httpConnectionStrategy) {
+            this(httpConnectionStrategy, httpConnectionStrategy.transportService.getLocalNode());
+        }
+
+        public StubConnection(HttpConnectionStrategy httpConnectionStrategy, DiscoveryNode targetNode) {
             this.httpConnectionStrategy = httpConnectionStrategy;
+            this.targetNode = targetNode;
         }
 
         public HttpConnectionStrategy getHttpConnectionStrategy() {
             return httpConnectionStrategy;
+        }
+
+        public boolean targetIsSpecificRemoteNode() {
+            return false == httpConnectionStrategy.transportService.getLocalNode().equals(targetNode);
         }
 
         @Override
@@ -219,7 +233,7 @@ public class HttpConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public DiscoveryNode getNode() {
-            return httpConnectionStrategy.transportService.getLocalNode();
+            return targetNode;
         }
 
         @Override

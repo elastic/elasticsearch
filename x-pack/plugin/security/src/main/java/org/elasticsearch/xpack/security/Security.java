@@ -922,7 +922,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 remoteClusterAuthorizationResolver,
-                ((NodeClient) client).getNamedWriteableRegistry()
+                () -> ((NodeClient) client).getNamedWriteableRegistry()
             )
         );
 

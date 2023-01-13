@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.http.HttpRemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -60,8 +59,6 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
     );
     private final Map<String, MinimalRestClient> remoteClusterClients;
 
-    private TransportService transportService;
-
     public SecurityHttpRemoteClusterService(Settings settings) {
         final Map<String, Settings> settingsGroups = settings.getGroups("cluster.http_remote");
         final var remoteClusterClients = new HashMap<String, MinimalRestClient>();
@@ -80,11 +77,6 @@ public class SecurityHttpRemoteClusterService implements HttpRemoteClusterServic
         });
         this.remoteClusterClients = Map.copyOf(remoteClusterClients);
         logger.info("Initialised remote cluster clients [{}]", remoteClusterClients);
-    }
-
-    @Override
-    public void init(TransportService transportService) {
-        this.transportService = transportService;
     }
 
     @Override

@@ -80,7 +80,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
         builder = new FieldCapabilities.Builder("field", "type");
         builder.add(new String[] { "index1" }, false, false, true, true, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
         builder.add(new String[] { "index3" }, false, false, false, false, null, Collections.emptyMap());
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -108,15 +108,15 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
             assertThat(cap1.isDimension(), equalTo(true));
-            assertThat(cap1.getMetricType(), equalTo(TimeSeriesParams.MetricType.counter));
+            assertThat(cap1.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
@@ -127,7 +127,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
             assertThat(cap2.isDimension(), equalTo(true));
-            assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.counter));
+            assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
@@ -137,9 +137,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.gauge, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));

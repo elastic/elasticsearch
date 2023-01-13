@@ -177,7 +177,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Defines a kNN search. If a query is also provided, the kNN hits
      * are combined with the query hits.
      */
-    public SearchRequestBuilder setKnnSearch(KnnSearchBuilder knnSearch) {
+    public SearchRequestBuilder setKnnSearch(List<KnnSearchBuilder> knnSearch) {
         sourceBuilder().knnSearch(knnSearch);
         return this;
     }

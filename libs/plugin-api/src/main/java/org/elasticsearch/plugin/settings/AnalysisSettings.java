@@ -6,26 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api.settings;
+package org.elasticsearch.plugin.settings;
 
-import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import static java.lang.annotation.ElementType.TYPE;
+
 /**
- * An annotation used to mark a setting of type Boolean
+ * An annotation used to mark analysis setting interface
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-public @interface BooleanSetting {
-    /**
-     * A name of a setting
-     */
-    String path();
-
-    /**
-     * A default value of a boolean setting
-     */
-    boolean defaultValue();
+@Target(value = { TYPE })
+public @interface AnalysisSettings {
 }

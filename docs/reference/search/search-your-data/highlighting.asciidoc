@@ -948,7 +948,7 @@ highlighter is to find the best text fragments for the query, and highlight
 the query terms in the found fragments. For this, a highlighter needs to
 address several questions:
 
-- How break a text into fragments?
+- How to break a text into fragments?
 - How to find the best fragments among all fragments?
 - How to highlight the query terms in a fragment?
 

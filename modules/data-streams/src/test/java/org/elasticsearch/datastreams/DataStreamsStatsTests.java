@@ -39,6 +39,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.max;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.is;
 
 public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
@@ -86,6 +88,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
     }
 
     public void testStatsExistingDataStream() throws Exception {
@@ -104,6 +107,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
     }
 
     public void testStatsExistingHiddenDataStream() throws Exception {
@@ -122,6 +126,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
     }
 
     public void testStatsClosedBackingIndexDataStream() throws Exception {
@@ -153,6 +158,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
 
         // Call stats again after writing a new event into the write index
         long timestamp = createDocument(dataStreamName);
@@ -169,6 +175,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
     }
 
     public void testStatsRolledDataStream() throws Exception {
@@ -189,6 +196,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
     }
 
     public void testStatsMultipleDataStreams() throws Exception {
@@ -220,6 +228,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             assertEquals(1, dataStreamStats.getBackingIndices());
             assertEquals(expectedMaxTS.longValue(), dataStreamStats.getMaximumTimestamp());
             assertNotEquals(0L, dataStreamStats.getStoreSize().getBytes());
+            assertThat(0.0, is(closeTo(stats.getDataStreams()[0].getWriteLoadForecast(), 1e-8)));
         }
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,6 +55,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -61,8 +63,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        WriteLoadForecaster writeLoadForecaster) {
         super(
             DataStreamsStatsAction.NAME,
             clusterService,
@@ -75,6 +77,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.writeLoadForecaster = writeLoadForecaster;
     }
 
     @Override
@@ -158,7 +161,10 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
                 }
             }
-            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+            var indexMetadata = indexService.getMetadata();
+            assert indexMetadata != null;
+            double writeLoadForecast = writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp, writeLoadForecast);
         });
     }
 
@@ -240,6 +246,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
+                stats.writeLoadForecast += shardStat.getWriteLoadForecast();
             }
 
             DataStreamsStatsAction.DataStreamStats[] dataStreamStats = aggregatedDataStreamsStats.entrySet()
@@ -249,8 +256,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                         entry.getKey(),
                         entry.getValue().backingIndices.size(),
                         ByteSizeValue.ofBytes(entry.getValue().storageBytes),
-                        entry.getValue().maxTimestamp
-                    )
+                        entry.getValue().maxTimestamp,
+                        entry.getValue().writeLoadForecast)
                 )
                 .toArray(DataStreamsStatsAction.DataStreamStats[]::new);
 
@@ -271,5 +278,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         Set<String> backingIndices = new HashSet<>();
         long storageBytes = 0L;
         long maxTimestamp = 0L;
+        double writeLoadForecast = 0.0;
     }
 }

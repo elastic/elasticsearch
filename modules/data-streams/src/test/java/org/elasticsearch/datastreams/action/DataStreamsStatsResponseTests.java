@@ -42,13 +42,14 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             long storeSize = randomLongBetween(250, 1000000000);
             totalStoreSize += storeSize;
             long maximumTimestamp = randomRecentTimestamp();
+            double writeLoadForecast = randomDouble();
             dataStreamStats.add(
                 new DataStreamsStatsAction.DataStreamStats(
                     dataStreamName,
                     backingIndices,
                     ByteSizeValue.ofBytes(storeSize),
-                    maximumTimestamp
-                )
+                    maximumTimestamp,
+                    writeLoadForecast)
             );
         }
         int totalShards = randomIntBetween(backingIndicesTotal, backingIndicesTotal * 3);

@@ -141,15 +141,3 @@ POST /_security/role/cli_or_drivers_minimal
 }
 --------------------------------------------------
 // end::sql-queries-permission[]
-
-A successful call returns a JSON structure that shows whether the role has been
-created or updated.
-
-[source,console-result]
---------------------------------------------------
-{
-  "role": {
-    "created": true
-  }
-}
---------------------------------------------------

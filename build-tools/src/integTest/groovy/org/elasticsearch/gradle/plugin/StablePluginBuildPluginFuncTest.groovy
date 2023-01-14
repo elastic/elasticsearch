@@ -92,7 +92,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         file("src/main/java/org/acme/A.java") << """
             package org.acme;
 
-            import org.elasticsearch.plugin.api.NamedComponent;
+            import org.elasticsearch.plugin.NamedComponent;
             import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass;
 
             @NamedComponent( "componentA")

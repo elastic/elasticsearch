@@ -9,7 +9,7 @@
 module org.elasticsearch.plugin.scanner {
     requires org.elasticsearch.base;
     requires org.objectweb.asm;
-    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.plugin;
     requires org.elasticsearch.xcontent;
 
     exports org.elasticsearch.plugin.scanner;

@@ -23,12 +23,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -532,6 +534,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
+            // redundant check to ensure that we don't resolve the list of empty names to "all" in this context
+            if (names.length == 0) {
+                return;
+            }
+            // TODO This is a dirty hack around the IndexNameExpressionResolver optimisation for "*" as described in:
+            // https://github.com/elastic/elasticsearch/issues/92903.
+            // A standalone "*" expression is resolved slightly differently from a "*" embedded in another expression, eg "idx,*".
+            // The difference is only slight, and it usually doesn't cause problems (see
+            // https://github.com/elastic/elasticsearch/issues/92911 for a description of a problem).
+            // But in the case of the Resolve index API, the difference is observable, because resolving standalone "*" cannot show
+            // aliases (only indices and datastreams). The Resolve index API needs to show the aliases that match wildcards.
+            if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
+                names = new String[] { "**" };
+            }
             Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, names);
             for (String s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);

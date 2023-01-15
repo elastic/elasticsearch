@@ -9,13 +9,8 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.FilteringTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.charfilter.MappingCharFilter;
-import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.util.CharTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -25,8 +20,15 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.indices.analysis.lucene.AppendTokenFilter;
-import org.elasticsearch.plugin.analysis.api.AnalysisMode;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.indices.analysis.lucene.CharSkippingTokenizer;
+import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
+import org.elasticsearch.indices.analysis.lucene.SkipStartingWithDigitTokenFilter;
+import org.elasticsearch.plugin.NamedComponent;
+import org.elasticsearch.plugin.analysis.AnalysisMode;
+import org.elasticsearch.plugin.analysis.AnalyzerFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenizerFactory;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
 import org.elasticsearch.plugins.scanners.NamedComponentReader;
 import org.elasticsearch.plugins.scanners.PluginInfo;
@@ -37,6 +39,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -88,40 +91,25 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableCharFilterFactory")
-    public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+    public static class TestCharFilterFactory implements CharFilterFactory {
 
         @Override
         public Reader create(Reader reader) {
-            return new ReplaceHash(reader);
+            return new ReplaceCharToNumber(reader, "#", 3);
         }
 
         @Override
         public Reader normalize(Reader reader) {
-            return new ReplaceHash(reader);
-        }
-
-    }
-
-    static class ReplaceHash extends MappingCharFilter {
-
-        ReplaceHash(Reader in) {
-            super(charMap(), in);
-        }
-
-        private static NormalizeCharMap charMap() {
-            NormalizeCharMap.Builder builder = new NormalizeCharMap.Builder();
-            builder.add("#", "3");
-            return builder.build();
+            return new ReplaceCharToNumber(reader, "#", 3);
         }
     }
 
     @NamedComponent("stableTokenFilterFactory")
-    public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
+    public static class TestTokenFilterFactory implements TokenFilterFactory {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
-
-            return new Skip1TokenFilter(tokenStream);
+            return new SkipStartingWithDigitTokenFilter(tokenStream, 1);
         }
 
         @Override
@@ -131,45 +119,23 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
 
         @Override
         public AnalysisMode getAnalysisMode() {
-            return org.elasticsearch.plugin.analysis.api.TokenFilterFactory.super.getAnalysisMode();
+            return TokenFilterFactory.super.getAnalysisMode();
         }
 
-    }
-
-    static class Skip1TokenFilter extends FilteringTokenFilter {
-
-        private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-
-        Skip1TokenFilter(TokenStream in) {
-            super(in);
-        }
-
-        @Override
-        protected boolean accept() throws IOException {
-            return termAtt.buffer()[0] != '1';
-        }
     }
 
     @NamedComponent("stableTokenizerFactory")
-    public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+    public static class TestTokenizerFactory implements TokenizerFactory {
 
         @Override
         public Tokenizer create() {
-            return new UnderscoreTokenizer();
+            return new CharSkippingTokenizer(List.of("_"));
         }
 
-    }
-
-    static class UnderscoreTokenizer extends CharTokenizer {
-
-        @Override
-        protected boolean isTokenChar(int c) {
-            return c != '_';
-        }
     }
 
     @NamedComponent("stableAnalyzerFactory")
-    public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+    public static class TestAnalyzerFactory implements AnalyzerFactory {
 
         @Override
         public Analyzer create() {
@@ -180,9 +146,9 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
 
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
-                var tokenizer = new UnderscoreTokenizer();
-                var tokenFilter = new Skip1TokenFilter(tokenizer);
-                return new TokenStreamComponents(r -> tokenizer.setReader(new ReplaceHash(r)), tokenFilter);
+                var tokenizer = new CharSkippingTokenizer(List.of("_"));
+                var tokenFilter = new SkipStartingWithDigitTokenFilter(tokenizer, 1);
+                return new TokenStreamComponents(r -> tokenizer.setReader(new ReplaceCharToNumber(r, "#", 3)), tokenFilter);
             }
         }
     }
@@ -196,28 +162,28 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
             new StablePluginsRegistry(
                 new NamedComponentReader(),
                 Map.of(
-                    org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName(),
+                    CharFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableCharFilterFactory",
                             new PluginInfo("stableCharFilterFactory", TestCharFilterFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class.getCanonicalName(),
+                    TokenFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenFilterFactory",
                             new PluginInfo("stableTokenFilterFactory", TestTokenFilterFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.TokenizerFactory.class.getCanonicalName(),
+                    TokenizerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenizerFactory",
                             new PluginInfo("stableTokenizerFactory", TestTokenizerFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName(),
+                    AnalyzerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableAnalyzerFactory",

@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.plugin.analysis.api {
+module org.elasticsearch.plugin.analysis {
     requires org.apache.lucene.core;
-    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.plugin;
 
-    exports org.elasticsearch.plugin.analysis.api;
+    exports org.elasticsearch.plugin.analysis;
 }

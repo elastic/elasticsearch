@@ -17,7 +17,7 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -30,20 +30,20 @@ public abstract class SourceValueFetcherIndexFieldData<T>
         protected final String fieldName;
         protected final ValuesSourceType valuesSourceType;
         protected final ValueFetcher valueFetcher;
-        protected final SourceLookup sourceLookup;
+        protected final SourceProvider sourceProvider;
         protected final ToScriptFieldFactory<T> toScriptFieldFactory;
 
         public Builder(
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ToScriptFieldFactory<T> toScriptFieldFactory
         ) {
             this.fieldName = fieldName;
             this.valuesSourceType = valuesSourceType;
             this.valueFetcher = valueFetcher;
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
             this.toScriptFieldFactory = toScriptFieldFactory;
         }
     }
@@ -51,20 +51,20 @@ public abstract class SourceValueFetcherIndexFieldData<T>
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ValueFetcher valueFetcher;
-    protected final SourceLookup sourceLookup;
+    protected final SourceProvider sourceProvider;
     protected final ToScriptFieldFactory<T> toScriptFieldFactory;
 
     protected SourceValueFetcherIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
-        SourceLookup sourceLookup,
+        SourceProvider sourceProvider,
         ToScriptFieldFactory<T> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.valueFetcher = valueFetcher;
-        this.sourceLookup = sourceLookup;
+        this.sourceProvider = sourceProvider;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
@@ -112,18 +112,18 @@ public abstract class SourceValueFetcherIndexFieldData<T>
         protected final LeafReaderContext leafReaderContext;
 
         protected final ValueFetcher valueFetcher;
-        protected final SourceLookup sourceLookup;
+        protected final SourceProvider sourceProvider;
 
         public SourceValueFetcherLeafFieldData(
             ToScriptFieldFactory<T> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
         }
 
         @Override

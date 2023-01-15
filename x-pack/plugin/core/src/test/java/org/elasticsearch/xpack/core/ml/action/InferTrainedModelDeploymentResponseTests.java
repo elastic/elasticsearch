@@ -62,7 +62,7 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
         InferTrainedModelDeploymentAction.Response instance,
         Version version
     ) {
-        if (version.before(Version.V_8_7_0)) {
+        if (version.before(Version.V_8_6_1)) {
             return new InferTrainedModelDeploymentAction.Response(instance.getResults().subList(0, 1));
         }
 

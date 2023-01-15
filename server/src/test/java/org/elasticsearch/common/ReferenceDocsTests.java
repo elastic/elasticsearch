@@ -40,11 +40,10 @@ public class ReferenceDocsTests extends ESTestCase {
             for (ReferenceDocs link : ReferenceDocs.values()) {
                 builder.field(link.name(), "TEST");
             }
-            builder.field("END", "");
             builder.endObject();
 
             var map = ReferenceDocs.readLinksBySymbol(BytesReference.bytes(builder).streamInput());
-            assertEquals(ReferenceDocs.values().length + 1, map.size());
+            assertEquals(ReferenceDocs.values().length, map.size());
             for (ReferenceDocs link : ReferenceDocs.values()) {
                 assertEquals("TEST", map.get(link.name()));
             }
@@ -59,7 +58,6 @@ public class ReferenceDocsTests extends ESTestCase {
             for (ReferenceDocs link : ReferenceDocs.values()) {
                 builder.field(link.name(), "TEST");
             }
-            builder.field("END", "");
             builder.startObject("UNEXPECTED").endObject().endObject();
 
             try (var stream = BytesReference.bytes(builder).streamInput()) {
@@ -72,7 +70,6 @@ public class ReferenceDocsTests extends ESTestCase {
             for (ReferenceDocs link : ReferenceDocs.values()) {
                 builder.field(link.name(), "TEST");
             }
-            builder.field("END", "");
             builder.field("EXTRA", "TEST").endObject();
 
             try (var stream = BytesReference.bytes(builder).streamInput()) {
@@ -87,22 +84,6 @@ public class ReferenceDocsTests extends ESTestCase {
                 if (link != skipped) {
                     builder.field(link.name(), "TEST");
                 }
-            }
-            builder.field("END", "");
-            builder.endObject();
-
-            try (var stream = BytesReference.bytes(builder).streamInput()) {
-                expectThrows(IllegalStateException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
-            }
-        }
-
-        try (var builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            for (ReferenceDocs link : ReferenceDocs.values()) {
-                builder.field(link.name(), "TEST");
-            }
-            if (randomBoolean()) {
-                builder.field("EXTRA", "TEST");
             }
             builder.endObject();
 
@@ -123,7 +104,6 @@ public class ReferenceDocsTests extends ESTestCase {
             for (ReferenceDocs link : shuffled) {
                 builder.field(link.name(), "TEST");
             }
-            builder.field("END", "");
             builder.endObject();
 
             try (var stream = BytesReference.bytes(builder).streamInput()) {

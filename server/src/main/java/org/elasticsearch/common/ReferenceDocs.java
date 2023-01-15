@@ -32,10 +32,7 @@ public enum ReferenceDocs {
     INITIAL_MASTER_NODES,
     DISCOVERY_TROUBLESHOOTING,
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
-    LAGGING_NODE_TROUBLESHOOTING,
-    // tag::noformat
-    ; // a line on its own so every line above can have a trailing comma, which makes the diff from adding new links cleaner
-    // end::noformat
+    LAGGING_NODE_TROUBLESHOOTING;
 
     private static final Map<String, String> linksBySymbol;
 
@@ -64,13 +61,6 @@ public enum ReferenceDocs {
                 if (actual.equals(expected) == false) {
                     throw new IllegalStateException("mismatch at index " + i + ": found " + actual + " but expected " + expected);
                 }
-            }
-            if (iterator.hasNext() == false) {
-                throw new IllegalStateException("expected, but did not find, END marker");
-            }
-            final var endOfList = iterator.next();
-            if (endOfList.equals("END") == false) {
-                throw new IllegalStateException("found " + endOfList + " instead of END marker");
             }
             if (iterator.hasNext()) {
                 throw new IllegalStateException("found unexpected extra value: " + iterator.next());

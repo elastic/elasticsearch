@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -41,9 +42,14 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,14 +62,29 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESTestCase.WithoutSecurityManager
 public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
 
     private static String getRequiredProperty(String key) {
         return Strings.requireNonBlank(System.getProperty(key), "Required system property `" + key + "` is not set");
@@ -82,7 +103,40 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
         }
     }
 
-    public void testCASIsLinearizeable() throws Exception {
+    public void testCASIsLinearizable() throws Exception {
+        final int maxThreadSleepTimeInMillis = randomFrom(10, 200);
+        runCASTest(maxThreadSleepTimeInMillis, testState -> {
+            final var threads = testState.registerThreads();
+
+            final var history = testState.history();
+            final var linearizabilityChecker = new LinearizabilityChecker();
+            final var sequentialSpec = testState.sequentialSpec();
+
+            threads.forEach(RegisterUpdaterThread::await);
+
+            assertThat(
+                LinearizabilityChecker.visualize(sequentialSpec, history, (invId -> { throw new IllegalStateException(); })),
+                linearizabilityChecker.isLinearizable(sequentialSpec, history),
+                is(true)
+            );
+        });
+    }
+
+    public void testCASLiveness() throws Exception {
+        final int maxThreadSleepTimeInMillis = 200;
+        runCASTest(maxThreadSleepTimeInMillis, testState -> {
+            final var threads = testState.registerThreads();
+
+            assertBusy(() -> {
+                final int totalSuccessfulWrites = threads.stream().mapToInt(RegisterUpdaterThread::getSuccessfulWrites).sum();
+                assertThat(totalSuccessfulWrites, is(greaterThanOrEqualTo(1)));
+            }, 1, TimeUnit.MINUTES);
+
+            testState.abortUpdates().run();
+        });
+    }
+
+    private void runCASTest(int maxThreadSleepTimeInMillis, CheckedConsumer<TestState, Exception> testBody) throws Exception {
         final var bucket = getRequiredProperty("test.s3.bucket");
         assertThat(bucket, not(blankOrNullString()));
         final String basePath = System.getProperty("test.s3.base_path", "stateless-cas-linearizability");
@@ -96,14 +150,11 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
                 clientRef.getClient().putObject(bucket, registerKey, Integer.toString(initialValue));
             }
 
-            final var linearizabilityChecker = new LinearizabilityChecker();
+            final var running = new AtomicBoolean(true);
             final var history = new LinearizabilityChecker.History();
             final var sequentialSpec = new CASSequentialSpec(initialValue);
 
-            // The SDK connection pool size is 50 by default, we must not
-            // go over that value, otherwise the threads might have to wait
-            // in order to get a connection.
-            final var numberOfThreads = randomIntBetween(2, 12);
+            final var numberOfThreads = randomIntBetween(2, 16);
             final var startBarrier = new CyclicBarrier(numberOfThreads + 1);
             final List<RegisterUpdaterThread> threads = new ArrayList<>();
             for (int i = 0; i < numberOfThreads; i++) {
@@ -112,7 +163,15 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
                         i,
                         startBarrier,
                         history,
-                        () -> new S3Register(new DisruptableS3Client(clientRef.getClient()), bucket, registerKey, Randomness.get()) {
+                        running,
+                        maxThreadSleepTimeInMillis,
+                        () -> new S3Register(
+                            new DisruptableS3Client(clientRef.getClient()),
+                            bucket,
+                            registerKey,
+                            Randomness.get(),
+                            threadPool
+                        ) {
                             @Override
                             Integer getCurrentValue() throws IOException {
                                 int invocationId = history.invoke(null);
@@ -134,15 +193,12 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
 
             startBarrier.await();
 
-            threads.forEach(RegisterUpdaterThread::await);
-
-            assertThat(
-                LinearizabilityChecker.visualize(sequentialSpec, history, (invId -> { throw new IllegalStateException(); })),
-                linearizabilityChecker.isLinearizable(sequentialSpec, history),
-                is(true)
-            );
-
-            clean(clientRef.getClient(), bucket, registerKey);
+            try {
+                testBody.accept(new TestState(sequentialSpec, history, threads, () -> running.set(false)));
+                threads.forEach(RegisterUpdaterThread::await);
+            } finally {
+                clean(clientRef.getClient(), bucket, registerKey);
+            }
         }
     }
 
@@ -150,21 +206,37 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
         client.deleteObject(bucket, key);
     }
 
+    record TestState(
+        CASSequentialSpec sequentialSpec,
+        LinearizabilityChecker.History history,
+        List<RegisterUpdaterThread> registerThreads,
+        Runnable abortUpdates
+    ) {}
+
     static class RegisterUpdaterThread extends Thread {
         private final CyclicBarrier startBarrier;
         private final LinearizabilityChecker.History history;
         private final Supplier<S3Register> s3RegisterSupplier;
+        private final int threadNumber;
+        private final AtomicBoolean running;
+        private final int maxSleepTimeInMillis;
+        private final AtomicInteger successfulWrites = new AtomicInteger();
 
         RegisterUpdaterThread(
             int threadNumber,
             CyclicBarrier startBarrier,
             LinearizabilityChecker.History history,
+            AtomicBoolean running,
+            int maxSleepTimeInMillis,
             Supplier<S3Register> s3RegisterSupplier
         ) {
             super("register-updater-" + threadNumber);
             this.s3RegisterSupplier = s3RegisterSupplier;
             this.startBarrier = startBarrier;
             this.history = history;
+            this.threadNumber = threadNumber;
+            this.running = running;
+            this.maxSleepTimeInMillis = maxSleepTimeInMillis;
             setDaemon(true);
         }
 
@@ -173,9 +245,9 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
             S3Register s3Register = s3RegisterSupplier.get();
             waitForStartBarrier();
             final int iterations = randomIntBetween(50, 100);
-            for (int i = 0; i < iterations; i++) {
+            for (int i = 0; i < iterations && running.get(); i++) {
                 if (randomBoolean()) {
-                    sleep(randomIntBetween(0, 200));
+                    sleep(randomIntBetween(0, maxSleepTimeInMillis));
                 }
 
                 Integer currentVersion;
@@ -186,11 +258,14 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
                     continue;
                 }
 
-                var proposedVersion = randomInt();
+                var proposedVersion = randomInt() + threadNumber;
                 var casOperation = new S3Register.CASOperation(currentVersion, proposedVersion);
                 var invocationId = history.invoke(casOperation);
                 try {
                     var result = s3Register.performOperation(casOperation);
+                    if (result == S3Register.CASStatus.SUCCESSFUL) {
+                        successfulWrites.incrementAndGet();
+                    }
                     history.respond(invocationId, result);
                 } catch (Exception e) {
                     // All failure scenarios are handled in S3Register#performOperation, but we want to be extra
@@ -222,6 +297,10 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        public int getSuccessfulWrites() {
+            return successfulWrites.get();
         }
     }
 
@@ -290,7 +369,11 @@ public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
         private final AmazonS3 client;
 
         S3ClientRef(String region) {
-            this.client = AmazonS3ClientBuilder.standard().withRegion(region).build();
+            this.client = AmazonS3ClientBuilder.standard()
+                .withRegion(region)
+                // Allows concurrent cancellations when there are many competing threads, the default is 50.
+                .withClientConfiguration(new ClientConfiguration().withMaxConnections(15_000))
+                .build();
         }
 
         S3ClientRef(String region, String accessKey, String secretKey) {

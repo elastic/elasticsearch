@@ -31,15 +31,22 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.Future;
 
 class S3Register {
     private final Logger logger = LogManager.getLogger(S3Register.class);
@@ -47,12 +54,14 @@ class S3Register {
     private final String key;
     private final AmazonS3 client;
     private final Random random;
+    private final ThreadPool threadPool;
 
-    S3Register(AmazonS3 client, String bucket, String key, Random random) {
+    S3Register(AmazonS3 client, String bucket, String key, Random random, ThreadPool threadPool) {
         this.bucket = bucket;
         this.key = key;
         this.client = client;
         this.random = random;
+        this.threadPool = threadPool;
     }
 
     CASStatus performOperation(CASOperation op) {
@@ -67,16 +76,27 @@ class S3Register {
                 var uploadPartResult = uploadPart(uploadId, Integer.toString(proposedValue));
                 var partETags = List.of(uploadPartResult.getPartETag());
 
-                var concurrentUploadsBeforeCommit = getConcurrentUpdatesExcluding(uploadId);
+                var concurrentUpdatesBeforeCommit = getConcurrentUpdates().stream().map(MultipartUpload::getUploadId).sorted().toList();
 
-                if (concurrentUploadsBeforeCommit.isEmpty() == false) {
-                    tryToCancelConcurrentUploads(uploadId);
+                // This is a small optimization to improve the liveness properties of this
+                // algorithm.
+
+                // When there are multiple competing updates, we order them by upload id and
+                // the first one tries to cancel the competing updates in order to make progress.
+                // To avoid liveness issues when the winner fails, the rest wait based on their
+                // upload_id based position and try to make progress.
+                int position = Collections.binarySearch(concurrentUpdatesBeforeCommit, uploadId);
+                if (position >= 0) {
+                    sleepUninterruptibly(TimeValue.timeValueSeconds(position).millis() + RandomNumbers.randomIntBetween(random, 0, 50));
+                    tryToCancelConcurrentUploads(uploadId, concurrentUpdatesBeforeCommit);
+                } else {
+                    return CASStatus.FAILED;
                 }
 
                 var valueBeforeCommit = getCurrentValue();
 
                 // We've a stale version, we should retry later on
-                if (expectedValue.equals(valueBeforeCommit) == false) {
+                if (Objects.equals(expectedValue, valueBeforeCommit) == false) {
                     try {
                         abortMultipartUpload(uploadId);
                     } catch (Exception e) {
@@ -97,12 +117,16 @@ class S3Register {
         }
     }
 
-    private void tryToCancelConcurrentUploads(String uploadId) {
-        sleepUninterruptibly(RandomNumbers.randomIntBetween(random, 0, 200));
-
-        for (var concurrentUpdate : getConcurrentUpdatesExcluding(uploadId)) {
-            abortMultipartUpload(concurrentUpdate.getUploadId());
+    private void tryToCancelConcurrentUploads(String uploadId, List<String> concurrentUpdates) {
+        final List<Future<?>> cancellationFutures = new ArrayList<>();
+        for (var concurrentUpdate : concurrentUpdates) {
+            if (concurrentUpdate.equals(uploadId)) {
+                continue;
+            }
+            cancellationFutures.add(abortMultipartUpload(concurrentUpdate));
         }
+
+        cancellationFutures.forEach(FutureUtils::get);
     }
 
     private List<MultipartUpload> getConcurrentUpdates() {
@@ -110,10 +134,6 @@ class S3Register {
         listRequest.setPrefix(key);
         MultipartUploadListing multipartUploadListing = client.listMultipartUploads(listRequest);
         return multipartUploadListing.getMultipartUploads();
-    }
-
-    private List<MultipartUpload> getConcurrentUpdatesExcluding(String uploadId) {
-        return getConcurrentUpdates().stream().filter(multipartUpload -> multipartUpload.getUploadId().equals(uploadId) == false).toList();
     }
 
     private UploadPartResult uploadPart(String uploadId, String content) {
@@ -148,9 +168,11 @@ class S3Register {
         return client.initiateMultipartUpload(request).getUploadId();
     }
 
-    private void abortMultipartUpload(String uploadId) {
-        var abortUploadRequest = new AbortMultipartUploadRequest(bucket, key, uploadId);
-        client.abortMultipartUpload(abortUploadRequest);
+    private Future<?> abortMultipartUpload(String uploadId) {
+        return threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> {
+            var abortUploadRequest = new AbortMultipartUploadRequest(bucket, key, uploadId);
+            client.abortMultipartUpload(abortUploadRequest);
+        });
     }
 
     private void finishUpload(String uploadId, List<PartETag> partETags) {

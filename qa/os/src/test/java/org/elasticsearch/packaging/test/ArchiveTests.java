@@ -25,11 +25,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -120,25 +115,9 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
-        // start Elasticsearch with a one-minute timeout, the start will never finish because a master eligible node
-        // never joins the cluster.
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Future<Void> startTask = executor.submit(() -> {
-            try {
-                startElasticsearch();
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        try {
-            startTask.get(1, TimeUnit.MINUTES);
-        } catch (TimeoutException expected) {}
+        startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
-        startTask.cancel(true);
         stopElasticsearch();
-        executor.shutdownNow();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);

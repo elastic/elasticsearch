@@ -17,9 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
@@ -63,7 +61,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
     private final Path operatorSettingsDir;
-    private final PlainActionFuture<Void> startupLatch;
 
     private WatchService watchService; // null;
     private Thread watcherThread;
@@ -88,7 +85,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.clusterService = clusterService;
         this.stateService = stateService;
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        this.startupLatch = PlainActionFuture.newFuture();
         this.eventListeners = new ArrayList<>();
     }
 
@@ -123,21 +119,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.active = Files.exists(operatorSettingsDir().getParent());
         if (active == false) {
             // we don't have a config directory, we can't possibly launch the file settings service
-            unlockStartup();
             return;
         }
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())
-            && DiscoveryNode.getRolesFromSettings(clusterService.getSettings())
-                .contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false) {
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addListener(this);
-        } else {
-            // if we are not a master eligible node, this service doesn't run
-            unlockStartup();
         }
-    }
-
-    private void unlockStartup() {
-        startupLatch.onResponse(null);
     }
 
     @Override
@@ -158,10 +144,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         startIfMaster(clusterState);
-        // if master has been elected, but it's not us, we don't run the watch service, so unlock the startup condition
-        if (clusterState.nodes().getMasterNodeId() != null && currentNodeMaster(clusterState) == false) {
-            unlockStartup();
-        }
     }
 
     private void startIfMaster(ClusterState clusterState) {
@@ -259,8 +241,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             // register it once for watching.
             configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
         } catch (Exception e) {
-            // We failed to watch for file changes, unlock startup since we won't launch the watcher.
-            unlockStartup();
             if (watchService != null) {
                 try {
                     // this will also close any keys
@@ -289,8 +269,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 logger.debug("found initial operator settings file [{}], applying...", path);
                 processSettingsAndNotifyListeners();
             } else {
-                // complete the startup latch future, there are no file based settings when we are starting up
-                unlockStartup();
                 // Notify everyone we don't have any initial file settings
                 for (var listener : eventListeners) {
                     listener.settingsChanged();
@@ -349,25 +327,13 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
-        int retryCount = 1;
-        while (retryCount >= 0) {
-            try {
-                processFileSettings(operatorSettingsFile()).get();
-                unlockStartup();
-                for (var listener : eventListeners) {
-                    listener.settingsChanged();
-                }
-                break;
-            } catch (ExecutionException e) {
-                logger.error("Error processing operator settings json file", e.getCause());
-                if (retryCount > 0 && MasterService.isPublishFailureException((Exception) e.getCause())) {
-                    logger.warn("retrying...");
-                    retryCount--;
-                    continue;
-                }
-                startupLatch.onFailure((Exception) e.getCause());
-                break;
+        try {
+            processFileSettings(operatorSettingsFile()).get();
+            for (var listener : eventListeners) {
+                listener.settingsChanged();
             }
+        } catch (ExecutionException e) {
+            logger.error("Error processing operator settings json file", e.getCause());
         }
     }
 
@@ -466,9 +432,5 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
         eventListeners.add(listener);
-    }
-
-    public PlainActionFuture<Void> getStartupLatch() {
-        return startupLatch;
     }
 }

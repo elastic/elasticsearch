@@ -1462,12 +1462,6 @@ public class Node implements Closeable {
             }
         }
 
-        try {
-            fileSettingsService.getStartupLatch().get();
-        } catch (Exception startupException) {
-            throw new IllegalStateException("error applying file settings", startupException);
-        }
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);

@@ -8,16 +8,9 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.internal.ClusterAdminClient;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -25,8 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.IngestInfo;
-import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -52,15 +43,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -76,9 +62,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private FileSettingsService fileSettingsService;
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
-    private NodeClient nodeClient;
-    private ClusterAdminClient clusterAdminClient;
-    private NodeInfo nodeInfo;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -110,40 +93,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
-
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "_node_id",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
-
-        nodeInfo = new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
-            discoveryNode,
-            Settings.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
-            null,
-            null
-        );
-        NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
-
-        clusterAdminClient = mock(ClusterAdminClient.class);
-        doAnswer(i -> {
-            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(response);
-            return null;
-        }).when(clusterAdminClient).nodesInfo(any(), any());
-
-        nodeClient = mock(NodeClient.class);
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
     }
 
@@ -207,7 +156,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.start();
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
-        service.getStartupLatch().get();
 
         Files.createDirectories(service.operatorSettingsDir());
 
@@ -234,50 +182,32 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(stateService).process(any(), (XContentParser) any(), any());
 
+        AtomicBoolean settingsChanged = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
-        Files.createDirectories(service.operatorSettingsDir());
-        // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(service.operatorSettingsFile(), "{}");
 
-        Exception startupException = expectThrows(ExecutionException.class, () -> {
-            service.start();
-            service.startWatcher(clusterService.state());
-            service.getStartupLatch().get();
-        });
-
-        assertThat(
-            startupException.getCause(),
-            allOf(instanceOf(IllegalStateException.class), hasToString("java.lang.IllegalStateException: Some exception"))
-        );
-
-        verify(service, times(1)).processFileSettings(any());
-
-        service.stop();
-        service.close();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testInitialFileTransientErrorRetry() throws Exception {
-        ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
+        service.addFileSettingsChangedListener(() -> settingsChanged.set(true));
 
         doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(new NotMasterException("Not master exception"));
+            invocation.callRealMethod();
+            latch.countDown();
             return null;
-        }).doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
-            return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(service).processSettingsAndNotifyListeners();
 
-        final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
         Files.createDirectories(service.operatorSettingsDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(service.operatorSettingsFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
-        service.getStartupLatch().get();
 
-        verify(service, times(2)).processFileSettings(any());
+        // wait until the watcher thread has started, and it has discovered the file
+        assertTrue(latch.await(20, TimeUnit.SECONDS));
+
+        verify(service, times(1)).processFileSettings(any());
+        // assert we never notified any listeners of successful application of file based settings
+        assertFalse(settingsChanged.get());
 
         service.stop();
         service.close();
@@ -293,16 +223,32 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(stateService).process(any(), (XContentParser) any(), any());
 
+        AtomicBoolean settingsChanged = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
+
+        service.addFileSettingsChangedListener(() -> settingsChanged.set(true));
+
+        doAnswer((Answer<Void>) invocation -> {
+            invocation.callRealMethod();
+            latch.countDown();
+            return null;
+        }).when(service).processSettingsAndNotifyListeners();
+
         Files.createDirectories(service.operatorSettingsDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(service.operatorSettingsFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
-        service.getStartupLatch().get();
+
+        // wait until the watcher thread has started, and it has discovered the file
+        assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(service, times(1)).processFileSettings(any());
+        // assert we notified the listeners the file settings have changed, they were successfully applied
+        assertTrue(settingsChanged.get());
 
         service.stop();
         service.close();

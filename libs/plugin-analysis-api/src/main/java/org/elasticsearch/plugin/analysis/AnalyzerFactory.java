@@ -6,11 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.analysis.api;
+package org.elasticsearch.plugin.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.Nameable;
+import org.elasticsearch.plugin.Extensible;
+import org.elasticsearch.plugin.Nameable;
 
 /**
  * An analysis component used to create Analyzers.

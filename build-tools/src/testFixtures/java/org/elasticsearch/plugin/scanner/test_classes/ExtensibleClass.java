@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugin.scanner.test_classes;
 
-import org.elasticsearch.plugin.api.Extensible;
+import org.elasticsearch.plugin.Extensible;
 
 @Extensible
 public class ExtensibleClass {}

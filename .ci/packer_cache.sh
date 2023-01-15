@@ -47,6 +47,6 @@ export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
 
 ## Copy all dependencies into a "read-only" location to be used by nested Gradle builds
 mkdir -p ${HOME}/gradle_ro_cache
-cp -R ${HOME}/.gradle/caches/modules-2 ${HOME}/gradle_ro_cache
+rsync -r ${HOME}/.gradle/caches/modules-2 ${HOME}/gradle_ro_cache
 rm ${HOME}/gradle_ro_cache/modules-2/gc.properties
 rm ${HOME}/gradle_ro_cache/modules-2/*.lock

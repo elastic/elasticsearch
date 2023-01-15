@@ -682,7 +682,8 @@ public class IndexModuleTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
@@ -805,7 +806,8 @@ public class IndexModuleTests extends ESTestCase {
             shardId,
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
         ).initialize("_node_id", null, -1);
         IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
         assertThat(indexShard.getReplicationTracker(), instanceOf(CustomReplicationTracker.class));
@@ -816,7 +818,8 @@ public class IndexModuleTests extends ESTestCase {
             new ShardId("test", "_na_", 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
         );
         shard = shard.initialize("node1", null, -1);
         return shard;

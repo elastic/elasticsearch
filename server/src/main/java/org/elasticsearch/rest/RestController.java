@@ -71,6 +71,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -264,6 +265,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
             : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
 
+        if (RESERVED_PATHS.contains(path)) {
+            throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
+        }
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, version, handler),
@@ -659,7 +663,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    public static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {

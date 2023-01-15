@@ -47,6 +47,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @LuceneTestCase.SuppressFileSystems("*")
 public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
+    }
+
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testFileSettingsJSON = """

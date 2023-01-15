@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api.settings;
+package org.elasticsearch.plugin.settings;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -14,18 +14,18 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * An annotation used to mark a setting of type String
+ * An annotation used to mark a setting of type Long
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-public @interface StringSetting {
+public @interface LongSetting {
     /**
      * A name of a setting
      */
     String path();
 
     /**
-     * A default value of a String setting
+     * A default value of a long setting
      */
-    String defaultValue();
+    long defaultValue();
 }

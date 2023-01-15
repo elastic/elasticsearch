@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
@@ -49,6 +50,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestFileSettingsIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

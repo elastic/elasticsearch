@@ -1846,11 +1846,13 @@ public class InternalEngine extends Engine {
                     } else {
                         refreshed = referenceManager.maybeRefresh();
                     }
-                    final ElasticsearchDirectoryReader current = referenceManager.acquire();
-                    try {
-                        segmentGeneration = current.getIndexCommit().getGeneration();
-                    } finally {
-                        referenceManager.release(current);
+                    if (refreshed) {
+                        final ElasticsearchDirectoryReader current = referenceManager.acquire();
+                        try {
+                            segmentGeneration = current.getIndexCommit().getGeneration();
+                        } finally {
+                            referenceManager.release(current);
+                        }
                     }
                 } finally {
                     store.decRef();

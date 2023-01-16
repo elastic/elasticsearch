@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
@@ -22,12 +23,9 @@ public class ReplicaShardRefreshRequest extends ReplicationRequest<ReplicaShardR
     @Nullable
     private final Long segmentGeneration;
 
-    public ReplicaShardRefreshRequest(ShardId shardId) {
-        this(shardId, null);
-    }
-
-    public ReplicaShardRefreshRequest(ShardId shardId, @Nullable Long segmentGeneration) {
+    public ReplicaShardRefreshRequest(ShardId shardId, TaskId parentTaskId, @Nullable Long segmentGeneration) {
         super(shardId);
+        setParentTask(parentTaskId);
         this.segmentGeneration = segmentGeneration;
     }
 

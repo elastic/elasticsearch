@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,17 +82,18 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         ActionListener.completeWith(listener, () -> {
             var refreshResult = primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            var shardRefreshRequest = new ReplicaShardRefreshRequest(primary.shardId(), refreshResult.generation());
-            // Since we are not reusing the same request on the replica shards and create a new ReplicaShardRefreshRequest, we
-            // need to explicitly set the parent task so the resulting refresh[s][r] task has the same refresh[s] task as parent.
-            shardRefreshRequest.setParentTask(shardRequest.getParentTask());
+            var shardRefreshRequest = new ReplicaShardRefreshRequest(
+                primary.shardId(),
+                shardRequest.getParentTask(),
+                refreshResult.generation()
+            );
             return new PrimaryResult<>(shardRefreshRequest, new ReplicationResponse());
         });
     }
 
     @Override
     protected void shardOperationOnReplica(ReplicaShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        if (DiscoveryNode.isStateless(settings)) {
+        if (replica.routingEntry().isPromotableToPrimary() == false) {
             assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
             replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
         } else {

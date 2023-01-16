@@ -383,7 +383,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         shardRouting = shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize());

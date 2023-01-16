@@ -1,0 +1,60 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+// randomise between sniff and proxy modes
+boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'remote_cluster.enabled', 'true'
+  setting 'remote_cluster.port', '0'
+}
+
+def queryingCluster = testClusters.register('querying-cluster') {
+  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.remote.connections_per_cluster', "1"
+
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', {
+      "\"${fulfillingCluster.get().getAllRemoteAccessPortURI() .get(0)}\""
+    }
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      fulfillingCluster.get().getAllRemoteAccessPortURI().collect { "\"$it\"" }.toString()
+    }
+  }
+}
+
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
+}
+
+tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'fulfilling-cluster'
+  useCluster queryingCluster
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'querying_cluster'
+}
+
+// runs the fulfilling-cluster cluster tests then the querying-cluster tests
+tasks.register("integTest") {
+  dependsOn 'querying-cluster'
+}
+
+tasks.named("check").configure { dependsOn("integTest") }

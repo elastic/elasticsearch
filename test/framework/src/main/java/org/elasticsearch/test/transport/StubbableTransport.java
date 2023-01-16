@@ -148,6 +148,11 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
+    public BoundTransportAddress boundRemoteIngressAddress() {
+        return delegate.boundRemoteIngressAddress();
+    }
+
+    @Override
     public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
         return delegate.addressesFromString(address);
     }

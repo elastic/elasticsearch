@@ -17,6 +17,7 @@ import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +90,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             randomBoolean() ? null : randomNonNegativeLong(),
             meta,
             dataStreamTemplate,
-            randomBoolean() ? null : randomBoolean()
+            randomBoolean() ? null : randomBoolean(),
+            // TODO: should this align with line 87 for some scenarios?
+            null
         );
     }
 
@@ -169,7 +172,6 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.version(),
                     orig.metadata(),
                     orig.getDataStreamTemplate(),
-                    null,
                     null
                 );
             case 1:
@@ -260,5 +262,31 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of()), equalTo(true));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(randomAlphaOfLength(5)), List.of()), equalTo(false));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of(randomAlphaOfLength(5))), equalTo(false));
+    }
+
+
+    // Should this be in MetadataIndexTemplateServiceTests ?
+    public void testIgnoreMissingComponentTemplates() {
+
+        //var componentTemplate = new ComponentTemplate();
+        ComposableIndexTemplate fooPatternIndexTemplate = new ComposableIndexTemplate(
+            List.of("foo-*"),
+            new Template(null, null, null),
+            List.of("werwerwerw"),
+            3L,
+            null,
+            null,
+            null,
+            null,
+            null
+            //List.of("follow")
+        );
+        System.out.println(fooPatternIndexTemplate);
+
+        // Create 2 component templates
+        // Create wiht missing template
+        // create with config enabled
+        // go through scenarios -> catch exceptions
+
     }
 }

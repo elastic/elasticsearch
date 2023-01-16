@@ -174,7 +174,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        this.ignoreMissingComponentTemplates = in.readStringList();
+        this.ignoreMissingComponentTemplates = in.readOptionalStringList();
     }
 
     public List<String> indexPatterns() {
@@ -243,7 +243,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        out.writeStringCollection(ignoreMissingComponentTemplates);
+        out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
     }
 
     @Override

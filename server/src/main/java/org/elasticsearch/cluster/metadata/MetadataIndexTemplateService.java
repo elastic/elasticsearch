@@ -515,15 +515,25 @@ public class MetadataIndexTemplateService {
         // TODO: Should the code be split up in two parts for better error messages? If ignore_missing_component_templates is not set
         // it throws a different error?
         final List<String> ignoreMissingComponentTemplates = template.getIgnoreMissingComponentTemplates();
-        for(String missingComponentTemplate : missingComponentTemplates) {
-            if (ignoreMissingComponentTemplates.contains(missingComponentTemplate) == false) {
-                throw new InvalidIndexTemplateException(
-                    name,
-                    // TODO: should we make the code more complex and only error out in the end to have the full list reported?
-                    "index template [" + name + "] specifies a missing component templates " + missingComponentTemplate +
-                        " that does not exist and is not part of 'ignore_missing_component_templates'"
-                );
+
+        // Check
+        if (ignoreMissingComponentTemplates != null && ignoreMissingComponentTemplates.size() > 0) {
+            for (String missingComponentTemplate : missingComponentTemplates) {
+                // TODO if ignoreMissingComponentTemplates not set, jump directly out
+                if (ignoreMissingComponentTemplates.contains(missingComponentTemplate) == false) {
+                    throw new InvalidIndexTemplateException(
+                        name,
+                        // TODO: should we make the code more complex and only error out in the end to have the full list reported?
+                        "index template [" + name + "] specifies a missing component templates [" + missingComponentTemplate +
+                            "] that does not exist and is not part of 'ignore_missing_component_templates'"
+                    );
+                }
             }
+        } else if (missingComponentTemplates.size() > 0) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index templates [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
+            );
         }
     }
 

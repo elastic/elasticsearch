@@ -485,11 +485,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         );
         var strategy = new MockAllocationService(
-            randomAllocationDeciders(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                random()
-            ),
+            randomAllocationDeciders(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -72,48 +72,40 @@ public abstract class TransportBroadcastReplicationAction<
         final ClusterState clusterState = clusterService.state();
         List<ShardId> shards = shards(request, clusterState);
         final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList<>();
-        if (shards.size() == 0) {
-            finishAndNotifyListener(listener, shardsResponses);
-        }
-        final CountDown responsesCountDown = new CountDown(shards.size());
-        for (final ShardId shardId : shards) {
-            ActionListener<ShardResponse> shardActionListener = new ActionListener<ShardResponse>() {
-                @Override
-                public void onResponse(ShardResponse shardResponse) {
-                    shardsResponses.add(shardResponse);
-                    logger.trace("{}: got response from {}", actionName, shardId);
-                    if (responsesCountDown.countDown()) {
-                        finishAndNotifyListener(listener, shardsResponses);
+        try (var refs = new RefCountingRunnable(() -> finishAndNotifyListener(listener, shardsResponses))) {
+            for (final ShardId shardId : shards) {
+                ActionListener<ShardResponse> shardActionListener = new ActionListener<ShardResponse>() {
+                    @Override
+                    public void onResponse(ShardResponse shardResponse) {
+                        shardsResponses.add(shardResponse);
+                        logger.trace("{}: got response from {}", actionName, shardId);
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetadata().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
-                    ShardResponse shardResponse = newShardResponse();
-                    ReplicationResponse.ShardInfo.Failure[] failures;
-                    if (TransportActions.isShardNotAvailableException(e)) {
-                        failures = new ReplicationResponse.ShardInfo.Failure[0];
-                    } else {
-                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(
-                            shardId,
-                            null,
-                            e,
-                            ExceptionsHelper.status(e),
-                            true
-                        );
-                        failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
-                        Arrays.fill(failures, failure);
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.trace("{}: got failure from {}", actionName, shardId);
+                        int totalNumCopies = clusterState.getMetadata().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+                        ShardResponse shardResponse = newShardResponse();
+                        ReplicationResponse.ShardInfo.Failure[] failures;
+                        if (TransportActions.isShardNotAvailableException(e)) {
+                            failures = new ReplicationResponse.ShardInfo.Failure[0];
+                        } else {
+                            ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(
+                                shardId,
+                                null,
+                                e,
+                                ExceptionsHelper.status(e),
+                                true
+                            );
+                            failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
+                            Arrays.fill(failures, failure);
+                        }
+                        shardResponse.setShardInfo(new ReplicationResponse.ShardInfo(totalNumCopies, 0, failures));
+                        shardsResponses.add(shardResponse);
                     }
-                    shardResponse.setShardInfo(new ReplicationResponse.ShardInfo(totalNumCopies, 0, failures));
-                    shardsResponses.add(shardResponse);
-                    if (responsesCountDown.countDown()) {
-                        finishAndNotifyListener(listener, shardsResponses);
-                    }
-                }
-            };
-            shardExecute(task, request, shardId, shardActionListener);
+                };
+                shardExecute(task, request, shardId, ActionListener.releaseAfter(shardActionListener, refs.acquire()));
+            }
         }
     }
 

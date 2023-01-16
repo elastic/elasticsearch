@@ -263,30 +263,4 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(randomAlphaOfLength(5)), List.of()), equalTo(false));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of(randomAlphaOfLength(5))), equalTo(false));
     }
-
-
-    // Should this be in MetadataIndexTemplateServiceTests ?
-    public void testIgnoreMissingComponentTemplates() {
-
-        //var componentTemplate = new ComponentTemplate();
-        ComposableIndexTemplate fooPatternIndexTemplate = new ComposableIndexTemplate(
-            List.of("foo-*"),
-            new Template(null, null, null),
-            List.of("werwerwerw"),
-            3L,
-            null,
-            null,
-            null,
-            null,
-            null
-            //List.of("follow")
-        );
-        System.out.println(fooPatternIndexTemplate);
-
-        // Create 2 component templates
-        // Create wiht missing template
-        // create with config enabled
-        // go through scenarios -> catch exceptions
-
-    }
 }

@@ -283,11 +283,6 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
                 }
                 return index = target;
             }
-
-            @Override
-            public long cost() {
-                return size();
-            }
         };
     }
 }

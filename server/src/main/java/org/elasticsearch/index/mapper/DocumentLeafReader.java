@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -24,6 +25,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -237,6 +240,26 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     protected void doClose() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TermVectors termVectors() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public StoredFields storedFields() throws IOException {
         throw new UnsupportedOperationException();
     }
 

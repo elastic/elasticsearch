@@ -137,7 +137,7 @@ final class IndexDiskUsageAnalyzer {
         final int skipMask = 0x1FF; // 511
         while (docID < reader.maxDoc()) {
             cancellationChecker.logEvent();
-            storedFieldsReader.visitDocument(docID, visitor);
+            storedFieldsReader.document(docID, visitor);
             // As we already estimate the size of stored fields, we can trade off the accuracy for the speed of the estimate.
             // Here we only visit 1/11 documents instead of all documents. Ideally, we should visit 1 doc then skip 10 docs
             // to avoid missing many skew documents. But, documents are stored in chunks in compressed format and a chunk can

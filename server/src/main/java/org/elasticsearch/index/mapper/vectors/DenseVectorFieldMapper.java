@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -21,7 +21,6 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -184,7 +183,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                return new KnnVectorField(name, VectorUtil.toBytesRef(vector), function);
+                return new KnnVectorField(name, vector, function);
             }
 
             @Override
@@ -759,7 +758,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene94HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene95HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 

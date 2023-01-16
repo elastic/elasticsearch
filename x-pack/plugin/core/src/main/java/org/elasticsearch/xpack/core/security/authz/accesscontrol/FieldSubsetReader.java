@@ -310,8 +310,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-            reader.visitDocument(docID, new FieldSubsetStoredFieldVisitor(visitor));
+        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
         }
 
         @Override

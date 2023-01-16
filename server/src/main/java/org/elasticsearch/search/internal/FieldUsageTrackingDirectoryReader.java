@@ -223,8 +223,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                reader.visitDocument(docID, new FieldUsageStoredFieldVisitor(visitor));
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                reader.document(docID, new FieldUsageStoredFieldVisitor(visitor));
             }
 
             @Override

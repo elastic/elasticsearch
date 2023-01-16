@@ -117,7 +117,7 @@ public class IndexAbstractionResolver {
         return finalIndices;
     }
 
-    public static boolean isIndexVisible(
+    private static boolean isIndexVisible(
         String expression,
         String index,
         IndicesOptions indicesOptions,

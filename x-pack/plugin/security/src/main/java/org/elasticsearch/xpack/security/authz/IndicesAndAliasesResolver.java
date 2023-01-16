@@ -11,7 +11,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
@@ -205,47 +204,37 @@ class IndicesAndAliasesResolver {
                 getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
-            final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
-
-            // check for all and return list of authorized indices
+            final String[] indices;
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
-                if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.all().get()) {
-                        if (IndexAbstractionResolver.isIndexVisible(
-                            "*",
-                            authorizedIndex,
-                            indicesOptions,
-                            metadata,
-                            nameExpressionResolver,
-                            indicesRequest.includeDataStreams()
-                        )) {
-                            resolvedIndicesBuilder.addLocal(authorizedIndex);
-                        }
-                    }
-                }
-                // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
-                // we honour allow_no_indices like es core does.
-            } else {
-                final ResolvedIndices split;
-                if (replaceable.allowsRemoteIndices()) {
-                    split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+                if (indicesRequest.indicesOptions().expandWildcardExpressions()) {
+                    indices = new String[] { "*" };
                 } else {
-                    split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
+                    // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
+                    // we honour allow_no_indices like es core does.
+                    indices = new String[0];
                 }
-                List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
+            } else {
+                indices = indicesRequest.indices();
+            }
+            final ResolvedIndices split;
+            if (replaceable.allowsRemoteIndices()) {
+                split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
+            } else {
+                split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
+            }
+            List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
-                    indicesOptions,
+                    indicesRequest.indicesOptions(),
                     metadata,
                     authorizedIndices.all(),
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
-                );
-                resolvedIndicesBuilder.addLocal(replaced);
-                resolvedIndicesBuilder.addRemote(split.getRemote());
-            }
+            );
+            resolvedIndicesBuilder.addLocal(replaced);
+            resolvedIndicesBuilder.addRemote(split.getRemote());
 
             if (resolvedIndicesBuilder.isEmpty()) {
-                if (indicesOptions.allowNoIndices()) {
+                if (indicesRequest.indicesOptions().allowNoIndices()) {
                     // this is how we tell es core to return an empty response, we can let the request through being sure
                     // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     // as that would be resolved to _all by es core.

@@ -1,5 +1,62 @@
 [[ignore_missing_component_templates]]
 == Config ignore_missing_component_templates
 
-* REST examples
-* Explain how to use it
+The configuration option `ignore_missing_component_templates` can be used when an index template references a component template that might not exist yet. Every time a data stream is create based on the index template, the existance of the component template will be checked. If it exists, it will taken as part of the mapping. If it does not exist, it is ignored.
+
+=== Usage example
+
+In the following, one component template and an index template are created. The index template references 2 component templates but only the `@package` one exists.
+
+
+Create of the component template `logs-foo@package`. This has to be created before the index template as it is not optional:
+
+// tag::ignore_missing_component_templates[]
+
+[source,console]
+----
+PUT _component_template/logs-foo@package
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "host.name": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// end::ignore_missing_component_templates[]
+
+The index template is now created and and it references two component templates:
+
+[source]
+----
+  "composed_of": ["logs-foo@package", "logs-foo@custom"]
+----
+
+Before, only the `logs-foo@package` compontent template was created, meaning the `logs-foo@custom` is missing. Because of this the following entry was added to the config:
+
+[source]
+----
+  "ignore_missing_component_templates": ["logs-foo@custom"],
+----
+
+During creation of the template, it will not validate that `logs-foo@custom` exists:
+
+
+[source,console]
+----
+PUT index_template/logs-foo
+{
+  "index_patterns": ["logs-foo-*"],
+  "data_stream": { },
+  "composed_of": ["logs-foo@package", "logs-foo@custom"],
+  "ignore_missing_component_templates": ["logs-foo@custom"],
+  "priority": 500
+}
+----
+// TEST[continued]
+// end::ignore_missing_component_templates[]

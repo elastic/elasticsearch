@@ -44,7 +44,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,7 +72,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESTestCase.WithoutSecurityManager
-public class S3RegisterCASLinearizabilityTests extends ESIntegTestCase {
+public class S3RegisterCASLinearizabilityTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before

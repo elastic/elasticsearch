@@ -11,12 +11,12 @@ dependencies {
 
   //TODO transitive dependency off and plugin-api dependency?
   compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-api:${elasticsearchVersion}"
-  compileOnly "org.elasticsearch.plugin.analysis:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
   compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
   //TODO for testing this also have to be declared
   testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-api:${elasticsearchVersion}"
-  testImplementation "org.elasticsearch.plugin.analysis:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
   testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
   testImplementation ('junit:junit:4.13.2'){

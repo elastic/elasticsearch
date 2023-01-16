@@ -33,9 +33,8 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
         assertErrorMessage(
             "inexistent1,inexistent2",
             reqParameter,
-            """
-                "root_cause":[{"type":"index_not_found_exception","reason":"no such index [null]","resource.type":"index_expression","resource.id":["inexistent1","inexistent2"]}]
-                """
+            "\"root_cause\":[{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [null]\","
+                + "\"resource.type\":\"index_expression\",\"resource.id\":[\"inexistent1\",\"inexistent2\"]}]"
         );
     }
 }

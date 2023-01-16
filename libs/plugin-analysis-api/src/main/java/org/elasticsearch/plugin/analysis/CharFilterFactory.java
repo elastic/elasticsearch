@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.analysis.api;
+package org.elasticsearch.plugin.analysis;
 
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.Nameable;
+import org.elasticsearch.plugin.Extensible;
+import org.elasticsearch.plugin.Nameable;
 
 import java.io.Reader;
 

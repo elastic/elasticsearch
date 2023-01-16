@@ -6,22 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api;
+package org.elasticsearch.plugin;
 
-import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import static java.lang.annotation.ElementType.TYPE;
+
 /**
- * An annotation used on plugin components which will be registered under a given name by Elasticsearch server.
+ * Marker for things that can be loaded by component loader.
+ *
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.TYPE })
-public @interface NamedComponent {
-    /**
-     * The name used for registration and lookup
-     * @return a name
-     */
-    String value();
+@Target(value = { TYPE })
+public @interface Extensible {
 }

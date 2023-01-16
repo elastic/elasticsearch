@@ -5,15 +5,20 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.plugin.api;
 
+package org.elasticsearch.plugin;
+
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.TYPE;
-
 @Retention(RetentionPolicy.RUNTIME)
-@Target(value = { TYPE })
-public @interface Extensible {
+@Target({ ElementType.TYPE })
+public @interface NamedComponent {
+    /**
+     * The name used for registration and lookup
+     * @return a name
+     */
+    String value();
 }

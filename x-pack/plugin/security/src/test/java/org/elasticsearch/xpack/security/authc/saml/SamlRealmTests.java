@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -71,6 +73,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -103,7 +106,7 @@ import static org.mockito.Mockito.when;
 public class SamlRealmTests extends SamlTestCase {
 
     public static final String TEST_IDP_ENTITY_ID = "http://demo_josso_1.josso.dev.docker:8081/IDBUS/JOSSO-TUTORIAL/IDP1/SAML2/MD";
-    private static final int METADATA_REFRESH = 3000;
+    private static final TimeValue METADATA_REFRESH = TimeValue.timeValueMillis(3000);
 
     private static final String REALM_NAME = "my-saml";
     private static final String REALM_SETTINGS_PREFIX = "xpack.security.authc.realms.saml." + REALM_NAME;
@@ -179,6 +182,80 @@ public class SamlRealmTests extends SamlTestCase {
                 assertThat(firstRequestCount, greaterThanOrEqualTo(1));
                 assertIdp1MetadataParsedCorrectly(tuple.v2().get());
                 assertBusy(() -> assertThat(proxyServer.requests().size(), greaterThan(firstRequestCount)));
+            } finally {
+                tuple.v1().destroy();
+            }
+        }
+    }
+
+    public void testHandlingFailedIdpMetadataOverHttps() throws Exception {
+        final Path path = getDataPath("idp1.xml");
+        final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
+        final Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put(
+                "xpack.security.http.ssl.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
+            )
+            .put(
+                "xpack.security.http.ssl.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
+            )
+            .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
+            .put("path.home", createTempDir())
+            .setSecureSettings(mockSecureSettings)
+            .build();
+        TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
+        doTextReloadFailedHttpsMetadata(body, sslService, true);
+        doTextReloadFailedHttpsMetadata(body, sslService, false);
+    }
+
+    /**
+     * @param testBackgroundRefresh If {@code true}, the test asserts that the metadata is automatically loaded in the background.
+     *                              If {@code false}, the test triggers activity on the realm to force a reload of the metadata.
+     */
+    private void doTextReloadFailedHttpsMetadata(String metadataBody, TestsSSLService sslService, boolean testBackgroundRefresh)
+        throws Exception {
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            proxyServer.start();
+            proxyServer.enqueue(new MockResponse().setResponseCode(404).setBody("Not found").addHeader("Content-Type", "text/plain"));
+            assertEquals(0, proxyServer.requests().size());
+
+            // Even with a long refresh we should automatically retry metadata that fails
+            final TimeValue defaultFreshTime = TimeValue.timeValueHours(24);
+            final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(20) : defaultFreshTime;
+            final Tuple<RealmConfig, SSLService> config = buildConfig(
+                "https://localhost:" + proxyServer.getPort(),
+                defaultFreshTime,
+                minimumRefreshTime
+            );
+            logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
+            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+                logger,
+                config.v1(),
+                config.v2(),
+                watcherService
+            );
+
+            try {
+                final int firstRequestCount = proxyServer.requests().size();
+                assertThat(firstRequestCount, greaterThanOrEqualTo(1));
+                assertThat(tuple.v2().get(), instanceOf(UnresolvedEntity.class));
+
+                proxyServer.enqueue(
+                    new MockResponse().setResponseCode(200).setBody(metadataBody).addHeader("Content-Type", "application/xml")
+                );
+                if (testBackgroundRefresh) {
+                    assertBusy(() -> assertThat(proxyServer.requests().size(), greaterThan(firstRequestCount)), 1, TimeUnit.SECONDS);
+                } else {
+                    // The Supplier.get() call will trigger a reload anyway
+                }
+                assertBusy(() -> assertIdp1MetadataParsedCorrectly(tuple.v2().get()), 3, TimeUnit.SECONDS);
+
             } finally {
                 tuple.v1().destroy();
             }
@@ -488,7 +565,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateCredentialFromPemFiles() throws Exception {
-        final Settings.Builder builder = buildSettings("http://example.com");
+        final Settings.Builder builder = buildSettings("http://example.com", METADATA_REFRESH, null);
         final Path dir = createTempDir("encryption");
         final Path encryptionKeyPath = getDataPath("encryption.key");
         final Path destEncryptionKeyPath = dir.resolve("encryption.key");
@@ -901,18 +978,26 @@ public class SamlRealmTests extends SamlTestCase {
         return descriptor;
     }
 
-    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetadataPath) throws Exception {
-        Settings globalSettings = buildSettings(idpMetadataPath).build();
+    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetadataPath) {
+        return buildConfig(idpMetadataPath, METADATA_REFRESH, null);
+    }
+
+    private Tuple<RealmConfig, SSLService> buildConfig(
+        String idpMetadataPath,
+        TimeValue metadataRefresh,
+        @Nullable TimeValue metadataMinimumRefresh
+    ) {
+        Settings globalSettings = buildSettings(idpMetadataPath, metadataRefresh, metadataMinimumRefresh).build();
         final RealmConfig config = realmConfigFromGlobalSettings(globalSettings);
         final SSLService sslService = new SSLService(config.env());
         return new Tuple<>(config, sslService);
     }
 
-    private Settings.Builder buildSettings(String idpMetadataPath) {
+    private Settings.Builder buildSettings(String idpMetadataPath, TimeValue metadataRefresh, @Nullable TimeValue metadataMinimumRefresh) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
-        return Settings.builder()
-            .put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
+        var builder = Settings.builder();
+        builder.put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
             .put(
                 REALM_SETTINGS_PREFIX + ".ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem")
@@ -927,9 +1012,16 @@ public class SamlRealmTests extends SamlTestCase {
             )
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetadataPath)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH + "ms")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), metadataRefresh.getStringRep())
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings);
+        if (metadataMinimumRefresh != null) {
+            builder.put(
+                getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH),
+                metadataMinimumRefresh.getStringRep()
+            );
+        }
+        return builder;
     }
 
     private RealmConfig buildConfig(Settings realmSettings) {
@@ -956,11 +1048,16 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {
-        IDPSSODescriptor idpssoDescriptor = descriptor.getIDPSSODescriptor(SAMLConstants.SAML20P_NS);
-        assertNotNull(idpssoDescriptor);
-        List<SingleSignOnService> ssoServices = idpssoDescriptor.getSingleSignOnServices();
-        assertEquals(2, ssoServices.size());
-        assertEquals(SAMLConstants.SAML2_POST_BINDING_URI, ssoServices.get(0).getBinding());
-        assertEquals(SAMLConstants.SAML2_REDIRECT_BINDING_URI, ssoServices.get(1).getBinding());
+        try {
+            IDPSSODescriptor idpssoDescriptor = descriptor.getIDPSSODescriptor(SAMLConstants.SAML20P_NS);
+            assertNotNull(idpssoDescriptor);
+            List<SingleSignOnService> ssoServices = idpssoDescriptor.getSingleSignOnServices();
+            assertEquals(2, ssoServices.size());
+            assertEquals(SAMLConstants.SAML2_POST_BINDING_URI, ssoServices.get(0).getBinding());
+            assertEquals(SAMLConstants.SAML2_REDIRECT_BINDING_URI, ssoServices.get(1).getBinding());
+        } catch (ElasticsearchSecurityException e) {
+            // Convert a SAML exception into an assertion failure so that we can `assertBusy` on these checks
+            throw new AssertionError("Failed to retrieve IdP metadata", e);
+        }
     }
 }

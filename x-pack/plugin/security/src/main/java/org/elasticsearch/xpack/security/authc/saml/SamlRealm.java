@@ -96,6 +96,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -116,7 +117,8 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.FORCE_AUTHN;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.GROUPS_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_ENTITY_ID;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_LENIENT;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
@@ -155,6 +157,8 @@ public final class SamlRealm extends Realm implements Releasable {
     public static final String TOKEN_METADATA_REALM = "saml_realm";
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
+
+    private static final AtomicBoolean REFRESHING_METADATA = new AtomicBoolean(false);
 
     private final List<Releasable> releasables;
 
@@ -688,14 +692,16 @@ public final class SamlRealm extends Realm implements Releasable {
         builder.setSSLSocketFactory(factory);
 
         HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
-        TimeValue refresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
-        resolver.setMinRefreshDelay(Duration.ofMillis(refresh.millis()));
-        resolver.setMaxRefreshDelay(Duration.ofMillis(refresh.millis()));
-
-        final boolean lenient = config.getSetting(IDP_METADATA_HTTP_LENIENT);
-        if (lenient) {
-            resolver.setFailFastInitialization(false);
+        TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
+        TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);
+        if (minRefresh.compareTo(maxRefresh) > 0) {
+            minRefresh = maxRefresh;
         }
+        resolver.setMinRefreshDelay(Duration.ofMillis(minRefresh.millis()));
+        resolver.setMaxRefreshDelay(Duration.ofMillis(maxRefresh.millis()));
+
+        final boolean failOnError = config.getSetting(IDP_METADATA_HTTP_FAIL_ON_ERROR);
+        resolver.setFailFastInitialization(failOnError);
 
         initialiseResolver(resolver, config);
 
@@ -705,7 +711,12 @@ public final class SamlRealm extends Realm implements Releasable {
             SpecialPermission.check();
             try {
                 return AccessController.doPrivileged(
-                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(resolver, entityId, metadataUrl, lenient)
+                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(
+                        resolver,
+                        entityId,
+                        metadataUrl,
+                        failOnError
+                    )
                 );
             } catch (PrivilegedActionException e) {
                 throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
@@ -744,7 +755,7 @@ public final class SamlRealm extends Realm implements Releasable {
         final Path path = config.env().configFile().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile());
 
-        for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_LENIENT)) {
+        for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
             if (config.hasSetting(httpSetting)) {
                 logger.info(
                     "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
@@ -763,33 +774,67 @@ public final class SamlRealm extends Realm implements Releasable {
         FileWatcher watcher = new FileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
-        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), false));
+        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));
     }
 
     private static EntityDescriptor resolveEntityDescriptor(
         AbstractReloadingMetadataResolver resolver,
         String entityId,
         String sourceLocation,
-        boolean lenient
+        boolean failOnError
     ) {
         try {
-            final EntityDescriptor descriptor = resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)));
+            final EntityDescriptor descriptor = resolveEntityDescriptorWithPossibleRefresh(resolver, entityId);
             if (descriptor == null) {
-                if (lenient) {
+                if (failOnError) {
+                    throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
+                } else {
                     logger.warn(
                         "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
                         entityId,
                         sourceLocation
                     );
                     return new UnresolvedEntity(entityId, sourceLocation);
-                } else {
-                    throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
                 }
             }
             return descriptor;
         } catch (ResolverException e) {
             throw SamlUtils.samlException("Cannot resolve entity metadata", e);
         }
+    }
+
+    private static EntityDescriptor resolveEntityDescriptorWithPossibleRefresh(AbstractReloadingMetadataResolver resolver, String entityId)
+        throws ResolverException {
+        var criteria = new CriteriaSet(new EntityIdCriterion(entityId));
+        EntityDescriptor descriptor = resolver.resolveSingle(criteria);
+        if (descriptor == null) {
+            /*
+             * If the descriptor is null, we haven't found a metadata file with that entity id in it. This could be caused by 2 things:
+             * 1. We didn't find any metadata file (e.g. the metadata is loaded over http, and the request returned an error
+             * 2. The file does exist, but doesn't contain the entity.
+             * In either case it's worth refreshing the metadata again to see if it's now correct because it's possible that the problem
+             *    has been resolved (although if metadata is loaded from a local file we monitor it for changes anyway, so this refresh
+             *    is unlikely to have any benefit).
+             * The resolver's refresh method is synchronized, and could be a choke point if there are a lot of concurrent login attempts,
+             *    so we wrap it in a check to only call it on 1 thread. The other threads will fail due to bad metadata, but that's OK
+             *    because the metadata is (was) bad, and if the refresh works, then their next login attempt will also work.
+             * Since the dynamic refresh is a saving mechanism (we have a separate regular poll for refreshes) we prefer it to be safe
+             *    (from a thread contention point of view) rather than perfect (from a user experience point of view).
+             */
+            if (REFRESHING_METADATA.compareAndSet(false, true)) {
+                try {
+                    resolver.refresh();
+                } catch (ResolverException e) {
+                    // Refresh failed. Since there could be a lot of these and it's only a saving mechanism we log as debug
+                    // The resolver itself will log a WARN with the HTTP status etc.
+                    logger.debug(() -> "Failed to refresh SAML metadata for [" + entityId + "]", e);
+                } finally {
+                    REFRESHING_METADATA.compareAndSet(true, false);
+                }
+            }
+            descriptor = resolver.resolveSingle(criteria);
+        }
+        return descriptor;
     }
 
     @Override

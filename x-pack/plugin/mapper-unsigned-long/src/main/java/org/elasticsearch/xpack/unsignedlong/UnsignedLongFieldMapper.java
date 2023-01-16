@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -70,7 +71,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -89,11 +90,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          */
         private final Parameter<MetricType> metric;
 
-        public Builder(String name, Settings settings) {
-            this(name, IGNORE_MALFORMED_SETTING.get(settings));
+        private final IndexMode indexMode;
+
+        public Builder(String name, Settings settings, IndexMode mode) {
+            this(name, IGNORE_MALFORMED_SETTING.get(settings), mode);
         }
 
-        public Builder(String name, boolean ignoreMalformedByDefault) {
+        public Builder(String name, boolean ignoreMalformedByDefault, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -110,7 +113,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-
+            this.indexMode = mode;
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    var metricType = getMetric().getValue();
+                    return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
+                } else {
+                    return true;
+                }
+            });
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
                 if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
@@ -159,6 +170,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return this;
         }
 
+        private Parameter<MetricType> getMetric() {
+            return metric;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta, dimension, metric };
@@ -188,7 +203,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings(), c.getIndexSettings().getMode()));
 
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
@@ -510,6 +525,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
     private final boolean dimension;
     private final MetricType metricType;
+    private final IndexMode indexMode;
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -533,6 +549,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
         this.dimension = builder.dimension.getValue();
         this.metricType = builder.metric.getValue();
+        this.indexMode = builder.indexMode;
     }
 
     @Override
@@ -608,7 +625,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).dimension(dimension).metric(metricType).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault, indexMode).dimension(dimension).metric(metricType).init(this);
     }
 
     /**

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api;
+package org.elasticsearch.plugin;
 
 /**
  * A named plugin component. Components with a name can be registered and fetched under a name given in

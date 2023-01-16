@@ -1531,9 +1531,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         });
 
         assertThat(e.name(), equalTo("template"));
-        // TODO: Update error message
-        // but: was "index_template [template] invalid, cause [index template [template] specifies a missing component templates bad that does not exist and is not part of 'ignore_missing_component_templates']"
-        assertThat(e.getMessage(), containsString("index template [template] specifies " + "component templates [bad] that do not exist"));
+        assertThat(e.getMessage(), containsString("index_template [template] invalid, cause [index templates [template] specifies component templates [[bad]] that do not exist]"));
     }
 
     public void testRemoveComponentTemplate() throws Exception {
@@ -2145,7 +2143,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // THis is where the validation happens
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
-        metadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
+        //metadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
+        MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
     }
 
    public void testIgnoreMissingComponentTemplateInalid() throws Exception {
@@ -2178,7 +2177,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // try now the same thing with validation on
        InvalidIndexTemplateException e = expectThrows(
            InvalidIndexTemplateException.class,
-            () -> metadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template)
+            () -> MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template)
 
         );
         assertThat(

@@ -531,7 +531,7 @@ public class MetadataIndexTemplateService {
         } else if (missingComponentTemplates.size() > 0) {
             throw new InvalidIndexTemplateException(
                 name,
-                "index templates [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
+                "index templates [" + name + "] specifies component templates [" + missingComponentTemplates + "] that do not exist"
             );
         }
     }

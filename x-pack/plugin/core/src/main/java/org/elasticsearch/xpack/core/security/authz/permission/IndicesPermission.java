@@ -178,7 +178,8 @@ public final class IndicesPermission {
         }
 
         /**
-         * Authorization test for resources.
+         * Authorization test for resources: returns {@code true} when the access is granted to the {@param indexAbstraction} or
+         * {@code false} otherwise.
          * An additional predicate tests datastreams and backing indices, apart from the regular predicate that tests all resource types.
          */
         public final boolean test(IndexAbstraction indexAbstraction) {
@@ -188,6 +189,8 @@ public final class IndicesPermission {
 
         /**
          * Authorization test for a resource name when the resource does not exist (e.g. the authorization test for creating an index).
+         * Returns {@code true} when access is granted to the resource with the given {@param name}, or {@code false} otherwise.
+         * Use {@link #test(IndexAbstraction)} if the resource exists.
          */
         public final boolean testMissingResource(String name) {
             return resourceNameMatcher.test(name) || additionalNonDatastreamNameMatcher.test(name);

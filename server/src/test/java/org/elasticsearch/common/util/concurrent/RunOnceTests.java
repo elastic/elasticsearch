@@ -99,6 +99,5 @@ public class RunOnceTests extends ESTestCase {
         assertEquals("RunOnce[null]", runOnce.toString());
     }
 
-    private void noop() {
-    }
+    private void noop() {}
 }

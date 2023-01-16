@@ -35,6 +35,5 @@ public class ReleasablesTests extends ESTestCase {
         assertEquals("releaseOnce[null]", releaseOnce.toString());
     }
 
-    private void noop() {
-    }
+    private void noop() {}
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -197,7 +198,7 @@ public class InboundHandler {
     private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
-        final Version version = header.getVersion();
+        final TransportVersion version = header.getVersion();
         if (header.isHandshake()) {
             messageListener.onRequestReceived(requestId, action);
             // Cannot short circuit handshakes
@@ -217,7 +218,7 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                if (Version.CURRENT.isCompatible(header.getVersion())) {
+                if (TransportVersion.CURRENT.isCompatible(header.getVersion())) {
                     sendErrorResponse(action, transportChannel, e);
                 } else {
                     logger.warn(
@@ -450,7 +451,8 @@ public class InboundHandler {
         return new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
     }
 
-    static void assertRemoteVersion(StreamInput in, Version version) {
-        assert version.equals(in.getVersion()) : "Stream version [" + in.getVersion() + "] does not match version [" + version + "]";
+    static void assertRemoteVersion(StreamInput in, TransportVersion version) {
+        assert version.equals(in.getTransportVersion())
+            : "Stream version [" + in.getTransportVersion() + "] does not match version [" + version + "]";
     }
 }

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -130,7 +131,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
-    private final Version version;
+    private final TransportVersion version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -154,7 +155,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public TcpTransport(
         Settings settings,
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         PageCacheRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
@@ -214,7 +215,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
     }
 
-    public Version getVersion() {
+    public TransportVersion getVersion() {
         return version;
     }
 
@@ -253,12 +254,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
-        private final Version version;
+        private final TransportVersion version;
         private final Compression.Enabled compress;
         private final Compression.Scheme compressionScheme;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        NodeChannels(
+            DiscoveryNode node,
+            List<TcpChannel> channels,
+            ConnectionProfile connectionProfile,
+            TransportVersion handshakeVersion
+        ) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections()
@@ -275,6 +281,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public Version getVersion() {
+            return node.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
             return version;
         }
 
@@ -325,7 +336,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getTransportVersion(), schemeToUse, false);
         }
 
         private Compression.Scheme getCompressionScheme(TransportRequest request) {
@@ -933,7 +944,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
+    public void executeHandshake(
+        DiscoveryNode node,
+        TcpChannel channel,
+        ConnectionProfile profile,
+        ActionListener<TransportVersion> listener
+    ) {
         long requestId = responseHandlers.newRequestId();
         handshaker.sendHandshake(requestId, node, channel, profile.getHandshakeTimeout(), listener);
     }

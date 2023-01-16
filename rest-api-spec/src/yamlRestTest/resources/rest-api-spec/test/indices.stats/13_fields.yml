@@ -1,6 +1,6 @@
 ---
 setup:
-  - skip
+  - skip:
     reason: "creates an index without replicas"
     features:
       - stateful

@@ -14,12 +14,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NavigableSet;
+import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
+import java.util.TreeMap;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
@@ -154,12 +155,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
-    private static final Map<Integer, TransportVersion> idToVersion;
-
-    private static final TreeSet<TransportVersion> declaredVersions;
+    private static final NavigableMap<Integer, TransportVersion> idToVersion;
 
     static {
-        Map<Integer, TransportVersion> builder = new HashMap<>();
+        NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
         Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
@@ -189,8 +188,14 @@ public class TransportVersion implements Comparable<TransportVersion> {
                 }
             }
         }
-        idToVersion = Map.copyOf(builder);
-        declaredVersions = idToVersion.values().stream().collect(Collectors.toCollection(() -> new TreeSet<>()));
+        idToVersion = Collections.unmodifiableNavigableMap(builder);
+    }
+
+    /* To help migrate from Version.minimumCompatibilityVersion() */
+    @Deprecated
+    public TransportVersion minimumCompatibilityVersion() {
+        assert this == CURRENT;
+        return MINIMUM_COMPATIBLE;
     }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
@@ -225,7 +230,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     // TODO for testing or a getter? should this be used?
-    final int id;
+    public final int id;
     private final String uniqueId;
 
     TransportVersion(int id, String uniqueId) {
@@ -255,10 +260,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     /**
-     * returns a sorted list of declared transport version constants
+     * returns a sorted collection of declared transport version constants
      */
-    public static NavigableSet<TransportVersion> getDeclaredVersions() {
-        return declaredVersions;
+    public static Collection<TransportVersion> getDeclaredVersions() {
+        return idToVersion.values();
     }
 
     @Override

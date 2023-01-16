@@ -9,16 +9,19 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 
-import java.util.NavigableSet;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportVersionUtils {
-    private static final NavigableSet<TransportVersion> ALL_VERSIONS;
+    private static final List<TransportVersion> ALL_VERSIONS;
 
     static {
-        ALL_VERSIONS = TransportVersion.getDeclaredVersions();
+        ALL_VERSIONS = List.copyOf(TransportVersion.getDeclaredVersions());
     }
 
     /** Returns a random {@link TransportVersion} from all available versions. */
@@ -31,6 +34,11 @@ public class TransportVersionUtils {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
+    /** Returns a random {@link Version} from all available versions. */
+    public static TransportVersion randomVersion(Random random) {
+        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+    }
+
     public static TransportVersion getPreviousVersion() {
         TransportVersion version = getPreviousVersion(TransportVersion.CURRENT);
         assert version.before(TransportVersion.CURRENT);
@@ -38,10 +46,14 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {
-        TransportVersion prev = ALL_VERSIONS.lower(version);
-        if (prev == null) {
+        int place = Collections.binarySearch(ALL_VERSIONS, version);
+        if (place < 0) {
+            // version does not exist - need the item before the index this version should be inserted
+            place = -(place + 1);
+        }
+        if (place <= 1) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
-        return prev;
+        return ALL_VERSIONS.get(place - 1);
     }
 }

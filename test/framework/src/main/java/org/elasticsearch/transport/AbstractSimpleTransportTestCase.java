@@ -1466,7 +1466,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(version1)) {
+            if (in.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 value2 = in.readInt();
             }
         }
@@ -1474,7 +1474,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(version1)) {
+            if (out.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 out.writeInt(value2);
             }
         }
@@ -1509,7 +1509,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(version1)) {
+            if (in.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 value2 = in.readInt();
             } else {
                 value2 = 0;
@@ -1519,7 +1519,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(version1)) {
+            if (out.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 out.writeInt(value2);
             }
         }
@@ -2761,7 +2761,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportException exception = receivedException.get();
             assertNotNull(exception);
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(version0);
+            streamOutput.setTransportVersion(version0.transportVersion);
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             // 53 bytes are the non-exception message bytes that have been received. It should include the initial

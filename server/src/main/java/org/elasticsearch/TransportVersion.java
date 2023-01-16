@@ -24,7 +24,7 @@ import java.util.Set;
  * Prior to 8.7.0, the node {@link Version} was used everywhere. This class separates the wire protocol version
  * from the running node version. Each node version has a reference to a specific transport version used by that node.
  * <p>
- * Each transport version constant has got an id number, which for versions prior to 8.7.0 is the same as the node version
+ * Each transport version constant has an id number, which for versions prior to 8.7.0 is the same as the node version
  * for backwards compatibility.
  * There is also a unique id string. This is not actually used in the protocol, but is there to ensure each protocol version
  * is only added to the source file once. This string needs to be unique (here, a UUID, but can be any other unique nonempty string).
@@ -36,9 +36,9 @@ import java.util.Set;
  * to leave space for any intermediate fixes that may be needed in the future.
  * <p>
  * The earliest compatible version is hardcoded at {@link #MINIMUM_COMPATIBLE}. Previously, this was dynamically calculated
- * from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have that concept. So the minimum compatible
- * version needs to be hard-coded as the transport version of the minimum compatible node version. That variable should be updated
- * appropriately whenever we do a major version release.
+ * from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version numbers.
+ * So the minimum compatible version needs to be hard-coded as the transport version of the minimum compatible node version.
+ * That variable should be updated appropriately whenever we do a major version release.
  */
 public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
@@ -131,6 +131,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_6_1 = new TransportVersion(8_06_01_99, "9f113acb-1b21-4fda-bef9-2a3e669b5c7b");
     public static final TransportVersion V_8_7_0 = new TransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     /*
+     * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
      */
     // NOTE: DO NOT UNCOMMENT until all transport code uses TransportVersion
@@ -138,6 +139,9 @@ public class TransportVersion implements Comparable<TransportVersion> {
     /*
      * When adding a new transport version, ensure there is a gap (say, 100) between versions
      * This is to make it possible to add intermediate versions for any bug fixes that may be required.
+     *
+     * When adding versions for patch fixes, add numbers in the middle of the gap. This is to ensure there is always some space
+     * for patch fixes between any two versions.
      */
 
     /** Reference to the current transport version */

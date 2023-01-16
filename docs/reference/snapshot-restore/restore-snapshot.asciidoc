@@ -408,6 +408,7 @@ DELETE *?expand_wildcards=all
 
 . Restore the entire snapshot, including the cluster state. By default,
 restoring the cluster state also restores any feature states in the snapshot.
+You'll need to find the proper snapshot first, see above.
 +
 [source,console]
 ----

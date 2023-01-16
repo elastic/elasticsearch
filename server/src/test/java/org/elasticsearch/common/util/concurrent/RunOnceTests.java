@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,5 +88,14 @@ public class RunOnceTests extends ESTestCase {
             assertEquals(1, onAfter.get());
             assertTrue(runOnce.hasRun());
         }
+    }
+
+    public void testReleasesDelegate() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final var runOnce = new RunOnce(reachabilityChecker.register(() -> logger.info("test")));
+        reachabilityChecker.checkReachable();
+        runOnce.run();
+        reachabilityChecker.ensureUnreachable();
+        assertEquals("RunOnce[null]", runOnce.toString());
     }
 }

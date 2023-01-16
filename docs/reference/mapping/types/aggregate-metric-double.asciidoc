@@ -94,9 +94,11 @@ aggregation returns the sum of the values of all `value_count` sub-fields.
 and `value_count` metrics. To run an `avg` aggregation, the field must contain
 both `sum` and `value_count` metric sub-field.
 
-If you use an `aggregate_metric_double` field with other aggregations, the field
-uses the `default_metric` value, which behaves as a `double` field. The
-`default_metric` is also used in scripts and the following queries:
+Running any other aggregation on an `aggregate_metric_double` field will fail with
+an "unsupported aggregation" error.
+
+Finally, an `aggregate_metric_double` field supports the following queries for which
+it behaves as a `double` by delegating its behavior to its `default_metric` sub-field:
 
 * <<query-dsl-exists-query,`exists`>>
 * <<query-dsl-range-query,`range`>>

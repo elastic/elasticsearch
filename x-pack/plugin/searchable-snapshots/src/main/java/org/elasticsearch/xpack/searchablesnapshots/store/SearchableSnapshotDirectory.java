@@ -547,7 +547,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         );
                     }));
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn(() -> format("%s unable to prewarm file [%s]", shardId, file.physicalName()), e);
                 if (submitted == false) {
                     completionListener.onFailure(e);

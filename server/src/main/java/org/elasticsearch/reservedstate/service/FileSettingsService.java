@@ -342,8 +342,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     synchronized void stopWatcher() {
-        logger.debug("stopping watcher ...");
         if (watching()) {
+            logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
             try (var ws = watchService) {
@@ -369,7 +369,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 logger.info("watcher service stopped");
             }
         } else {
-            logger.debug("file settings service already stopped");
+            logger.trace("file settings service already stopped");
         }
     }
 

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.Extensible;
+import org.elasticsearch.plugin.NamedComponent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.objectweb.asm.AnnotationVisitor;

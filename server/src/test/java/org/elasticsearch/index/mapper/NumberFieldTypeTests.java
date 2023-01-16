@@ -824,7 +824,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
+            Version.CURRENT,
+            null
         ).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
@@ -836,7 +837,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
+            Version.CURRENT,
+            null
         ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
@@ -849,7 +851,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
+            Version.CURRENT,
+            null
         ).build(MapperBuilderContext.root(false)).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but

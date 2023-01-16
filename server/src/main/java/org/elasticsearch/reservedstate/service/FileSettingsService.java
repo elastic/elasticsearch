@@ -34,8 +34,8 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -85,7 +85,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.clusterService = clusterService;
         this.stateService = stateService;
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        this.eventListeners = new ArrayList<>();
+        this.eventListeners = new CopyOnWriteArrayList<>();
     }
 
     public Path operatorSettingsDir() {

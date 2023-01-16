@@ -28,14 +28,14 @@ PUT _component_template/logs-foo@package
 
 The index template is now created and and it references two component templates:
 
-[source]
+[source,JSON]
 ----
   "composed_of": ["logs-foo@package", "logs-foo@custom"]
 ----
 
 Before, only the `logs-foo@package` compontent template was created, meaning the `logs-foo@custom` is missing. Because of this the following entry was added to the config:
 
-[source]
+[source,JSON]
 ----
   "ignore_missing_component_templates": ["logs-foo@custom"],
 ----

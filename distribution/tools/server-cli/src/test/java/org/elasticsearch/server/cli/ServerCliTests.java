@@ -46,11 +46,10 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
 
 public class ServerCliTests extends CommandTestCase {
+
+    private boolean mockSecureSettingsLoader = false;
 
     @Before
     public void setupMockConfig() throws IOException {
@@ -320,10 +319,10 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(exitCode, equalTo(140));
     }
 
-    public void testServerCliCanLoadDifferentSecureSettingsImplementation() throws Exception {
+    public void testSecureSettingsLoaders() throws Exception {
         // TODO: Change this to be using the Environment when we have an actual different implementation of SecureSettings
-        Command command = spy(newCommand());
-        doAnswer(args -> new MockSecureSettingsLoader()).when((ServerCli) command).secureSettingsLoader(any());
+        this.mockSecureSettingsLoader = true;
+        Command command = newCommand();
         command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
         assertThat(terminal.getOutput(), Matchers.containsString("Mock secure settings loader loaded"));
@@ -457,6 +456,14 @@ public class ServerCliTests extends CommandTestCase {
                 }
                 mockServer.reset();
                 return mockServer;
+            }
+
+            @Override
+            public SecureSettingsLoader secureSettingsLoader(Environment env) {
+                if (mockSecureSettingsLoader) {
+                    return new MockSecureSettingsLoader();
+                }
+                return super.secureSettingsLoader(env);
             }
         };
     }

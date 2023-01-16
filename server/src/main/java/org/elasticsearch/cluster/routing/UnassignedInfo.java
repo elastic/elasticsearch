@@ -48,6 +48,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
      */
     private static final Version VERSION_LAST_ALLOCATED_NODE_ADDED = Version.V_7_15_0;
+    private static final Version VERSION_UNPROMOTABLE_REPLICA_ADDED = Version.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -133,7 +134,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
          * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
          * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
          */
-        NODE_RESTARTING
+        NODE_RESTARTING,
+        /**
+         * Replica is unpromotable and the primary failed.
+         */
+        UNPROMOTABLE_REPLICA
     }
 
     /**
@@ -307,6 +312,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (reason.equals(Reason.NODE_RESTARTING) && out.getVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeByte((byte) Reason.NODE_LEFT.ordinal());
+        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
+            out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
         }

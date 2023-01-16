@@ -52,6 +52,7 @@ class ClientTransformIndexerBuilder {
             initialStats,
             transformConfig,
             progress,
+            // If there already exists at least one checkpoint, the "from" setting is effectively ignored.
             TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
                 ? (context.from() != null ? TransformCheckpoint.createEmpty(context.from().toEpochMilli()) : TransformCheckpoint.EMPTY)
                 : lastCheckpoint,

@@ -31,6 +31,10 @@ public class ReachabilityChecker {
     private final MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
     private final Queue<Registered> references = ConcurrentCollections.newQueue();
 
+    public ReachabilityChecker() {
+        memoryMXBean.gc();
+    }
+
     /**
      * Register the given target object for reachability checks.
      *

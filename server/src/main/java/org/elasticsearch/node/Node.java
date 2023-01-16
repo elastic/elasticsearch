@@ -202,6 +202,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -1456,6 +1457,10 @@ public class Node implements Closeable {
             if (ReadinessService.enabled(environment)) {
                 ReadinessService readiness = injector.getInstance(ReadinessService.class);
                 readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
+            }
+
+            if (RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(environment.settings())) {
+                writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
 

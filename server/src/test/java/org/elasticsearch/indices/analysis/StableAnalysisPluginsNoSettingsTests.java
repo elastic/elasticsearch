@@ -23,8 +23,12 @@ import org.elasticsearch.indices.analysis.lucene.AppendTokenFilter;
 import org.elasticsearch.indices.analysis.lucene.CharSkippingTokenizer;
 import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.indices.analysis.lucene.SkipStartingWithDigitTokenFilter;
-import org.elasticsearch.plugin.analysis.api.AnalysisMode;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.NamedComponent;
+import org.elasticsearch.plugin.analysis.AnalysisMode;
+import org.elasticsearch.plugin.analysis.AnalyzerFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenizerFactory;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
 import org.elasticsearch.plugins.scanners.NamedComponentReader;
 import org.elasticsearch.plugins.scanners.PluginInfo;
@@ -87,7 +91,7 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableCharFilterFactory")
-    public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+    public static class TestCharFilterFactory implements CharFilterFactory {
 
         @Override
         public Reader create(Reader reader) {
@@ -101,7 +105,7 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableTokenFilterFactory")
-    public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
+    public static class TestTokenFilterFactory implements TokenFilterFactory {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
@@ -115,13 +119,13 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
 
         @Override
         public AnalysisMode getAnalysisMode() {
-            return org.elasticsearch.plugin.analysis.api.TokenFilterFactory.super.getAnalysisMode();
+            return TokenFilterFactory.super.getAnalysisMode();
         }
 
     }
 
     @NamedComponent("stableTokenizerFactory")
-    public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+    public static class TestTokenizerFactory implements TokenizerFactory {
 
         @Override
         public Tokenizer create() {
@@ -131,7 +135,7 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableAnalyzerFactory")
-    public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+    public static class TestAnalyzerFactory implements AnalyzerFactory {
 
         @Override
         public Analyzer create() {
@@ -158,28 +162,28 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
             new StablePluginsRegistry(
                 new NamedComponentReader(),
                 Map.of(
-                    org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName(),
+                    CharFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableCharFilterFactory",
                             new PluginInfo("stableCharFilterFactory", TestCharFilterFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class.getCanonicalName(),
+                    TokenFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenFilterFactory",
                             new PluginInfo("stableTokenFilterFactory", TestTokenFilterFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.TokenizerFactory.class.getCanonicalName(),
+                    TokenizerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenizerFactory",
                             new PluginInfo("stableTokenizerFactory", TestTokenizerFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName(),
+                    AnalyzerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableAnalyzerFactory",

@@ -104,7 +104,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        sourceBuilder.knnSearch(knnSearchBuilder);
+        sourceBuilder.knnSearch(List.of(knnSearchBuilder));
         if (request.getSize() != -1) {
             sourceBuilder.size(request.getSize());
         }

@@ -10,8 +10,6 @@ In the following, one component template and an index template are created. The 
 
 Create of the component template `logs-foo@package`. This has to be created before the index template as it is not optional:
 
-// tag::ignore_missing_component_templates[]
-
 [source,console]
 ----
 PUT _component_template/logs-foo@package
@@ -27,8 +25,6 @@ PUT _component_template/logs-foo@package
   }
 }
 ----
-// TEST[continued]
-// end::ignore_missing_component_templates[]
 
 The index template is now created and and it references two component templates:
 
@@ -49,7 +45,7 @@ During creation of the template, it will not validate that `logs-foo@custom` exi
 
 [source,console]
 ----
-PUT index_template/logs-foo
+PUT _index_template/logs-foo
 {
   "index_patterns": ["logs-foo-*"],
   "data_stream": { },
@@ -59,7 +55,6 @@ PUT index_template/logs-foo
 }
 ----
 // TEST[continued]
-// end::ignore_missing_component_templates[]
 
 The index template `logs-foo` was successfully created. A data stream can be created based on this template:
 
@@ -68,7 +63,6 @@ The index template `logs-foo` was successfully created. A data stream can be cre
 PUT _data_stream/logs-foo-bar
 ----
 // TEST[continued]
-// end::ignore_missing_component_templates[]
 
 Looking at the mappings of the data stream, it will contain the `host.name` field.
 
@@ -90,7 +84,6 @@ PUT _component_template/logs-foo@custom
 }
 ----
 // TEST[continued]
-// end::ignore_missing_component_templates[]
 
 This will not have an immediate effect on the data stream. The mapping `host.ip` will only show up in the data stream mappings when the data stream is rolled over automatically next time or a manual rollover is triggered:
 
@@ -99,4 +92,4 @@ This will not have an immediate effect on the data stream. The mapping `host.ip`
 POST logs-foo-bar/_rollover
 ----
 // TEST[continued]
-// end::ignore_missing_component_templates[]
+// TEST[teardown:data_stream_cleanup]

@@ -21,6 +21,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.CacheFile;
+import org.elasticsearch.blobcache.common.CacheKey;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.FrozenCacheFile;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -51,12 +56,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInput;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput;
@@ -135,7 +135,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
     private final boolean partial;
-    private final FrozenCacheService frozenCacheService;
+    private final SharedBlobCacheService sharedBlobCacheService;
     private final ByteSizeValue blobStoreCacheMaxLength;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
@@ -158,7 +158,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        FrozenCacheService frozenCacheService
+        SharedBlobCacheService sharedBlobCacheService
     ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -182,7 +182,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.blobStoreCacheMaxLength = SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING.get(indexSettings);
         this.threadPool = threadPool;
         this.loaded = false;
-        this.frozenCacheService = frozenCacheService;
+        this.sharedBlobCacheService = sharedBlobCacheService;
         assert invariant();
     }
 
@@ -352,7 +352,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cacheService.removeFromCache(cacheKey);
             }
             if (clearFrozenCacheService) {
-                frozenCacheService.removeFromCache(cacheKey);
+                sharedBlobCacheService.removeFromCache(cacheKey);
             }
         }
     }
@@ -408,8 +408,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     fileInfo,
                     context,
                     inputStats,
-                    frozenCacheService.getRangeSize(),
-                    frozenCacheService.getRecoveryRangeSize()
+                    sharedBlobCacheService.getRangeSize(),
+                    sharedBlobCacheService.getRecoveryRangeSize()
                 );
             } else {
                 return new CachedBlobContainerIndexInput(
@@ -586,7 +586,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
         BlobStoreCacheService blobStoreCacheService,
-        FrozenCacheService frozenCacheService
+        SharedBlobCacheService sharedBlobCacheService
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -670,7 +670,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cacheDir,
                 shardPath,
                 threadPool,
-                frozenCacheService
+                sharedBlobCacheService
             )
         );
     }
@@ -713,7 +713,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
-        return frozenCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
+        return sharedBlobCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
     }
 
     private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {

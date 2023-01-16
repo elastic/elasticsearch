@@ -109,8 +109,8 @@ Instructs the realm to treat and validate incoming JWTs as ID Tokens (`id_token`
 Specifies the client authentication type as `shared_secret`, which means that
 the client is authenticated using an HTTP request header that must match a
 pre-configured secret value. The client must provide this shared secret with
-every request in the `ES-Client-Authentication` header. The value must be a
-case-insensitive match to the realm's `client_authentication.shared_secret`.
+every request in the `ES-Client-Authentication` header. The header value must be a
+case-sensitive match to the realm's `client_authentication.shared_secret`.
 
 `allowed_issuer`::
 Sets a verifiable identifier for your JWT issuer. This value is typically a

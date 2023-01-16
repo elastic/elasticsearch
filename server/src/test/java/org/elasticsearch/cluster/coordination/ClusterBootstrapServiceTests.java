@@ -707,7 +707,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
             final var warningMessagePattern = """
                 this node is locked into cluster UUID [test-uuid] but [cluster.initial_master_nodes] is set to [node1, node2]; \
-                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts""";
+                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
+                for further information see \
+                https://www.elastic.co/guide/en/elasticsearch/reference/*/important-settings.html#initial_master_nodes""";
 
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

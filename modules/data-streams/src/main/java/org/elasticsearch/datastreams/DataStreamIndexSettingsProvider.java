@@ -74,7 +74,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
-                indexMode = dataStream.getIndexMode();
+                indexMode = timeSeries ? dataStream.getIndexMode() : null;
             } else if (timeSeries) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {

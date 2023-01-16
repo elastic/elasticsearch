@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,7 +31,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +52,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
 
-    private final Supplier<FrozenCacheService> frozenCacheService;
+    private final Supplier<SharedBlobCacheService> frozenCacheService;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -119,11 +119,11 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     @Override
     protected NodeCachesStatsResponse nodeOperation(NodeRequest request, Task task) {
         SearchableSnapshots.ensureValidLicense(licenseState);
-        final FrozenCacheService.Stats frozenCacheStats;
+        final SharedBlobCacheService.Stats frozenCacheStats;
         if (frozenCacheService.get() != null) {
             frozenCacheStats = frozenCacheService.get().getStats();
         } else {
-            frozenCacheStats = FrozenCacheService.Stats.EMPTY;
+            frozenCacheStats = SharedBlobCacheService.Stats.EMPTY;
         }
         return new NodeCachesStatsResponse(
             clusterService.localNode(),

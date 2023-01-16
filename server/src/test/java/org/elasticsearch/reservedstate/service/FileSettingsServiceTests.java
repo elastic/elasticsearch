@@ -165,8 +165,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         // on Linux is instantaneous. Windows is instantaneous too.
         processFileLatch.await(30, TimeUnit.SECONDS);
 
-        verify(service, Mockito.atLeast(1)).watchedFileChanged(any());
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, Mockito.atLeast(1)).processSettingsAndNotifyListeners();
+        verify(service, Mockito.atLeast(1)).processFileSettings(any());
 
         service.stop();
         assertFalse(service.watching());

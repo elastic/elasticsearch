@@ -881,7 +881,8 @@ public class RBACEngine implements AuthorizationEngine {
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
-                // missing but authorized resources should be handled downstream in the action handler, not here in the Security filter
+                // test access (by name) to a resource that does not currently exist
+                // the action handler must handle the case of accessing resources that do not exist
                 return predicate.testMissingResource(name);
             } else {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely

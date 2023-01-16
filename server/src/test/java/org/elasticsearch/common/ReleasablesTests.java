@@ -28,10 +28,13 @@ public class ReleasablesTests extends ESTestCase {
 
     public void testReleaseOnceReleasesDelegate() {
         final var reachabilityChecker = new ReachabilityChecker();
-        final var releaseOnce = Releasables.releaseOnce(reachabilityChecker.register(() -> logger.info("test")));
+        final var releaseOnce = Releasables.releaseOnce(reachabilityChecker.register(this::noop));
         reachabilityChecker.checkReachable();
         releaseOnce.close();
         reachabilityChecker.ensureUnreachable();
         assertEquals("releaseOnce[null]", releaseOnce.toString());
+    }
+
+    private void noop() {
     }
 }

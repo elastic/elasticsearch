@@ -92,10 +92,13 @@ public class RunOnceTests extends ESTestCase {
 
     public void testReleasesDelegate() {
         final var reachabilityChecker = new ReachabilityChecker();
-        final var runOnce = new RunOnce(reachabilityChecker.register(() -> logger.info("test")));
+        final var runOnce = new RunOnce(reachabilityChecker.register(this::noop));
         reachabilityChecker.checkReachable();
         runOnce.run();
         reachabilityChecker.ensureUnreachable();
         assertEquals("RunOnce[null]", runOnce.toString());
+    }
+
+    private void noop() {
     }
 }

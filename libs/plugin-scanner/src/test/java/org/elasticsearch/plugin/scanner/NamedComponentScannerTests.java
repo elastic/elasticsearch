@@ -77,7 +77,7 @@ public class NamedComponentScannerTests extends ESTestCase {
             """)));
         List<ClassReader> classReaderStream = Stream.concat(
             ClassReaders.ofDirWithJars(dirWithJar).stream(),
-           ClassReaders.ofClassPath().stream()
+            ClassReaders.ofClassPath().stream()
         )// contains plugin-api
             .toList();
 
@@ -150,10 +150,8 @@ public class NamedComponentScannerTests extends ESTestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        List<ClassReader> classReaders = Stream.concat(
-           ClassReaders.ofDirWithJars(dirWithJar).stream(),
-           ClassReaders.ofClassPath().stream()
-        )// contains plugin-api
+        Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream();
+        List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(dirWithJar).stream(), classPath)// contains plugin-api
             .toList();
 
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);

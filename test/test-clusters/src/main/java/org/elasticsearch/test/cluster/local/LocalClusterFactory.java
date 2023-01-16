@@ -89,7 +89,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.spec = spec;
             this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
             this.distributionDir = workingDir.resolve("distro"); // location of es distribution files, typically hard-linked
-            this.snapshotsDir = workingDir.resolve("repo");
+            this.snapshotsDir = workingDir.resolve("..").resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
             this.configDir = workingDir.resolve("config");
@@ -227,9 +227,9 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             try {
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
-                finalSettings.put("path.repo", workingDir.resolve("repo").toString());
-                finalSettings.put("path.data", workingDir.resolve("data").toString());
-                finalSettings.put("path.logs", workingDir.resolve("logs").toString());
+                finalSettings.put("path.repo", snapshotsDir.toString());
+                finalSettings.put("path.data", dataDir.toString());
+                finalSettings.put("path.logs", logsDir.toString());
                 finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(

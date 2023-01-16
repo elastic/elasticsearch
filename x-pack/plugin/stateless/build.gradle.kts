@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.gradle.api.tasks.SourceSet
 
 plugins {
     id("elasticsearch.internal-cluster-test")
@@ -35,14 +35,14 @@ dependencies {
 }
 
 tasks {
-    internalClusterTest {
+    test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
     }
 
     register<Test>("statelessS3ThirdPartyTests") {
-        val internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
-        setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
-        setClasspath(internalTestSourceSet.getRuntimeClasspath())
+        val testSourceSet = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME)
+        setTestClassesDirs(testSourceSet.getOutput().getClassesDirs())
+        setClasspath(testSourceSet.getRuntimeClasspath())
         include("**/S3RegisterCASLinearizabilityTests.class")
         systemProperty("test.s3.access_key", System.getenv("stateless_aws_s3_access_key"))
         systemProperty("test.s3.secret_key", System.getenv("stateless_aws_s3_secret_key"))

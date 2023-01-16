@@ -19,7 +19,6 @@ public class DecodeIncreasingIntegerBenchmark extends DecodeBenchmark {
 
     @Override
     public void setupIteration(int bitsPerValue) throws IOException {
-        // Encode
         this.input = generateMonotonicIncreasingInput(random.nextInt(1, 10), random.nextInt(1, 100));
     }
 }

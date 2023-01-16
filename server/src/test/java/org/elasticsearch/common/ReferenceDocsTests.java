@@ -9,15 +9,16 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 
-import java.io.IOException;
-import java.net.URL;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.ReferenceDocs.getVersionComponent;
-import static org.elasticsearch.common.ReferenceDocs.linksToVerify;
 
 public class ReferenceDocsTests extends ESTestCase {
 
@@ -32,25 +33,81 @@ public class ReferenceDocsTests extends ESTestCase {
         assertEquals("8.7", getVersionComponent(Version.V_8_7_0, false));
     }
 
-    public void testLinksToVerify() {
-        // Snapshot x.y.0 versions are unreleased so we link to master and these links are expected to exist
-        assertFalse(linksToVerify(Version.V_8_7_0, true).isEmpty());
+    public void testResourceValidation() throws Exception {
 
-        // Snapshot x.y.z versions with z>0 mean that x.y.0 is released so links are expected to exist
-        assertFalse(linksToVerify(Version.V_8_5_1, true).isEmpty());
+        try (var builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            for (ReferenceDocs link : ReferenceDocs.values()) {
+                builder.field(link.name(), "TEST");
+            }
+            builder.endObject();
 
-        // Non-snapshot x.y.0 versions may not be released yet, and the docs are published on release, so we cannot verify these links
-        assertTrue(linksToVerify(Version.V_8_7_0, false).isEmpty());
-    }
+            var map = ReferenceDocs.readLinksBySymbol(BytesReference.bytes(builder).streamInput());
+            assertEquals(ReferenceDocs.values().length, map.size());
+            for (ReferenceDocs link : ReferenceDocs.values()) {
+                assertEquals("TEST", map.get(link.name()));
+            }
+        }
 
-    @AwaitsFix(bugUrl = "TODO")
-    @SuppressForbidden(reason = "never executed")
-    public void testDocsExist() throws IOException {
-        // cannot run as a unit test due to security manager restrictions - TODO create a separate Gradle task for this
-        for (ReferenceDocs docsLink : linksToVerify()) {
-            try (var stream = new URL(docsLink.toString()).openStream()) {
-                Streams.readFully(stream);
-                // TODO also for URLs that contain a fragment id, verify that the fragment exists
+        try (var stream = new ByteArrayInputStream("{\"invalid\":".getBytes(StandardCharsets.UTF_8))) {
+            expectThrows(XContentParseException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
+        }
+
+        try (var builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            for (ReferenceDocs link : ReferenceDocs.values()) {
+                builder.field(link.name(), "TEST");
+            }
+            builder.startObject("UNEXPECTED").endObject().endObject();
+
+            try (var stream = BytesReference.bytes(builder).streamInput()) {
+                expectThrows(IllegalStateException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
+            }
+        }
+
+        try (var builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            for (ReferenceDocs link : ReferenceDocs.values()) {
+                builder.field(link.name(), "TEST");
+            }
+            builder.field("EXTRA", "TEST").endObject();
+
+            try (var stream = BytesReference.bytes(builder).streamInput()) {
+                expectThrows(IllegalStateException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
+            }
+        }
+
+        try (var builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            var skipped = randomFrom(ReferenceDocs.values());
+            for (ReferenceDocs link : ReferenceDocs.values()) {
+                if (link != skipped) {
+                    builder.field(link.name(), "TEST");
+                }
+            }
+            builder.endObject();
+
+            try (var stream = BytesReference.bytes(builder).streamInput()) {
+                expectThrows(IllegalStateException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
+            }
+        }
+
+        try (var builder = XContentFactory.jsonBuilder()) {
+            var shuffled = Arrays.copyOf(ReferenceDocs.values(), ReferenceDocs.values().length);
+            var i = between(0, ReferenceDocs.values().length - 1);
+            var j = randomValueOtherThan(i, () -> between(0, ReferenceDocs.values().length - 1));
+            var tmp = shuffled[i];
+            shuffled[i] = shuffled[j];
+            shuffled[j] = tmp;
+
+            builder.startObject();
+            for (ReferenceDocs link : shuffled) {
+                builder.field(link.name(), "TEST");
+            }
+            builder.endObject();
+
+            try (var stream = BytesReference.bytes(builder).streamInput()) {
+                expectThrows(IllegalStateException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
             }
         }
     }

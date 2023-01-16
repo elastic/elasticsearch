@@ -8,14 +8,21 @@
 package org.elasticsearch.xpack.spatial.common;
 
 import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -229,10 +236,22 @@ public class H3CartesianUtilTests extends ESTestCase {
         }
     }
 
-    public void testWronglyNormaliseGeometry() throws IOException {
-        // this he bin fails normalising in CCW, so we added hack to normalise it CW. If this test fails
+    public void testWronglyNormaliseGeometry() {
+        // this bin fails normalising in CCW, so we added hack to normalise it CW. If this test fails
         // it might mean we fixed the bug in the GeometryNormaliser.
-        assertNotNull(GeoTestUtils.geoShapeValue(H3CartesianUtil.getNormalizeGeometry(576531121047601151L)));
+        CellBoundary cellBoundary = H3.h3ToGeoBoundary(576531121047601151L);
+        double[] xs = new double[cellBoundary.numPoints() + 1];
+        double[] ys = new double[cellBoundary.numPoints() + 1];
+        for (int i = 0; i < cellBoundary.numPoints(); i++) {
+            final LatLng latLng = cellBoundary.getLatLon(i);
+            xs[i] = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(latLng.getLonDeg()));
+            ys[i] = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(latLng.getLatDeg()));
+        }
+        xs[cellBoundary.numPoints()] = xs[0];
+        ys[cellBoundary.numPoints()] = ys[0];
+        Polygon polygon = new Polygon(new LinearRing(xs, ys));
+        assertThat(GeometryNormalizer.apply(Orientation.CCW, polygon), Matchers.instanceOf(Polygon.class));
+        assertThat(GeometryNormalizer.apply(Orientation.CW, polygon), Matchers.instanceOf(MultiPolygon.class));
     }
 
     public void testNormaliseGeometry() throws IOException {

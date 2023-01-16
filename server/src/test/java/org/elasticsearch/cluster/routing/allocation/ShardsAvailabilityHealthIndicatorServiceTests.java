@@ -1640,7 +1640,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             shardId,
             primary,
             getSource(primary, allocation.state),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
         );
         if (allocation.state == INITIALIZING) {
             return routing;

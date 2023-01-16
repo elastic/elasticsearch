@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api.settings;
+package org.elasticsearch.plugin;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -14,13 +14,14 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * An annotation used to mark a setting of type list.
+ * An annotation used on plugin components which will be registered under a given name by Elasticsearch server.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-public @interface ListSetting {
+@Target({ ElementType.TYPE })
+public @interface NamedComponent {
     /**
-     * A name of a setting
+     * The name used for registration and lookup
+     * @return a name
      */
-    String path();
+    String value();
 }

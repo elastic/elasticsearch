@@ -10,28 +10,64 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
-import java.util.Arrays;
-import java.util.List;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Encapsulates links to pages in the reference docs, so that for example we can include URLs in logs and API outputs. Each instance's
- * {@link #toString()} yields (a string representation of) a URL for the relevant docs.
+ * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
+ * {@code reference-docs-links.json} which must include definitions for exactly the set of values of this enum.
  */
 public enum ReferenceDocs {
-    INITIAL_MASTER_NODES("important-settings.html#initial_master_nodes"),
-    DISCOVERY_TROUBLESHOOTING("discovery-troubleshooting.html"),
-    UNSTABLE_CLUSTER_TROUBLESHOOTING("cluster-fault-detection.html#cluster-fault-detection-troubleshooting"),
-    LAGGING_NODE_TROUBLESHOOTING("cluster-fault-detection.html#_diagnosing_lagging_nodes");
+    INITIAL_MASTER_NODES,
+    DISCOVERY_TROUBLESHOOTING,
+    UNSTABLE_CLUSTER_TROUBLESHOOTING,
+    LAGGING_NODE_TROUBLESHOOTING;
 
-    private final String relativePath;
+    private static final Map<String, String> linksBySymbol;
 
-    ReferenceDocs(String relativePath) {
-        this.relativePath = relativePath;
+    static {
+        try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.json"))) {
+            linksBySymbol = Map.copyOf(readLinksBySymbol(resourceStream));
+        } catch (Exception e) {
+            assert false : e;
+            throw new IllegalStateException("could not read links resource", e);
+        }
     }
 
     static final String UNRELEASED_VERSION_COMPONENT = "master";
     static final String VERSION_COMPONENT = getVersionComponent(Version.CURRENT, Build.CURRENT.isSnapshot());
+
+    static Map<String, String> readLinksBySymbol(InputStream inputStream) throws Exception {
+        try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, inputStream)) {
+            final var result = parser.map(LinkedHashMap::new, XContentParser::text);
+            final var iterator = result.keySet().iterator();
+            for (int i = 0; i < values().length; i++) {
+                final var expected = values()[i].name();
+                if (iterator.hasNext() == false) {
+                    throw new IllegalStateException("ran out of values at index " + i + ": expecting " + expected);
+                }
+                final var actual = iterator.next();
+                if (actual.equals(expected) == false) {
+                    throw new IllegalStateException("mismatch at index " + i + ": found " + actual + " but expected " + expected);
+                }
+            }
+            if (iterator.hasNext()) {
+                throw new IllegalStateException("found unexpected extra value: " + iterator.next());
+            }
+            return result;
+        }
+    }
 
     /**
      * Compute the version component of the URL path (e.g. {@code 8.5} or {@code master}) for a particular version of Elasticsearch. Exposed
@@ -44,26 +80,14 @@ public enum ReferenceDocs {
 
     @Override
     public String toString() {
-        return "https://www.elastic.co/guide/en/elasticsearch/reference/" + VERSION_COMPONENT + "/" + relativePath;
+        return "https://www.elastic.co/guide/en/elasticsearch/reference/" + VERSION_COMPONENT + "/" + linksBySymbol.get(name());
     }
 
-    /**
-     * @return a list of links which are expected to exist for a particular version of Elasticsearch, which is either all links (if the docs
-     * are released) or no links (otherwise). Exposed for testing the behaviour of different versions, but for the current version use
-     * {@link #linksToVerify()}.
-     */
-    static List<ReferenceDocs> linksToVerify(Version version, boolean isSnapshot) {
-        if (version.revision == 0 && isSnapshot == false) {
-            return List.of();
+    @SuppressForbidden(reason = "reads resource from jar")
+    private static InputStream readFromJarResourceUrl(URL source) throws IOException {
+        if (source == null) {
+            throw new FileNotFoundException("links resource not found at [" + source + "]");
         }
-        return Arrays.stream(values()).toList();
-    }
-
-    /**
-     * @return a list of links which are expected to exist for the current version of Elasticsearch, which is either all links (if the docs
-     * are released) or no links (otherwise).
-     */
-    public static List<ReferenceDocs> linksToVerify() {
-        return linksToVerify(Version.CURRENT, Build.CURRENT.isSnapshot());
+        return source.openStream();
     }
 }

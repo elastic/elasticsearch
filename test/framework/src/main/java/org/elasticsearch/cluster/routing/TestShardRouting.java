@@ -45,7 +45,8 @@ public class TestShardRouting {
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -66,7 +67,8 @@ public class TestShardRouting {
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -104,7 +106,8 @@ public class TestShardRouting {
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -145,7 +148,8 @@ public class TestShardRouting {
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             allocationId,
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -186,7 +190,8 @@ public class TestShardRouting {
             unassignedInfo,
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 

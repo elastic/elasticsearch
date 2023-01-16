@@ -8,7 +8,11 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.core.Nullable;
+
 /**
- * @param message Message describing the reason for the node joining
+ * @param message      Message describing the reason for the node joining
+ * @param guidanceDocs An optional link to troubleshooting guidance docs
  */
-public record JoinReason(String message) {}
+public record JoinReason(String message, @Nullable ReferenceDocs guidanceDocs) {}

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -64,7 +65,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
     public void testCannotAllocatePrimaryMissingInRestoreInProgress() {
         ClusterState clusterState = createInitialClusterState();
-        RoutingTable routingTable = RoutingTable.builder(clusterState.getRoutingTable())
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
             .addAsRestore(clusterState.getMetadata().index("test"), createSnapshotRecoverySource("_missing"))
             .build();
 
@@ -90,7 +91,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         RecoverySource.SnapshotRecoverySource recoverySource = createSnapshotRecoverySource("_existing");
 
         ClusterState clusterState = createInitialClusterState();
-        RoutingTable routingTable = RoutingTable.builder(clusterState.getRoutingTable())
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
             .addAsRestore(clusterState.getMetadata().index("test"), recoverySource)
             .build();
 
@@ -183,7 +184,9 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(newNode("master", Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)))

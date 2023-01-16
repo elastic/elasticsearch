@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -174,7 +175,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         return VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
     }
 
-    private static final JoinReason TEST_REASON = new JoinReason("test");
+    private static final JoinReason TEST_REASON = new JoinReason("test", null);
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
         // Node roles vary by version, and new roles are suppressed for BWC. This means we can receive a join from a node that's already
@@ -616,6 +617,35 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         .submitStateUpdateTask(
                             "test",
                             JoinTask.singleNode(node1, TEST_REASON, future, 0L),
+                            ClusterStateTaskConfig.build(Priority.NORMAL),
+                            executor
+                        ),
+                    10,
+                    TimeUnit.SECONDS
+                )
+            );
+            appender.assertAllExpectationsMatched();
+
+            final var node2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+            final var testReasonWithLink = new JoinReason("test", ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "warn message with troubleshooting link",
+                    LOGGER_NAME,
+                    Level.WARN,
+                    "node-join: ["
+                        + node2.descriptionWithoutAttributes()
+                        + "] with reason ["
+                        + testReasonWithLink.message()
+                        + "]; for troubleshooting guidance, see https://www.elastic.co/guide/en/elasticsearch/reference/*"
+                )
+            );
+            assertNull(
+                PlainActionFuture.<Void, RuntimeException>get(
+                    future -> clusterService.getMasterService()
+                        .submitStateUpdateTask(
+                            "test",
+                            JoinTask.singleNode(node2, testReasonWithLink, future, 0L),
                             ClusterStateTaskConfig.build(Priority.NORMAL),
                             executor
                         ),

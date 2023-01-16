@@ -112,6 +112,15 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         mockLogAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
         );
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "troubleshooting link",
+                LOGGER_NAME,
+                Level.WARN,
+                "* for troubleshooting guidance, see "
+                    + "https://www.elastic.co/guide/en/elasticsearch/reference/*/discovery-troubleshooting.html*"
+            )
+        );
         try (var ignored = mockLogAppender.capturing(ClusterFormationFailureHelper.class)) {
             while (warningCount.get() == 0) {
                 assertTrue(clusterFormationFailureHelper.isRunning());
@@ -121,10 +130,10 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     deterministicTaskQueue.advanceTime();
                 }
             }
+            assertThat(warningCount.get(), is(1L));
+            assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
+            mockLogAppender.assertAllExpectationsMatched();
         }
-        assertThat(warningCount.get(), is(1L));
-        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
-        mockLogAppender.assertAllExpectationsMatched();
 
         while (warningCount.get() < 5) {
             assertTrue(clusterFormationFailureHelper.isRunning());

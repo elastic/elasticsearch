@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -26,11 +27,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -176,7 +178,7 @@ public class Retry2Tests extends ESTestCase {
             retry.awaitClose(1, TimeUnit.SECONDS);
         }
         /*
-         * Most requests are complete but one request is hung so awaitClose ought to throw a TimeoutException
+         * Most requests are complete but one request is hung so awaitClose ought to wait the full timeout period
          */
         {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
@@ -200,7 +202,14 @@ public class Retry2Tests extends ESTestCase {
             retry.consumeRequestWithRetries((bulkRequest1, listener1) -> {
                 // never calls onResponse or onFailure
             }, bulkRequest, listener);
-            expectThrows(TimeoutException.class, () -> retry.awaitClose(200, TimeUnit.MILLISECONDS));
+            long waitTimeMillis = randomLongBetween(20, 200);
+            // Make sure that awaitClose completes without exception, and takes at least waitTimeMillis
+            long startTimeNanos = System.nanoTime();
+            retry.awaitClose(waitTimeMillis, TimeUnit.MILLISECONDS);
+            long stopTimeNanos = System.nanoTime();
+            long runtimeMillis = TimeValue.timeValueNanos((stopTimeNanos - startTimeNanos)).millis();
+            assertThat(runtimeMillis, greaterThanOrEqualTo(waitTimeMillis));
+            assertThat(runtimeMillis, lessThanOrEqualTo(2 * waitTimeMillis));
         }
     }
 

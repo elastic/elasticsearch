@@ -223,16 +223,17 @@ public abstract class Engine implements Closeable {
          * reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
+         * @param store           the index shard store
          * @param primaryTerm     the shard's primary term value
          * @param indexCommitRef  a reference on the newly created index commit
          * @param additionalFiles the set of filenames that are added by the new commit
          */
-        void onNewCommit(ShardId shardId, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
+        void onNewCommit(ShardId shardId, Store store, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
 
         /**
          * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
-         * until the corresponding {@link Engine.IndexCommitRef} received through
-         * {@link #onNewCommit(ShardId, long, IndexCommitRef, Set)} has been closed; closing which in turn can call this method directly.
+         * until the corresponding {@link Engine.IndexCommitRef} received through {@link #onNewCommit} has been closed; closing which in
+         * turn can call this method directly.
          *
          * @param shardId the {@link ShardId} of shard
          * @param deletedCommit the deleted {@link IndexCommit}

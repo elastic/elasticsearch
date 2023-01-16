@@ -148,7 +148,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings)))
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED, false)
             .build();

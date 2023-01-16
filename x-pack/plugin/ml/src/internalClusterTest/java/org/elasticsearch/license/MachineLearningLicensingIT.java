@@ -664,7 +664,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            new InferModelAction.Request(
+            InferModelAction.Request.forDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
@@ -685,7 +685,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             client().execute(
                 InferModelAction.INSTANCE,
-                new InferModelAction.Request(
+                InferModelAction.Request.forDocs(
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
@@ -701,7 +701,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            new InferModelAction.Request(
+            InferModelAction.Request.forDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
@@ -721,7 +721,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            new InferModelAction.Request(
+            InferModelAction.Request.forDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,

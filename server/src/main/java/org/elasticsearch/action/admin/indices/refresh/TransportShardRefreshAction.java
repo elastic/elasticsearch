@@ -93,15 +93,15 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
 
     @Override
     protected void shardOperationOnReplica(ReplicaShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        if (replica.routingEntry().isPromotableToPrimary() == false) {
-            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
-            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
-        } else {
+        if (replica.routingEntry().isPromotableToPrimary()) {
             ActionListener.completeWith(listener, () -> {
                 replica.refresh(SOURCE_API);
                 logger.trace("{} refresh request executed on replica", replica.shardId());
                 return new ReplicaResult();
             });
+        } else {
+            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
+            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
         }
     }
 }

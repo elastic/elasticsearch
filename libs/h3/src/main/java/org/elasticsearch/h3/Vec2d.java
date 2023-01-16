@@ -164,13 +164,13 @@ final class Vec2d {
      *
      */
     static CoordIJK hex2dToCoordIJK(double x, double y) {
-        double a1, a2;
-        double x1, x2;
-        int m1, m2;
-        double r1, r2;
+        final double a1, a2;
+        final double x1, x2;
+        final int m1, m2;
+        final double r1, r2;
 
         // quantize into the ij system and then normalize
-        int k = 0;
+        final int k = 0;
         int i;
         int j;
 
@@ -196,17 +196,17 @@ final class Vec2d {
                     j = m2;
                 } else {
                     i = m1;
-                    j = m2 + 1;
+                    j = Math.incrementExact(m2);
                 }
             } else {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
-                    j = m2 + 1;
+                    j = Math.incrementExact(m2);
                 }
 
                 if ((1.0 - r1) <= r2 && r2 < (2.0 * r1)) {
-                    i = m1 + 1;
+                    i = Math.incrementExact(m1);
                 } else {
                     i = m1;
                 }
@@ -216,21 +216,21 @@ final class Vec2d {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
-                    j = m2 + 1;
+                    j = Math.addExact(m2, 1);
                 }
 
                 if ((2.0 * r1 - 1.0) < r2 && r2 < (1.0 - r1)) {
                     i = m1;
                 } else {
-                    i = m1 + 1;
+                    i = Math.incrementExact(m1);
                 }
             } else {
                 if (r2 < (r1 / 2.0)) {
-                    i = m1 + 1;
+                    i = Math.incrementExact(m1);
                     j = m2;
                 } else {
-                    i = m1 + 1;
-                    j = m2 + 1;
+                    i = Math.incrementExact(m1);
+                    j = Math.incrementExact(m2);
                 }
             }
         }
@@ -240,19 +240,19 @@ final class Vec2d {
         if (x < 0.0) {
             if ((j % 2) == 0)  // even
             {
-                int axisi = j / 2;
-                int diff = i - axisi;
-                i = i - 2 * diff;
+                final int axisi = j / 2;
+                final int diff = Math.subtractExact(i, axisi);
+                i = Math.subtractExact(i, Math.multiplyExact(2, diff));
             } else {
-                int axisi = (j + 1) / 2;
-                int diff = i - axisi;
-                i = i - (2 * diff + 1);
+                final int axisi = Math.addExact(j, 1) / 2;
+                final int diff = Math.subtractExact(i, axisi);
+                i = Math.subtractExact(i, Math.addExact(Math.multiplyExact(2, diff), 1));
             }
         }
 
         if (y < 0.0) {
-            i = i - (2 * j + 1) / 2;
-            j = -1 * j;
+            i = Math.subtractExact(i, Math.addExact(Math.multiplyExact(2, j), 1) / 2);
+            j = Math.multiplyExact(-1, j);
         }
         final CoordIJK coordIJK = new CoordIJK(i, j, k);
         coordIJK.ijkNormalize();

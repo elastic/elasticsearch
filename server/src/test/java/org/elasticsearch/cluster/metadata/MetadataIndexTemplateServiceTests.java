@@ -50,7 +50,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.asLifoQueue;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
@@ -1531,7 +1530,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         });
 
         assertThat(e.name(), equalTo("template"));
-        assertThat(e.getMessage(), containsString("index_template [template] invalid, cause [index templates [template] specifies component templates [[bad]] that do not exist]"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index_template [template] invalid, cause [index templates [template] specifies component templates [[bad]] that do not exist]"
+            )
+        );
     }
 
     public void testRemoveComponentTemplate() throws Exception {
@@ -2143,11 +2147,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // THis is where the validation happens
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
-        //metadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
+        // metadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
         MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
     }
 
-   public void testIgnoreMissingComponentTemplateInalid() throws Exception {
+    public void testIgnoreMissingComponentTemplateInalid() throws Exception {
 
         String indexTemplateName = "metric-test";
 
@@ -2156,7 +2160,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         componentTemplates.add("fail");
 
         List<String> ignoreMissingComponentTemplates = new ArrayList<>();
-       ignoreMissingComponentTemplates.add("bar");
+        ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(
@@ -2175,17 +2179,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
 
         // try now the same thing with validation on
-       InvalidIndexTemplateException e = expectThrows(
-           InvalidIndexTemplateException.class,
+        InvalidIndexTemplateException e = expectThrows(
+            InvalidIndexTemplateException.class,
             () -> MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template)
 
         );
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "specifies a missing component templates [fail] that does not exist"
-            )
-        );
+        assertThat(e.getMessage(), containsString("specifies a missing component templates [fail] that does not exist"));
     }
 
     /**

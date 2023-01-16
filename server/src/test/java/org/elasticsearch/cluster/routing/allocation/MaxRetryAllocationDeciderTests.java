@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,14 +50,17 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         new TestGatewayAllocator(),
         new BalancedShardsAllocator(Settings.EMPTY),
         EmptyClusterInfoService.INSTANCE,
-        EmptySnapshotsInfoService.INSTANCE
+        EmptySnapshotsInfoService.INSTANCE,
+        TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
     );
 
     private ClusterState createInitialClusterState() {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("idx")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("idx"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)

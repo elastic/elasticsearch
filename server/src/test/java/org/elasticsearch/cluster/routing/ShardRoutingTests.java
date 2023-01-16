@@ -138,7 +138,8 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting.unassignedInfo(),
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
-                        otherRouting.getExpectedShardSize()
+                        otherRouting.getExpectedShardSize(),
+                        otherRouting.role()
                     );
                     break;
                 case 1:
@@ -153,7 +154,8 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting.unassignedInfo(),
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
-                        otherRouting.getExpectedShardSize()
+                        otherRouting.getExpectedShardSize(),
+                        otherRouting.role()
                     );
                     break;
                 case 2:
@@ -171,7 +173,8 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.unassignedInfo(),
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
-                            otherRouting.getExpectedShardSize()
+                            otherRouting.getExpectedShardSize(),
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -190,7 +193,8 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.unassignedInfo(),
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
-                            otherRouting.getExpectedShardSize()
+                            otherRouting.getExpectedShardSize(),
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -214,7 +218,8 @@ public class ShardRoutingTests extends ESTestCase {
                             otherRouting.unassignedInfo(),
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
-                            otherRouting.getExpectedShardSize()
+                            otherRouting.getExpectedShardSize(),
+                            otherRouting.role()
                         );
                     }
                     break;

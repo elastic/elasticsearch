@@ -400,7 +400,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             shardId,
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            unassignedInfo
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);

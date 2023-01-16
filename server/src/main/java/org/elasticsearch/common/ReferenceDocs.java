@@ -32,7 +32,10 @@ public enum ReferenceDocs {
     INITIAL_MASTER_NODES,
     DISCOVERY_TROUBLESHOOTING,
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
-    LAGGING_NODE_TROUBLESHOOTING;
+    LAGGING_NODE_TROUBLESHOOTING,
+    CONCURRENT_REPOSITORY_WRITERS,
+    // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
+    ;
 
     private static final Map<String, String> linksBySymbol;
 

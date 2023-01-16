@@ -1019,8 +1019,6 @@ public abstract class Engine implements Closeable {
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
-     *
-     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
      */
     @Nullable
     public abstract RefreshResult maybeRefresh(String source) throws EngineException;
@@ -1966,16 +1964,19 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
-    /*
-     * Captures the result of a {@link org.elasticsearch.index.engine.Engine#refresh(String)} call.
+    /**
+     * Captures the result of a refresh operation on the index shard.
+     * <p>
+     * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
+     * contains the generation of the index commit that the reader has opened upon refresh.
      */
-    public record RefreshResult(boolean refreshed, long segmentGeneration) {
+    public record RefreshResult(boolean refreshed, long generation) {
 
-        public static final long UNKNOWN_SEGMENT_GEN = -1L;
-        public static final RefreshResult EMPTY = new RefreshResult(false);
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final RefreshResult NO_REFRESH = new RefreshResult(false);
 
         public RefreshResult(boolean refreshed) {
-            this(refreshed, UNKNOWN_SEGMENT_GEN);
+            this(refreshed, UNKNOWN_GENERATION);
         }
     }
 }

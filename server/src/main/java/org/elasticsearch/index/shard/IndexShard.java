@@ -4121,7 +4121,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
-        Engine engine = getEngine();
-        engine.addSegmentGenerationListener(segmentGeneration, aLong -> listener.onResponse(null));
+        getEngine().addSegmentGenerationListener(segmentGeneration, listener::onResponse);
     }
 }

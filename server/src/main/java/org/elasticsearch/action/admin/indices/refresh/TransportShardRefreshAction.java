@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -82,7 +83,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         ActionListener.completeWith(listener, () -> {
             var refreshResult = primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            var shardRefreshRequest = new ReplicaShardRefreshRequest(primary.shardId(), refreshResult.segmentGeneration());
+            var shardRefreshRequest = new ReplicaShardRefreshRequest(primary.shardId(), refreshResult.generation());
             // Since we are not reusing the same request on the replica shards and create a new ReplicaShardRefreshRequest, we
             // need to explicitly set the parent task so the resulting refresh[s][r] task has the same refresh[s] task as parent.
             shardRefreshRequest.setParentTask(shardRequest.getParentTask());
@@ -93,7 +94,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     @Override
     protected void shardOperationOnReplica(ReplicaShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         if (DiscoveryNode.isStateless(settings)) {
-            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(gen -> new ReplicaResult()));
+            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
+            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
         } else {
             ActionListener.completeWith(listener, () -> {
                 replica.refresh(SOURCE_API);

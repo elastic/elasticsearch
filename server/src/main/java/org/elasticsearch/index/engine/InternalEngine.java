@@ -1830,7 +1830,7 @@ public class InternalEngine extends Engine {
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
-        long segmentGeneration = RefreshResult.UNKNOWN_SEGMENT_GEN;
+        long segmentGeneration = RefreshResult.UNKNOWN_GENERATION;
         try {
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {

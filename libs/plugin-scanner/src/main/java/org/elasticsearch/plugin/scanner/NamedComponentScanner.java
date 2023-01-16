@@ -29,7 +29,7 @@ public class NamedComponentScanner {
 
     // main method to be used by gradle build plugin
     public static void main(String[] args) throws IOException {
-        List<ClassReader> classReaders = new ClassReadersProvider().ofClassPath();
+        List<ClassReader> classReaders = ClassReaders.ofClassPath();
 
         NamedComponentScanner scanner = new NamedComponentScanner();
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);

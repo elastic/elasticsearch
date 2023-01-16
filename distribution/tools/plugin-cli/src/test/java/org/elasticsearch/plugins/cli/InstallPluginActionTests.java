@@ -57,7 +57,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;
@@ -129,7 +128,6 @@ public class InstallPluginActionTests extends ESTestCase {
     private MockTerminal terminal;
     private Tuple<Path, Environment> env;
     private Path pluginDir;
-    private ClassReadersProvider classReadersProvider;
     private NamedComponentScanner namedComponentScanner;
 
     private final boolean isPosix;
@@ -152,8 +150,8 @@ public class InstallPluginActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        classReadersProvider = Mockito.mock(ClassReadersProvider.class);
-        namedComponentScanner = Mockito.spy(new NamedComponentScanner());
+//        classReadersProvider = Mockito.mock(ClassReadersProvider.class);
+//        namedComponentScanner = Mockito.spy(new NamedComponentScanner());
         pluginDir = createPluginDir(temp);
         terminal = MockTerminal.create();
         env = createEnv(temp);
@@ -164,11 +162,9 @@ public class InstallPluginActionTests extends ESTestCase {
             }
         };
         skipJarHellAction.setNamedComponentScanner(namedComponentScanner);
-        skipJarHellAction.setClassReadersProvider(classReadersProvider);
 
         defaultAction = new InstallPluginAction(terminal, env.v2(), false);
         defaultAction.setNamedComponentScanner(namedComponentScanner);
-        defaultAction.setClassReadersProvider(classReadersProvider);
     }
 
     @Override
@@ -1570,9 +1566,9 @@ public class InstallPluginActionTests extends ESTestCase {
         // named component will have to be generated upon install
         InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, false);
 
-        List<ClassReader> classReaders = Mockito.mock(List.class);
-        Mockito.when(classReadersProvider.ofDirWithJars(Mockito.any(Path.class))).thenReturn(classReaders);
-        Mockito.doReturn(namedComponentsMap()).when(namedComponentScanner).scanForNamedClasses(Mockito.eq(classReaders));
+//        List<ClassReader> classReaders = Mockito.mock(List.class);
+//        Mockito.when(classReadersProvider.ofDirWithJars(Mockito.any(Path.class))).thenReturn(classReaders);
+//        Mockito.doReturn(namedComponentsMap()).when(namedComponentScanner).scanForNamedClasses(Mockito.eq(classReaders));
 
         installPlugins(List.of(stablePluginZip), env.v1());
 

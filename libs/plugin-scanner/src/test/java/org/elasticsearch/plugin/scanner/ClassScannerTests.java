@@ -26,7 +26,7 @@ public class ClassScannerTests extends ESTestCase {
             map.put(classname, classname);
             return null;
         });
-        List<ClassReader> classReaders = new ClassReadersProvider().ofClassPath();
+        List<ClassReader> classReaders = ClassReaders.ofClassPath();
         logger.log(System.Logger.Level.INFO, "classReaderStream size " + classReaders.size());
 
         reader.visit(classReaders);

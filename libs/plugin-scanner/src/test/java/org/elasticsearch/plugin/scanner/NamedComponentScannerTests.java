@@ -76,8 +76,8 @@ public class NamedComponentScannerTests extends ESTestCase {
             public class B implements ExtensibleInterface{}
             """)));
         List<ClassReader> classReaderStream = Stream.concat(
-            new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
-            new ClassReadersProvider().ofClassPath().stream()
+            ClassReaders.ofDirWithJars(dirWithJar).stream(),
+           ClassReaders.ofClassPath().stream()
         )// contains plugin-api
             .toList();
 
@@ -151,8 +151,8 @@ public class NamedComponentScannerTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         List<ClassReader> classReaders = Stream.concat(
-            new ClassReadersProvider().ofDirWithJars(dirWithJar).stream(),
-            new ClassReadersProvider().ofClassPath().stream()
+           ClassReaders.ofDirWithJars(dirWithJar).stream(),
+           ClassReaders.ofClassPath().stream()
         )// contains plugin-api
             .toList();
 

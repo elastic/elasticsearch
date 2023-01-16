@@ -38,6 +38,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugin.scanner.ClassReaders;
 import org.elasticsearch.plugin.scanner.ClassReadersProvider;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
@@ -200,7 +201,6 @@ public class InstallPluginAction implements Closeable {
     private Environment env;
     private boolean batch;
     private Proxy proxy = null;
-    private ClassReadersProvider classReadersProvider = new ClassReadersProvider();
     private NamedComponentScanner scanner = new NamedComponentScanner();
 
     public InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
@@ -216,11 +216,6 @@ public class InstallPluginAction implements Closeable {
     // pkg private for testing
     public void setNamedComponentScanner(NamedComponentScanner scanner) {
         this.scanner = scanner;
-    }
-
-    // pkg private for testing
-    void setClassReadersProvider(ClassReadersProvider classReadersProvider) {
-        this.classReadersProvider = classReadersProvider;
     }
 
     // pkg private for testing
@@ -889,7 +884,7 @@ public class InstallPluginAction implements Closeable {
     }
 
     private void generateNameComponentFile(Path pluginRoot) throws IOException {
-        List<ClassReader> classReaders = classReadersProvider.ofDirWithJars(pluginRoot);
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(pluginRoot);
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
         Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
         scanner.writeToFile(namedComponentsMap, outputFile);

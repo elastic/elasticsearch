@@ -22,10 +22,9 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheFile;
 import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.FrozenCacheFile;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFile;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -365,7 +364,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return new CacheKey(snapshotId.getUUID(), indexId.getName(), shardId, fileName);
     }
 
-    public CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
+    public org.elasticsearch.blobcache.common.CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
         return cacheService.get(cacheKey, fileLength, cacheDir);
     }
 
@@ -423,7 +422,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(name, this, fileInfo, context, inputStats, getUncachedChunkSize());
+            return new DirectBlobContainerIndexInput(name, blobContainer(), fileInfo, context, inputStats, getUncachedChunkSize());
         }
     }
 
@@ -712,7 +711,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         );
     }
 
-    public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
+    public CacheFile getFrozenCacheFile(String fileName, long length) {
         return sharedBlobCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
     }
 

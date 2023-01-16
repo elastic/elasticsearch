@@ -59,6 +59,10 @@ public final class Features {
                 if (ESRestTestCase.hasXPack()) {
                     return false;
                 }
+            } else if (feature.equals("stateful")) {
+                if (ESRestTestCase.isStateless()) {
+                    return false;
+                }
             } else if (false == SUPPORTED.contains(feature)) {
                 return false;
             }

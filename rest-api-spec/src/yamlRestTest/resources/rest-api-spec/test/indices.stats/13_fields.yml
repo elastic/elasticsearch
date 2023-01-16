@@ -1,5 +1,9 @@
 ---
 setup:
+  - skip
+    reason: "creates an index without replicas"
+    features:
+      - stateful
 
   - do:
       indices.create:

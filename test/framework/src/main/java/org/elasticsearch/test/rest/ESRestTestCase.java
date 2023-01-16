@@ -175,6 +175,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         return hasXPack;
     }
 
+    public static boolean isStateless() {
+        if (isStateless == null) {
+            throw new IllegalStateException("must be called inside of a rest test case test");
+        }
+        return isStateless;
+    }
+
     private static List<HttpHost> clusterHosts;
     /**
      * A client for the running Elasticsearch cluster
@@ -190,6 +197,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static Boolean hasRollups;
     private static Boolean hasCcr;
     private static Boolean hasShutdown;
+    private static Boolean isStateless;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -225,6 +233,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             hasRollups = false;
             hasCcr = false;
             hasShutdown = false;
+            isStateless = false;
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
@@ -249,6 +258,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (moduleName.equals("x-pack-shutdown")) {
                         hasShutdown = true;
                     }
+                    if (moduleName.equals("stateless")) {
+                        isStateless = true;
+                    }
                 }
             }
         }
@@ -260,6 +272,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert hasRollups != null;
         assert hasCcr != null;
         assert hasShutdown != null;
+        assert isStateless != null;
         assert nodeVersions != null;
     }
 

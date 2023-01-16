@@ -276,9 +276,15 @@ teardown:
 ---
 "Test start batch transform with from parameter":
   - do:
-      catch: /\[from\] parameter is currently not supported for batch \(non-continuous\) transforms/
       transform.start_transform:
         from: "2023-01-11T12:00:00"
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.stop_transform:
+        wait_for_checkpoint: true
+        allow_no_match: true
         transform_id: "airline-transform-start-stop"
 
 ---

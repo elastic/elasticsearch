@@ -52,7 +52,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 
@@ -205,12 +204,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         // <2> run transform validations
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
             ActionRequestValidationException validationException = config.validate(null);
-            if (request.from() != null && config.getSyncConfig() == null) {
-                validationException = addValidationError(
-                    "[from] parameter is currently not supported for batch (non-continuous) transforms",
-                    validationException
-                );
-            }
             if (validationException != null) {
                 listener.onFailure(
                     new ElasticsearchStatusException(

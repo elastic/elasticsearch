@@ -1044,7 +1044,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private SearchRequest buildQueryToFindChanges() {
-        assert isContinuous();
+//        assert isContinuous();
 
         TransformIndexerPosition position = getPosition();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().runtimeMappings(getConfig().getSource().getRuntimeMappings());

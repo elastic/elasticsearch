@@ -16,7 +16,10 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
@@ -153,6 +156,8 @@ public class TransportVersion implements Comparable<TransportVersion> {
 
     private static final Map<Integer, TransportVersion> idToVersion;
 
+    private static final TreeSet<TransportVersion> declaredVersions;
+
     static {
         Map<Integer, TransportVersion> builder = new HashMap<>();
         Map<String, TransportVersion> uniqueIds = new HashMap<>();
@@ -185,6 +190,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
             }
         }
         idToVersion = Map.copyOf(builder);
+        declaredVersions = idToVersion.values().stream().collect(Collectors.toCollection(() -> new TreeSet<>()));
     }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
@@ -218,7 +224,8 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return version1.id > version2.id ? version1 : version2;
     }
 
-    private final int id;
+    // TODO for testing or a getter? should this be used?
+    final int id;
     private final String uniqueId;
 
     TransportVersion(int id, String uniqueId) {
@@ -245,6 +252,13 @@ public class TransportVersion implements Comparable<TransportVersion> {
     @Override
     public int compareTo(TransportVersion other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    /**
+     * returns a sorted list of declared transport version constants
+     */
+    public static NavigableSet<TransportVersion> getDeclaredVersions() {
+        return declaredVersions;
     }
 
     @Override
@@ -274,4 +288,5 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public int hashCode() {
         return id;
     }
+
 }

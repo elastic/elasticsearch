@@ -1,0 +1,119 @@
+
+# Test cannot delete model referenced by redact processor
+# Test not using a NER model
+
+#- do:
+#    catch: /Cannot delete model \[a-classification-model\] as it is still referenced by ingest processors; use force to delete the model/
+#    ml.delete_trained_model:
+#      model_id: "a-classification-model"
+#
+#- do:
+#    ingest.delete_pipeline:
+#      id: "pipeline-using-a-classification-model"
+
+---
+"Test put redact pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-redact-processor"
+        body:  >
+          {
+            "processors": [
+              {
+                "redact": {
+                  "model_id": "a-ner-model",
+                  "field": "to_redact",
+                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}", "%{CREDIT_CARD:CREDIT_CARD}"],
+                  "pattern_definitions": {
+                    "CREDIT_CARD": "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"
+                  }
+                }
+              }
+            ]
+          }
+
+---
+"Test redact pipeline with no NER model":
+  - do:
+      ingest.simulate:
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "redact": {
+                  "field": "to_redact",
+                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}", "%{CREDIT_CARD:CREDIT_CARD}"],
+                  "pattern_definitions": {
+                    "CREDIT_CARD": "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"
+                  }
+                }
+              }
+            ]},
+            "docs": [{"_source": {"to_redact": "thisisanemail@address.com will be redacted"}}]
+          }
+  - match: { docs.0.doc._source.to_redact: "<EMAIL> will be redacted" }
+
+---
+"Test ignore missing":
+  - do:
+      ingest.simulate:
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "redact": {
+                  "field": "to_redact",
+                  "ignore_missing": false,
+                  "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"]
+                }
+              }
+            ]},
+            "docs": [{"_source": {"wrong_field": "will error"}}]
+          }
+  - match: { docs.0.error.reason: "field [to_redact] is null or missing" }
+
+---
+"Test model is not a NER model":
+  - do:
+      ml.put_trained_model:
+        model_id: a-regression-model
+        error_trace: true
+        body: >
+          {
+            "description": "empty model for tests",
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"regression": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
+
+  - do:
+      ingest.simulate:
+        error_trace: true
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "redact": {
+                  "field": "to_redact",
+                  "model_id": "a-regression-model"
+                }
+              }
+            ]},
+            "docs": [{"_source": {"to_redact": "My name is Eva and I live in London"}}]
+          }
+  - match: { docs.0.error.reason: "Inference against model [a-regression-model] returned 0 results. Is the model  a Named Entity Recognition model?" }

@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
@@ -326,6 +327,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
+import org.elasticsearch.xpack.ml.ingest.RedactProcessor;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -550,7 +552,10 @@ public class MachineLearning extends Plugin
             this.settings
         );
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
-        return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
+        // TODO use a non-noop watchdog
+        RedactProcessor.Factory redactFactory = new RedactProcessor.Factory(parameters.client, MatcherWatchdog.noop());
+
+        return Map.of(InferenceProcessor.TYPE, inferenceFactory, RedactProcessor.TYPE, redactFactory);
     }
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion

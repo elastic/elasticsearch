@@ -23,7 +23,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
-import java.util.Locale;
 
 public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     private static final String[] INTERNAL_USERNAMES = new String[] {
@@ -53,7 +52,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     }
 
     private String defaultRole(String roleName) {
-        return formatted("""
+        return org.elasticsearch.core.Strings.format("""
             %s:
               cluster: [ none ]
               indices:
@@ -68,7 +67,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         StringBuilder builder = new StringBuilder(super.configUsers());
         for (String username : INTERNAL_USERNAMES) {
-            builder.append(String.format(Locale.ROOT, "%s:%s\n", username, usersPasswdHashed));
+            builder.append(org.elasticsearch.core.Strings.format("%s:%s\n", username, usersPasswdHashed));
         }
         return builder + "user:" + usersPasswdHashed + "\n";
     }
@@ -78,10 +77,10 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         StringBuilder builder = new StringBuilder(super.configUsersRoles());
         // non-internal username maps to all internal role names
         for (String roleName : INTERNAL_ROLE_NAMES) {
-            builder.append(String.format(Locale.ROOT, "%s:%s\n", roleName, NON_INTERNAL_USERNAME));
+            builder.append(org.elasticsearch.core.Strings.format("%s:%s\n", roleName, NON_INTERNAL_USERNAME));
         }
         // all internal usernames are mapped to custom role
-        return builder + String.format(Locale.ROOT, "%s:%s\n", NON_INTERNAL_ROLE_NAME, Strings.join(INTERNAL_USERNAMES, ","));
+        return builder + org.elasticsearch.core.Strings.format("%s:%s\n", NON_INTERNAL_ROLE_NAME, Strings.join(INTERNAL_USERNAMES, ","));
     }
 
     private static Path repositoryLocation;

@@ -60,7 +60,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
         var result = toXContent(clusterRerouteResponse, new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")));
 
-        assertThat(result, equalTo(XContentHelper.stripWhitespace(formatted("""
+        assertThat(result, equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "acknowledged": true,
               "explanations": [
@@ -90,7 +90,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
         var result = toXContent(clusterRerouteResponse, ToXContent.EMPTY_PARAMS);
 
-        assertThat(result, equalTo(XContentHelper.stripWhitespace(formatted("""
+        assertThat(result, equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "acknowledged": true,
               "state": {

@@ -226,14 +226,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
             try {
                 // Write settings to elasticsearch.yml
-                Map<String, String> pathSettings = new HashMap<>();
-                pathSettings.put("path.repo", workingDir.resolve("repo").toString());
-                pathSettings.put("path.data", workingDir.resolve("data").toString());
-                pathSettings.put("path.logs", workingDir.resolve("logs").toString());
+                Map<String, String> finalSettings = new HashMap<>();
+                finalSettings.put("path.repo", workingDir.resolve("repo").toString());
+                finalSettings.put("path.data", workingDir.resolve("data").toString());
+                finalSettings.put("path.logs", workingDir.resolve("logs").toString());
+                finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(
                     configFile,
-                    Stream.concat(spec.resolveSettings().entrySet().stream(), pathSettings.entrySet().stream())
+                    finalSettings.entrySet()
+                        .stream()
                         .map(entry -> entry.getKey() + ": " + entry.getValue())
                         .collect(Collectors.joining("\n")),
                     StandardOpenOption.TRUNCATE_EXISTING,

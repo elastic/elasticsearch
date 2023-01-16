@@ -180,16 +180,22 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.protocol.HttpContext',
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
-    // com.google.api.gax optional dependencies
-    'org.graalvm.nativeimage.hosted.Feature',
-    'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
-    'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
-    'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
-    'org.graalvm.nativeimage.hosted.RuntimeReflection',
+
     // commons-logging provided dependencies
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener'
   )
+
+
+  if(BuildParams.graalVmRuntime == false) {
+    ignoreMissingClasses(
+        'org.graalvm.nativeimage.hosted.Feature',
+        'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+        'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+        'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+        'org.graalvm.nativeimage.hosted.RuntimeReflection'
+    )
+  }
 }
 
 boolean useFixture = false

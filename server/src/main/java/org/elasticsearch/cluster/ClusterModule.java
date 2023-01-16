@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -113,6 +115,7 @@ public class ClusterModule extends AbstractModule {
     // pkg private for tests
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
+    private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
     public ClusterModule(
         Settings settings,
@@ -138,8 +141,38 @@ public class ClusterModule extends AbstractModule {
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
-        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this.shardRoutingRoleStrategy = getShardRoutingRoleStrategy(clusterPlugins);
+        this.allocationService = new AllocationService(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            shardRoutingRoleStrategy
+        );
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+    }
+
+    static ShardRoutingRoleStrategy getShardRoutingRoleStrategy(List<ClusterPlugin> clusterPlugins) {
+        final var strategies = clusterPlugins.stream().map(ClusterPlugin::getShardRoutingRoleStrategy).filter(Objects::nonNull).toList();
+        return switch (strategies.size()) {
+            case 0 -> new ShardRoutingRoleStrategy() {
+
+                // NOTE: this is deliberately an anonymous class to avoid any possibility of using this DEFAULT-only strategy when a plugin
+                // has injected a different strategy.
+
+                @Override
+                public ShardRouting.Role newReplicaRole() {
+                    return ShardRouting.Role.DEFAULT;
+                }
+
+                @Override
+                public ShardRouting.Role newEmptyRole(int copyIndex) {
+                    return ShardRouting.Role.DEFAULT;
+                }
+            };
+            case 1 -> strategies.get(0);
+            default -> throw new IllegalArgumentException("multiple plugins define shard role strategies, which is not permitted");
+        };
     }
 
     private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
@@ -403,6 +436,7 @@ public class ClusterModule extends AbstractModule {
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
+        bind(ShardRoutingRoleStrategy.class).toInstance(shardRoutingRoleStrategy);
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {

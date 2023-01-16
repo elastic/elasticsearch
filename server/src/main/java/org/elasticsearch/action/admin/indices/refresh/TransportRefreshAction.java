@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -48,13 +49,9 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
             client,
             actionFilters,
             indexNameExpressionResolver,
-            TransportShardRefreshAction.TYPE
+            TransportShardRefreshAction.TYPE,
+            ThreadPool.Names.REFRESH
         );
-    }
-
-    @Override
-    protected ReplicationResponse newShardResponse() {
-        return new ReplicationResponse();
     }
 
     @Override

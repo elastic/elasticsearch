@@ -9,6 +9,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,7 +41,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(formatted("""
+        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
             {"script": {"lang": "%s", "source": "1"} }
             """, LANG)), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
@@ -53,9 +54,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray(formatted("""
+            () -> { client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
                 {"script": {"lang": "%s", "source": "1"} }
-                """, LANG)), XContentType.JSON).get()
+                """, LANG)), XContentType.JSON).get(); }
         );
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
@@ -63,9 +64,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(formatted("""
+            () -> { client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                """, LANG)), XContentType.JSON).get()
+                """, LANG)), XContentType.JSON).get(); }
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }

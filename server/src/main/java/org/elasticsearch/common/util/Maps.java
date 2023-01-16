@@ -295,7 +295,14 @@ public class Maps {
      * This method creates a copy of the {@code source} map using {@code copyValueFunction} to create a defensive copy of each value.
      */
     public static <K, V> Map<K, V> copyOf(Map<K, V> source, Function<V, V> copyValueFunction) {
-        var copy = Maps.<K, V>newHashMapWithExpectedSize(source.size());
+        return transformValues(source, copyValueFunction);
+    }
+
+    /**
+     * Copy a map and transform it values using supplied function
+     */
+    public static <K, V1, V2> Map<K, V2> transformValues(Map<K, V1> source, Function<V1, V2> copyValueFunction) {
+        var copy = Maps.<K, V2>newHashMapWithExpectedSize(source.size());
         for (var entry : source.entrySet()) {
             copy.put(entry.getKey(), copyValueFunction.apply(entry.getValue()));
         }

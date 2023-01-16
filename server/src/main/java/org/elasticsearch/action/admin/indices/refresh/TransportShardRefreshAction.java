@@ -21,6 +21,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -31,8 +33,11 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
     ReplicationResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
+
     public static final String NAME = RefreshAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final String SOURCE_API = "api";
 
     @Inject
     public TransportShardRefreshAction(
@@ -71,7 +76,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            primary.refresh("api");
+            primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
@@ -80,7 +85,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     @Override
     protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            replica.refresh("api");
+            replica.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on replica", replica.shardId());
             return new ReplicaResult();
         });

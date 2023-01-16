@@ -73,7 +73,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         int hour = 10;
         int min = 10;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"create":{"_index":"%s"}}
                 """, indexName));
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % numUsers);
@@ -206,7 +206,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             builder.endObject();
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(formatted("""
+                createCompositeTemplate.setJsonEntity(Strings.format("""
                     {
                       "index_patterns": [ "%s" ],
                       "data_stream": {
@@ -252,7 +252,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
         // Set frequency high for testing
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -311,18 +311,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String config = "{";
 
         if (pipeline != null) {
-            config += formatted("""
+            config += Strings.format("""
                 "dest": {"index":"%s", "pipeline":"%s"},""", transformIndex, pipeline);
         } else {
-            config += formatted("""
+            config += Strings.format("""
                 "dest": {"index":"%s"},""", transformIndex);
         }
 
         if (query != null) {
-            config += formatted("""
+            config += Strings.format("""
                 "source": {"index":"%s", "query":{%s}},""", sourceIndex, query);
         } else {
-            config += formatted("""
+            config += Strings.format("""
                 "source": {"index":"%s"},""", sourceIndex);
         }
 
@@ -360,7 +360,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -605,7 +605,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void setupDataAccessRole(String role, String... indices) throws IOException {
         String indicesStr = Arrays.stream(indices).collect(Collectors.joining("\",\"", "\"", "\""));
         Request request = new Request("PUT", "/_security/role/" + role);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "indices": [
                 {
@@ -622,7 +622,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
         String rolesStr = roles.stream().collect(Collectors.joining("\",\"", "\"", "\""));
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "password" : "%s",  "roles" : [ %s ]}
             """, password, rolesStr));
         client().performRequest(request);

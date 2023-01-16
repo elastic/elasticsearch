@@ -89,7 +89,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.spec = spec;
             this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
             this.distributionDir = workingDir.resolve("distro"); // location of es distribution files, typically hard-linked
-            this.snapshotsDir = workingDir.resolve("..").resolve("repo");
+            this.snapshotsDir = workingDir.getParent().resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
             this.configDir = workingDir.resolve("config");

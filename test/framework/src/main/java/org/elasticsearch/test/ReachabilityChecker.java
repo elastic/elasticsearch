@@ -25,6 +25,11 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Utility class for checking that objects become unreachable when expected.
+ *
+ * Registered objects become unreachable only when the GC notices them. This class attempts to trigger the GC at various points but does not
+ * guarantee a full GC. If we're unlucky, some of these objects may move to old enough heap generations that they are not subject to our GC
+ * attempts, resulting in test flakiness. Time will tell whether this is a problem in practice or not; if it is then we'll have to introduce
+ * some extra measures here.
  */
 public class ReachabilityChecker {
 

@@ -202,8 +202,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
     public void testAnnotatedTextHighlightQueryHasOverlappingTermAndAnnotation() throws Exception {
         final String[] markedUpInputs = { "[Donald Trump](president) visited Singapore" };
         String[] expectedPassages = { "[Donald Trump](_hit_term=president&president) visited Singapore" };
-        Query query = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term("text", "donald")), BooleanClause.Occur.SHOULD)
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("text", "donald")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term("text", "president")), BooleanClause.Occur.SHOULD)
             .build();
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);

@@ -20,7 +20,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -123,7 +122,7 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
         MarkupPassage markupPassage = new MarkupPassage();
 
         final Integer[] matches = new Integer[passage.getNumMatches()];
-        for(int i = 0; i < matches.length; ++i) {
+        for (int i = 0; i < matches.length; ++i) {
             matches[i] = i;
         }
         Arrays.sort(matches, (l, r) -> {

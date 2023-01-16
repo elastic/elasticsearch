@@ -1533,7 +1533,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index_template [template] invalid, cause [index templates [template] specifies component templates [[bad]] that do not exist]"
+                "index_template [template] invalid, cause [index template [template] specifies component templates [bad] that do not exist]"
             )
         );
     }

@@ -18,6 +18,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -76,6 +77,15 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         TaskProvider<Task> buildBwcTaskProvider = project.getTasks().register("buildBwc");
         List<DistributionProject> distributionProjects = resolveArchiveProjects(checkoutDir.get(), bwcVersion.get());
+
+        // Setup gradle user home directory
+        project.getTasks().register("setupGradleUserHome", Copy.class, copy -> {
+            copy.into(project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+            copy.from(project.getGradle().getGradleUserHomeDir().getAbsolutePath(), copySpec -> {
+                copySpec.include("gradle.properties");
+                copySpec.include("init.d/*");
+            });
+        });
 
         for (DistributionProject distributionProject : distributionProjects) {
             createBuildBwcTask(
@@ -227,11 +237,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'main' branch", task -> {
-                String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi()
-                    && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
-            });
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> BuildParams.isCi() == false);
             c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");

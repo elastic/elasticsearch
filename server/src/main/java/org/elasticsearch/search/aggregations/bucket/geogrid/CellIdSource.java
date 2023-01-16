@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
+import java.util.function.LongConsumer;
 
 /**
  * Base class to help convert {@link MultiGeoPointValues} to {@link CellMultiValues}
@@ -34,11 +35,14 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     private final GeoBoundingBox geoBoundingBox;
     private final boolean crossesDateline;
 
-    protected CellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
+    protected final LongConsumer circuitBreakerConsumer;
+
+    protected CellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox, LongConsumer circuitBreakerConsumer) {
         this.valuesSource = valuesSource;
         this.precision = precision;
         this.geoBoundingBox = geoBoundingBox;
         this.crossesDateline = geoBoundingBox.left() > geoBoundingBox.right();
+        this.circuitBreakerConsumer = circuitBreakerConsumer;
     }
 
     protected final int precision() {
@@ -119,7 +123,8 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
         private final MultiGeoPointValues geoValues;
         protected final int precision;
 
-        protected CellMultiValues(MultiGeoPointValues geoValues, int precision) {
+        protected CellMultiValues(MultiGeoPointValues geoValues, int precision, LongConsumer circuitBreakerConsumer) {
+            super(circuitBreakerConsumer);
             this.geoValues = geoValues;
             this.precision = precision;
         }

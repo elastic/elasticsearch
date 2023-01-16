@@ -17,6 +17,7 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -39,6 +40,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -181,6 +183,13 @@ class Elasticsearch {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+
+        try {
+            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
+        }
 
         // install SM after natives, shutdown hooks, etc.
         org.elasticsearch.bootstrap.Security.configure(

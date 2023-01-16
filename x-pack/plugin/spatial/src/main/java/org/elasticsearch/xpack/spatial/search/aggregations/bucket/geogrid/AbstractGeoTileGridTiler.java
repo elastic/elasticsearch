@@ -19,11 +19,11 @@ import java.io.IOException;
  */
 abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
 
-    protected final long tiles;
+    protected final int tiles;
 
     AbstractGeoTileGridTiler(int precision) {
         super(precision);
-        tiles = 1L << precision;
+        tiles = 1 << precision;
     }
 
     /** check if the provided tile is in the solution space of this tiler */
@@ -77,7 +77,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) throws IOException {
         if (validTile(xTile, yTile, precision)) {
-            final double tiles = 1 << precision;
+            final int tiles = 1 << precision;
             final int minX = GeoEncodingUtils.encodeLongitude(GeoTileUtils.tileToLon(xTile, tiles));
             final int maxX = GeoEncodingUtils.encodeLongitude(GeoTileUtils.tileToLon(xTile + 1, tiles));
             final int minY = GeoEncodingUtils.encodeLatitude(GeoTileUtils.tileToLat(yTile + 1, tiles));

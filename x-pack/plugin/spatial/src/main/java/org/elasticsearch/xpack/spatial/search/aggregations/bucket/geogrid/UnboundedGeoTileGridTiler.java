@@ -17,7 +17,7 @@ public class UnboundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
 
     public UnboundedGeoTileGridTiler(int precision) {
         super(precision);
-        maxTiles = tiles * tiles;
+        maxTiles = (long) tiles * tiles;
     }
 
     @Override

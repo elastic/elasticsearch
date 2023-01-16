@@ -63,14 +63,15 @@ Supported field types for the analyzed fields are keyword, numeric, ip, date,
 and arrays of these types. You can also add runtime fields to your analyzed 
 fields.
 
-If the combined cardinality of the analyzed fields are high, then the 
-aggregation might require a significant amount of system resources.
+If the combined cardinality of the analyzed fields are high, the aggregation 
+might require a significant amount of system resources.
 
-It is possible to filter the values for each field. This can be done using the
-`include` and `exclude` parameters which are based on a regular expression string
-or arrays of exact terms. This functionality mirrors the features described in the
-<<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
-Filtered values are removed from the analysis and therefore reduce the runtime.
+You can filter the values for each field by using the `include` and `exclude` 
+parameters. The parameters can be regular expression strings or arrays of 
+strings of exact terms. The filtered values are removed from the analysis and 
+therefore reduce the runtime. If both `include` and `exclude` are defined, 
+`exclude` takes precedence; it means `include` is evaluated first and then 
+`exclude`.
 
 [discrete]
 [[frequent-items-minimum-set-size]]
@@ -129,13 +130,14 @@ In the following examples, we use the e-commerce {kib} sample data set.
 
 
 [discrete]
-==== Aggregation with two analyzed fields
+==== Aggregation with two analyzed fields and an `exclude` parameter
 
 In the first example, the goal is to find out based on transaction data (1.) 
 from what product categories the customers purchase products frequently together 
-and (2.) from which cities they make those purchases. We are interested in sets 
-with three or more items, and want to see the first three frequent item sets 
-with the highest support.
+and (2.) from which cities they make those purchases. We want to exclude results 
+where location information is not available (where the city name is `other`). 
+Finally, we are interested in sets with three or more items, and want to see the 
+first three frequent item sets with the highest support.
 
 Note that we use the <<async-search,async search>> endpoint in this first 
 example.
@@ -144,19 +146,24 @@ example.
 -------------------------------------------------
 POST /kibana_sample_data_ecommerce/_async_search
 {
-  "size": 0,
-  "aggs": {
-    "my_agg": {
-      "frequent_items": {
-        "minimum_set_size": 3,
-        "fields": [
-          { "field": "category.keyword" }, 
-          { "field": "geoip.city_name" }
-        ],
-        "size": 3
+   "size":0,
+   "aggs":{
+      "my_agg":{
+         "frequent_items":{
+            "minimum_set_size":3,
+            "fields":[
+               {
+                  "field":"category.keyword"
+               },
+               {
+                  "field":"geoip.city_name",
+                  "exclude":"other"
+               }
+            ],
+            "size":3
+         }
       }
-    }
-  }
+   }
 }
 -------------------------------------------------
 // TEST[skip:setup kibana sample data]
@@ -235,10 +242,10 @@ The response shows that the categories customers purchase from most frequently
 together are `Women's Clothing` and `Women's Shoes` and customers from New York 
 tend to buy items from these categories frequently togeher. In other words, 
 customers who buy products labelled `Women's Clothing` more likely buy products 
-also from the `Women's Shoes` category and customers from New York most likely buy 
-products from these categories together. The item set with the second highest 
-support is `Women's Clothing` and `Women's Accessories` with customers mostly 
-from New York. Finally, the item set with the third highest support is 
+also from the `Women's Shoes` category and customers from New York most likely 
+buy products from these categories together. The item set with the second 
+highest support is `Women's Clothing` and `Women's Accessories` with customers 
+mostly from New York. Finally, the item set with the third highest support is 
 `Men's Clothing` and `Men's Shoes` with customers mostly from Cairo.
 
 
@@ -246,7 +253,7 @@ from New York. Finally, the item set with the third highest support is
 ==== Aggregation with two analyzed fields and a filter
 
 We take the first example, but want to narrow the item sets to places in Europe.
-For that we add a filter:
+For that, we add a filter, and this time, we don't use the `exclude` parameter:
 
 [source,console]
 -------------------------------------------------
@@ -275,9 +282,10 @@ POST /kibana_sample_data_ecommerce/_async_search
 // TEST[skip:setup kibana sample data]
 
 The result will only show item sets that created from documents matching the
-filter, namely purchases in Europe. Using `filter`, the calculated `support` still
-takes all purchases into acount. That's different than specifying a query at the
-top-level, in which case `support` gets calculated only from purchases in Europe.
+filter, namely purchases in Europe. Using `filter`, the calculated `support` 
+still takes all purchases into acount. That's different than specifying a query 
+at the top-level, in which case `support` gets calculated only from purchases in 
+Europe.
 
 
 [discrete]

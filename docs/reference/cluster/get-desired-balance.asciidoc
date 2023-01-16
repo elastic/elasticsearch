@@ -32,6 +32,56 @@ The API returns the following result:
     "computation_time_in_millis": 0,
     "reconciliation_time_in_millis": 0
   },
+  "cluster_balance_stats" : {
+    {
+      "data_hot" : {
+        "total_shard_size" : {
+          "total" : 36.0,
+          "min" : 10.0,
+          "max" : 16.0,
+          "average" : 12.0,
+          "std_dev" : 2.8284271247461903
+        },
+        "total_write_load" : {
+          "total" : 21.0,
+          "min" : 6.0,
+          "max" : 8.5,
+          "average" : 7.0,
+          "std_dev" : 1.0801234497346435
+        },
+        "shard_count" : {
+          "total" : 7.0,
+          "min" : 2.0,
+          "max" : 3.0,
+          "average" : 2.3333333333333335,
+          "std_dev" : 0.4714045207910317
+        }
+      },
+      "data_warm" : {
+        "total_shard_size" : {
+          "total" : 42.0,
+          "min" : 12.0,
+          "max" : 18.0,
+          "average" : 14.0,
+          "std_dev" : 2.8284271247461903
+        },
+        "total_write_load" : {
+          "total" : 0.0,
+          "min" : 0.0,
+          "max" : 0.0,
+          "average" : 0.0,
+          "std_dev" : 0.0
+        },
+        "shard_count" : {
+          "total" : 3.0,
+          "min" : 1.0,
+          "max" : 1.0,
+          "average" : 1.0,
+          "std_dev" : 0.0
+        }
+      }
+    }
+  },
   "routing_table": {
     "test": {
       "0": {

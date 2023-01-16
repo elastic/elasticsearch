@@ -74,7 +74,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         // Point resolution is done using H3 library which uses spherical geometry. It might happen that in cartesian, the
         // actual point value is in a neighbour cell as well.
         {
-            for (long n : H3.hexRing(h3)) {
+            final int ringSize = H3.hexRingSize(h3);
+            for (int i = 0; i < ringSize; i++) {
+                final long n = H3.hexRingPosToH3(h3, i);
                 final GeoRelation relation = relateTile(geoValue, n);
                 valueIndex = maybeAdd(n, relation, values, valueIndex);
                 if (relation == GeoRelation.QUERY_CONTAINS) {
@@ -130,8 +132,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             if (singleCell > 0) {
                 // When the level 0 bounds are within a single cell, we can search that cell and its immediate neighbours
                 valueIndex = setValuesByRecursion(values, geoValue, singleCell, 0, valueIndex);
-                for (long n : H3.hexRing(singleCell)) {
-                    valueIndex = setValuesByRecursion(values, geoValue, n, 0, valueIndex);
+                final int ringSize = H3.hexRingSize(singleCell);
+                for (int i = 0; i < ringSize; i++) {
+                    valueIndex = setValuesByRecursion(values, geoValue, H3.hexRingPosToH3(singleCell, i), 0, valueIndex);
                 }
                 return valueIndex;
             }

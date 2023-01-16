@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
@@ -86,6 +87,19 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));
             return;
         }
+        listener.onResponse(
+            new DesiredBalanceResponse(
+                desiredBalanceShardsAllocator.getStats(),
+                ClusterBalanceStats.createFrom(state, writeLoadForecaster),
+                createRoutingTable(state, latestDesiredBalance)
+            )
+        );
+    }
+
+    private Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> createRoutingTable(
+        ClusterState state,
+        DesiredBalance latestDesiredBalance
+    ) {
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
@@ -134,7 +148,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             }
             routingTable.put(indexRoutingTable.getIndex().getName(), indexDesiredShards);
         }
-        listener.onResponse(new DesiredBalanceResponse(desiredBalanceShardsAllocator.getStats(), routingTable));
+        return routingTable;
     }
 
     @Override

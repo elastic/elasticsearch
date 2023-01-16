@@ -1,6 +1,0 @@
-pr: 91546
-summary: Copy more settings when creating DF analytics destination index
-area: Machine Learning
-type: bug
-issues:
- - 89795

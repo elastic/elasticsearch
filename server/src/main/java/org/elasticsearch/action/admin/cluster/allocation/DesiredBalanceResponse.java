@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,19 +30,30 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    private static final Version CLUSTER_BALANCE_STATS_VERSION = Version.V_8_7_0;
+
     private final DesiredBalanceStats stats;
+    private final ClusterBalanceStats clusterBalanceStats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
 
-    public DesiredBalanceResponse(DesiredBalanceStats stats, Map<String, Map<Integer, DesiredShards>> routingTable) {
+    public DesiredBalanceResponse(
+        DesiredBalanceStats stats,
+        ClusterBalanceStats clusterBalanceStats,
+        Map<String, Map<Integer, DesiredShards>> routingTable
+    ) {
         this.stats = stats;
+        this.clusterBalanceStats = clusterBalanceStats;
         this.routingTable = routingTable;
     }
 
     public static DesiredBalanceResponse from(StreamInput in) throws IOException {
         return new DesiredBalanceResponse(
             DesiredBalanceStats.readFrom(in),
+            in.getVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION) ? ClusterBalanceStats.readFrom(in) : ClusterBalanceStats.EMPTY,
             in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from))
         );
     }
@@ -49,6 +61,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
+        if (out.getVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)) {
+            clusterBalanceStats.writeTo(out);
+        }
         out.writeMap(
             routingTable,
             StreamOutput::writeString,
@@ -62,24 +77,35 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(Iterators.single((builder, p) -> {
-            builder.startObject();
-            builder.startObject("stats");
-            stats.toXContent(builder, p);
-            builder.endObject();
-            return builder.startObject("routing_table");
-        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
+        return Iterators.concat(
+            singleChunk(
+                (builder, p) -> builder.startObject(),
+                (builder, p) -> builder.field("stats", stats),
+                (builder, p) -> builder.field("cluster_balance_stats", clusterBalanceStats),
+                (builder, p) -> builder.startObject("routing_table")
+            ),
+            routingTableToXContentChunked(),
+            singleChunk((builder, p) -> builder.endObject(), (builder, p) -> builder.endObject())
+        );
+    }
+
+    private Iterator<ToXContent> routingTableToXContentChunked() {
+        return routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
             builder.startObject(indexEntry.getKey());
             for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
                 builder.field(String.valueOf(shardEntry.getKey()));
                 shardEntry.getValue().toXContent(builder, p);
             }
             return builder.endObject();
-        }).iterator(), Iterators.single((builder, p) -> builder.endObject().endObject()));
+        }).iterator();
     }
 
     public DesiredBalanceStats getStats() {
         return stats;
+    }
+
+    public ClusterBalanceStats getClusterBalanceStats() {
+        return clusterBalanceStats;
     }
 
     public Map<String, Map<Integer, DesiredShards>> getRoutingTable() {
@@ -91,17 +117,24 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         if (this == o) return true;
         return o instanceof DesiredBalanceResponse that
             && Objects.equals(stats, that.stats)
+            && Objects.equals(clusterBalanceStats, that.clusterBalanceStats)
             && Objects.equals(routingTable, that.routingTable);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stats, routingTable);
+        return Objects.hash(stats, clusterBalanceStats, routingTable);
     }
 
     @Override
     public String toString() {
-        return "DesiredBalanceResponse{stats=" + stats + ", routingTable=" + routingTable + "}";
+        return "DesiredBalanceResponse{stats="
+            + stats
+            + ", clusterBalanceStats="
+            + clusterBalanceStats
+            + ", routingTable="
+            + routingTable
+            + "}";
     }
 
     public record DesiredShards(List<ShardView> current, ShardAssignmentView desired) implements Writeable, ToXContentObject {

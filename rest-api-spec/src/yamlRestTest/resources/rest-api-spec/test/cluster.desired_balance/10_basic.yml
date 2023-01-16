@@ -20,6 +20,36 @@ setup:
   - match: { routing_table: {} }
 
 ---
+"Test cluster_balance_stats":
+
+  - skip:
+      version: " - 8.6.99"
+      reason: "Field added in in 8.7.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_balance_stats'
+  - is_true: 'cluster_balance_stats.data_content.total_shard_size'
+  - is_true: 'cluster_balance_stats.data_content.total_shard_size.total'
+  - is_true: 'cluster_balance_stats.data_content.total_shard_size.min'
+  - is_true: 'cluster_balance_stats.data_content.total_shard_size.max'
+  - is_true: 'cluster_balance_stats.data_content.total_shard_size.average'
+  - is_true: 'cluster_balance_stats.data_content.total_shard_size.std_dev'
+  - is_true: 'cluster_balance_stats.data_content.total_write_load'
+  - is_true: 'cluster_balance_stats.data_content.total_write_load.total'
+  - is_true: 'cluster_balance_stats.data_content.total_write_load.min'
+  - is_true: 'cluster_balance_stats.data_content.total_write_load.max'
+  - is_true: 'cluster_balance_stats.data_content.total_write_load.average'
+  - is_true: 'cluster_balance_stats.data_content.total_write_load.std_dev'
+  - is_true: 'cluster_balance_stats.data_content.shard_count'
+  - is_true: 'cluster_balance_stats.data_content.shard_count.total'
+  - is_true: 'cluster_balance_stats.data_content.shard_count.min'
+  - is_true: 'cluster_balance_stats.data_content.shard_count.max'
+  - is_true: 'cluster_balance_stats.data_content.shard_count.average'
+  - is_true: 'cluster_balance_stats.data_content.shard_count.std_dev'
+
+---
 "Test get desired balance for single shard":
   - do:
       indices.create:

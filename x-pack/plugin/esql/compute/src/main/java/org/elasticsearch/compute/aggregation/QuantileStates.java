@@ -94,6 +94,11 @@ final class QuantileStates {
             return DoubleBlock.newConstantBlockWith(result, 1);
         }
 
+        Block evaluateMedian() {
+            double result = digest.quantile(0.5);
+            return DoubleBlock.newConstantBlockWith(result, 1);
+        }
+
         @Override
         public AggregatorStateSerializer<SingleState> serializer() {
             return new SingleStateSerializer();
@@ -159,6 +164,15 @@ final class QuantileStates {
             double[] result = new double[positions];
             for (int i = 0; i < positions; i++) {
                 result[i] = digests.get(i).computeMedianAbsoluteDeviation();
+            }
+            return new DoubleArrayVector(result, positions).asBlock();
+        }
+
+        Block evaluateMedian() {
+            final int positions = Math.toIntExact(largestGroupId + 1);
+            double[] result = new double[positions];
+            for (int i = 0; i < positions; i++) {
+                result[i] = digests.get(i).quantile(0.5);
             }
             return new DoubleArrayVector(result, positions).asBlock();
         }

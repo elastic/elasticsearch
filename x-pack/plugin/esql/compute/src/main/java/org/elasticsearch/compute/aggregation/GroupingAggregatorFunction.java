@@ -59,6 +59,9 @@ public interface GroupingAggregatorFunction extends Releasable {
     Factory MAX_DOUBLES = new Factory("max", "doubles", MaxDoubleGroupingAggregatorFunction::create);
     Factory MAX_LONGS = new Factory("max", "longs", MaxLongGroupingAggregatorFunction::create);
 
+    Factory MEDIAN_DOUBLES = new Factory("median", "doubles", MedianDoubleGroupingAggregatorFunction::create);
+    Factory MEDIAN_LONGS = new Factory("median", "longs", MedianLongGroupingAggregatorFunction::create);
+
     Factory MEDIAN_ABSOLUTE_DEVIATION_DOUBLES = new Factory(
         "median_absolute_deviation",
         "doubles",

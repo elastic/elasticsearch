@@ -8,14 +8,8 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.spatial3d.geom.LatLonBounds;
-import org.apache.lucene.spatial3d.geom.Plane;
-import org.apache.lucene.spatial3d.geom.PlanetModel;
-import org.apache.lucene.spatial3d.geom.SidedPlane;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
-import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
@@ -91,24 +85,6 @@ public class GeoHexCellIdSource extends CellIdSource {
                 return valuesIdx;
             }
         };
-    }
-
-    // package private for testing
-    static LatLonBounds getGeoBounds(CellBoundary cellBoundary) {
-        final LatLonBounds bounds = new LatLonBounds();
-        org.apache.lucene.spatial3d.geom.GeoPoint start = getGeoPoint(cellBoundary.getLatLon(cellBoundary.numPoints() - 1));
-        for (int i = 0; i < cellBoundary.numPoints(); i++) {
-            final org.apache.lucene.spatial3d.geom.GeoPoint end = getGeoPoint(cellBoundary.getLatLon(i));
-            bounds.addPoint(end);
-            final Plane plane = new Plane(start, end);
-            bounds.addPlane(PlanetModel.SPHERE, plane, new SidedPlane(start, plane, end), new SidedPlane(end, start, plane));
-            start = end;
-        }
-        return bounds;
-    }
-
-    private static org.apache.lucene.spatial3d.geom.GeoPoint getGeoPoint(LatLng latLng) {
-        return new org.apache.lucene.spatial3d.geom.GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
     }
 
     private static class GeoHexPredicate {

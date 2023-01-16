@@ -305,6 +305,10 @@
                     }
                   }
                 },
+                "roles": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
                 "version": {
                   "ignore_above": 1024,
                   "type": "keyword"
@@ -1853,6 +1857,54 @@
                               "type": "long"
                             }
                           }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "ingest": {
+              "properties": {
+                "pipeline": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "processor": {
+                      "properties": {
+                        "count": {
+                          "type": "long"
+                        },
+                        "failed": {
+                          "type": "long"
+                        },
+                        "order_index": {
+                          "type": "long"
+                        },
+                        "total_cpu_time": {
+                          "type": "long"
+                        },
+                        "type": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "total": {
+                      "properties": {
+                        "count": {
+                          "type": "long"
+                        },
+                        "failed": {
+                          "type": "long"
+                        },
+                        "self_cpu_time": {
+                          "type": "long"
+                        },
+                        "total_cpu_time": {
+                          "type": "long"
                         }
                       }
                     }

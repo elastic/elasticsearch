@@ -223,12 +223,12 @@ class IndicesAndAliasesResolver {
                 split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
             }
             List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
-                    split.getLocal(),
-                    indicesRequest.indicesOptions(),
-                    metadata,
-                    authorizedIndices.all(),
-                    authorizedIndices::check,
-                    indicesRequest.includeDataStreams()
+                split.getLocal(),
+                indicesRequest.indicesOptions(),
+                metadata,
+                authorizedIndices.all(),
+                authorizedIndices::check,
+                indicesRequest.includeDataStreams()
             );
             resolvedIndicesBuilder.addLocal(replaced);
             resolvedIndicesBuilder.addRemote(split.getRemote());

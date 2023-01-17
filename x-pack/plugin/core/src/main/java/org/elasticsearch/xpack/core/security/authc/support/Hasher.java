@@ -483,13 +483,13 @@ public enum Hasher {
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final String PBKDF2_STRETCH_PREFIX = "{PBKDF2_STRETCH}";
-    private static final Set<Integer> PBKDF2_VALID_ITERATIONS = Set.of(1000, 10000, 50000, 100000, 500000, 1000000);
     private static final int PBKDF2_DEFAULT_COST = 10000;
     private static final int PBKDF2_KEY_LENGTH = 256;
     private static final int BCRYPT_DEFAULT_COST = 10;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    public static final int HMAC_SHA512_BLOCK_SIZE_IN_BITS = 128;
-    public static final int PBKDF2_MIN_SALT_LENGHT_IN_BYTES = 8;
+    private static final int HMAC_SHA512_BLOCK_SIZE_IN_BITS = 128;
+    private static final int PBKDF2_MIN_SALT_LENGTH_IN_BYTES = 8;
+    private static final Set<Integer> PBKDF2_VALID_ITERATIONS = Set.of(1000, 10000, 50000, 100000, 500000, 1000000);
 
     /**
      * Returns a {@link Hasher} instance of the appropriate algorithm and associated cost as
@@ -698,8 +698,8 @@ public enum Hasher {
             );
         }
         final byte[] saltBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars));
-        if (saltBytes.length < PBKDF2_MIN_SALT_LENGHT_IN_BYTES) {
-            throw new ElasticsearchException("PBKDF2 salt must be at least [" + PBKDF2_MIN_SALT_LENGHT_IN_BYTES + "] bytes long");
+        if (saltBytes.length < PBKDF2_MIN_SALT_LENGTH_IN_BYTES) {
+            throw new ElasticsearchException("PBKDF2 salt must be at least [" + PBKDF2_MIN_SALT_LENGTH_IN_BYTES + "] bytes long");
         }
         char[] computedPwdHash = null;
         try {

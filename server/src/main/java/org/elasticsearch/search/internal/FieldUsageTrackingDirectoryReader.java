@@ -24,6 +24,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorValues;
@@ -110,6 +112,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public TermVectors termVectors() throws IOException {
+            TermVectors termVectors = super.termVectors();
+            return new TermVectors() {
+                @Override
+                public Fields get(int doc) throws IOException {
+                    Fields f = termVectors.get(doc);
+                    if (f != null) {
+                        f = new FieldUsageTrackingTermVectorFields(f);
+                    }
+                    return f;
+                }
+            };
+        }
+
+        @Override
         public PointValues getPointValues(String field) throws IOException {
             PointValues pointValues = super.getPointValues(field);
             if (pointValues != null) {
@@ -125,6 +142,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             } else {
                 super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
             }
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            StoredFields storedFields = super.storedFields();
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                        storedFields.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
+                    } else {
+                        storedFields.document(docID, new FieldUsageStoredFieldVisitor(visitor));
+                    }
+                }
+            };
         }
 
         @Override

@@ -31,6 +31,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -161,32 +162,35 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
             indexModule.setIndexCommitListener(createIndexCommitListener());
         }
         indexModule.addIndexEventListener(new IndexEventListener() {
+
             @Override
-            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
-                if (indexShard.recoveryState().getPrimary() == false) {
-                    final Store store = indexShard.store();
-                    store.incRef();
-                    try {
-                        // creates a new empty Lucene index
-                        Lucene.cleanLuceneIndex(store.directory());
-                        // TODO Download files from object store here and only create an empty store if no blobs are downloaded
-                        store.createEmpty();
-                        // not required but avoid annoying warnings in logs
-                        final String translogUUID = Translog.createEmptyTranslog(
-                            indexShard.shardPath().resolveTranslog(),
-                            indexShard.shardId(),
-                            SequenceNumbers.NO_OPS_PERFORMED,
-                            indexShard.getPendingPrimaryTerm(),
-                            "_na_",
-                            null
-                        );
-                        store.associateIndexWithNewTranslog(translogUUID);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Failed to create empty Lucene index", e);
-                    } finally {
-                        store.decRef();
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                ActionRunnable.run(listener, () -> {
+                    if (indexShard.recoveryState().getPrimary() == false) {
+                        final Store store = indexShard.store();
+                        store.incRef();
+                        try {
+                            // creates a new empty Lucene index
+                            Lucene.cleanLuceneIndex(store.directory());
+                            // TODO Download files from object store here and only create an empty store if no blobs are downloaded
+                            store.createEmpty();
+                            // not required but avoid annoying warnings in logs
+                            final String translogUUID = Translog.createEmptyTranslog(
+                                indexShard.shardPath().resolveTranslog(),
+                                indexShard.shardId(),
+                                SequenceNumbers.NO_OPS_PERFORMED,
+                                indexShard.getPendingPrimaryTerm(),
+                                "_na_",
+                                null
+                            );
+                            store.associateIndexWithNewTranslog(translogUUID);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException("Failed to create empty Lucene index", e);
+                        } finally {
+                            store.decRef();
+                        }
                     }
-                }
+                }).run();
             }
 
             @Override

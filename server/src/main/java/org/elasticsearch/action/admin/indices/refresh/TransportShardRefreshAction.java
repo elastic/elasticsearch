@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,15 +94,15 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
 
     @Override
     protected void shardOperationOnReplica(ReplicaShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        if (replica.routingEntry().isPromotableToPrimary()) {
+        if (DiscoveryNode.isStateless(settings) && replica.routingEntry().isPromotableToPrimary() == false) {
+            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
+            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
+        } else {
             ActionListener.completeWith(listener, () -> {
                 replica.refresh(SOURCE_API);
                 logger.trace("{} refresh request executed on replica", replica.shardId());
                 return new ReplicaResult();
             });
-        } else {
-            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
-            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
         }
     }
 }

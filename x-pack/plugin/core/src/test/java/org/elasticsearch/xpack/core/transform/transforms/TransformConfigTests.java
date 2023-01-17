@@ -402,7 +402,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testPreventCreateTimeInjection() {
-        String pivotTransform = formatted("""
+        String pivotTransform = Strings.format("""
             {
               "create_time": %s,
               "source": {
@@ -565,7 +565,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdate() throws IOException {
-        String pivotTransform = formatted("""
+        String pivotTransform = Strings.format("""
             {
               "id": "body_id",
               "source": {
@@ -608,7 +608,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdateAlignCheckpoints() throws IOException {
-        String pivotTransform = formatted("""
+        String pivotTransform = Strings.format("""
             {
               "id": "body_id",
               "source": {
@@ -652,7 +652,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdateMaxPageSizeSearchConflicting() throws IOException {
-        String pivotTransform = formatted("""
+        String pivotTransform = Strings.format("""
             {
               "id": "body_id",
               "source": {
@@ -695,7 +695,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForBWCOfDateNormalization() throws IOException {
-        String pivotTransform = formatted("""
+        String pivotTransform = Strings.format("""
             {
               "id": "body_id",
               "source": {
@@ -822,7 +822,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testGroupByStayInOrder() throws IOException {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "id": "%s",
               "source": {
@@ -958,7 +958,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testSerializingMetadataPreservesOrder() throws IOException {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "id": "%s",
               "_meta": {

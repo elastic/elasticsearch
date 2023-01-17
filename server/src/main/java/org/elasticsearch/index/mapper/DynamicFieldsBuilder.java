@@ -328,7 +328,8 @@ final class DynamicFieldsBuilder {
                     NumberFieldMapper.NumberType.LONG,
                     ScriptCompiler.NONE,
                     context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated()
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.indexSettings().getMode()
                 ),
                 context
             );
@@ -345,7 +346,8 @@ final class DynamicFieldsBuilder {
                     NumberFieldMapper.NumberType.FLOAT,
                     ScriptCompiler.NONE,
                     context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated()
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.indexSettings().getMode()
                 ),
                 context
             );

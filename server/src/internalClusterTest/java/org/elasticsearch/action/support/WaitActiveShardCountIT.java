@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -126,7 +127,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
     }
 
     private String source(String id, String nameValue) {
-        return formatted("""
+        return Strings.format("""
             { "type1" : { "id" : "%s", "name" : "%s" } }
             """, id, nameValue);
     }

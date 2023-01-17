@@ -15,6 +15,7 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,12 +29,11 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
     private long startTime;
     private long totalTime;
 
-    private final QueryProfiler queryProfiler;
+    private final List<QueryProfiler> knnQueryProfilers = new ArrayList<>();
     private boolean collectorSet = false;
 
-    public DfsProfiler(QueryProfiler queryProfiler) {
+    public DfsProfiler() {
         super(DfsTimingType.class);
-        this.queryProfiler = queryProfiler;
     }
 
     public void start() {
@@ -52,9 +52,12 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         getTimer(dfsTimingType).stop();
     }
 
-    public void setCollector(InternalProfileCollector collector) {
+    public QueryProfiler addQueryProfiler(InternalProfileCollector collector) {
+        QueryProfiler queryProfiler = new QueryProfiler();
         queryProfiler.setCollector(collector);
+        knnQueryProfilers.add(queryProfiler);
         collectorSet = true;
+        return queryProfiler;
     }
 
     public SearchProfileDfsPhaseResult buildDfsPhaseResults() {
@@ -66,9 +69,17 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
             totalTime,
             List.of()
         );
-        QueryProfileShardResult queryProfileShardResult = collectorSet
-            ? new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
-            : null;
+        final List<QueryProfileShardResult> queryProfileShardResult;
+        if (collectorSet) {
+            queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
+            for (QueryProfiler queryProfiler : knnQueryProfilers) {
+                queryProfileShardResult.add(
+                    new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
+                );
+            }
+        } else {
+            queryProfileShardResult = null;
+        }
         return new SearchProfileDfsPhaseResult(dfsProfileResult, queryProfileShardResult);
     }
 }

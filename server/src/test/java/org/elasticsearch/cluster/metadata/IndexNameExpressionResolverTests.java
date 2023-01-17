@@ -1672,6 +1672,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, false, resolvedExpressions);
             assertThat(result, nullValue());
         }
+
+        {
+            // Only resolve aliases that refer to dataStreamName1 where the filter is not null
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, arrayContainingInAnyOrder("logs", "logs_foo"));
+        }
     }
 
     public void testIndexAliasesSkipIdentity() {

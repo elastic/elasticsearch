@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -22,7 +23,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import static org.elasticsearch.core.Strings.format;
@@ -35,16 +35,16 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final @Nullable CacheService cacheService;
-    private final @Nullable FrozenCacheService frozenCacheService;
+    private final @Nullable SharedBlobCacheService sharedBlobCacheService;
 
     public SearchableSnapshotIndexEventListener(
         Settings settings,
         @Nullable CacheService cacheService,
-        @Nullable FrozenCacheService frozenCacheService
+        @Nullable SharedBlobCacheService sharedBlobCacheService
     ) {
         assert cacheService != null || DiscoveryNode.canContainData(settings) == false;
         this.cacheService = cacheService;
-        this.frozenCacheService = frozenCacheService;
+        this.sharedBlobCacheService = sharedBlobCacheService;
     }
 
     /**
@@ -101,8 +101,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (frozenCacheService != null) {
-                        frozenCacheService.markShardAsEvictedInCache(
+                    if (sharedBlobCacheService != null) {
+                        sharedBlobCacheService.markShardAsEvictedInCache(
                             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
                             SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
                             shardId

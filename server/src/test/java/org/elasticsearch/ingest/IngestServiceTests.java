@@ -46,6 +46,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -1863,7 +1864,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
         var value = randomAlphaOfLength(5);
-        var pipelineString = formatted("""
+        var pipelineString = Strings.format("""
             {"processors": [{"set" : {"field": "_field", "value": "%s"}}]}
             """, value);
         testUpdatingPipeline(pipelineString);
@@ -1988,10 +1989,7 @@ public class IngestServiceTests extends ESTestCase {
 
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
-        assertThat(
-            e.getMessage(),
-            equalTo(String.format(Locale.ROOT, "cannot update pipeline [%s] with the same version [%s]", pipelineId, version))
-        );
+        assertThat(e.getMessage(), equalTo(Strings.format("cannot update pipeline [%s] with the same version [%s]", pipelineId, version)));
     }
 
     public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {

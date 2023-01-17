@@ -230,7 +230,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -318,7 +318,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -389,7 +389,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -455,7 +455,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -558,7 +558,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -693,7 +693,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",

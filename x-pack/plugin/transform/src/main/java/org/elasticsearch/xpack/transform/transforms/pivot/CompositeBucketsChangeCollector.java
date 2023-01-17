@@ -384,6 +384,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (missingBucket) {
                 return null;
             }
+            // filterByChanges has been called before collectChangesFromAggregations
+            if (lowerBound == 0 && upperBound == 0) {
+                return null;
+            }
             return new RangeQueryBuilder(sourceFieldName).gte(lowerBound).lte(upperBound).format("epoch_millis");
         }
 
@@ -480,11 +484,15 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+
             if (missingBucket) {
                 return null;
             }
-
-            // (upperBound - lowerBound) >= interval, so never 0
+            // filterByChanges has been called before collectChangesFromAggregations
+            if (lowerBound == 0 && upperBound == 0) {
+                return null;
+            }
+            // (upperBound - lowerBound) >= interval, so never 0.
             if ((maxUpperBound - minLowerBound) / (upperBound - lowerBound) < MIN_CUT_OFF) {
                 return null;
             }

@@ -538,7 +538,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
         final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
 
-        final String json = formatted("""
+        final String json = Strings.format("""
             {
               "indices": [
                 {
@@ -776,7 +776,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }
             profileNamesString.append("\"" + profileNames[i] + "\"");
         }
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "global": {
                 "profile": {
@@ -793,7 +793,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }""", profileNamesString, applicationNamesString);
         RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role3, is(role1));
-        json = formatted("""
+        json = Strings.format("""
             {
               "global": {
                 "application": {

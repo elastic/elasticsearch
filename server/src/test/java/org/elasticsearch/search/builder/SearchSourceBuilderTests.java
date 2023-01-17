@@ -58,6 +58,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -377,7 +378,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithUnits() throws IOException {
         final String timeout = randomTimeValue();
-        final String query = formatted("""
+        final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
@@ -388,7 +389,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithoutUnits() throws IOException {
         final int timeout = randomIntBetween(1, 1024);
-        final String query = formatted("""
+        final String query = Strings.format("""
             { "query": { "match_all": {}}, "timeout": "%s"}
             """, timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
@@ -739,7 +740,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.fetchField("field");
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
-        searchSourceBuilder.knnSearch(new KnnSearchBuilder("field", new float[] {}, 2, 5));
+        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5)));
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("pitid"));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");

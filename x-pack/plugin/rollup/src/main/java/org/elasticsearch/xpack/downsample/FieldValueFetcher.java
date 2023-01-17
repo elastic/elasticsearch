@@ -55,8 +55,8 @@ class FieldValueFetcher {
     private AbstractRollupFieldProducer createRollupFieldProducer() {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
-                case gauge -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
-                case counter -> new MetricFieldProducer.CounterMetricFieldProducer(name());
+                case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
+                case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(name());
             };
         } else {
             // If field is not a metric, we downsample it as a label

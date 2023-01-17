@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -55,7 +56,7 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
             case FAILURE -> failedShards++;
         }
 
-        String expected = formatted(
+        String expected = Strings.format(
             """
                 {
                   "snapshot" : "test-snap",

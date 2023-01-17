@@ -45,7 +45,7 @@ public abstract class AbstractDocValuesForUtilBenchmark {
         final long[] data = new long[blockSize];
         data[blockSize - 1] = start;
         for (int i = blockSize - 2; i >= 0; i--) {
-            data[i] = data[i + 1] - random.nextInt(step);
+            data[i] = data[i + 1] + random.nextInt(step);
         }
         return data;
     }

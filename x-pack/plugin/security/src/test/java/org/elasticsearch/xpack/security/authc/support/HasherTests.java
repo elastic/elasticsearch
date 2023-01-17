@@ -250,7 +250,7 @@ public class HasherTests extends ESTestCase {
     }
 
     public void testPbkdf2ArbitrarySaltAndKeyLengths() {
-        // PBKDF2withHMACSHA512, 16 byte salt, 512 bit key
+        // PBKDF2withHMACSHA512, 16 byte salt, 512 bits key
         check(
             "{PBKDF2}10000$"
                 + "NUG78+T6yahKzMHPgTbFmw==$"
@@ -264,6 +264,25 @@ public class HasherTests extends ESTestCase {
                 + "Ohp+ZCG936Q+w1XTquEz5SmQmDUJVv5ZxilRaDPpHFRzHNDMjeFl8btefZd/0yNtfQPwpfhe5DSDFlPP9WMxEQ==",
             "admin",
             false
+        );
+
+        // PBKDF2withHMACSHA512, 8 byte salt, 128 bits key
+        check("{PBKDF2}10000$vT/GxENkGSc=$4/b2cEHvSeAqzEoTM+RAYA==", "s3cr3t", true);
+
+        // PBKDF2withHMACSHA512, 64 byte salt, 512 bits key
+        check(
+            "{PBKDF2}1000$"
+                + "yJ1Mdnp6AEQfWKNdo6jw6BTy1KpxsthgaOHWQGhYWrzw826GZjX9vRN6h/4jRM750WWVhju2hxAZwP7yPzYdtA==$"
+                + "U1PnM55HWq6VKk/G0EpmTZJIRAfNMVpi78/cOc0I2qEGs68Ozg1Am4frXnSpb5lbundzkLxl+cg7MmAvM14JSQ==",
+            "somelongpasswordwith$peci@lch\u00E4rs!",
+            true
+        );
+
+        // PBKDF2withHMACSHA512, 32 byte salt, 256 bits key
+        check(
+            "{PBKDF2}50000$" + "bjxn3/UGdT7zNtCVfgRp0REhPvLkIv4PZm9fullIQxc=$" + "wuSFQZeOxifopubSzKbIE2xAGdxJlEcUVlqvjFU1TTI=",
+            "Tr0ub4dor&3",
+            true
         );
     }
 

@@ -79,7 +79,7 @@ final class TransportHandshaker {
                 ThreadPool.Names.GENERIC
             );
             success = true;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
         } finally {
             if (success == false) {

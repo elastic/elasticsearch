@@ -21,13 +21,13 @@ import java.nio.file.StandardCopyOption;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
  * Implementation of {@link SecureSettingsLoader} for {@link KeyStoreWrapper}
  */
 public class KeyStoreLoader implements SecureSettingsLoader {
-    private SecureString password = null;
     private Path keystoreBackupPath = null;
 
     @Override
@@ -36,15 +36,15 @@ public class KeyStoreLoader implements SecureSettingsLoader {
         // See if we have a keystore already present
         KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile());
         // If there's no keystore or the keystore has no password, set an empty password
-        this.password = (secureSettings == null || secureSettings.hasPassword() == false)
+        var password = (secureSettings == null || secureSettings.hasPassword() == false)
             ? new SecureString(new char[0])
             : new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
 
-        return reload(autoConfigure.apply(password));
-    }
+        environment = autoConfigure.apply(password);
+        secureSettings = KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
+        password.close();
 
-    private SecureSettings reload(Environment environment) throws Exception {
-        return KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
+        return secureSettings;
     }
 
     @Override
@@ -70,11 +70,11 @@ public class KeyStoreLoader implements SecureSettingsLoader {
             }
         }
 
-        this.password = new SecureString(new char[0]);
+        AtomicReference<SecureString> password = new AtomicReference<>(new SecureString(new char[0]));
 
         try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
-            password = new SecureString(terminal.readSecret(""));
-            return password;
+            password.set(new SecureString(terminal.readSecret("")));
+            return password.get();
         })) {
             // do not overwrite keystore entries
             // instead expect the admin to manually remove them herself
@@ -101,7 +101,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
-            nodeKeystore.save(env.configFile(), password.getChars());
+            nodeKeystore.save(env.configFile(), password.get().getChars());
         } catch (Exception t) {
             // restore keystore to revert possible keystore bootstrap
             try {
@@ -120,6 +120,8 @@ public class KeyStoreLoader implements SecureSettingsLoader {
                 t.addSuppressed(ex);
             }
             return t;
+        } finally {
+            password.get().close();
         }
 
         return null;
@@ -150,10 +152,10 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     }
 
     @Override
-    public Exception removeAutoConfiguration(Environment env) {
-        assert password != null;
+    public Exception removeAutoConfiguration(Environment env, Terminal terminal) {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
-            try (KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());) {
+            SecureString password = new SecureString(terminal.readSecret(""));
+            try (KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile())) {
                 existingKeystore.decrypt(password.getChars());
                 List<String> secureSettingsToRemove = List.of(
                     "xpack.security.transport.ssl.keystore.secure_password",
@@ -176,6 +178,8 @@ public class KeyStoreLoader implements SecureSettingsLoader {
                 existingKeystore.save(env.configFile(), password.getChars());
             } catch (Exception e) {
                 return e;
+            } finally {
+                password.close();
             }
         }
 
@@ -187,7 +191,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     }
 
     @Override
-    public String valid(Environment environment) {
+    public String validate(Environment environment) {
         final Path keystorePath = KeyStoreWrapper.keystorePath(environment.configFile());
         // Empty keystore path is valid, but not if we have an unreadable keystore
         if (Files.exists(keystorePath)
@@ -200,10 +204,5 @@ public class KeyStoreLoader implements SecureSettingsLoader {
         }
 
         return null;
-    }
-
-    @Override
-    public void close() throws Exception {
-        password.close();
     }
 }

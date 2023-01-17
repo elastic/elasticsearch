@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  * An interface for implementing {@link SecureSettings} loaders, that is, implementations that create, initialize and load
  * secrets stores.
  */
-public interface SecureSettingsLoader extends AutoCloseable {
+public interface SecureSettingsLoader {
     SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
         throws Exception;
 
@@ -36,11 +36,11 @@ public interface SecureSettingsLoader extends AutoCloseable {
 
     default void onAutoConfigureSuccess(Environment environment) throws Exception {}
 
-    default Exception removeAutoConfiguration(Environment env) {
+    default Exception removeAutoConfiguration(Environment environment, Terminal terminal) {
         return null;
     }
 
-    String valid(Environment environment);
+    String validate(Environment environment);
 
     @FunctionalInterface
     interface AutoConfigureFunction<T, R> {

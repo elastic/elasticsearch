@@ -481,11 +481,8 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        public String valid(Environment environment) {
+        public String validate(Environment environment) {
             return null;
         }
-
-        @Override
-        public void close() throws Exception {}
     }
 }

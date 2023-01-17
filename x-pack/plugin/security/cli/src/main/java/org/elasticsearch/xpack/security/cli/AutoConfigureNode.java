@@ -158,9 +158,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-        try (var loader = secureSettingsLoader(env)) {
-            execute(loader, terminal, options, env, processInfo);
-        }
+        execute(secureSettingsLoader(env), terminal, options, env, processInfo);
     }
 
     private void execute(SecureSettingsLoader secretsLoader, Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo)
@@ -201,7 +199,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         // Inform that auto-configuration will not run if the configuration is not valid
-        String validationError = secretsLoader.valid(env);
+        String validationError = secretsLoader.validate(env);
         if (validationError != null) {
             notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, validationError);
         }
@@ -827,7 +825,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (shouldContinue == false) {
                 throw new UserException(ExitCodes.OK, "User cancelled operation");
             }
-            Exception errorOnRemove = secretsLoader.removeAutoConfiguration(env);
+            Exception errorOnRemove = secretsLoader.removeAutoConfiguration(env, terminal);
             if (errorOnRemove != null) {
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(errorOnRemove));

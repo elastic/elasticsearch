@@ -83,7 +83,7 @@ class ServerCli extends EnvironmentAwareCommand {
         AtomicReference<Environment> env = new AtomicReference<>(origEnv);
 
         try (var secrets = secureSettingsLoader(env.get()).load(env.get(), terminal, (p) -> {
-            env.set(autoConfigureSecurity(terminal, options, processInfo, env.get(), p));
+            env.set(autoConfigureSecurity(terminal, options, processInfo, env.get(), p.clone()));
             return env.get();
         })) {
             // install/remove plugins from elasticsearch-plugins.yml
@@ -150,7 +150,7 @@ class ServerCli extends EnvironmentAwareCommand {
         OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
 
         boolean changed = true;
-        try (var autoConfigTerminal = new PasswordTerminal(terminal, optionalPassword.clone())) {
+        try (var autoConfigTerminal = new PasswordTerminal(terminal, optionalPassword)) {
             autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
         } catch (UserException e) {
             boolean okCode = switch (e.exitCode) {

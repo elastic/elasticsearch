@@ -149,7 +149,7 @@ public record ActiveShardCount(int value) implements Writeable {
                 return false;
             }
             ActiveShardCount waitForActiveShards = this;
-            if (waitForActiveShards == ActiveShardCount.DEFAULT && SETTING_WAIT_FOR_ACTIVE_SHARDS.exists(indexMetadata.getSettings())) {
+            if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
@@ -170,13 +170,13 @@ public record ActiveShardCount(int value) implements Writeable {
     public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
         if (this == ActiveShardCount.ALL) {
-            // adding 1 for the primary in addition to the total number of replicas,
-            // which gives us the total number of shard copies
             return activeShardCount == shardRoutingTable.size();
-        } else if (this == ActiveShardCount.DEFAULT) {
+        } else if (value == 0) {
+            return true;
+        } else if (value == 1) {
             return shardRoutingTable.getActiveSearchShardCount() >= 1;
         } else {
-            return activeShardCount >= value;
+            return shardRoutingTable.getActiveSearchShardCount() >= value - 1 && activeShardCount >= value;
         }
     }
 

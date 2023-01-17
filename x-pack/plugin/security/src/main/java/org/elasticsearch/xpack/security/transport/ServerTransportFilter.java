@@ -101,7 +101,7 @@ final class ServerTransportFilter {
         }
 
         final Version version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
+        final ActionListener<Authentication> authorizationStep = ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
@@ -115,6 +115,30 @@ final class ServerTransportFilter {
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }, listener::onFailure);
+        logger.info("Inbound on transport profile [{}] and action [{}]", transportChannel.getProfileName(), securityAction);
+        if (shouldAuthenticateRemoteAccess()) {
+            logger.info(
+                "Authenticating remote access on transport profile [{}] and action [{}]",
+                transportChannel.getProfileName(),
+                securityAction
+            );
+            authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
+        } else {
+            authcService.authenticate(securityAction, request, true, authorizationStep);
+        }
+        // TODO also check that remote port is enabled
+        // if (transportChannel.getProfileName().equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE)
+        // // For handshake, don't use RCS 2.0
+        // && false == securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
+        // authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
+        // } else {
+        // authcService.authenticate(securityAction, request, true, authorizationStep);
+        // }
     }
+
+    private boolean shouldAuthenticateRemoteAccess() {
+        return threadContext.getHeader(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) != null;
+    }
+
 }

@@ -76,6 +76,7 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final AuthenticatorChain authenticatorChain;
+    private final RemoteAccessAuthenticator remoteAccessAuthenticator;
 
     public AuthenticationService(
         Settings settings,
@@ -113,6 +114,23 @@ public class AuthenticationService {
             new ApiKeyAuthenticator(apiKeyService, nodeName),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
         );
+        this.remoteAccessAuthenticator = new RemoteAccessAuthenticator(apiKeyService, nodeName);
+    }
+
+    public void authenticateRemoteAccess(
+        final String action,
+        final TransportRequest request,
+        final boolean allowAnonymous,
+        final ActionListener<Authentication> authenticationListener
+    ) {
+        final Authenticator.Context context = new Authenticator.Context(
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+            null,
+            allowAnonymous,
+            realms
+        );
+        authenticatorChain.authenticateRemoteAccessAsync(context, authenticationListener);
     }
 
     /**
@@ -189,6 +207,7 @@ public class AuthenticationService {
         boolean allowAnonymous,
         ActionListener<Authentication> listener
     ) {
+        // TODO assert no remote access authentication headers
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),

@@ -47,6 +47,7 @@ class AuthenticatorChain {
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
+    private final RemoteAccessAuthenticator remoteAccessAuthenticator;
 
     AuthenticatorChain(
         Settings settings,
@@ -65,14 +66,9 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(
-            serviceAccountAuthenticator,
-            oAuth2TokenAuthenticator,
-            apiKeyAuthenticator,
-            realmsAuthenticator,
-            // TODO shortcut, remove
-            new RemoteAccessAuthenticator(apiKeyAuthenticator.getApiKeyService(), nodeName)
-        );
+        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+        // TODO pass this in?
+        this.remoteAccessAuthenticator = new RemoteAccessAuthenticator(apiKeyAuthenticator.getApiKeyService(), nodeName);
     }
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
@@ -100,6 +96,36 @@ class AuthenticatorChain {
             listener.onResponse(authentication);
         } else {
             doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
+        }
+    }
+
+    void authenticateRemoteAccessAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
+        // assert context.getMostRecentAuthenticationToken() == null;
+        // assert lookForExistingAuthentication(context) == null;
+        // TODO kind of sort of but not really
+        final Authentication authentication;
+        try {
+            authentication = lookForExistingAuthentication(context);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (authentication != null) {
+            logger.info("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
+            listener.onResponse(authentication);
+        } else {
+            getAuthenticatorConsumer(context, true).accept(
+                remoteAccessAuthenticator,
+                ActionListener.runBefore(ActionListener.wrap(result -> {
+                    assert result.getStatus() != AuthenticationResult.Status.TERMINATE
+                        : "terminate should already be handled by remote access authenticator";
+                    if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
+                        finishAuthentication(context, result.getValue(), listener);
+                    } else {
+                        listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
+                    }
+                }, listener::onFailure), context::close)
+            );
         }
     }
 

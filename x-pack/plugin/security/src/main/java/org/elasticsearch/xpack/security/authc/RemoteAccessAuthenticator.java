@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -71,7 +69,7 @@ public class RemoteAccessAuthenticator implements Authenticator {
             return;
         }
         final RemoteAccessCredentials remoteAccessCredentials = (RemoteAccessCredentials) authenticationToken;
-        logger.info("Authenticating remote access for [{}]", remoteAccessCredentials.principal());
+        logger.info("Authenticating remote access for [{}] and [{}]", remoteAccessCredentials.principal(), context.getRequest());
         apiKeyService.tryAuthenticate(
             context.getThreadContext(),
             remoteAccessCredentials.apiKeyCredentials(),

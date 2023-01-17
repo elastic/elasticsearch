@@ -15,7 +15,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
 }
 
-['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'checkstyleMain', 'licenseHeaders', 'spotlessJavaCheck'].each {
   tasks.named(it).configure {
     enabled = false
   }

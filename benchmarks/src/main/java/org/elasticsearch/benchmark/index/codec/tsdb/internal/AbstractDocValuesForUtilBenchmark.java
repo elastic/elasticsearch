@@ -51,8 +51,10 @@ public abstract class AbstractDocValuesForUtilBenchmark {
     }
 
     protected long[] generateFloatingPointInput(double min, double max) {
-        long[] data = new long[blockSize];
-        Arrays.fill(data, Double.doubleToLongBits(random.nextDouble(min, max)));
+        final long[] data = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            data[i] = Double.doubleToLongBits(random.nextDouble(min, max));
+        }
         return data;
     }
 

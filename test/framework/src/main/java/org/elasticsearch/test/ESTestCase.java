@@ -72,6 +72,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -911,6 +912,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    /**
+     * Creates a valid random identifier such as node id or index name
+     */
+    public static String randomIdentifier() {
+        return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
         return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
@@ -1730,7 +1738,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
-    private static final int MAX_PRIVATE_PORT = 36600;
+    private static final int MAX_PRIVATE_PORT = 32767;
 
     /**
      * Wrap around after reaching this worker ID.
@@ -1812,12 +1820,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
+            return Strings.format("%s: %s", level.name(), message);
         }
-    }
-
-    protected static String formatted(String string, Object... args) {
-        return String.format(Locale.ROOT, string, args);
     }
 
     /**

@@ -572,7 +572,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable(Function.identity())
+                primary.routingEntry().initializing()
+                    ? IndexShardRoutingTable.builder(primary.shardId()).addShard(primary.routingEntry()).build()
+                    : routingTable(Function.identity())
             );
         }
 

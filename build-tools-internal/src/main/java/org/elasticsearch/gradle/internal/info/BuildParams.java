@@ -119,6 +119,10 @@ public class BuildParams {
         return value(isCi);
     }
 
+    public static Boolean isGraalVmRuntime() {
+        return value(runtimeJavaDetails.toLowerCase().contains("graalvm"));
+    }
+
     public static Integer getDefaultParallel() {
         return value(defaultParallel);
     }

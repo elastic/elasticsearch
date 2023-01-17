@@ -10,6 +10,7 @@ package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -177,7 +178,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     public void testMalformedJson() {
         final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-        String suggest = formatted("""
+        String suggest = Strings.format("""
             {
               "bad-payload" : {
                 "text" : "the amsterdma meetpu",

@@ -2375,7 +2375,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 ConnectTransportException.class,
                 () -> connectToNode(serviceA, dummy, builder.build())
             );
-            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
+            assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }

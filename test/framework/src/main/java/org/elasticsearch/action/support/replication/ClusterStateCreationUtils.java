@@ -34,6 +34,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -67,6 +68,11 @@ public class ClusterStateCreationUtils {
         ShardRoutingState primaryState,
         ShardRoutingState... replicaStates
     ) {
+        assert primaryState == ShardRoutingState.STARTED
+            || primaryState == ShardRoutingState.RELOCATING
+            || Arrays.stream(replicaStates).allMatch(s -> s == ShardRoutingState.UNASSIGNED)
+            : "invalid shard states [" + primaryState + "] vs [" + Arrays.toString(replicaStates) + "]";
+
         final int numberOfReplicas = replicaStates.length;
 
         int numberOfNodes = numberOfReplicas + 1;

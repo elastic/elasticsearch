@@ -176,7 +176,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
             // register repo on old ES and take snapshot
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest.setJsonEntity(formatted("""
+            createRepoRequest.setJsonEntity(Strings.format("""
                 {"type":"fs","settings":{"location":"%s"}}
                 """, repoLocation));
             assertOK(oldEs.performRequest(createRepoRequest));
@@ -189,7 +189,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest2.setJsonEntity(formatted("""
+        createRepoRequest2.setJsonEntity(Strings.format("""
             {"type":"fs","settings":{"location":"%s"}}
             """, repoLocation));
         assertOK(client().performRequest(createRepoRequest2));

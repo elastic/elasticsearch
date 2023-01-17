@@ -2055,6 +2055,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
             rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
             logger.debug("exception obtaining range for timestamp field", e);
             return ShardLongFieldRange.UNKNOWN;
@@ -3000,7 +3001,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
      * closed.
      */
-    protected Engine getEngineOrNull() {
+    public Engine getEngineOrNull() {
         return this.currentEngineReference.get();
     }
 

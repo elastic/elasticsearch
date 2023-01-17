@@ -15,14 +15,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
 
@@ -108,20 +104,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
     }
 
-    public void testToXContentChunking() throws IOException {
-        final var instance = createTestInstance();
-
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            builder.startObject();
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-            builder.endObject();
-        } // closing the builder verifies that the XContent is well-formed
-
-        assertEquals(1, chunkCount);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ignored -> 1);
     }
 }

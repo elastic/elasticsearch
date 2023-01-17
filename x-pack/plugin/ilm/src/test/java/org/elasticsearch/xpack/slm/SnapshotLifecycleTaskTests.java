@@ -25,6 +25,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -146,28 +147,28 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             Settings.EMPTY,
             Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
         );
-        final String createSnapResponse = formatted("""
+        final String createSnapResponse = Strings.format("""
             {
-                "snapshot": {
-                    "snapshot": "snapshot_1",
-                    "uuid": "bcP3ClgCSYO_TP7_FCBbBw",
-                    "version_id": %s,
-                    "version": "%s",
-                    "indices": [],
-                    "include_global_state": true,
-                    "state": "SUCCESS",
-                    "start_time": "2019-03-19T22:19:53.542Z",
-                    "start_time_in_millis": 1553033993542,
-                    "end_time": "2019-03-19T22:19:53.567Z",
-                    "end_time_in_millis": 1553033993567,
-                    "duration_in_millis": 25,
-                    "failures": [],
-                    "shards": {
-                        "total": 0,
-                        "failed": 0,
-                        "successful": 0
-                    }
+              "snapshot": {
+                "snapshot": "snapshot_1",
+                "uuid": "bcP3ClgCSYO_TP7_FCBbBw",
+                "version_id": %s,
+                "version": "%s",
+                "indices": [],
+                "include_global_state": true,
+                "state": "SUCCESS",
+                "start_time": "2019-03-19T22:19:53.542Z",
+                "start_time_in_millis": 1553033993542,
+                "end_time": "2019-03-19T22:19:53.567Z",
+                "end_time_in_millis": 1553033993567,
+                "duration_in_millis": 25,
+                "failures": [],
+                "shards": {
+                  "total": 0,
+                  "failed": 0,
+                  "successful": 0
                 }
+              }
             }""", Version.CURRENT.id, Version.CURRENT);
 
         final AtomicBoolean clientCalled = new AtomicBoolean(false);

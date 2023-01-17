@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -113,7 +114,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -332,7 +332,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              */
             List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
-                String s = formatted("b%03d", i);
+                String s = Strings.format("b%03d", i);
                 docs.add(doc(fieldType, s));
                 if (i % 100 == 7) {
                     docs.add(doc(fieldType, s));
@@ -366,7 +366,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              */
             List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
-                String s = formatted("b%03d", i);
+                String s = Strings.format("b%03d", i);
                 List<IndexableField> doc = doc(kft, s);
                 doc.add(new SortedNumericDocValuesField("long", i));
                 docs.add(doc);
@@ -376,7 +376,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             List<String> expected = LongStream.range(
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 210,
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200
-            ).mapToObj(l -> formatted("b%03d", l)).collect(toList());
+            ).mapToObj(l -> Strings.format("b%03d", l)).collect(toList());
             Collections.reverse(expected);
             assertThat(result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(expected));
         }, new AggTestConfig(aggregationBuilder, kft, lft));
@@ -396,9 +396,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .subAggregation(new TermsAggregationBuilder("sub").field("string2").shardSize(500));
         withIndex(iw -> {
             for (int i1 = 0; i1 < 1000; i1++) {
-                String s1 = formatted("b%03d", i1);
+                String s1 = Strings.format("b%03d", i1);
                 for (int i2 = 0; i2 < 50; i2++) {
-                    String s2 = formatted("b%03d", i2);
+                    String s2 = Strings.format("b%03d", i2);
                     List<IndexableField> doc = new ArrayList<>();
                     doc.addAll(doc(s1ft, s1));
                     doc.addAll(doc(s2ft, s2));
@@ -1994,7 +1994,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
-        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, new SourceLookup.ReaderSourceProvider());
+        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, (ctx, doc) -> null);
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, OnScriptError.FAIL, ctx) {
             @Override
             public void execute() {

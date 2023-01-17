@@ -24,6 +24,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
@@ -59,7 +60,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         final Bits liveDocs = reader.getLiveDocs();
         if (roleQueryBits == null) {
             return 0;
-        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+        } else if (roleQueryBits instanceof MatchAllBitSet) {
             return reader.numDocs();
         } else if (liveDocs == null) {
             // slow
@@ -197,7 +198,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             // If we would return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
             // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted
             return new Bits.MatchNoBits(in.maxDoc());
-        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+        } else if (roleQueryBits instanceof MatchAllBitSet) {
             return actualLiveDocs;
         } else if (actualLiveDocs == null) {
             return roleQueryBits;

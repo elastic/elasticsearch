@@ -152,11 +152,32 @@ public class LocalClusterHandle implements ClusterHandle {
         User credentials = node.getSpec().getUsers().get(0);
         wait.setUsername(credentials.getUsername());
         wait.setPassword(credentials.getPassword());
-        if (securityAutoConfigured) {
+        if (sslEnabled) {
+            configureWaitSecurity(wait, node);
+        } else if (securityAutoConfigured) {
             wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
         }
 
         return wait;
+    }
+
+    private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
+        String caFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate_authorities", null);
+        if (caFile != null) {
+            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(caFile).toFile());
+        }
+        String sslCertFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate", null);
+        if (sslCertFile != null) {
+            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(sslCertFile).toFile());
+        }
+        String sslKeystoreFile = node.getSpec().getSetting("xpack.security.http.ssl.keystore.path", null);
+        if (sslKeystoreFile != null && caFile == null) { // Can not set both trust stores and CA
+            wait.setTrustStoreFile(node.getWorkingDir().resolve("config").resolve(sslKeystoreFile).toFile());
+        }
+        String keystorePassword = node.getSpec().getSetting("xpack.security.http.ssl.keystore.secure_password", null);
+        if (keystorePassword != null) {
+            wait.setTrustStorePassword(keystorePassword);
+        }
     }
 
     private boolean isSecurityAutoConfigured(Node node) {

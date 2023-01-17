@@ -79,7 +79,7 @@ public class TransportNodesActionTests extends ESTestCase {
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
-            nodeSelectors.add(randomFrom(NodeSelector.values()).selector);
+            nodeSelectors.add(randomFrom("_local", "_master", "master:true", "data:true", "attr:value"));
         }
         int numNodeIds = randomIntBetween(0, 3);
         String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
@@ -187,20 +187,6 @@ public class TransportNodesActionTests extends ESTestCase {
             failures.add(supplier.get());
         }
         return failures;
-    }
-
-    private enum NodeSelector {
-        LOCAL("_local"),
-        ELECTED_MASTER("_master"),
-        MASTER_ELIGIBLE("master:true"),
-        DATA("data:true"),
-        CUSTOM_ATTRIBUTE("attr:value");
-
-        private final String selector;
-
-        NodeSelector(String selector) {
-            this.selector = selector;
-        }
     }
 
     @BeforeClass

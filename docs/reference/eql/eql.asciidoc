@@ -30,10 +30,16 @@ describe activity that goes beyond IOCs.
 [[eql-required-fields]]
 === Required fields
 
-To run an EQL search, the searched data stream or index must contain a
-_timestamp_ and _event category_ field. By default, EQL uses the `@timestamp`
-and `event.category` fields from the {ecs-ref}[Elastic Common Schema
-(ECS)]. To use a different timestamp or event category field, see
+With the exception of sample queries, EQL searches require that the searched
+data stream or index  contains a _timestamp_ field. By default, EQL uses the
+`@timestamp` field from the {ecs-ref}[Elastic Common Schema (ECS)]. 
+
+EQL searches also require an _event category_ field, unless you use the
+<<eql-syntax-match-any-event-category,`any` keyword>> to search for  documents
+without an event category field. By default, EQL uses the ECS `event.category`
+field.
+
+To use a different timestamp or event category field, see
 <<specify-a-timestamp-or-event-category-field>>.
 
 TIP: While no schema is required to use EQL, we recommend using the
@@ -313,6 +319,561 @@ GET /my-data-stream/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
+
+[discrete]
+[[eql-search-sample]]
+=== Sample chronologically unordered events
+
+Use EQL's <<eql-samples,sample syntax>> to search for events that match one or
+more join keys and a set of filters. Samples are similar to sequences, but do
+not return events in chronological order. In fact, sample queries can run on
+data without a timestamp. Sample queries can be useful to find correlations in
+events that don't always occur in the same sequence, or that occur across long
+time spans.
+
+.Click to show the sample data used in the examples below
+[%collapsible]
+====
+[source,console]
+----
+PUT /my-index-000001
+{
+    "mappings": {
+        "properties": {
+            "ip": {
+                "type":"ip"
+            },
+            "version": {
+                "type": "version"
+            },
+            "missing_keyword": {
+                "type": "keyword"
+            },
+            "@timestamp": {
+              "type": "date"
+            },
+            "type_test": {
+                "type": "keyword"
+            },
+            "@timestamp_pretty": {
+              "type": "date",
+              "format": "dd-MM-yyyy"
+            },
+            "event_type": {
+              "type": "keyword"
+            },
+            "event": {
+              "properties": {
+                "category": {
+                  "type": "alias",
+                  "path": "event_type"
+                }
+              }
+            },
+            "host": {
+              "type": "keyword"
+            },
+            "os": {
+              "type": "keyword"
+            },
+            "bool": {
+              "type": "boolean"
+            },
+            "uptime" : {
+              "type" : "long"
+            },
+            "port" : {
+              "type" : "long"
+            }
+        }
+    }
+}
+
+PUT /my-index-000002
+{
+    "mappings": {
+        "properties": {
+            "ip": {
+                "type":"ip"
+            },
+            "@timestamp": {
+              "type": "date"
+            },
+            "@timestamp_pretty": {
+              "type": "date",
+              "format": "yyyy-MM-dd"
+            },
+            "type_test": {
+                "type": "keyword"
+            },
+            "event_type": {
+              "type": "keyword"
+            },
+            "event": {
+              "properties": {
+                "category": {
+                  "type": "alias",
+                  "path": "event_type"
+                }
+              }
+            },
+            "host": {
+              "type": "keyword"
+            },
+            "op_sys": {
+              "type": "keyword"
+            },
+            "bool": {
+              "type": "boolean"
+            },
+            "uptime" : {
+              "type" : "long"
+            },
+            "port" : {
+              "type" : "long"
+            }
+        }
+    }
+}
+
+PUT /my-index-000003
+{
+    "mappings": {
+        "properties": {
+            "host_ip": {
+                "type":"ip"
+            },
+            "@timestamp": {
+              "type": "date"
+            },
+            "date": {
+              "type": "date"
+            },
+            "event_type": {
+              "type": "keyword"
+            },
+            "event": {
+              "properties": {
+                "category": {
+                  "type": "alias",
+                  "path": "event_type"
+                }
+              }
+            },
+            "missing_keyword": {
+                "type": "keyword"
+            },
+            "host": {
+              "type": "keyword"
+            },
+            "os": {
+              "type": "keyword"
+            },
+            "bool": {
+              "type": "boolean"
+            },
+            "uptime" : {
+              "type" : "long"
+            },
+            "port" : {
+              "type" : "long"
+            }
+        }
+    }
+}
+
+POST /my-index-000001/_bulk?refresh
+{"index":{"_id":1}}
+{"@timestamp":"1234567891","@timestamp_pretty":"12-12-2022","missing_keyword":"test","type_test":"abc","ip":"10.0.0.1","event_type":"alert","host":"doom","uptime":0,"port":1234,"os":"win10","version":"1.0.0","id":11}
+{"index":{"_id":2}}
+{"@timestamp":"1234567892","@timestamp_pretty":"13-12-2022","event_type":"alert","type_test":"abc","host":"CS","uptime":5,"port":1,"os":"win10","version":"1.2.0","id":12}
+{"index":{"_id":3}}
+{"@timestamp":"1234567893","@timestamp_pretty":"12-12-2022","event_type":"alert","type_test":"abc","host":"farcry","uptime":1,"port":1234,"bool":false,"os":"win10","version":"2.0.0","id":13}
+{"index":{"_id":4}}
+{"@timestamp":"1234567894","@timestamp_pretty":"13-12-2022","event_type":"alert","type_test":"abc","host":"GTA","uptime":3,"port":12,"os":"slack","version":"10.0.0","id":14}
+{"index":{"_id":5}}
+{"@timestamp":"1234567895","@timestamp_pretty":"17-12-2022","event_type":"alert","host":"sniper 3d","uptime":6,"port":1234,"os":"fedora","version":"20.1.0","id":15}
+{"index":{"_id":6}}
+{"@timestamp":"1234568896","@timestamp_pretty":"17-12-2022","event_type":"alert","host":"doom","port":65123,"bool":true,"os":"redhat","version":"20.10.0","id":16}
+{"index":{"_id":7}}
+{"@timestamp":"1234567897","@timestamp_pretty":"17-12-2022","missing_keyword":"yyy","event_type":"failure","host":"doom","uptime":15,"port":1234,"bool":true,"os":"redhat","version":"20.2.0","id":17}
+{"index":{"_id":8}}
+{"@timestamp":"1234567898","@timestamp_pretty":"12-12-2022","missing_keyword":"test","event_type":"success","host":"doom","uptime":16,"port":512,"os":"win10","version":"1.2.3","id":18}
+{"index":{"_id":9}}
+{"@timestamp":"1234567899","@timestamp_pretty":"15-12-2022","missing_keyword":"test","event_type":"success","host":"GTA","port":12,"bool":true,"os":"win10","version":"1.2.3","id":19}
+{"index":{"_id":10}}
+{"@timestamp":"1234567893","missing_keyword":null,"ip":"10.0.0.5","event_type":"alert","host":"farcry","uptime":1,"port":1234,"bool":true,"os":"win10","version":"1.2.3","id":110}
+
+POST /my-index-000002/_bulk?refresh
+{"index":{"_id":1}}
+{"@timestamp":"1234567991","type_test":"abc","ip":"10.0.0.1","event_type":"alert","host":"doom","uptime":0,"port":1234,"op_sys":"win10","id":21}
+{"index":{"_id":2}}
+{"@timestamp":"1234567992","type_test":"abc","event_type":"alert","host":"CS","uptime":5,"port":1,"op_sys":"win10","id":22}
+{"index":{"_id":3}}
+{"@timestamp":"1234567993","type_test":"abc","@timestamp_pretty":"2022-12-17","event_type":"alert","host":"farcry","uptime":1,"port":1234,"bool":false,"op_sys":"win10","id":23}
+{"index":{"_id":4}}
+{"@timestamp":"1234567994","event_type":"alert","host":"GTA","uptime":3,"port":12,"op_sys":"slack","id":24}
+{"index":{"_id":5}}
+{"@timestamp":"1234567995","event_type":"alert","host":"sniper 3d","uptime":6,"port":1234,"op_sys":"fedora","id":25}
+{"index":{"_id":6}}
+{"@timestamp":"1234568996","@timestamp_pretty":"2022-12-17","ip":"10.0.0.5","event_type":"alert","host":"doom","port":65123,"bool":true,"op_sys":"redhat","id":26}
+{"index":{"_id":7}}
+{"@timestamp":"1234567997","@timestamp_pretty":"2022-12-17","event_type":"failure","host":"doom","uptime":15,"port":1234,"bool":true,"op_sys":"redhat","id":27}
+{"index":{"_id":8}}
+{"@timestamp":"1234567998","ip":"10.0.0.1","event_type":"success","host":"doom","uptime":16,"port":512,"op_sys":"win10","id":28}
+{"index":{"_id":9}}
+{"@timestamp":"1234567999","ip":"10.0.0.1","event_type":"success","host":"GTA","port":12,"bool":false,"op_sys":"win10","id":29}
+
+POST /my-index-000003/_bulk?refresh
+{"index":{"_id":1}}
+{"@timestamp":"1334567891","host_ip":"10.0.0.1","event_type":"alert","host":"doom","uptime":0,"port":12,"os":"win10","id":31}
+{"index":{"_id":2}}
+{"@timestamp":"1334567892","event_type":"alert","host":"CS","os":"win10","id":32}
+{"index":{"_id":3}}
+{"@timestamp":"1334567893","event_type":"alert","host":"farcry","bool":true,"os":"win10","id":33}
+{"index":{"_id":4}}
+{"@timestamp":"1334567894","event_type":"alert","host":"GTA","os":"slack","bool":true,"id":34}
+{"index":{"_id":5}}
+{"@timestamp":"1234567895","event_type":"alert","host":"sniper 3d","os":"fedora","id":35}
+{"index":{"_id":6}}
+{"@timestamp":"1234578896","host_ip":"10.0.0.1","event_type":"alert","host":"doom","bool":true,"os":"redhat","id":36}
+{"index":{"_id":7}}
+{"@timestamp":"1234567897","event_type":"failure","missing_keyword":"test","host":"doom","bool":true,"os":"redhat","id":37}
+{"index":{"_id":8}}
+{"@timestamp":"1234577898","event_type":"success","host":"doom","os":"win10","id":38,"date":"1671235200000"}
+{"index":{"_id":9}}
+{"@timestamp":"1234577899","host_ip":"10.0.0.5","event_type":"success","host":"GTA","bool":true,"os":"win10","id":39}
+----
+====
+
+A sample query specifies at least one join key, using the <<eql-by-keyword,`by`
+keyword>>, and up to five filters:
+
+[source,console]
+----
+GET /my-index*/_eql/search
+{
+  "query": """
+    sample by host
+      [any where uptime > 0] 
+      [any where port > 100] 
+      [any where bool == true] 
+  """
+}
+----
+// TEST[continued]
+
+By default, the response’s `hits.sequences` property contains up to 10 samples.
+Each sample has a set of `join_keys` and an array with one matching event for
+each of the filters. Events are returned in the order of the filters they match:
+
+[source,console-result]
+----
+{
+  ...
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "join_keys": [
+          "doom"                                      <1>
+        ],
+        "events": [
+          {                                           <2>
+            "_index": "my-index-000001",
+            "_id": "7",
+            "_source": {
+              "@timestamp": "1234567897",
+              "@timestamp_pretty": "17-12-2022",
+              "missing_keyword": "yyy",
+              "event_type": "failure",
+              "host": "doom",
+              "uptime": 15,
+              "port": 1234,
+              "bool": true,
+              "os": "redhat",
+              "version": "20.2.0",
+              "id": 17
+            }
+          },
+          {                                           <3>
+            "_index": "my-index-000001",
+            "_id": "1",
+            "_source": {
+              "@timestamp": "1234567891",
+              "@timestamp_pretty": "12-12-2022",
+              "missing_keyword": "test",
+              "type_test": "abc",
+              "ip": "10.0.0.1",
+              "event_type": "alert",
+              "host": "doom",
+              "uptime": 0,
+              "port": 1234,
+              "os": "win10",
+              "version": "1.0.0",
+              "id": 11
+            }
+          },
+          {                                           <4>
+            "_index": "my-index-000001",
+            "_id": "6",
+            "_source": {
+              "@timestamp": "1234568896",
+              "@timestamp_pretty": "17-12-2022",
+              "event_type": "alert",
+              "host": "doom",
+              "port": 65123,
+              "bool": true,
+              "os": "redhat",
+              "version": "20.10.0",
+              "id": 16
+            }
+          }
+        ]
+      },
+      {
+        "join_keys": [
+          "farcry"                                    <5>
+        ],
+        "events": [
+          {
+            "_index": "my-index-000001",
+            "_id": "3",
+            "_source": {
+              "@timestamp": "1234567893",
+              "@timestamp_pretty": "12-12-2022",
+              "event_type": "alert",
+              "type_test": "abc",
+              "host": "farcry",
+              "uptime": 1,
+              "port": 1234,
+              "bool": false,
+              "os": "win10",
+              "version": "2.0.0",
+              "id": 13
+            }
+          },
+          {
+            "_index": "my-index-000001",
+            "_id": "10",
+            "_source": {
+              "@timestamp": "1234567893",
+              "missing_keyword": null,
+              "ip": "10.0.0.5",
+              "event_type": "alert",
+              "host": "farcry",
+              "uptime": 1,
+              "port": 1234,
+              "bool": true,
+              "os": "win10",
+              "version": "1.2.3",
+              "id": 110
+            }
+          },
+          {
+            "_index": "my-index-000003",
+            "_id": "3",
+            "_source": {
+              "@timestamp": "1334567893",
+              "event_type": "alert",
+              "host": "farcry",
+              "bool": true,
+              "os": "win10",
+              "id": 33
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+
+<1> The events in the first sample have a value of `doom` for `host`.
+<2> This event matches the first filter.
+<3> This event matches the second filter.
+<4> This event matches the third filter.
+<5> The events in the second sample have a value of `farcry` for `host`.
+
+You can specify multiple join keys:
+
+[source,console]
+----
+GET /my-index*/_eql/search
+{
+  "query": """
+    sample by host
+      [any where uptime > 0]   by os
+      [any where port > 100]   by op_sys
+      [any where bool == true] by os
+  """
+}
+----
+// TEST[continued]
+
+This query will return samples where each of the events shares the same value
+for `os` or `op_sys`, as well as for `host`. For example:
+
+[source,console-result]
+----
+{
+  ...
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "join_keys": [
+          "doom",                                      <1>
+          "redhat"
+        ],
+        "events": [
+          {
+            "_index": "my-index-000001",
+            "_id": "7",
+            "_source": {
+              "@timestamp": "1234567897",
+              "@timestamp_pretty": "17-12-2022",
+              "missing_keyword": "yyy",
+              "event_type": "failure",
+              "host": "doom",
+              "uptime": 15,
+              "port": 1234,
+              "bool": true,
+              "os": "redhat",
+              "version": "20.2.0",
+              "id": 17
+            }
+          },
+          {
+            "_index": "my-index-000002",
+            "_id": "6",
+            "_source": {
+              "@timestamp": "1234568996",
+              "@timestamp_pretty": "2022-12-17",
+              "ip": "10.0.0.5",
+              "event_type": "alert",
+              "host": "doom",
+              "port": 65123,
+              "bool": true,
+              "op_sys": "redhat",
+              "id": 26
+            }
+          },
+          {
+            "_index": "my-index-000001",
+            "_id": "6",
+            "_source": {
+              "@timestamp": "1234568896",
+              "@timestamp_pretty": "17-12-2022",
+              "event_type": "alert",
+              "host": "doom",
+              "port": 65123,
+              "bool": true,
+              "os": "redhat",
+              "version": "20.10.0",
+              "id": 16
+            }
+          }
+        ]
+      },
+      {
+        "join_keys": [
+          "farcry",
+          "win10"
+        ],
+        "events": [
+          {
+            "_index": "my-index-000001",
+            "_id": "3",
+            "_source": {
+              "@timestamp": "1234567893",
+              "@timestamp_pretty": "12-12-2022",
+              "event_type": "alert",
+              "type_test": "abc",
+              "host": "farcry",
+              "uptime": 1,
+              "port": 1234,
+              "bool": false,
+              "os": "win10",
+              "version": "2.0.0",
+              "id": 13
+            }
+          },
+          {
+            "_index": "my-index-000002",
+            "_id": "3",
+            "_source": {
+              "@timestamp": "1234567993",
+              "type_test": "abc",
+              "@timestamp_pretty": "2022-12-17",
+              "event_type": "alert",
+              "host": "farcry",
+              "uptime": 1,
+              "port": 1234,
+              "bool": false,
+              "op_sys": "win10",
+              "id": 23
+            }
+          },
+          {
+            "_index": "my-index-000001",
+            "_id": "10",
+            "_source": {
+              "@timestamp": "1234567893",
+              "missing_keyword": null,
+              "ip": "10.0.0.5",
+              "event_type": "alert",
+              "host": "farcry",
+              "uptime": 1,
+              "port": 1234,
+              "bool": true,
+              "os": "win10",
+              "version": "1.2.3",
+              "id": 110
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+
+<1> The events in this sample have a value of `doom` for `host` and a value of
+`redhat` for `os` or `op_sys`.
+
+By default, the response of a sample query contains up to 10 samples, with one
+sample per unique set of join keys. Use the `size` parameter to get a smaller or
+larger set of samples. To retrieve more than one sample per set of join keys,
+use the `max_samples_per_key` parameter. Pipes are not supported for sample
+queries. 
+
+[source,console]
+----
+GET /my-index*/_eql/search
+{
+  "max_samples_per_key": 2,     <1>
+  "size": 20,                   <2>
+  "query": """
+    sample
+      [any where uptime > 0]   by host,os
+      [any where port > 100]   by host,op_sys
+      [any where bool == true] by host,os
+  """
+}
+----
+// TEST[continued]
+
+<1> Retrieve up to 2 samples per set of join keys.
+<2> Retrieve up to 20 samples in total.
 
 [discrete]
 [[retrieve-selected-fields]]

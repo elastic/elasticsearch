@@ -291,7 +291,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         nodeId,
                         null,
                         j == 0,
-                        ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)),
+                        j == 0 ? ShardRoutingState.STARTED : randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED),
                         unassignedInfo
                     )
                 );

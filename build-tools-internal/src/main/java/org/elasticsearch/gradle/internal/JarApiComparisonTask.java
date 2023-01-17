@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
@@ -71,8 +70,9 @@ public abstract class JarApiComparisonTask extends PrecommitTask {
             throw new IllegalStateException("Expected a single original jar, but found: " + oldJarNames);
         }
         if (oldJarNames.contains(newJarFile.getName())) {
-            throw new IllegalStateException("We should be comparing different jars, but original and new jars were both: "
-                + newJarFile.getAbsolutePath());
+            throw new IllegalStateException(
+                "We should be comparing different jars, but original and new jars were both: " + newJarFile.getAbsolutePath()
+            );
         }
 
         JarScanner oldJS = new JarScanner(getOldJar().get().getSingleFile().getPath());

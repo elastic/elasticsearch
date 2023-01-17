@@ -281,7 +281,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public Version getVersion() {
-            return node.getVersion();
+            // TODO: this should be the below, but in some cases the node version does not match the passed-in version.
+            // return node.getVersion();
+            return Version.fromId(version.id);
         }
 
         @Override

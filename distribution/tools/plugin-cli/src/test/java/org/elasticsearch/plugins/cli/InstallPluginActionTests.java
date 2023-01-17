@@ -54,6 +54,8 @@ import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -262,7 +264,21 @@ public class InstallPluginActionTests extends ESTestCase {
         if (hasNamedComponentFile) {
             PluginTestUtil.writeNamedComponentsFile(structure, namedComponentsJSON());
         }
-        writeJar(structure.resolve("plugin.jar"));// empty jar so that there is nothing to scan
+        Path jar = structure.resolve("plugin.jar");
+
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            import org.elasticsearch.plugin.*;
+            import org.elasticsearch.plugins.cli.test_model.*;
+            @NamedComponent("a_component")
+            public class A implements ExtensibleInterface{}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            import org.elasticsearch.plugin.*;
+            import org.elasticsearch.plugins.cli.test_model.*;
+            @NamedComponent("b_component")
+            public class B implements ExtensibleInterface{}
+            """)));
     }
 
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
@@ -1561,9 +1577,7 @@ public class InstallPluginActionTests extends ESTestCase {
         installPlugins(List.of(stablePluginZip), env.v1());
 
         assertPlugin("stable1", pluginDir, env.v2());
-        // the test was using a jar with no classes, so the scanner did not find anything, but this is fine. that logic is tested elsewhere
-        // what we care here is that a file is created
-        assertNamedComponentFile("stable1", env.v2().pluginsFile(), "{}");
+        assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
     }
 
     private Map<String, Map<String, String>> namedComponentsMap() {
@@ -1571,14 +1585,14 @@ public class InstallPluginActionTests extends ESTestCase {
         Map<String, String> extensibles = new LinkedHashMap<>();
         extensibles.put("a_component", "p.A");
         extensibles.put("b_component", "p.B");
-        result.put("org.elasticsearch.ExtensibleInterface", extensibles);
+        result.put("org.elasticsearch.plugins.cli.test_model.ExtensibleInterface", extensibles);
         return result;
     }
 
     private static String namedComponentsJSON() {
         return """
             {
-              "org.elasticsearch.ExtensibleInterface": {
+              "org.elasticsearch.plugins.cli.test_model.ExtensibleInterface": {
                 "a_component": "p.A",
                 "b_component": "p.B"
               }

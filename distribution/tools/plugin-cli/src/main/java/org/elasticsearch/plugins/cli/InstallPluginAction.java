@@ -85,6 +85,7 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -883,7 +884,8 @@ public class InstallPluginAction implements Closeable {
     }
 
     private void generateNameComponentFile(Path pluginRoot) throws IOException {
-        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(pluginRoot);
+        Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream(); // contains plugin-api
+        List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(pluginRoot).stream(), classPath).toList();
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
         Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
         scanner.writeToFile(namedComponentsMap, outputFile);

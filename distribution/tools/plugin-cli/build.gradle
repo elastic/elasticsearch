@@ -17,6 +17,7 @@ tasks.named("dependencyLicenses").configure {
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
+  implementation project(":libs:elasticsearch-plugin-api")
   implementation project(":libs:elasticsearch-plugin-scanner")
   implementation 'org.ow2.asm:asm:9.3'
   implementation 'org.ow2.asm:asm-tree:9.3'

@@ -8,41 +8,42 @@
 
 package org.elasticsearch.common.settings;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
-import java.util.Optional;
+import java.time.ZonedDateTime;
+import java.util.function.Consumer;
 
 /**
  * An interface for implementing {@link SecureSettings} loaders, that is, implementations that create, initialize and load
  * secrets stores.
  */
-public interface SecureSettingsLoader {
-    LoadedSecrets load(
-        Environment environment,
-        Terminal terminal,
-        ProcessInfo processInfo,
-        OptionSet options,
-        Command autoConfigureCommand,
-        OptionSpec<String> enrollmentTokenOption
-    ) throws Exception;
+public interface SecureSettingsLoader extends AutoCloseable {
+    SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
+        throws Exception;
 
-    /**
-     * The secure settings loader will materialize the secrets in memory, however secure settings
-     * loader are allowed to modify the supplied environment options and return an updated version. This happens
-     * when we auto-configure security on Elasticsearch start.
-     * @param secrets the in-memory loaded secrets
-     * @param options optionally, modified options by auto-configuration of the node
-     */
-    record LoadedSecrets(SecureSettings secrets, Optional<OptionSet> options) implements AutoCloseable {
-        @Override
-        public void close() throws Exception {
-            secrets.close();
-        }
+    default Exception autoConfigure(
+        Environment env,
+        Terminal terminal,
+        ZonedDateTime autoConfigDate,
+        Consumer<SecureString> configureTransportSecrets,
+        Consumer<SecureString> configureHttpSecrets
+    ) {
+        return null;
+    }
+
+    default void onAutoConfigureFailure(Environment environment) throws Exception {}
+
+    default void onAutoConfigureSuccess(Environment environment) throws Exception {}
+
+    default Exception removeAutoConfiguration(Environment env) {
+        return null;
+    }
+
+    String valid(Environment environment);
+
+    @FunctionalInterface
+    interface AutoConfigureFunction<T, R> {
+        R apply(T t) throws Exception;
     }
 }

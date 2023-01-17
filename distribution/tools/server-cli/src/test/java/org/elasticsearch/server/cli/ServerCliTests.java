@@ -22,7 +22,9 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureSettingsLoader;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -34,7 +36,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -470,16 +471,21 @@ public class ServerCliTests extends CommandTestCase {
 
     class MockSecureSettingsLoader implements SecureSettingsLoader {
         @Override
-        public LoadedSecrets load(
+        public SecureSettings load(
             Environment environment,
             Terminal terminal,
-            ProcessInfo processInfo,
-            OptionSet options,
-            Command autoConfigureCommand,
-            OptionSpec<String> enrollmentTokenOption
+            AutoConfigureFunction<SecureString, Environment> autoConfigure
         ) {
             terminal.println("Mock secure settings loader loaded");
-            return new LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
+            return KeyStoreWrapper.create();
         }
+
+        @Override
+        public String valid(Environment environment) {
+            return null;
+        }
+
+        @Override
+        public void close() throws Exception {}
     }
 }

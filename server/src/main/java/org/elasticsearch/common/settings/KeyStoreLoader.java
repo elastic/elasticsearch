@@ -8,137 +8,202 @@
 
 package org.elasticsearch.common.settings;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.env.Environment;
 
-import java.io.Closeable;
-import java.io.OutputStream;
-import java.util.Optional;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
  * Implementation of {@link SecureSettingsLoader} for {@link KeyStoreWrapper}
  */
 public class KeyStoreLoader implements SecureSettingsLoader {
+    private SecureString password = null;
+    private Path keystoreBackupPath = null;
+
     @Override
-    public LoadedSecrets load(
-        Environment environment,
-        Terminal terminal,
-        ProcessInfo processInfo,
-        OptionSet options,
-        Command autoConfigureCommand,
-        OptionSpec<String> enrollmentTokenOption
-    ) throws Exception {
+    public SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
+        throws Exception {
         // See if we have a keystore already present
         KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile());
         // If there's no keystore or the keystore has no password, set an empty password
-        SecureString password = (secureSettings == null || secureSettings.hasPassword() == false)
+        this.password = (secureSettings == null || secureSettings.hasPassword() == false)
             ? new SecureString(new char[0])
             : new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
-        // Call the init method function, e.g. allow external callers to perform additional initialization
-        Optional<OptionSet> modifiedOptions = autoConfigureSecurity(
-            terminal,
-            options,
-            processInfo,
-            environment,
-            password,
-            autoConfigureCommand,
-            enrollmentTokenOption
-        );
-        // Bootstrap a keystore, at this point if no keystore existed it will be created.
-        // Bootstrap will decrypt the keystore if it was pre-existing.
-        secureSettings = KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
-        // We don't need the password anymore, close it
-        password.close();
 
-        return new LoadedSecrets(secureSettings, modifiedOptions);
+        return reload(autoConfigure.apply(password));
     }
 
-    private Optional<OptionSet> autoConfigureSecurity(
-        Terminal terminal,
-        OptionSet options,
-        ProcessInfo processInfo,
+    private SecureSettings reload(Environment environment) throws Exception {
+        return KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
+    }
+
+    @Override
+    public Exception autoConfigure(
         Environment env,
-        SecureString keystorePassword,
-        Command cmd,
-        OptionSpec<String> enrollmentTokenOption
-    ) throws Exception {
-        if (cmd == null) {
-            return Optional.empty();
-        }
+        Terminal terminal,
+        ZonedDateTime autoConfigDate,
+        Consumer<SecureString> configureTransportSecrets,
+        Consumer<SecureString> configureHttpSecrets
+    ) {
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
 
-        @SuppressWarnings("raw")
-        var autoConfigNode = (EnvironmentAwareCommand) cmd;
-        final String[] autoConfigArgs;
-        if (options.has(enrollmentTokenOption)) {
-            autoConfigArgs = new String[] { "--enrollment-token", options.valueOf(enrollmentTokenOption) };
-        } else {
-            autoConfigArgs = new String[0];
-        }
-        OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
-
-        boolean changed = true;
-        try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
-            autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
-        } catch (UserException e) {
-            boolean okCode = switch (e.exitCode) {
-                // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
-                // e.g. the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
-                case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP -> true;
-                default -> false;
-            };
-            if (options.has(enrollmentTokenOption) == false && okCode) {
-                // we still want to print the error, just don't fail startup
-                if (e.getMessage() != null) {
-                    terminal.errorPrintln(e.getMessage());
-                }
-                changed = false;
-            } else {
-                throw e;
+        // save the existing keystore before replacing
+        this.keystoreBackupPath = env.configFile()
+            .resolve(
+                String.format(Locale.ROOT, KeyStoreWrapper.KEYSTORE_FILENAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond())
+            );
+        if (Files.exists(keystorePath)) {
+            try {
+                Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
+            } catch (Exception t) {
+                return t;
             }
         }
-        if (changed) {
-            // reload settings since auto security changed them
-            return Optional.of(options);
+
+        this.password = new SecureString(new char[0]);
+
+        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
+            password = new SecureString(terminal.readSecret(""));
+            return password;
+        })) {
+            // do not overwrite keystore entries
+            // instead expect the admin to manually remove them herself
+            if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password")
+                || nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password")
+                || nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
+                // this error condition is akin to condition of existing configuration in the yml file
+                // this is not a fresh install and the admin has something planned for Security
+                // Even though this is probably invalid configuration, do NOT fix it, let the node fail to start in its usual way.
+                // Still display a message, because this can be tricky to figure out (why auto-conf did not run) if by mistake.
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Aborting auto configuration because the node keystore contains password settings already"
+                );
+            }
+            try (SecureString transportKeystorePassword = newKeystorePassword()) {
+                configureTransportSecrets.accept(transportKeystorePassword);
+                nodeKeystore.setString("xpack.security.transport.ssl.keystore.secure_password", transportKeystorePassword.getChars());
+                // we use the same PKCS12 file for the keystore and the truststore
+                nodeKeystore.setString("xpack.security.transport.ssl.truststore.secure_password", transportKeystorePassword.getChars());
+            }
+            try (SecureString httpKeystorePassword = newKeystorePassword()) {
+                configureHttpSecrets.accept(httpKeystorePassword);
+                nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
+            }
+            // finally overwrites the node keystore (if the keystores have been successfully written)
+            nodeKeystore.save(env.configFile(), password.getChars());
+        } catch (Exception t) {
+            // restore keystore to revert possible keystore bootstrap
+            try {
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(
+                        keystoreBackupPath,
+                        keystorePath,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES
+                    );
+                } else {
+                    Files.deleteIfExists(keystorePath);
+                }
+            } catch (Exception ex) {
+                t.addSuppressed(ex);
+            }
+            return t;
         }
-        return Optional.empty();
+
+        return null;
     }
 
-    /**
-     * A terminal that wraps an existing terminal and provides a single secret input, the keystore password.
-     */
-    class KeystorePasswordTerminal extends Terminal implements Closeable {
+    @Override
+    public void onAutoConfigureFailure(Environment env) throws Exception {
+        assert keystoreBackupPath != null;
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
 
-        private final Terminal delegate;
-        private final SecureString password;
+        if (Files.exists(keystoreBackupPath)) {
+            Files.move(
+                keystoreBackupPath,
+                keystorePath,
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.COPY_ATTRIBUTES
+            );
+        } else {
+            Files.deleteIfExists(keystorePath);
+        }
+    }
 
-        KeystorePasswordTerminal(Terminal delegate, SecureString password) {
-            super(delegate.getReader(), delegate.getWriter(), delegate.getErrorWriter());
-            this.delegate = delegate;
-            this.password = password;
-            setVerbosity(delegate.getVerbosity());
+    @Override
+    public void onAutoConfigureSuccess(Environment env) throws Exception {
+        assert keystoreBackupPath != null;
+        Files.deleteIfExists(keystoreBackupPath);
+    }
+
+    @Override
+    public Exception removeAutoConfiguration(Environment env) {
+        assert password != null;
+        if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
+            try (KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());) {
+                existingKeystore.decrypt(password.getChars());
+                List<String> secureSettingsToRemove = List.of(
+                    "xpack.security.transport.ssl.keystore.secure_password",
+                    "xpack.security.transport.ssl.truststore.secure_password",
+                    "xpack.security.http.ssl.keystore.secure_password",
+                    "autoconfiguration.password_hash"
+                );
+                for (String setting : secureSettingsToRemove) {
+                    if (existingKeystore.getSettingNames().contains(setting) == false) {
+                        throw new UserException(
+                            ExitCodes.IO_ERROR,
+                            "Aborting enrolling to cluster. Unable to remove existing security configuration, "
+                                + "elasticsearch.keystore did not contain expected setting ["
+                                + setting
+                                + "]."
+                        );
+                    }
+                    existingKeystore.remove(setting);
+                }
+                existingKeystore.save(env.configFile(), password.getChars());
+            } catch (Exception e) {
+                return e;
+            }
         }
 
-        @Override
-        public char[] readSecret(String prompt) {
-            return password.getChars();
+        return null;
+    }
+
+    SecureString newKeystorePassword() {
+        return UUIDs.randomBase64UUIDSecureString();
+    }
+
+    @Override
+    public String valid(Environment environment) {
+        final Path keystorePath = KeyStoreWrapper.keystorePath(environment.configFile());
+        // Empty keystore path is valid, but not if we have an unreadable keystore
+        if (Files.exists(keystorePath)
+            && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) || false == Files.isReadable(keystorePath))) {
+            return String.format(
+                Locale.ROOT,
+                "Skipping security auto configuration because the node keystore file [%s] is not a readable regular file",
+                keystorePath
+            );
         }
 
-        @Override
-        public OutputStream getOutputStream() {
-            return delegate.getOutputStream();
-        }
+        return null;
+    }
 
-        @Override
-        public void close() {
-            password.close();
-        }
+    @Override
+    public void close() throws Exception {
+        password.close();
     }
 }

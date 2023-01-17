@@ -8,20 +8,29 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 
 /**
- * Implements most of the logic for the GeoHash aggregation.
+ * Implements the logic for the Geohash aggregation over a geoshape doc value.
  */
-abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
+public abstract class GeoHashGridTiler extends GeoGridTiler {
 
-    AbstractGeoHashGridTiler(int precision) {
+    private GeoHashGridTiler(int precision) {
         super(precision);
+    }
+
+    /** Factory method to create GeoHashGridTiler objects */
+    public static GeoHashGridTiler makeGridTiler(int precision, GeoBoundingBox geoBoundingBox) {
+        return geoBoundingBox == null || geoBoundingBox.isUnbounded()
+            ? new UnboundedGeoHashGridTiler(precision)
+            : new BoundedGeoHashGridTiler(precision, geoBoundingBox);
     }
 
     /** check if the provided hash is in the solution space of this tiler */
@@ -51,11 +60,8 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return setValuesByRasterization("", values, 0, geoValue);
     }
 
-    protected int setValuesByBruteForceScan(
-        GeoShapeCellValues values,
-        GeoShapeValues.GeoShapeValue geoValue,
-        GeoShapeValues.BoundingBox bounds
-    ) throws IOException {
+    int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
+        throws IOException {
         // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I can
         // see that eventually we will be visiting twice the same cell which should not happen.
         int idx = 0;
@@ -82,7 +88,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     /**
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
+    private int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
         throws IOException {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         if (relateTile(geoValue, hash) != GeoRelation.QUERY_DISJOINT) {
@@ -105,7 +111,12 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return GeoRelation.QUERY_DISJOINT;
     }
 
-    protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)
+    /**
+     * Recursively search the geohash tree, only following branches that intersect the geometry.
+     * Once at the required depth, then all cells that intersect are added to the collection.
+     */
+    // pkg protected for testing
+    int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)
         throws IOException {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (String s : hashes) {
@@ -147,7 +158,8 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return (int) numTilesAtPrecision;
     }
 
-    protected int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
+    // pkg protected for testing
+    int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (String s : hashes) {
             if (validHash(s)) {
@@ -159,5 +171,50 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
             }
         }
         return valuesIndex;
+    }
+
+    /**
+     * Bounded geotile aggregation. It accepts hashes that intersects the provided bounds.
+     */
+    private static class BoundedGeoHashGridTiler extends GeoHashGridTiler {
+        private final GeoHashBoundedPredicate predicate;
+
+        BoundedGeoHashGridTiler(int precision, GeoBoundingBox bbox) {
+            super(precision);
+            this.predicate = new GeoHashBoundedPredicate(precision, bbox);
+        }
+
+        @Override
+        protected long getMaxCells() {
+            return predicate.getMaxHashes();
+        }
+
+        @Override
+        protected boolean validHash(String hash) {
+            return predicate.validHash(hash);
+        }
+    }
+
+    /**
+     * Unbounded geohash aggregation. It accepts any hash.
+     */
+    private static class UnboundedGeoHashGridTiler extends GeoHashGridTiler {
+
+        private final long maxHashes;
+
+        UnboundedGeoHashGridTiler(int precision) {
+            super(precision);
+            this.maxHashes = (long) Math.pow(32, precision);
+        }
+
+        @Override
+        protected boolean validHash(String hash) {
+            return true;
+        }
+
+        @Override
+        protected long getMaxCells() {
+            return maxHashes;
+        }
     }
 }

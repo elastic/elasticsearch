@@ -815,12 +815,12 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    public class FrozenCacheFile {
+    public class CacheFile {
 
         private final CacheKey cacheKey;
         private final long length;
 
-        private FrozenCacheFile(CacheKey cacheKey, long length) {
+        private CacheFile(CacheKey cacheKey, long length) {
             this.cacheKey = cacheKey;
             this.length = length;
         }
@@ -833,13 +833,13 @@ public class SharedBlobCacheService implements Releasable {
             return cacheKey;
         }
 
-        public StepListener<Integer> populateAndRead(
+        public int populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
             final Executor executor
-        ) {
+        ) throws Exception {
             StepListener<Integer> stepListener = null;
             final long writeStart = rangeToWrite.start();
             final long readStart = rangeToRead.start();
@@ -881,7 +881,7 @@ public class SharedBlobCacheService implements Releasable {
                 }
 
             }
-            return stepListener;
+            return stepListener.asFuture().get();
         }
 
         @Override
@@ -890,8 +890,8 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    public FrozenCacheFile getFrozenCacheFile(CacheKey cacheKey, long length) {
-        return new FrozenCacheFile(cacheKey, length);
+    public CacheFile getFrozenCacheFile(CacheKey cacheKey, long length) {
+        return new CacheFile(cacheKey, length);
     }
 
     @FunctionalInterface
@@ -907,69 +907,16 @@ public class SharedBlobCacheService implements Releasable {
             throws IOException;
     }
 
-    public static class Stats {
-
+    public record Stats(
+        int numberOfRegions,
+        long size,
+        long regionSize,
+        long evictCount,
+        long writeCount,
+        long writeBytes,
+        long readCount,
+        long readBytes
+    ) {
         public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
-
-        private final int numberOfRegions;
-        private final long size;
-        private final long regionSize;
-        private final long evictCount;
-        private final long writeCount;
-        private final long writeBytes;
-        private final long readCount;
-        private final long readBytes;
-
-        private Stats(
-            int numberOfRegions,
-            long size,
-            long regionSize,
-            long evictCount,
-            long writeCount,
-            long writeBytes,
-            long readCount,
-            long readBytes
-        ) {
-            this.numberOfRegions = numberOfRegions;
-            this.size = size;
-            this.regionSize = regionSize;
-            this.evictCount = evictCount;
-            this.writeCount = writeCount;
-            this.writeBytes = writeBytes;
-            this.readCount = readCount;
-            this.readBytes = readBytes;
-        }
-
-        public int getNumberOfRegions() {
-            return numberOfRegions;
-        }
-
-        public long getSize() {
-            return size;
-        }
-
-        public long getRegionSize() {
-            return regionSize;
-        }
-
-        public long getEvictCount() {
-            return evictCount;
-        }
-
-        public long getWriteCount() {
-            return writeCount;
-        }
-
-        public long getWriteBytes() {
-            return writeBytes;
-        }
-
-        public long getReadCount() {
-            return readCount;
-        }
-
-        public long getReadBytes() {
-            return readBytes;
-        }
     }
 }

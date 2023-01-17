@@ -160,6 +160,16 @@ split locally, which in-turn allows to perform the split at the index level
 rather than reindexing documents that need to move, as well as using hard links
 for efficient file copying.
 
+[IMPORTANT]
+=====================================
+
+Hard links are not supported in Elasticsearch versions < 7.11 for quota aware file systems 
+(e.g. `xfs` used in Elastic Cloud). When Split Index API is run on these quota aware file systems 
+in earlier versions, it will not be able to reuse segments for efficiency and require copying of 
+full segment files with disk usage and IO implications.
+
+=====================================
+
 In the case of append-only data, it is possible to get more flexibility by
 creating a new index and pushing new data to it, while adding an alias that
 covers both the old and the new index for read operations. Assuming that the

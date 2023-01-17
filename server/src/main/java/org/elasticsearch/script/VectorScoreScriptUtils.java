@@ -52,18 +52,15 @@ public class VectorScoreScriptUtils {
         public ByteDenseVectorFunction(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
             super(scoreScript, field);
             DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
-
-            float[] vector = new float[queryVector.size()];
             this.queryVector = new byte[queryVector.size()];
             int queryMagnitude = 0;
             for (int i = 0; i < queryVector.size(); i++) {
-                float value = queryVector.get(i).floatValue();
-                vector[i] = value;
-                this.queryVector[i] = (byte) value;
+                byte value = queryVector.get(i).byteValue();
+                this.queryVector[i] = value;
                 queryMagnitude += value * value;
             }
             this.qvMagnitude = (float) Math.sqrt(queryMagnitude);
-            field.getElementType().checkVectorBounds(vector);
+            // field.getElementType().checkVectorBounds(vector);
         }
     }
 

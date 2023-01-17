@@ -10,9 +10,9 @@ package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-public class KnnVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilderTestCase {
+public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilderTestCase {
     @Override
     DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.FLOAT;
+        return DenseVectorFieldMapper.ElementType.BYTE;
     }
 }

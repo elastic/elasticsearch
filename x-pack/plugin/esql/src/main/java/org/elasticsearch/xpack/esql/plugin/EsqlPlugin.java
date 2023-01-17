@@ -90,7 +90,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class));
+        return List.of(
+            new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler<>(EsqlComputeEngineAction.INSTANCE, EsqlComputeEngineAction.TransportAction.class)
+        );
     }
 
     @Override

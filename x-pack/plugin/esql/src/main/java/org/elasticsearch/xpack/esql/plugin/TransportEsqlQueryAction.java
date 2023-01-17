@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -51,13 +52,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         SearchService searchService,
         ClusterService clusterService,
+        NodeClient nodeClient,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.computeService = new ComputeService(searchService, indexNameExpressionResolver, clusterService, threadPool, bigArrays);
+        this.computeService = new ComputeService(
+            searchService,
+            indexNameExpressionResolver,
+            clusterService,
+            nodeClient,
+            threadPool,
+            bigArrays
+        );
         this.settings = settings;
     }
 
@@ -72,7 +81,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
         );
         planExecutor.newSession(configuration).execute(request, wrap(r -> {
-            computeService.runCompute(r, configuration, listener.map(pages -> {
+            computeService.runCompute(task, r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
                 return new EsqlQueryResponse(columns, pagesToValues(pages), request.columnar());
             }));

@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
@@ -26,6 +28,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -36,7 +40,6 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +50,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
+    private final NodeClient client;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
 
@@ -54,26 +58,24 @@ public class ComputeService {
         SearchService searchService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
+        NodeClient client,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService = clusterService;
+        this.client = client;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays.withCircuitBreaking();
     }
 
-    private void acquireSearchContexts(PhysicalPlan physicalPlan, ActionListener<List<SearchContext>> listener) {
+    private void acquireSearchContexts(String[] indexNames, ActionListener<List<SearchContext>> listener) {
         try {
-            Set<String> indexNames = physicalPlan.collect(l -> l instanceof EsQueryExec)
-                .stream()
-                .map(qe -> ((EsQueryExec) qe).index().name())
-                .collect(Collectors.toSet());
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 clusterService.state(),
                 IndicesOptions.STRICT_EXPAND_OPEN,
-                indexNames.toArray(String[]::new)
+                indexNames
             );
             List<IndexShard> targetShards = new ArrayList<>();
             for (Index index : indices) {
@@ -125,8 +127,14 @@ public class ComputeService {
         }
     }
 
-    public void runCompute(PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener) {
-        acquireSearchContexts(physicalPlan, ActionListener.wrap(searchContexts -> {
+    public void runCompute(Task rootTask, PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener) {
+        String[] indexNames = physicalPlan.collect(l -> l instanceof EsQueryExec)
+            .stream()
+            .map(qe -> ((EsQueryExec) qe).index().name())
+            .collect(Collectors.toSet())
+            .toArray(String[]::new);
+
+        acquireSearchContexts(indexNames, ActionListener.wrap(searchContexts -> {
             boolean success = false;
             List<Driver> drivers = new ArrayList<>();
             Runnable release = () -> Releasables.close(() -> Releasables.close(searchContexts), () -> Releasables.close(drivers));
@@ -142,16 +150,36 @@ public class ComputeService {
                     throw new IllegalStateException("no drivers created");
                 }
                 LOGGER.info("using {} drivers", drivers.size());
-                Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), drivers, results -> {
-                    try {
-                        Exception e = Driver.Result.collectFailures(results);
-                        if (e == null) {
-                            listener.onResponse(new ArrayList<>(collectedPages));
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    } finally {
+
+                TaskId parentTask = rootTask.taskInfo(client.getLocalNodeId(), false).taskId();
+
+                new DriverRunner() {
+                    @Override
+                    protected void start(Driver driver, ActionListener<Void> done) {
+                        EsqlComputeEngineAction.Request request = new EsqlComputeEngineAction.Request(indexNames, driver);
+                        request.setParentTask(parentTask);
+                        client.executeLocally(
+                            EsqlComputeEngineAction.INSTANCE,
+                            request,
+                            ActionListener.wrap(r -> done.onResponse(null), done::onFailure)
+                        );
+                    }
+                }.runToCompletion(drivers, new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<Driver.Result> results) {
                         release.run();
+                        Exception e = Driver.Result.collectFailures(results);
+                        if (e != null) {
+                            listener.onFailure(e);
+                        } else {
+                            listener.onResponse(collectedPages);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        release.run();
+                        listener.onFailure(e);
                     }
                 });
                 success = true;

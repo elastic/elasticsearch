@@ -648,7 +648,7 @@ public class LocalExecutionPlanner {
                 physicalOperation.operators(operators);
                 sink = physicalOperation.sink();
                 success = true;
-                return new Driver(source, operators, sink, () -> {});
+                return new Driver(physicalOperation::describe, source, operators, sink, () -> {});
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink);

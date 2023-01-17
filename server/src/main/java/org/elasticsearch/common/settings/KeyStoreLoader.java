@@ -78,7 +78,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
 
         try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
             password.set(new SecureString(terminal.readSecret("")));
-            return password.get();
+            return password.get().clone();
         })) {
             // do not overwrite keystore entries
             // instead expect the admin to manually remove them herself

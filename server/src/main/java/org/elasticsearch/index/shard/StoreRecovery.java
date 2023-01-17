@@ -21,6 +21,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -399,7 +400,7 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> {
+        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> ActionRunnable.run(listener, () -> {
             final RecoveryState recoveryState = indexShard.recoveryState();
             final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
             indexShard.prepareForIndexRecovery();
@@ -476,7 +477,7 @@ public final class StoreRecovery {
             } finally {
                 store.decRef();
             }
-        }));
+        }).run()));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {

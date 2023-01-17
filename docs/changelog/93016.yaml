@@ -1,0 +1,5 @@
+pr: 93016
+summary: Adding the ability to skip the ingest pipeline
+area: Ingest Node
+type: enhancement
+issues: []

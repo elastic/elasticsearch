@@ -105,7 +105,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
-            nodeKeystore.save(env.configFile(), password.get().getChars());
+            nodeKeystore.save(env.configFile(), (password.get() == null) ? new char[0] : password.get().getChars());
         } catch (Exception t) {
             // restore keystore to revert possible keystore bootstrap
             try {

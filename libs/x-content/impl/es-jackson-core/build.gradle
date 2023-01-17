@@ -9,7 +9,7 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'com.github.johnrengelman.shadow'
 
-String jacksonVersion = "2.14.0"
+String jacksonVersion = "2.14.1"
 
 dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"

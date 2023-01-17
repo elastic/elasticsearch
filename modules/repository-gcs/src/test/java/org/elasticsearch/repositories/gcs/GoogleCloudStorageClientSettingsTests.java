@@ -149,7 +149,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         var secureSettings = new MockSecureSettings();
         secureSettings.setFile(
             CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-            formatted(
+            Strings.format(
                 """
                     {
                       "type": "service_account",
@@ -182,7 +182,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
                         "expires_in": 3600
                     }
                     """;
-                writer.write(formatted("""
+                writer.write(Strings.format("""
                     HTTP/1.1 200 OK\r
                     Content-Length: %s\r
                     \r

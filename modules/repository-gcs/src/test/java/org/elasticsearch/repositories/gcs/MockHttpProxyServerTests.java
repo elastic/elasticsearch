@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedReader;
@@ -30,7 +31,7 @@ public class MockHttpProxyServerTests extends ESTestCase {
                 var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
             ) {
                 assertEquals("GET http://googleapis.com/ HTTP/1.1", reader.readLine());
-                writer.write(formatted("""
+                writer.write(Strings.format("""
                     HTTP/1.1 200 OK\r
                     Content-Length: %s\r
                     \r

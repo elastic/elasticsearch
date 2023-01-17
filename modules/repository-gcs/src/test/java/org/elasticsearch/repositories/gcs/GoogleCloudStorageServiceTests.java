@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -195,7 +196,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)
             ) {
                 assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
-                writer.write(formatted("""
+                writer.write(Strings.format("""
                     HTTP/1.1 200 OK\r
                     Content-Length: %s\r
                     \r

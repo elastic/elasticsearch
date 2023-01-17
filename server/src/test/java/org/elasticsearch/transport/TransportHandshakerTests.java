@@ -83,7 +83,7 @@ public class TransportHandshakerTests extends ESTestCase {
         handler.handleResponse((TransportHandshaker.HandshakeResponse) responseFuture.actionGet());
 
         assertTrue(versionFuture.isDone());
-        assertEquals(Version.CURRENT, versionFuture.actionGet());
+        assertEquals(TransportVersion.CURRENT, versionFuture.actionGet());
     }
 
     public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {
@@ -118,7 +118,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();
 
-        assertEquals(Version.CURRENT, response.getResponseVersion());
+        assertEquals(TransportVersion.CURRENT, response.getResponseVersion());
     }
 
     public void testHandshakeError() throws IOException {

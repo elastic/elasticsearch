@@ -212,11 +212,11 @@ public class InboundDecoder implements Releasable {
         // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
         // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
         // once the connection is established
-        final TransportVersion compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
+        final TransportVersion compatibilityVersion = isHandshake ? currentVersion.calculateMinimumCompatVersion() : currentVersion;
         if (remoteVersion.isCompatible(compatibilityVersion) == false) {
             final TransportVersion minCompatibilityVersion = isHandshake
                 ? compatibilityVersion
-                : compatibilityVersion.minimumCompatibilityVersion();
+                : compatibilityVersion.calculateMinimumCompatVersion();
             String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
             return new IllegalStateException(msg + remoteVersion + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
         }

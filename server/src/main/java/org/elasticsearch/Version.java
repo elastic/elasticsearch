@@ -26,7 +26,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.TreeMap;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -134,11 +137,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_7_0 = new Version(8_07_00_99, TransportVersion.V_8_7_0, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version CURRENT = V_8_7_0;
 
-    private static final Map<Integer, Version> idToVersion;
+    private static final NavigableMap<Integer, Version> idToVersion;
     private static final Map<String, Version> stringToVersion;
 
     static {
-        final Map<Integer, Version> builder = new HashMap<>();
+        final NavigableMap<Integer, Version> builder = new TreeMap<>();
         final Map<String, Version> builderByString = new HashMap<>();
 
         for (final Field declaredField : Version.class.getFields()) {
@@ -180,12 +183,24 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = Map.copyOf(builder);
+        idToVersion = Collections.unmodifiableNavigableMap(builder);
         stringToVersion = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
+    }
+
+    /**
+     * Returns the highest Version that has this or a lesser TransportVersion.
+     */
+    static Version findVersion(TransportVersion transportVersion) {
+        return idToVersion.descendingMap()
+            .values()
+            .stream()
+            .filter(v -> v.transportVersion.compareTo(transportVersion) <= 0)
+            .findFirst()
+            .orElseThrow(() -> new NoSuchElementException("No valid Version found")); // only if transportVersion < 0 ?????
     }
 
     public static Version fromId(int id) {

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -179,7 +178,7 @@ public class InboundHandlerTests extends ESTestCase {
         handler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
-        assertEquals(Version.CURRENT, transportChannel.getVersion());
+        assertEquals(TransportVersion.CURRENT, transportChannel.getVersion());
         assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 

@@ -231,16 +231,32 @@ public class TransportVersion implements Comparable<TransportVersion> {
         this.uniqueId = Strings.requireNonEmpty(uniqueId, "Each TransportVersion needs a unique string id");
     }
 
-    /* To help migrate from Version.minimumCompatibilityVersion() */
+    /**
+     * Placeholder method for code compatibility with code calling {@code CURRENT.minimumCompatibilityVersion}.
+     */
     @Deprecated
     public TransportVersion minimumCompatibilityVersion() {
-        assert this == CURRENT;
+        assert this.equals(CURRENT);
         return MINIMUM_COMPATIBLE;
     }
 
     @Deprecated
     public boolean isCompatible(TransportVersion version) {
-        return this.compareTo(MINIMUM_COMPATIBLE) >= 0 && version.compareTo(MINIMUM_COMPATIBLE) >= 0;
+        return onOrAfter(version.calculateMinimumCompatVersion()) && version.onOrAfter(calculateMinimumCompatVersion());
+    }
+
+    private TransportVersion minimumCompatibleVersion;
+
+    /**
+     * Placeholder for code calling {@code minimumCompatibilityVersion} on arbitrary Version instances.
+     * Code calling this should be refactored to not do this.
+     */
+    @Deprecated
+    public TransportVersion calculateMinimumCompatVersion() {
+        if (minimumCompatibleVersion == null) {
+            minimumCompatibleVersion = Version.findVersion(this).minimumCompatibilityVersion().transportVersion;
+        }
+        return minimumCompatibleVersion;
     }
 
     public boolean after(TransportVersion version) {

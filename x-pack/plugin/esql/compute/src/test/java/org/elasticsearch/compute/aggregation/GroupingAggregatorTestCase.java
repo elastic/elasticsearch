@@ -12,15 +12,16 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CannedSourceOperator;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.compute.operator.PageConsumerOperator;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -30,11 +31,35 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
 
     protected abstract String expectedDescriptionOfAggregator();
 
-    protected abstract void assertSimpleBucket(Block result, int end, int position, int bucket);
+    protected abstract void assertSimpleGroup(List<Page> input, Block result, int position, long group);
 
-    @Override
-    protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l % 5, l)));
+    @FunctionalInterface
+    interface GroupValueOffsetConsumer {
+        void consume(LongBlock groups, int groupOffset, Block values, int valueOffset);
+    }
+
+    protected static void forEachGroupAndValue(List<Page> input, GroupValueOffsetConsumer consumer) {
+        for (Page in : input) {
+            int groupOffset = 0;
+            int valueOffset = 0;
+            for (int p = 0; p < in.getPositionCount(); p++) {
+                Block groups = in.getBlock(0);
+                Block values = in.getBlock(1);
+                for (int groupValue = 0; groupValue < groups.getValueCount(p); groupValue++) {
+                    if (groups.isNull(groupOffset + groupValue)) {
+                        continue;
+                    }
+                    for (int valueValue = 0; valueValue < values.getValueCount(p); valueValue++) {
+                        if (values.isNull(valueOffset + valueValue)) {
+                            continue;
+                        }
+                        consumer.consume(in.getBlock(0), groupOffset + groupValue, in.getBlock(1), valueOffset + valueValue);
+                    }
+                }
+                groupOffset += groups.getValueCount(p);
+                valueOffset += values.getValueCount(p);
+            }
+        }
     }
 
     @Override
@@ -52,7 +77,7 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
     }
 
     @Override
-    protected final void assertSimpleOutput(int end, List<Page> results) {
+    protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(2));
         assertThat(results.get(0).getPositionCount(), equalTo(5));
@@ -60,13 +85,31 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
         LongBlock groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
         for (int i = 0; i < 5; i++) {
-            int bucket = (int) groups.getLong(i);
-            assertSimpleBucket(result, end, i, bucket);
+            long group = groups.getLong(i);
+            assertSimpleGroup(input, result, i, group);
         }
     }
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 32));
+    }
+
+    public final void testIgnoresNulls() {
+        int end = between(1_000, 100_000);
+        List<Page> results = new ArrayList<>();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(end));
+
+        try (
+            Driver d = new Driver(
+                new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator())),
+                List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get()),
+                new PageConsumerOperator(page -> results.add(page)),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertSimpleOutput(input, results);
     }
 }

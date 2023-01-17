@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -20,35 +19,30 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AvgLongGroupingAggregatorTests extends GroupingAggregatorTestCase {
+public class MinLongGroupingAggregatorTests extends GroupingAggregatorTestCase {
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.AVG_LONGS;
+        return GroupingAggregatorFunction.MIN_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "avg of longs";
+        return "min of longs";
     }
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        long max = randomLongBetween(1, Long.MAX_VALUE / size);
-        return new TupleBlockSourceOperator(
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLongBetween(-max, max)))
-        );
+        return new TupleBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong())));
     }
 
     @Override
-    public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long[] sum = new long[] { 0 };
-        long[] count = new long[] { 0 };
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+        long[] min = new long[] { Long.MAX_VALUE };
         forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
             if (groups.getLong(groupOffset) == group) {
-                sum[0] = Math.addExact(sum[0], ((LongBlock) values).getLong(valueOffset));
-                count[0]++;
+                min[0] = Math.min(min[0], ((LongBlock) values).getLong(valueOffset));
             }
         });
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(((double) sum[0]) / count[0]));
+        assertThat(((LongBlock) result).getLong(position), equalTo(min[0]));
     }
 }

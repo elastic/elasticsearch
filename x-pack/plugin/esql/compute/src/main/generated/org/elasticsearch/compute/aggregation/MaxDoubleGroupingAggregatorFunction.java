@@ -44,17 +44,17 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   private void addRawVector(LongVector groupIdVector, DoubleVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(i));
-      state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), vector.getDouble(i)), groupId);
+    for (int position = 0; position < vector.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groupIdVector.getLong(position));
+      state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), vector.getDouble(position)), groupId);
     }
   }
 
   private void addRawBlock(LongVector groupIdVector, DoubleBlock block) {
-    for (int i = 0; i < block.getTotalValueCount(); i++) {
-      if (block.isNull(i) == false) {
-        int groupId = Math.toIntExact(groupIdVector.getLong(i));
-        state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), block.getDouble(i)), groupId);
+    for (int offset = 0; offset < block.getTotalValueCount(); offset++) {
+      if (block.isNull(offset) == false) {
+        int groupId = Math.toIntExact(groupIdVector.getLong(offset));
+        state.set(MaxDoubleAggregator.combine(state.getOrDefault(groupId), block.getDouble(offset)), groupId);
       }
     }
   }

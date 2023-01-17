@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.operator.TopNOperator.compareFirstPositionsOfBlocks;
 import static org.elasticsearch.core.Tuple.tuple;
@@ -44,8 +46,26 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(int end, List<Page> results) {
-        // we have basic and random tests
+    protected SourceOperator simpleInput(int size) {
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> ESTestCase.randomLong()));
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        long[] topN = input.stream()
+            .flatMapToLong(
+                page -> IntStream.range(0, page.getPositionCount())
+                    .filter(p -> false == page.getBlock(0).isNull(p))
+                    .mapToLong(p -> ((LongBlock) page.getBlock(0)).getLong(p))
+            )
+            .sorted()
+            .limit(4)
+            .toArray();
+
+        assertThat(results, hasSize(4));
+        results.stream().forEach(page -> assertThat(page.getPositionCount(), equalTo(1)));
+        results.stream().forEach(page -> assertThat(page.getBlockCount(), equalTo(1)));
+        assertThat(results.stream().mapToLong(page -> ((LongBlock) page.getBlock(0)).getLong(0)).toArray(), equalTo(topN));
     }
 
     @Override

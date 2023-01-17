@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -53,7 +54,8 @@ public class MedianLongGroupingAggregatorTests extends GroupingAggregatorTestCas
     }
 
     @Override
-    public void assertSimpleBucket(Block result, int end, int position, int bucket) {
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+        int bucket = Math.toIntExact(group);
         double[] expectedValues = new double[] { 43.0, 30, 22.5, 30, 15 };
         assertThat(bucket, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(4)));
         assertThat(((DoubleBlock) result).getDouble(position), equalTo(expectedValues[bucket]));

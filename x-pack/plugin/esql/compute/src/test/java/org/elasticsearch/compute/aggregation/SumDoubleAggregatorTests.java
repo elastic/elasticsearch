@@ -14,18 +14,21 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumDoubleAggregatorTests extends AggregatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, end).asDoubleStream());
+    protected SourceOperator simpleInput(int size) {
+        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override
@@ -39,9 +42,15 @@ public class SumDoubleAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected void assertSimpleResult(int end, Block result) {
-        double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum();
-        assertThat(((DoubleBlock) result).getDouble(0), equalTo(expected));
+    protected void assertSimpleOutput(List<Block> input, Block result) {
+        double sum = input.stream()
+            .flatMapToDouble(
+                b -> IntStream.range(0, b.getTotalValueCount())
+                    .filter(p -> false == b.isNull(p))
+                    .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
+            )
+            .sum();
+        assertThat(((DoubleBlock) result).getDouble(0), closeTo(sum, .0001));
     }
 
     public void testOverflowSucceeds() {

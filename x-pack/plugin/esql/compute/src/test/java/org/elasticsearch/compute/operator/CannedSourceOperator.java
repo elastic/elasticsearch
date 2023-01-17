@@ -9,12 +9,30 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Page;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * {@link SourceOperator} that returns a sequence of pre-built {@link Page}s.
  */
 public class CannedSourceOperator extends SourceOperator {
+    public static List<Page> collectPages(SourceOperator source) {
+        try {
+            List<Page> pages = new ArrayList<>();
+            while (source.isFinished() == false) {
+                Page in = source.getOutput();
+                if (in == null) {
+                    continue;
+                }
+                pages.add(in);
+            }
+            return pages;
+        } finally {
+            source.close();
+        }
+    }
+
     private final Iterator<Page> page;
 
     public CannedSourceOperator(Iterator<Page> page) {

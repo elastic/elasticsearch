@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -25,13 +26,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RestEsqlTestCase extends ESRestTestCase {
 
@@ -109,6 +115,45 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
+    }
+
+    public void testNullInAggs() throws IOException {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            b.append("""
+                {"create":{"_index":"esql-index"}}
+                """);
+            if (i % 10 == 0) {
+                b.append(String.format(Locale.ROOT, """
+                    {"group":%d}
+                    """, i % 2));
+            } else {
+                b.append(String.format(Locale.ROOT, """
+                    {"group":%d,"value":%d}
+                    """, i % 2, i));
+            }
+        }
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(b.toString());
+        Response response = client().performRequest(bulk);
+        assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
+
+        RequestObjectBuilder builder = new RequestObjectBuilder().query("from esql-index | stats min(value)");
+        Map<String, Object> result = runEsql(builder.build());
+        assertMap(
+            result,
+            matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
+        );
+
+        builder = new RequestObjectBuilder().query("from esql-index | stats min(value) by group");
+        result = runEsql(builder.build());
+        assertMap(
+            result,
+            matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
+                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
+        );
     }
 
     public void testColumnarMode() throws IOException {

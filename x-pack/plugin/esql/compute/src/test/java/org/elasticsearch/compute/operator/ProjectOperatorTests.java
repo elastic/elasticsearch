@@ -81,8 +81,8 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(int end, List<Page> results) {
-        long expected = end;
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        long expected = input.stream().mapToInt(Page::getPositionCount).sum();
         int total = 0;
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(1));
@@ -93,7 +93,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
                 expected--;
             }
         }
-        assertThat(total, equalTo(end));
+        assertThat(total, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
     }
 
     @Override

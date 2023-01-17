@@ -124,7 +124,7 @@ public class AggregatorBenchmark {
                 DoubleBlock dValues = (DoubleBlock) values;
                 for (int g = 0; g < GROUPS; g++) {
                     long group = g;
-                    double sum = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).mapToDouble(l -> (double) l).sum();
+                    long sum = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).sum();
                     long count = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).count();
                     double expected = sum / count;
                     if (dValues.getDouble(g) != expected) {

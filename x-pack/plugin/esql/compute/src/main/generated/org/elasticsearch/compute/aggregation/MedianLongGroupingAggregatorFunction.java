@@ -42,17 +42,17 @@ public final class MedianLongGroupingAggregatorFunction implements GroupingAggre
   }
 
   private void addRawVector(LongVector groupIdVector, LongVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(i));
-      MedianLongAggregator.combine(state, groupId, vector.getLong(i));
+    for (int position = 0; position < vector.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groupIdVector.getLong(position));
+      MedianLongAggregator.combine(state, groupId, vector.getLong(position));
     }
   }
 
   private void addRawBlock(LongVector groupIdVector, LongBlock block) {
-    for (int i = 0; i < block.getTotalValueCount(); i++) {
-      if (block.isNull(i) == false) {
-        int groupId = Math.toIntExact(groupIdVector.getLong(i));
-        MedianLongAggregator.combine(state, groupId, block.getLong(i));
+    for (int offset = 0; offset < block.getTotalValueCount(); offset++) {
+      if (block.isNull(offset) == false) {
+        int groupId = Math.toIntExact(groupIdVector.getLong(offset));
+        MedianLongAggregator.combine(state, groupId, block.getLong(offset));
       }
     }
   }

@@ -187,9 +187,10 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addRawVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
         builder.addModifiers(Modifier.PRIVATE).addParameter(LONG_VECTOR, "groupIdVector").addParameter(valueVectorType(), "vector");
-        builder.beginControlFlow("for (int i = 0; i < vector.getPositionCount(); i++)");
+        builder.beginControlFlow("for (int position = 0; position < vector.getPositionCount(); position++)");
         {
-            combineRawInput(builder, "vector");
+            builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
+            combineRawInput(builder, "vector", "position");
         }
         builder.endControlFlow();
         return builder.build();
@@ -198,18 +199,21 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(LONG_VECTOR, "groupIdVector").addParameter(valueBlockType(), "block");
-        builder.beginControlFlow("for (int i = 0; i < block.getTotalValueCount(); i++)");
+
+        builder.beginControlFlow("for (int offset = 0; offset < block.getTotalValueCount(); offset++)");
         {
-            builder.beginControlFlow("if (block.isNull(i) == false)");
-            combineRawInput(builder, "block");
+            builder.beginControlFlow("if (block.isNull(offset) == false)");
+            {
+                builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(offset))");
+                combineRawInput(builder, "block", "offset");
+            }
             builder.endControlFlow();
         }
         builder.endControlFlow();
         return builder.build();
     }
 
-    private void combineRawInput(MethodSpec.Builder builder, String blockVariable) {
-        builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(i))");
+    private void combineRawInput(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
         TypeName valueType = TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType());
         if (valueType.isPrimitive() == false) {
             throw new IllegalArgumentException("second parameter to combine must be a primitive");
@@ -219,27 +223,44 @@ public class GroupingAggregatorImplementer {
             + valueType.toString().substring(1);
         TypeName returnType = TypeName.get(combine.getReturnType());
         if (returnType.isPrimitive()) {
-            combineRawInputForPrimitive(builder, secondParameterGetter, blockVariable);
+            combineRawInputForPrimitive(builder, secondParameterGetter, blockVariable, offsetVariable);
             return;
         }
         if (returnType == TypeName.VOID) {
-            combineRawInputForVoid(builder, secondParameterGetter, blockVariable);
+            combineRawInputForVoid(builder, secondParameterGetter, blockVariable, offsetVariable);
             return;
         }
         throw new IllegalArgumentException("combine must return void or a primitive");
     }
 
-    private void combineRawInputForPrimitive(MethodSpec.Builder builder, String secondParameterGetter, String blockVariable) {
+    private void combineRawInputForPrimitive(
+        MethodSpec.Builder builder,
+        String secondParameterGetter,
+        String blockVariable,
+        String offsetVariable
+    ) {
         builder.addStatement(
-            "state.set($T.combine(state.getOrDefault(groupId), $L.$L(i)), groupId)",
+            "state.set($T.combine(state.getOrDefault(groupId), $L.$L($L)), groupId)",
             declarationType,
             blockVariable,
-            secondParameterGetter
+            secondParameterGetter,
+            offsetVariable
         );
     }
 
-    private void combineRawInputForVoid(MethodSpec.Builder builder, String secondParameterGetter, String blockVariable) {
-        builder.addStatement("$T.combine(state, groupId, $L.$L(i))", declarationType, blockVariable, secondParameterGetter);
+    private void combineRawInputForVoid(
+        MethodSpec.Builder builder,
+        String secondParameterGetter,
+        String blockVariable,
+        String offsetVariable
+    ) {
+        builder.addStatement(
+            "$T.combine(state, groupId, $L.$L($L))",
+            declarationType,
+            blockVariable,
+            secondParameterGetter,
+            offsetVariable
+        );
     }
 
     private MethodSpec addIntermediateInput() {

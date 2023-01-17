@@ -11,15 +11,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class MaxDoubleAggregatorTests extends AggregatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, end).asDoubleStream());
+    protected SourceOperator simpleInput(int size) {
+        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override
@@ -33,7 +36,15 @@ public class MaxDoubleAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    public void assertSimpleResult(int end, Block result) {
-        assertThat(((DoubleBlock) result).getDouble(0), equalTo(end - 1.0d));
+    public void assertSimpleOutput(List<Block> input, Block result) {
+        double max = input.stream()
+            .flatMapToDouble(
+                b -> IntStream.range(0, b.getTotalValueCount())
+                    .filter(p -> false == b.isNull(p))
+                    .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
+            )
+            .max()
+            .getAsDouble();
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo(max));
     }
 }

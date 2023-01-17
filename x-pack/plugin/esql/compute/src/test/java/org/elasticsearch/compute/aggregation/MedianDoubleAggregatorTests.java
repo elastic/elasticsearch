@@ -38,7 +38,7 @@ public class MedianDoubleAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected void assertSimpleResult(int end, Block result) {
+    protected void assertSimpleOutput(List<Block> input, Block result) {
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(2.0));
     }
 }

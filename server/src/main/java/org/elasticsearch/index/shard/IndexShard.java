@@ -1217,12 +1217,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
      */
-    public void refresh(String source) {
+    public Engine.RefreshResult refresh(String source) {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with source [{}]", source);
         }
-        getEngine().refresh(source);
+        return getEngine().refresh(source);
     }
 
     /**
@@ -1637,13 +1637,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void preRecovery() {
+    public void preRecovery(ActionListener<Void> listener) {
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(shardId, currentState);
         }
         assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
-        indexEventListener.beforeIndexShardRecovery(this, indexSettings);
+        indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
     public void postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
@@ -3803,7 +3803,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (logger.isTraceEnabled()) {
                     logger.trace("refresh with source [schedule]");
                 }
-                return getEngine().maybeRefresh("schedule");
+                return getEngine().maybeRefresh("schedule").refreshed();
             }
         }
         final Engine engine = getEngine();
@@ -4119,5 +4119,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public String toString() {
         return "IndexShard(shardRouting=" + shardRouting + ")";
+    }
+
+    public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
+        getEngine().addSegmentGenerationListener(segmentGeneration, listener::onResponse);
     }
 }

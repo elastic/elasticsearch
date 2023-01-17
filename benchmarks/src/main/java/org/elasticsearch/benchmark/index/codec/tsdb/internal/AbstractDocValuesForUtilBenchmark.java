@@ -30,7 +30,7 @@ public abstract class AbstractDocValuesForUtilBenchmark {
         return data;
     }
 
-    protected long[] generateMonotonicIncreasingInput(final Supplier<Integer> stepSupplier, int start) {
+    protected long[] generateMonotonicIncreasingInput(final Supplier<Long> stepSupplier, long start) {
         final long[] data = new long[blockSize];
         data[0] = start;
         for (int i = 1; i < blockSize; i++) {
@@ -39,7 +39,7 @@ public abstract class AbstractDocValuesForUtilBenchmark {
         return data;
     }
 
-    protected long[] generateMonotonicDecreasingInput(final Supplier<Integer> stepSupplier, int start) {
+    protected long[] generateMonotonicDecreasingInput(final Supplier<Long> stepSupplier, long start) {
         final long[] data = new long[blockSize];
         data[blockSize - 1] = start;
         for (int i = blockSize - 2; i >= 0; i--) {

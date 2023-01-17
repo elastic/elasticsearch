@@ -22,7 +22,7 @@ public class EncodeDecreasingIntegerBenchmark extends EncodeBenchmark {
 
     @Override
     public void setupIteration() {
-        this.input = generateMonotonicDecreasingInput(() -> random.nextInt(1, 10), random.nextInt(1, 100));
+        this.input = generateMonotonicDecreasingInput(() -> random.nextLong(0, 10), random.nextLong(0, 100));
         this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }
 }

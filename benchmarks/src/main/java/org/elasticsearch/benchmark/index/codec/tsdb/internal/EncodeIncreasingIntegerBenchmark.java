@@ -21,7 +21,7 @@ public class EncodeIncreasingIntegerBenchmark extends EncodeBenchmark {
     }
 
     public void setupIteration() {
-        this.input = generateMonotonicIncreasingInput(() -> random.nextInt(1, 10), random.nextInt(1, 100));
+        this.input = generateMonotonicIncreasingInput(() -> random.nextLong(0, 10), random.nextLong(0, 100));
         this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }
 }

@@ -249,6 +249,24 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
     }
 
+    public void testPbkdf2ArbitrarySaltAndKeyLengths() {
+        // PBKDF2withHMACSHA512, 16 byte salt, 512 bit key
+        check(
+            "{PBKDF2}10000$"
+                + "NUG78+T6yahKzMHPgTbFmw==$"
+                + "Ohp+ZCG936Q+w1XTquEz5SmQmDUJVv5ZxilRaDPpHFRzHNDMjeFl8btefZd/0yNtfQPwpfhe5DSDFlPP9WMxEQ==",
+            "passw0rd",
+            true
+        );
+        check(
+            "{PBKDF2}10000$"
+                + "NUG78+T6yahKzMHPgTbFmw==$"
+                + "Ohp+ZCG936Q+w1XTquEz5SmQmDUJVv5ZxilRaDPpHFRzHNDMjeFl8btefZd/0yNtfQPwpfhe5DSDFlPP9WMxEQ==",
+            "admin",
+            false
+        );
+    }
+
     public void testPbkdf2WithShortPasswordThrowsInFips() {
         assumeTrue("This should run only in FIPS mode", inFipsJvm());
         SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 13)).toCharArray());

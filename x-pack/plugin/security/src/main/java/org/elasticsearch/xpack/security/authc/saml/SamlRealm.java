@@ -851,7 +851,12 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setId(config.name());
         SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedExceptionAction<Object>) () -> {
-            resolver.initialize();
+            try {
+                resolver.initialize();
+            } catch (ComponentInitializationException e) {
+                resolver.destroy();
+                throw SamlUtils.samlException("cannot load SAML metadata from [{}]", e, config.getSetting(IDP_METADATA_PATH));
+            }
             return null;
         });
     }

@@ -14,13 +14,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -75,6 +75,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -143,24 +144,7 @@ public class SamlRealmTests extends SamlTestCase {
     public void testReadIdpMetadataFromHttps() throws Exception {
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
-        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .put(
-                "xpack.security.http.ssl.certificate",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
-            )
-            .put(
-                "xpack.security.http.ssl.certificate_authorities",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
-            )
-            .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
-            .put("path.home", createTempDir())
-            .setSecureSettings(mockSecureSettings)
-            .build();
-        TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
+        TestsSSLService sslService = buildTestSslService();
         try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
@@ -188,50 +172,75 @@ public class SamlRealmTests extends SamlTestCase {
         }
     }
 
-    public void testHandlingFailedIdpMetadataOverHttps() throws Exception {
+    public void testFailOnErrorForInvalidHttpsMetadata() throws Exception {
+        TestsSSLService sslService = buildTestSslService();
+        try (MockWebServer webServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            webServer.start();
+            webServer.enqueue(
+                new MockResponse().setResponseCode(randomIntBetween(400, 405))
+                    .setBody("No metadata available")
+                    .addHeader("Content-Type", "text/plain")
+            );
+            assertEquals(0, webServer.requests().size());
+
+            var metadataPath = "https://localhost:" + webServer.getPort();
+            final Tuple<RealmConfig, SSLService> config = buildConfig(
+                metadataPath,
+                settings -> settings.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), true)
+            );
+            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+            var exception = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> SamlRealm.initializeResolver(logger, config.v1(), config.v2(), watcherService)
+            );
+            assertThat(exception, TestMatchers.throwableWithMessage("cannot load SAML metadata from [" + metadataPath + "]"));
+        }
+    }
+
+    public void testRetryFailedHttpsMetadata() throws Exception {
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
-        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
-        final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .put(
-                "xpack.security.http.ssl.certificate",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
-            )
-            .put(
-                "xpack.security.http.ssl.certificate_authorities",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
-            )
-            .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
-            .put("path.home", createTempDir())
-            .setSecureSettings(mockSecureSettings)
-            .build();
-        TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
-        doTextReloadFailedHttpsMetadata(body, sslService, true);
-        doTextReloadFailedHttpsMetadata(body, sslService, false);
+        TestsSSLService sslService = buildTestSslService();
+        doTestReloadFailedHttpsMetadata(body, sslService, true);
+        doTestReloadFailedHttpsMetadata(body, sslService, false);
     }
 
     /**
      * @param testBackgroundRefresh If {@code true}, the test asserts that the metadata is automatically loaded in the background.
      *                              If {@code false}, the test triggers activity on the realm to force a reload of the metadata.
      */
-    private void doTextReloadFailedHttpsMetadata(String metadataBody, TestsSSLService sslService, boolean testBackgroundRefresh)
+    private void doTestReloadFailedHttpsMetadata(String metadataBody, TestsSSLService sslService, boolean testBackgroundRefresh)
         throws Exception {
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
-            proxyServer.start();
-            proxyServer.enqueue(new MockResponse().setResponseCode(404).setBody("Not found").addHeader("Content-Type", "text/plain"));
-            assertEquals(0, proxyServer.requests().size());
+        try (MockWebServer webServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            webServer.start();
+            webServer.enqueue(
+                new MockResponse().setResponseCode(randomIntBetween(400, 405))
+                    .setBody("No metadata available")
+                    .addHeader("Content-Type", "text/plain")
+            );
+            assertEquals(0, webServer.requests().size());
 
             // Even with a long refresh we should automatically retry metadata that fails
             final TimeValue defaultFreshTime = TimeValue.timeValueHours(24);
             final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(20) : defaultFreshTime;
-            final Tuple<RealmConfig, SSLService> config = buildConfig(
-                "https://localhost:" + proxyServer.getPort(),
-                defaultFreshTime,
-                minimumRefreshTime
-            );
+
+            final Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + webServer.getPort(), builder -> {
+                if (defaultFreshTime != null) {
+                    builder.put(
+                        getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH),
+                        defaultFreshTime.getStringRep()
+                    );
+                }
+                if (minimumRefreshTime != null) {
+                    builder.put(
+                        getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH),
+                        minimumRefreshTime.getStringRep()
+                    );
+                }
+                if (randomBoolean()) {
+                    builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
+                }
+            });
             logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
             Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
@@ -242,15 +251,15 @@ public class SamlRealmTests extends SamlTestCase {
             );
 
             try {
-                final int firstRequestCount = proxyServer.requests().size();
+                final int firstRequestCount = webServer.requests().size();
                 assertThat(firstRequestCount, greaterThanOrEqualTo(1));
                 assertThat(tuple.v2().get(), instanceOf(UnresolvedEntity.class));
 
-                proxyServer.enqueue(
+                webServer.enqueue(
                     new MockResponse().setResponseCode(200).setBody(metadataBody).addHeader("Content-Type", "application/xml")
                 );
                 if (testBackgroundRefresh) {
-                    assertBusy(() -> assertThat(proxyServer.requests().size(), greaterThan(firstRequestCount)), 1, TimeUnit.SECONDS);
+                    assertBusy(() -> assertThat(webServer.requests().size(), greaterThan(firstRequestCount)), 1, TimeUnit.SECONDS);
                 } else {
                     // The Supplier.get() call will trigger a reload anyway
                 }
@@ -565,7 +574,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateCredentialFromPemFiles() throws Exception {
-        final Settings.Builder builder = buildSettings("http://example.com", METADATA_REFRESH, null);
+        final Settings.Builder builder = buildSettings("http://example.com");
         final Path dir = createTempDir("encryption");
         final Path encryptionKeyPath = getDataPath("encryption.key");
         final Path destEncryptionKeyPath = dir.resolve("encryption.key");
@@ -979,21 +988,18 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     private Tuple<RealmConfig, SSLService> buildConfig(String idpMetadataPath) {
-        return buildConfig(idpMetadataPath, METADATA_REFRESH, null);
+        return buildConfig(idpMetadataPath, ignore -> {});
     }
 
-    private Tuple<RealmConfig, SSLService> buildConfig(
-        String idpMetadataPath,
-        TimeValue metadataRefresh,
-        @Nullable TimeValue metadataMinimumRefresh
-    ) {
-        Settings globalSettings = buildSettings(idpMetadataPath, metadataRefresh, metadataMinimumRefresh).build();
-        final RealmConfig config = realmConfigFromGlobalSettings(globalSettings);
+    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetadataPath, Consumer<Settings.Builder> additionalSettings) {
+        var settings = buildSettings(idpMetadataPath);
+        additionalSettings.accept(settings);
+        final RealmConfig config = realmConfigFromGlobalSettings(settings.build());
         final SSLService sslService = new SSLService(config.env());
         return new Tuple<>(config, sslService);
     }
 
-    private Settings.Builder buildSettings(String idpMetadataPath, TimeValue metadataRefresh, @Nullable TimeValue metadataMinimumRefresh) {
+    private Settings.Builder buildSettings(String idpMetadataPath) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
         var builder = Settings.builder();
@@ -1012,15 +1018,9 @@ public class SamlRealmTests extends SamlTestCase {
             )
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetadataPath)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), metadataRefresh.getStringRep())
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH.getStringRep())
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings);
-        if (metadataMinimumRefresh != null) {
-            builder.put(
-                getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH),
-                metadataMinimumRefresh.getStringRep()
-            );
-        }
         return builder;
     }
 
@@ -1045,6 +1045,27 @@ public class SamlRealmTests extends SamlTestCase {
             env,
             new ThreadContext(globalSettings)
         );
+    }
+
+    private TestsSSLService buildTestSslService() {
+        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
+        final Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put(
+                "xpack.security.http.ssl.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
+            )
+            .put(
+                "xpack.security.http.ssl.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")
+            )
+            .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
+            .put("path.home", createTempDir())
+            .setSecureSettings(mockSecureSettings)
+            .build();
+        return new TestsSSLService(TestEnvironment.newEnvironment(settings));
     }
 
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {

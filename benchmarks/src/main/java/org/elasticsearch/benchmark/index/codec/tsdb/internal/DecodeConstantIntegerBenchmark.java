@@ -18,7 +18,7 @@ public class DecodeConstantIntegerBenchmark extends DecodeBenchmark {
     }
 
     @Override
-    public void setupIteration(int bitsPerValue) throws IOException {
+    public void setupIteration() throws IOException {
         this.input = generateConstantInput(random.nextInt(1, 100));
     }
 }

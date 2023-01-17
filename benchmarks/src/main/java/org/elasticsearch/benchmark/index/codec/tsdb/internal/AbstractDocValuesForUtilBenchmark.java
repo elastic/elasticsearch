@@ -60,7 +60,7 @@ public abstract class AbstractDocValuesForUtilBenchmark {
 
     public abstract void benchmark(int bitsPerValue) throws IOException;
 
-    public abstract void setupIteration(int bitsPerValue) throws IOException;
+    public abstract void setupIteration() throws IOException;
 
     public abstract void setupInvocation(int bitsPerValue) throws IOException;
 }

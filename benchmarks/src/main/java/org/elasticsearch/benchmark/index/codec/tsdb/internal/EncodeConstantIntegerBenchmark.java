@@ -19,7 +19,7 @@ public class EncodeConstantIntegerBenchmark extends EncodeBenchmark {
     }
 
     @Override
-    public void setupIteration(int bitsPerValue) {
+    public void setupIteration() {
         this.input = generateConstantInput(random.nextInt(1, 100));
         this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }

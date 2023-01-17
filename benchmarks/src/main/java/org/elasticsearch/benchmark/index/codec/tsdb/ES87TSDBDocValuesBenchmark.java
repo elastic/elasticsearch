@@ -92,14 +92,14 @@ public class ES87TSDBDocValuesBenchmark {
     @Setup(Level.Iteration)
     public void setupIteration() throws IOException {
         switch (mode) {
-            case "decode constant integer" -> decodeConstantInteger.setupIteration(bitsPerValue);
-            case "decode increasing integer" -> decodeIncreasingInteger.setupIteration(bitsPerValue);
-            case "decode decreasing integer" -> decodeDecreasingInteger.setupIteration(bitsPerValue);
-            case "decode floating point" -> decodeFloatingPoint.setupIteration(bitsPerValue);
-            case "encode constant integer" -> encodeConstantInteger.setupIteration(bitsPerValue);
-            case "encode increasing integer" -> encodeIncreasingInteger.setupIteration(bitsPerValue);
-            case "encode decreasing integer" -> encodeDecreasingInteger.setupIteration(bitsPerValue);
-            case "encode floating point" -> encodeFloatingPoint.setupIteration(bitsPerValue);
+            case "decode constant integer" -> decodeConstantInteger.setupIteration();
+            case "decode increasing integer" -> decodeIncreasingInteger.setupIteration();
+            case "decode decreasing integer" -> decodeDecreasingInteger.setupIteration();
+            case "decode floating point" -> decodeFloatingPoint.setupIteration();
+            case "encode constant integer" -> encodeConstantInteger.setupIteration();
+            case "encode increasing integer" -> encodeIncreasingInteger.setupIteration();
+            case "encode decreasing integer" -> encodeDecreasingInteger.setupIteration();
+            case "encode floating point" -> encodeFloatingPoint.setupIteration();
         }
     }
 

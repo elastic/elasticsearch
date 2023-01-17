@@ -18,7 +18,7 @@ public class DecodeFloatingPointBenchmark extends DecodeBenchmark {
     }
 
     @Override
-    public void setupIteration(int bitsPerValue) throws IOException {
+    public void setupIteration() throws IOException {
         double min = random.nextDouble(0.0D, 1000.0D);
         this.input = generateFloatingPointInput(min, min + random.nextDouble(1000.0D, 2000.0D));
     }

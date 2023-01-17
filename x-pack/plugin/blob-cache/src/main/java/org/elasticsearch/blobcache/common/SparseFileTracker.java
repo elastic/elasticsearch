@@ -328,7 +328,7 @@ public class SparseFileTracker {
                 );
             }
             default -> {
-                try (var listeners = new RefCountingListener(10, listener)) {
+                try (var listeners = new RefCountingListener(listener)) {
                     for (Range range : requiredRanges) {
                         range.completionListener.addListener(listeners.acquire(), Math.min(range.completionListener.end, rangeEnd));
                     }

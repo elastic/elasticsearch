@@ -161,7 +161,7 @@ public class RefCountingListenerTests extends ESTestCase {
         final var executorService = DIRECT_EXECUTOR_SERVICE;
         final var results = new ArrayList<>();
 
-        try (var refs = new RefCountingListener(10, finalListener)) {
+        try (var refs = new RefCountingListener(finalListener)) {
             for (var item : collection) {
                 if (condition(item)) {
                     runAsyncAction(item, refs.acquire().map(results::add));

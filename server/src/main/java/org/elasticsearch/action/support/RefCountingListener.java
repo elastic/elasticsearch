@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * A mechanism to complete a listener on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
  *
  * <pre>
- * try (var refs = new RefCountingListener(10, finalListener)) {
+ * try (var refs = new RefCountingListener(finalListener)) {
  *     for (var item : collection) {
  *         runAsyncAction(item, refs.acquire()); // completes the acquired listener on completion
  *     }
@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * separate thread, as long as there's at least one listener outstanding:
  *
  * <pre>
- * try (var refs = new RefCountingListener(10, finalListener)) {
+ * try (var refs = new RefCountingListener(finalListener)) {
  *     for (var item : collection) {
  *         if (condition(item)) {
  *             runAsyncAction(item, refs.acquire().map(results::add));
@@ -73,6 +73,17 @@ public final class RefCountingListener implements Releasable {
     private final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
     private final Semaphore exceptionPermits;
     private final AtomicInteger droppedExceptionsRef = new AtomicInteger();
+
+    /**
+     * Construct a {@link RefCountingListener} which completes {@code delegate} when all refs are released.
+     * @param delegate The listener to complete when all refs are released. This listener must not throw any exception on completion. If all
+     *                 the acquired listeners completed successfully then so is the delegate. If any of the acquired listeners completed
+     *                 with failure then the delegate is completed with the first exception received, with other exceptions added to its
+     *                 collection of suppressed exceptions.
+     */
+    public RefCountingListener(ActionListener<Void> delegate) {
+        this(10, delegate);
+    }
 
     /**
      * Construct a {@link RefCountingListener} which completes {@code delegate} when all refs are released.

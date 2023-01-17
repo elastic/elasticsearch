@@ -1422,7 +1422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexMetaIdentifiers = null;
             }
 
-            try (var allMetaListeners = new RefCountingListener(10, ActionListener.wrap(v -> {
+            try (var allMetaListeners = new RefCountingListener(ActionListener.wrap(v -> {
                 final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),

@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -55,6 +56,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
     protected final CacheFileReference cacheFileReference;
 
+    protected final SearchableSnapshotDirectory directory;
+
     /**
      * If > 0, represents a logical file within a compound (CFS) file or is a slice thereof represents the offset of the logical
      * compound file within the physical CFS file
@@ -65,9 +68,21 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     protected final int recoveryRangeSize;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
-    protected long lastReadPosition;
+    private long lastReadPosition;
     // last seek position is kept around in order to detect forward/backward seeks for stats
-    protected long lastSeekPosition;
+    private long lastSeekPosition;
+
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's header.
+     */
+    protected final ByteRange headerBlobCacheByteRange;
+
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
+     * required for slices of CFS files; regular files already have their footers extracted from the
+     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo}).
+     */
+    protected final ByteRange footerBlobCacheByteRange;
 
     public MetadataCachingIndexInput(
         Logger logger,
@@ -85,13 +100,16 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange, footerBlobCacheByteRange);
+        super(logger, name, directory.blobContainer(), fileInfo, context, stats, offset, length);
+        this.directory = Objects.requireNonNull(directory);
         this.cacheFileReference = cacheFileReference;
         this.compoundFileOffset = compoundFileOffset;
         this.defaultRangeSize = defaultRangeSize;
         this.recoveryRangeSize = recoveryRangeSize;
         this.lastReadPosition = offset;
         this.lastSeekPosition = offset;
+        this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
+        this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         assert offset >= compoundFileOffset;
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
     }
@@ -121,6 +139,16 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     }
 
     protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
+
+    private ByteRange rangeToReadFromBlobCache(long position, int readLength) {
+        final long end = position + readLength;
+        if (headerBlobCacheByteRange.contains(position, end)) {
+            return headerBlobCacheByteRange;
+        } else if (footerBlobCacheByteRange.contains(position, end)) {
+            return footerBlobCacheByteRange;
+        }
+        return ByteRange.EMPTY;
+    }
 
     private void readWithBlobCache(ByteBuffer b, ByteRange blobCacheByteRange) throws Exception {
         final long position = getAbsolutePosition();

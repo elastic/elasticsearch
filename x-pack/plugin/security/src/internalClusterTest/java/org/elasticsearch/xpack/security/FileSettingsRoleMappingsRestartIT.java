@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
@@ -38,6 +39,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
+    }
+
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSONOnlyRoleMappings = """

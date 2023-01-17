@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public class TransformTests extends AbstractSerializingTransformTestCase<TransformTaskParams> {
 
@@ -27,6 +28,7 @@ public class TransformTests extends AbstractSerializingTransformTestCase<Transfo
         return new TransformTaskParams(
             randomAlphaOfLength(10),
             randomBoolean() ? null : Version.CURRENT,
+            randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean()
         );

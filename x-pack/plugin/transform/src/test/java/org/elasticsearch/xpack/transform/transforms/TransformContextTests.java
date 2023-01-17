@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Instant;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -87,5 +89,11 @@ public class TransformContextTests extends ESTestCase {
         assertThat(context.getStateReason(), is(nullValue()));
 
         verify(listener).failureCountChanged();
+    }
+
+    public void testFrom() {
+        Instant from = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, from, listener);
+        assertThat(context.from(), is(equalTo(from)));
     }
 }

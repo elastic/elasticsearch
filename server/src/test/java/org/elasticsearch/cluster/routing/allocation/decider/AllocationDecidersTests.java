@@ -328,7 +328,8 @@ public class AllocationDecidersTests extends ESTestCase {
             new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message"),
+            ShardRouting.Role.DEFAULT
         );
     }
 

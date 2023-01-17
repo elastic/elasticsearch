@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -136,7 +135,7 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
+                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.CURRENT) == false) {
                         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {

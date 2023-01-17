@@ -117,7 +117,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(version.minimumCompatibilityVersion());
+                    listener.onResponse(version.calculateMinimumCompatVersion());
                 }
             }
         };
@@ -196,7 +196,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                assertEquals(TransportVersion.CURRENT, connection.getTransportVersion());
             }
         }
     }

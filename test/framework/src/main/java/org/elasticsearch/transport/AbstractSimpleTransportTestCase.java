@@ -1532,7 +1532,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(0)); // not set, coming from service A
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version0Request version0Request = new Version0Request();
@@ -1569,7 +1569,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1610,7 +1610,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(2));
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version1, channel.getVersion());
+            assertEquals(version1.transportVersion, channel.getVersion());
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1650,7 +1650,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version0Request version0Request = new Version0Request();
@@ -2259,7 +2259,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             try (Transport.Connection connection = openConnection(serviceA, node, builder.build())) {
-                assertEquals(connection.getVersion(), version);
+                assertEquals(version.transportVersion, connection.getTransportVersion());
             }
         }
     }
@@ -2304,7 +2304,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                assertEquals(TransportVersion.CURRENT, connection.getTransportVersion());
             }
         }
     }

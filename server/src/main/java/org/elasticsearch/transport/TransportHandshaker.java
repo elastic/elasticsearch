@@ -70,7 +70,7 @@ final class TransportHandshaker {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
-            final TransportVersion minCompatVersion = version.minimumCompatibilityVersion();
+            TransportVersion minCompatVersion = version.calculateMinimumCompatVersion();
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
             threadPool.schedule(
@@ -79,7 +79,7 @@ final class TransportHandshaker {
                 ThreadPool.Names.GENERIC
             );
             success = true;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
         } finally {
             if (success == false) {
@@ -154,7 +154,7 @@ final class TransportHandshaker {
                             "Received message from unsupported version: ["
                                 + responseVersion
                                 + "] minimal compatible version is: ["
-                                + currentVersion.minimumCompatibilityVersion()
+                                + currentVersion.calculateMinimumCompatVersion()
                                 + "]"
                         )
                     );

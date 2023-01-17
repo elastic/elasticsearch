@@ -13,10 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -26,7 +30,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -83,57 +86,64 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Override
     protected void processTasks(ListTasksRequest request, Consumer<Task> operation, Runnable nodeOperation, Consumer<Exception> onFailure) {
         if (request.getWaitForCompletion()) {
-            Set<Task> matchedTasks = Sets.newConcurrentHashSet();
-            CountDownLatch matchedTasksReady = new CountDownLatch(1);
-            AtomicBoolean nodeOperationFiredOff = new AtomicBoolean();
-            // Register the listener before we start iterating over tasks and sync it with a latch,
-            // because matched tasks can get removed whilst we are iterating over them
-            var listener = new RemovedTaskListener() {
-                @Override
-                public void onRemoved(Task task) {
-                    try {
-                        matchedTasksReady.await();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+            final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+            final Set<Task> removedTasks = Sets.newConcurrentHashSet();
+            final Set<Task> matchedTasks = Sets.newConcurrentHashSet();
+            final RefCounted removalRefs = AbstractRefCounted.of(() -> {
+                matchedTasks.removeAll(removedTasks);
+                removedTasks.clear();
+                if (matchedTasks.isEmpty()) {
+                    future.onResponse(null);
+                }
+            });
+
+            final AtomicBoolean collectionComplete = new AtomicBoolean();
+            final RemovedTaskListener removedTaskListener = task -> {
+                if (collectionComplete.get() == false && removalRefs.tryIncRef()) {
+                    removedTasks.add(task);
+                    removalRefs.decRef();
+                } else {
                     matchedTasks.remove(task);
-                    if (matchedTasks.isEmpty() && nodeOperationFiredOff.compareAndSet(false, true)) {
-                        try {
-                            nodeOperation.run();
-                        } finally {
-                            taskManager.removeRemovedTaskListener(this);
-                        }
+                    if (matchedTasks.isEmpty()) {
+                        future.onResponse(null);
                     }
                 }
             };
-            taskManager.addRemovedTaskListener(listener);
-            processTasks(request, operation.andThen(task -> {
-                if (task.getAction().startsWith(ListTasksAction.NAME)) {
-                    // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
-                    // for itself or one of its child tasks
-                    return;
-                }
-                matchedTasks.add(task);
-            }));
-            if (matchedTasks.isEmpty()) {
-                // No tasks to wait, we can run nodeOperation in the management pool
-                try {
-                    nodeOperationFiredOff.set(true);
-                    nodeOperation.run();
-                } finally {
-                    taskManager.removeRemovedTaskListener(listener);
-                    matchedTasksReady.countDown();
-                }
+
+            final ActionListener<Void> listener = ActionListener.runBefore(
+                ActionListener.wrap(ignored -> nodeOperation.run(), onFailure),
+                () -> taskManager.removeRemovedTaskListener(removedTaskListener)
+            );
+
+            taskManager.addRemovedTaskListener(removedTaskListener);
+            try {
+                processTasks(request, task -> {
+                    if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
+                        // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
+                        // for itself or one of its child tasks
+                        matchedTasks.add(task);
+                    }
+                    operation.accept(task);
+                });
+            } catch (Exception e) {
+                listener.onFailure(e);
                 return;
             }
-            matchedTasksReady.countDown();
-            threadPool.schedule(() -> {
-                if (nodeOperationFiredOff.get() == false) {
-                    onFailure.accept(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks"));
-                    taskManager.removeRemovedTaskListener(listener);
-                }
-            }, requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT), ThreadPool.Names.GENERIC);
+
+            removalRefs.decRef();
+            collectionComplete.set(true);
+
+            if (future.isDone()) {
+                listener.onResponse(null);
+            } else {
+                future.addListener(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.MANAGEMENT, listener, false));
+                var cancellable = threadPool.schedule(
+                    () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
+                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                    ThreadPool.Names.SAME
+                );
+                future.addListener(ActionListener.wrap(cancellable::cancel));
+            }
         } else {
             super.processTasks(request, operation, nodeOperation, onFailure);
         }

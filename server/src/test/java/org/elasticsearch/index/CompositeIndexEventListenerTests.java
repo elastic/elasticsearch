@@ -54,15 +54,24 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                         IndexSettings indexSettings,
                         ActionListener<Void> listener
                     ) {
-                        shard.getThreadPool()
-                            .executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME))
-                            .execute(ActionRunnable.run(listener, () -> {
-                                assertThat(step, Matchers.lessThanOrEqualTo(failAtStep.get()));
-                                assertTrue(stepNumber.compareAndSet(step, step + 1));
-                                if (step == failAtStep.get()) {
-                                    throw new ElasticsearchException("simulated failure at step " + step);
-                                }
-                            }));
+                        if (randomBoolean()) {
+                            // throws an exception sometimes
+                            runStep();
+                            listener.onResponse(null);
+                        } else {
+                            // fails the listener sometimes
+                            shard.getThreadPool()
+                                .executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME))
+                                .execute(ActionRunnable.run(listener, this::runStep));
+                        }
+                    }
+
+                    private void runStep() {
+                        assertThat(step, Matchers.lessThanOrEqualTo(failAtStep.get()));
+                        assertTrue(stepNumber.compareAndSet(step, step + 1));
+                        if (step == failAtStep.get()) {
+                            throw new ElasticsearchException("simulated failure at step " + step);
+                        }
                     }
                 }).collect(Collectors.toList())
             );

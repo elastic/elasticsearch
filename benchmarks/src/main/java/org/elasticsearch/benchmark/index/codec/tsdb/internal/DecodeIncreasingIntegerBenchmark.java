@@ -13,12 +13,14 @@ import java.util.Random;
 
 public class DecodeIncreasingIntegerBenchmark extends DecodeBenchmark {
 
-    public DecodeIncreasingIntegerBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public DecodeIncreasingIntegerBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
     @Override
     public void setupIteration() throws IOException {
-        this.input = generateMonotonicIncreasingInput(random.nextInt(1, 10), random.nextInt(1, 100));
+        this.input = generateMonotonicIncreasingInput(() -> random.nextInt(1, 10), random.nextInt(1, 100));
     }
 }

@@ -14,13 +14,15 @@ import java.util.Random;
 
 public class EncodeConstantIntegerBenchmark extends EncodeBenchmark {
 
-    public EncodeConstantIntegerBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public EncodeConstantIntegerBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
     @Override
     public void setupIteration() {
-        this.input = generateConstantInput(random.nextInt(1, 100));
+        this.input = generateConstantInput(random.nextLong(1, 100));
         this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }
 }

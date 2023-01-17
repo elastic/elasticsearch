@@ -14,13 +14,15 @@ import java.util.Random;
 
 public class EncodeFloatingPointBenchmark extends EncodeBenchmark {
 
-    public EncodeFloatingPointBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public EncodeFloatingPointBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
-    public void setupIteration(int bitsPerValue) {
+    public void setupIteration() {
         double min = random.nextDouble(0.0D, 1000.0D);
-        this.input = generateFloatingPointInput(min, min + random.nextDouble(1000.0D, 2000.0D));
+        this.input = generateFloatingPointInput(() -> min + random.nextDouble(1000.0D, 2000.0D));
         this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }
 }

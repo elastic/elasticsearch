@@ -13,13 +13,15 @@ import java.util.Random;
 
 public class DecodeFloatingPointBenchmark extends DecodeBenchmark {
 
-    public DecodeFloatingPointBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public DecodeFloatingPointBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
     @Override
     public void setupIteration() throws IOException {
         double min = random.nextDouble(0.0D, 1000.0D);
-        this.input = generateFloatingPointInput(min, min + random.nextDouble(1000.0D, 2000.0D));
+        this.input = generateFloatingPointInput(() -> min + random.nextDouble(1000.0D, 2000.0D));
     }
 }

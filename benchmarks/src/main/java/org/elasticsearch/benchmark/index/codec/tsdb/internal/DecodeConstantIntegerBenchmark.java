@@ -13,12 +13,14 @@ import java.util.Random;
 
 public class DecodeConstantIntegerBenchmark extends DecodeBenchmark {
 
-    public DecodeConstantIntegerBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public DecodeConstantIntegerBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
     @Override
     public void setupIteration() throws IOException {
-        this.input = generateConstantInput(random.nextInt(1, 100));
+        this.input = generateConstantInput(random.nextLong(1, 100));
     }
 }

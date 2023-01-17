@@ -11,15 +11,10 @@ package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 import org.apache.lucene.store.ByteArrayDataOutput;
 
 import java.io.IOException;
-import java.util.Random;
 
 public abstract class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
     protected ByteArrayDataOutput dataOutput;
     protected long[] input;
-
-    public EncodeBenchmark(final Random random) {
-        super(random);
-    }
 
     @Override
     public void setupInvocation(int bitsPerValue) throws IOException {

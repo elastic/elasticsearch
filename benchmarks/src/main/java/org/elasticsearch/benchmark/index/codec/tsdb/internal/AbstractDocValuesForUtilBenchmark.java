@@ -13,47 +13,45 @@ import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Random;
+import java.util.function.Supplier;
 
 public abstract class AbstractDocValuesForUtilBenchmark {
     protected final DocValuesForUtil forUtil;
-    protected final Random random;
     protected final int blockSize;
 
-    public AbstractDocValuesForUtilBenchmark(final Random random) {
-        this.random = random;
+    public AbstractDocValuesForUtilBenchmark() {
         this.forUtil = new DocValuesForUtil();
         this.blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
     }
 
-    protected long[] generateConstantInput(int value) {
+    protected long[] generateConstantInput(long value) {
         long[] data = new long[blockSize];
         Arrays.fill(data, value);
         return data;
     }
 
-    protected long[] generateMonotonicIncreasingInput(int step, int start) {
+    protected long[] generateMonotonicIncreasingInput(final Supplier<Integer> stepSupplier, int start) {
         final long[] data = new long[blockSize];
         data[0] = start;
         for (int i = 1; i < blockSize; i++) {
-            data[i] = data[i - 1] + random.nextInt(step);
+            data[i] = data[i - 1] + stepSupplier.get();
         }
         return data;
     }
 
-    protected long[] generateMonotonicDecreasingInput(int step, int start) {
+    protected long[] generateMonotonicDecreasingInput(final Supplier<Integer> stepSupplier, int start) {
         final long[] data = new long[blockSize];
         data[blockSize - 1] = start;
         for (int i = blockSize - 2; i >= 0; i--) {
-            data[i] = data[i + 1] + random.nextInt(step);
+            data[i] = data[i + 1] + stepSupplier.get();
         }
         return data;
     }
 
-    protected long[] generateFloatingPointInput(double min, double max) {
+    protected long[] generateFloatingPointInput(final Supplier<Double> valueSupplier) {
         final long[] data = new long[blockSize];
         for (int i = 0; i < blockSize; i++) {
-            data[i] = Double.doubleToLongBits(random.nextDouble(min, max));
+            data[i] = Double.doubleToLongBits(valueSupplier.get());
         }
         return data;
     }

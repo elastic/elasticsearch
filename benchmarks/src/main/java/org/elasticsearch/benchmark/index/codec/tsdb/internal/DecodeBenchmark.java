@@ -13,16 +13,11 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
 
 import java.io.IOException;
-import java.util.Random;
 
 public abstract class DecodeBenchmark extends AbstractDocValuesForUtilBenchmark {
     protected ByteArrayDataInput dataInput;
     protected long[] output;
     protected long[] input;
-
-    public DecodeBenchmark(final Random random) {
-        super(random);
-    }
 
     @Override
     public void setupInvocation(int bitsPerValue) throws IOException {

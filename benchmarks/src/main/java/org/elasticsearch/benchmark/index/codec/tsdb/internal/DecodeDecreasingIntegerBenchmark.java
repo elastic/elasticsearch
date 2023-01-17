@@ -13,12 +13,14 @@ import java.util.Random;
 
 public class DecodeDecreasingIntegerBenchmark extends DecodeBenchmark {
 
-    public DecodeDecreasingIntegerBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public DecodeDecreasingIntegerBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
     @Override
     public void setupIteration() throws IOException {
-        this.input = generateMonotonicDecreasingInput(random.nextInt(1, 10), random.nextInt(1, 100));
+        this.input = generateMonotonicDecreasingInput(() -> random.nextInt(1, 10), random.nextInt(1, 100));
     }
 }

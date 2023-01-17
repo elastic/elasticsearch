@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(value = TimeUnit.NANOSECONDS)
 @State(value = Scope.Benchmark)
 public class ES87TSDBDocValuesBenchmark {
+    private static final int SEED = 17;
     @Param({ "4", "8", "12", "16", "24", "28", "32", "36", "40", "44", "48", "52", "56", "64" })
     private int bitsPerValue;
     @Param(
@@ -65,14 +66,14 @@ public class ES87TSDBDocValuesBenchmark {
     private final AbstractDocValuesForUtilBenchmark encodeFloatingPoint;
 
     public ES87TSDBDocValuesBenchmark() {
-        this.decodeConstantInteger = new DecodeConstantIntegerBenchmark();
-        this.decodeIncreasingInteger = new DecodeIncreasingIntegerBenchmark();
-        this.decodeDecreasingInteger = new DecodeDecreasingIntegerBenchmark();
-        this.decodeFloatingPoint = new DecodeFloatingPointBenchmark();
-        this.encodeConstantInteger = new EncodeConstantIntegerBenchmark();
-        this.encodeIncreasingInteger = new EncodeIncreasingIntegerBenchmark();
-        this.encodeDecreasingInteger = new EncodeDecreasingIntegerBenchmark();
-        this.encodeFloatingPoint = new EncodeFloatingPointBenchmark();
+        this.decodeConstantInteger = new DecodeConstantIntegerBenchmark(SEED);
+        this.decodeIncreasingInteger = new DecodeIncreasingIntegerBenchmark(SEED);
+        this.decodeDecreasingInteger = new DecodeDecreasingIntegerBenchmark(SEED);
+        this.decodeFloatingPoint = new DecodeFloatingPointBenchmark(SEED);
+        this.encodeConstantInteger = new EncodeConstantIntegerBenchmark(SEED);
+        this.encodeIncreasingInteger = new EncodeIncreasingIntegerBenchmark(SEED);
+        this.encodeDecreasingInteger = new EncodeDecreasingIntegerBenchmark(SEED);
+        this.encodeFloatingPoint = new EncodeFloatingPointBenchmark(SEED);
     }
 
     @Setup(Level.Invocation)
@@ -116,5 +117,4 @@ public class ES87TSDBDocValuesBenchmark {
             case "encode floating point" -> encodeFloatingPoint.benchmark(bitsPerValue);
         }
     }
-
 }

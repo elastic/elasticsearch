@@ -14,13 +14,15 @@ import java.util.Random;
 
 public class EncodeDecreasingIntegerBenchmark extends EncodeBenchmark {
 
-    public EncodeDecreasingIntegerBenchmark() {
-        super(new Random(17));
+    private final Random random;
+
+    public EncodeDecreasingIntegerBenchmark(int seed) {
+        this.random = new Random(seed);
     }
 
     @Override
     public void setupIteration() {
-        this.input = generateMonotonicDecreasingInput(random.nextInt(1, 10), random.nextInt(1, 100));
+        this.input = generateMonotonicDecreasingInput(() -> random.nextInt(1, 10), random.nextInt(1, 100));
         this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }
 }

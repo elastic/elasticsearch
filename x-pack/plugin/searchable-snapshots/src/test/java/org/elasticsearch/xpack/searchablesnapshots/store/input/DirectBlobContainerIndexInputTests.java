@@ -15,10 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -27,9 +24,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +34,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -122,13 +118,9 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
         });
 
-        final SearchableSnapshotDirectory directory = mock(SearchableSnapshotDirectory.class);
-        when(directory.getCachedBlob(anyString(), any(ByteRange.class))).thenReturn(CachedBlob.CACHE_NOT_READY);
-        when(directory.blobContainer()).thenReturn(blobContainer);
-
         final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(
             fileName,
-            directory,
+            blobContainer,
             fileInfo,
             randomIOContext(),
             new IndexInputStats(1L, fileInfo.length(), fileInfo.length(), fileInfo.length(), () -> 0L),

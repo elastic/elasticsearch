@@ -105,6 +105,8 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         assertThat("Physical cache size doesn't match with recovery state data", physicalCacheSize, equalTo(recoveredBytes));
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
+        assertThat(recoveryState.getIndex().recoveredFromSnapshotBytes(), equalTo(recoveredBytes));
+        assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(recoveredBytes));
     }
 
     public void testFilesStoredInThePersistentCacheAreMarkedAsReusedInRecoveryState() throws Exception {
@@ -198,6 +200,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertThat(physicalCacheSize, equalTo(expectedPhysicalCacheSize));
         assertThat(physicalCacheSize + inMemoryCacheSize, equalTo(recoveryState.getIndex().reusedBytes()));
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
+        assertThat(recoveryState.getIndex().recoveredFromSnapshotBytes(), equalTo(0L));
 
         for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
             assertThat(fileDetail.name() + " wasn't mark as reused", fileDetail.reused(), equalTo(true));

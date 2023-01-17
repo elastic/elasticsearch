@@ -10,8 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -23,6 +21,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -48,31 +47,27 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
             .build();
 
         MapperService mapperService = createIndex("test_index", settings).mapperService();
-        CompressedXContent mapping = new CompressedXContent(
-            BytesReference.bytes(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("field")
-                    .field("type", "text")
-                    .field("analyzer", "simple")
-                    .field("search_analyzer", "reloadableAnalyzer")
-                    .field("search_quote_analyzer", "stop")
-                    .endObject()
-                    .startObject("otherField")
-                    .field("type", "text")
-                    .field("analyzer", "standard")
-                    .field("search_analyzer", "simple")
-                    .field("search_quote_analyzer", "reloadableAnalyzer")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        );
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "simple")
+            .field("search_analyzer", "reloadableAnalyzer")
+            .field("search_quote_analyzer", "stop")
+            .endObject()
+            .startObject("otherField")
+            .field("type", "text")
+            .field("analyzer", "standard")
+            .field("search_analyzer", "simple")
+            .field("search_quote_analyzer", "reloadableAnalyzer")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
-        mapperService.merge("_doc", mapping, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         IndexAnalyzers current = mapperService.getIndexAnalyzers();
 
         ReloadableCustomAnalyzer originalReloadableAnalyzer = (ReloadableCustomAnalyzer) current.get("reloadableAnalyzer").analyzer();

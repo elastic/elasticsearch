@@ -10,6 +10,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -61,7 +62,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         if (timestampField) {
             String mapping = """
-                {
+                { "_doc" : {
                     "_data_stream_timestamp": {
                         "enabled": true
                     },
@@ -70,9 +71,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                             "type": "date"
                         }
                     }
-                }
+                } }
                 """;
-            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         }
         return new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }

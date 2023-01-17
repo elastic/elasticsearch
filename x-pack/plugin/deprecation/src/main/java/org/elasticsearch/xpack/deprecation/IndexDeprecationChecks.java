@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -134,7 +133,6 @@ public class IndexDeprecationChecks {
      * iterates through the "properties" field of mappings and returns any predicates that match in the
      * form of issue-strings.
      *
-     * @param type the document type
      * @param parentMap the mapping to read properties from
      * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
      * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
@@ -142,10 +140,9 @@ public class IndexDeprecationChecks {
      */
     @SuppressWarnings("unchecked")
     static List<String> findInPropertiesRecursively(
-        String type,
         Map<String, Object> parentMap,
         Function<Map<?, ?>, Boolean> predicate,
-        BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter,
+        Function<Map.Entry<?, ?>, String> fieldFormatter,
         String fieldBeginMarker,
         String fieldEndMarker
     ) {
@@ -157,7 +154,7 @@ public class IndexDeprecationChecks {
         for (Map.Entry<?, ?> entry : properties.entrySet()) {
             Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
             if (predicate.apply(valueMap)) {
-                issues.add(fieldBeginMarker + fieldFormatter.apply(type, entry) + fieldEndMarker);
+                issues.add(fieldBeginMarker + fieldFormatter.apply(entry) + fieldEndMarker);
             }
 
             Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
@@ -166,29 +163,18 @@ public class IndexDeprecationChecks {
                     Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
                     if (predicate.apply(multifieldValueMap)) {
                         issues.add(
-                            fieldBeginMarker
-                                + fieldFormatter.apply(type, entry)
-                                + ", multifield: "
-                                + multifieldEntry.getKey()
-                                + fieldEndMarker
+                            fieldBeginMarker + fieldFormatter.apply(entry) + ", multifield: " + multifieldEntry.getKey() + fieldEndMarker
                         );
                     }
                     if (multifieldValueMap.containsKey("properties")) {
                         issues.addAll(
-                            findInPropertiesRecursively(
-                                type,
-                                multifieldValueMap,
-                                predicate,
-                                fieldFormatter,
-                                fieldBeginMarker,
-                                fieldEndMarker
-                            )
+                            findInPropertiesRecursively(multifieldValueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker)
                         );
                     }
                 }
             }
             if (valueMap.containsKey("properties")) {
-                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker));
+                issues.addAll(findInPropertiesRecursively(valueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker));
             }
         }
 
@@ -201,7 +187,6 @@ public class IndexDeprecationChecks {
             indexMetadata,
             ((mappingMetadata, sourceAsMap) -> fields.addAll(
                 findInPropertiesRecursively(
-                    mappingMetadata.type(),
                     sourceAsMap,
                     IndexDeprecationChecks::isDateFieldWithCamelCasePattern,
                     IndexDeprecationChecks::changeFormatToSnakeCase,
@@ -236,7 +221,7 @@ public class IndexDeprecationChecks {
         return false;
     }
 
-    private static String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
+    private static String changeFormatToSnakeCase(Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         final String formatFieldValue = (String) value.get("format");
         String[] patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);

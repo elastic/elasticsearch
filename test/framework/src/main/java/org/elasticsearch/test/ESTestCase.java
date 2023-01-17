@@ -44,7 +44,9 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -1900,5 +1902,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
         return secureRandomFips;
+    }
+
+    protected static MappingMetadata toMappingMetadata(XContentBuilder b) throws IOException {
+        return new MappingMetadata(new CompressedXContent(BytesReference.bytes(b)));
     }
 }

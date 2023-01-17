@@ -310,9 +310,11 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         String queryShapesMapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject(indexedShapePath)
                 .field("type", fieldTypeName())
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.document.DocumentField;
@@ -738,8 +739,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
-        final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+        final MappingMetadata mappingMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, sourceIndexMappings);
+        mapperService.merge(mappingMetadata, MapperService.MergeReason.INDEX_TEMPLATE);
         TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(config.getTimestampField());
 
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();

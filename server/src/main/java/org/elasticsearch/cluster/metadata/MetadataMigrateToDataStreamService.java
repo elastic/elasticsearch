@@ -47,12 +47,18 @@ public class MetadataMigrateToDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataMigrateToDataStreamService.class);
 
-    private static final CompressedXContent TIMESTAMP_MAPPING;
+    private static final MappingMetadata TIMESTAMP_MAPPING;
 
     static {
         try {
-            TIMESTAMP_MAPPING = new CompressedXContent(
-                ((builder, params) -> builder.startObject(DataStreamTimestampFieldMapper.NAME).field("enabled", true).endObject())
+            TIMESTAMP_MAPPING = new MappingMetadata(
+                new CompressedXContent(
+                    ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .startObject(DataStreamTimestampFieldMapper.NAME)
+                        .field("enabled", true)
+                        .endObject()
+                        .endObject())
+                )
             );
         } catch (IOException e) {
             throw new AssertionError(e);
@@ -195,7 +201,7 @@ public class MetadataMigrateToDataStreamService {
 
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, TIMESTAMP_MAPPING, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(TIMESTAMP_MAPPING, MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();
 
         var imb = IndexMetadata.builder(im);

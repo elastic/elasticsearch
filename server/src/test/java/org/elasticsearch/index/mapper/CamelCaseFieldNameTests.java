@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+
 public class CamelCaseFieldNameTests extends MapperServiceTestCase {
 
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {
@@ -24,7 +26,7 @@ public class CamelCaseFieldNameTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
-        documentMapper = mapperService.merge("_doc", documentMapper.mappingSource(), MapperService.MergeReason.MAPPING_UPDATE);
+        documentMapper = mapperService.merge(new MappingMetadata(documentMapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));

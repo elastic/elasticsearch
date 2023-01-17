@@ -28,8 +28,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -65,10 +63,8 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        String docType = "_doc";
         mapperService.merge(
-            docType,
-            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping("m_s_m", "type=long"))),
+            toMappingMetadata(PutMappingRequest.simpleMapping("m_s_m", "type=long")),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }

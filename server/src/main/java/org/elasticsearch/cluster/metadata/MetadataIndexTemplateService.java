@@ -1429,7 +1429,7 @@ public class MetadataIndexTemplateService {
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
+                    mapperService.merge(new MappingMetadata(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
                 }
 
                 if (template.getDataStreamTemplate() != null) {
@@ -1475,7 +1475,7 @@ public class MetadataIndexTemplateService {
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {
-                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
+                dummyIndexService.mapperService().merge(new MappingMetadata(mappings), MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

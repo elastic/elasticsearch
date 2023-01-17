@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -118,10 +118,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
-        );
+        Mapping mergeWith = mapperService.parseMapping(toMappingMetadata(topMapping(b -> b.field("dynamic", "strict"))));
         Mapping merged = mapper.mapping().merge(mergeWith, reason);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
@@ -144,6 +141,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         String update = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .field("type", "object")
@@ -151,8 +149,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+        mapper = mapperService.merge(new MappingMetadata(new CompressedXContent(update)), MergeReason.INDEX_TEMPLATE);
 
         ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
@@ -163,6 +162,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         update = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .field("type", "object")
@@ -171,8 +171,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+        mapper = mapperService.merge(new MappingMetadata(new CompressedXContent(update)), MergeReason.INDEX_TEMPLATE);
 
         objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
@@ -185,6 +186,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .startObject("properties")
@@ -198,12 +200,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), MergeReason.INDEX_TEMPLATE);
 
         String update = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .startObject("properties")
@@ -217,12 +221,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
-        DocumentMapper mapper = mapperService.merge(
-            MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(update),
-            MergeReason.INDEX_TEMPLATE
-        );
+        DocumentMapper mapper = mapperService.merge(new MappingMetadata(new CompressedXContent(update)), MergeReason.INDEX_TEMPLATE);
 
         String expected = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -255,6 +256,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .startObject("properties")
@@ -268,12 +270,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), MergeReason.INDEX_TEMPLATE);
 
         String firstUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .startObject("properties")
@@ -284,16 +288,18 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE)
+            () -> mapperService.merge(new MappingMetadata(new CompressedXContent(firstUpdate)), MergeReason.INDEX_TEMPLATE)
         );
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field2] with an object mapping"));
 
         String secondUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("object")
                 .startObject("properties")
@@ -304,10 +310,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
         );
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondUpdate), MergeReason.INDEX_TEMPLATE)
+            () -> mapperService.merge(new MappingMetadata(new CompressedXContent(secondUpdate)), MergeReason.INDEX_TEMPLATE)
         );
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
@@ -458,10 +465,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
+        Mapping mergeWith = mapperService.parseMapping(toMappingMetadata(fieldMapping(b -> {
             b.field("type", "object");
             b.field("subobjects", "false");
-        }))));
+        })));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
@@ -473,10 +480,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
-        );
+        Mapping mergeWith = mapperService.parseMapping(toMappingMetadata(topMapping(b -> { b.field("subobjects", true); })));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)

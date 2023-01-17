@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +100,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
 
         CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge(new MappingMetadata(mappingUpdate), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -119,7 +120,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
 
         CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge(new MappingMetadata(mappingUpdate), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 

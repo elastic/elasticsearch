@@ -65,6 +65,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
+                builder.startObject("_doc");
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
@@ -79,6 +80,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                     }
                     builder.endObject();
                 }
+                builder.endObject();
                 builder.endObject();
 
                 return Collections.singletonList(

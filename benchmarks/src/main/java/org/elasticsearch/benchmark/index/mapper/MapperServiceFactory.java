@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -72,7 +73,7 @@ public class MapperServiceFactory {
         );
 
         try {
-            mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
+            mapperService.merge(new MappingMetadata(new CompressedXContent(mappings)), MapperService.MergeReason.MAPPING_UPDATE);
             return mapperService;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

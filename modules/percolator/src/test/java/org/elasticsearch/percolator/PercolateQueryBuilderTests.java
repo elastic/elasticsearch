@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.RestApiVersion;
@@ -86,17 +85,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
         docType = "_doc";
         mapperService.merge(
-            docType,
-            new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField)
-                )
-            ),
+            toMappingMetadata(PutMappingRequest.simpleMapping(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField)),
             MapperService.MergeReason.MAPPING_UPDATE
         );
         mapperService.merge(
-            docType,
-            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(TEXT_FIELD_NAME, "type=text"))),
+            toMappingMetadata(PutMappingRequest.simpleMapping(TEXT_FIELD_NAME, "type=text")),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }

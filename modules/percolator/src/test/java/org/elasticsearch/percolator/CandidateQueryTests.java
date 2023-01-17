@@ -66,10 +66,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -86,6 +84,7 @@ import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -136,52 +135,48 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         indexService = createIndex(indexName, Settings.EMPTY);
         mapperService = indexService.mapperService();
 
-        String mapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("int_field")
-                .field("type", "integer")
-                .endObject()
-                .startObject("long_field")
-                .field("type", "long")
-                .endObject()
-                .startObject("half_float_field")
-                .field("type", "half_float")
-                .endObject()
-                .startObject("float_field")
-                .field("type", "float")
-                .endObject()
-                .startObject("double_field")
-                .field("type", "double")
-                .endObject()
-                .startObject("ip_field")
-                .field("type", "ip")
-                .endObject()
-                .startObject("field")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("int_field")
+            .field("type", "integer")
+            .endObject()
+            .startObject("long_field")
+            .field("type", "long")
+            .endObject()
+            .startObject("half_float_field")
+            .field("type", "half_float")
+            .endObject()
+            .startObject("float_field")
+            .field("type", "float")
+            .endObject()
+            .startObject("double_field")
+            .field("type", "double")
+            .endObject()
+            .startObject("ip_field")
+            .field("type", "ip")
+            .endObject()
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(mappings), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
-        String percolatorMapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject(queryField)
-                .field("type", "percolator")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject(queryField)
+            .field("type", "percolator")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(mappings), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper().mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
 

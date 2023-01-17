@@ -13,8 +13,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +44,7 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
+            .startObject("_doc")
             .startObject("properties")
             .startObject(VECTOR_FIELD)
             .field("type", "dense_vector")
@@ -58,12 +57,9 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
             .field("path", VECTOR_FIELD)
             .endObject()
             .endObject()
+            .endObject()
             .endObject();
-        mapperService.merge(
-            MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(Strings.toString(builder)),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
+        mapperService.merge(toMappingMetadata(builder), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

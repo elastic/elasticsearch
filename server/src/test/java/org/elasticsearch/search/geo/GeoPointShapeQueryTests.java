@@ -67,6 +67,7 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject(defaultFieldName)
                 .field("type", "geo_point")
@@ -74,6 +75,7 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
                 .startObject("alias")
                 .field("type", "alias")
                 .field("path", defaultFieldName)
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

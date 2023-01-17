@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -903,14 +903,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetadata;
         }
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
-        Map<String, Object> mapping;
-        if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetadata.type())) {
-            mapping = (Map<String, Object>) sourceAsMap.get(mappingMetadata.type());
-        } else {
-            mapping = sourceAsMap;
-        }
-
+        Map<String, Object> mapping = mappingMetadata.sourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
         if (properties == null || properties.isEmpty()) {
             return mappingMetadata;
@@ -918,7 +911,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         filterFields("", properties, fieldPredicate);
 
-        return new MappingMetadata(mappingMetadata.type(), sourceAsMap);
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping);
     }
 
     @SuppressWarnings("unchecked")

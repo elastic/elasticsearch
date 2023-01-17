@@ -19,8 +19,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -46,28 +44,25 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(
-            "_doc",
-            new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(
-                        INTEGER_RANGE_FIELD_NAME,
-                        "type=integer_range",
-                        LONG_RANGE_FIELD_NAME,
-                        "type=long_range",
-                        FLOAT_RANGE_FIELD_NAME,
-                        "type=float_range",
-                        DOUBLE_RANGE_FIELD_NAME,
-                        "type=double_range",
-                        DATE_RANGE_FIELD_NAME,
-                        "type=date_range",
-                        IP_RANGE_FIELD_NAME,
-                        "type=ip_range"
-                    )
+            toMappingMetadata(
+                PutMappingRequest.simpleMapping(
+                    INTEGER_RANGE_FIELD_NAME,
+                    "type=integer_range",
+                    LONG_RANGE_FIELD_NAME,
+                    "type=long_range",
+                    FLOAT_RANGE_FIELD_NAME,
+                    "type=float_range",
+                    DOUBLE_RANGE_FIELD_NAME,
+                    "type=double_range",
+                    DATE_RANGE_FIELD_NAME,
+                    "type=date_range",
+                    IP_RANGE_FIELD_NAME,
+                    "type=ip_range"
                 )
+
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
-
     }
 
     public void testIntegerRangeQuery() throws Exception {

@@ -288,11 +288,7 @@ public class SystemIndexManager implements ClusterStateListener {
             @SuppressWarnings("unchecked")
             Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
-                logger.warn(
-                    "Missing _meta field in mapping [{}] of index [{}], assuming mappings update required",
-                    mappingMetadata.type(),
-                    indexName
-                );
+                logger.warn("Missing _meta field in mapping of index [{}], assuming mappings update required", indexName);
                 // This can happen with old system indices, such as .watches, which were created before we had the convention of
                 // storing a version under `_meta.` We should just replace the template to be sure.
                 return Version.V_EMPTY;

@@ -11,12 +11,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import static java.util.Collections.emptyMap;
@@ -56,19 +55,17 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteMissingReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        indexService.mapperService().merge(toMappingMetadata(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new SearchExecutionContext(
             0,
             0,
@@ -97,19 +94,17 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteEmptyReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        indexService.mapperService().merge(toMappingMetadata(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new SearchExecutionContext(
             0,

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -514,7 +515,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         );
         MergeReason mergeReason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), mergeReason);
         DocumentMapper docMapper = mapperService.documentMapper();
 
         ParsedDocument doc = docMapper.parse(
@@ -620,7 +621,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         );
         MergeReason mergeReason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), mergeReason);
         DocumentMapper docMapper = mapperService.documentMapper();
 
         ParsedDocument doc = docMapper.parse(
@@ -680,7 +681,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstMapping), MergeReason.INDEX_TEMPLATE);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(firstMapping)), MergeReason.INDEX_TEMPLATE);
 
         String secondMapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -703,7 +704,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
         );
 
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondMapping), MergeReason.INDEX_TEMPLATE);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(secondMapping)), MergeReason.INDEX_TEMPLATE);
         DocumentMapper docMapper = mapperService.documentMapper();
 
         ParsedDocument doc = docMapper.parse(

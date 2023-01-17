@@ -253,16 +253,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         MappingMetadata newMappingMetadata = newIndexMetadata.mapping();
         if (newMappingMetadata != null) {
-            String type = newMappingMetadata.type();
-            CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            Mapping incomingMapping = parseMapping(type, incomingMappingSource);
+            Mapping incomingMapping = parseMapping(newMappingMetadata);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
-                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                assert assertRefreshIsNotNeeded(previousMapper, incomingMapping);
+                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, newMappingMetadata.source());
             }
             String op = previousMapper != null ? "updated" : "added";
+            CompressedXContent incomingMappingSource = newMappingMetadata.source();
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
                 logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
             } else if (logger.isTraceEnabled()) {
@@ -273,7 +272,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, Mapping incomingMapping) {
+    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, Mapping incomingMapping) {
         Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
@@ -281,13 +280,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         try {
             mergedMappingSource = new CompressedXContent(mergedMapping, params);
         } catch (Exception e) {
-            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
+            throw new AssertionError("failed to serialize mappings", e);
         }
         CompressedXContent incomingMappingSource;
         try {
             incomingMappingSource = new CompressedXContent(incomingMapping, params);
         } catch (Exception e) {
-            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
+            throw new AssertionError("failed to serialize mappings", e);
         }
         // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
         // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.
@@ -310,7 +309,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // that the incoming mappings are the same as the current ones: we need to
             // parse the incoming mappings into a DocumentMapper and check that its
             // serialization is the same as the existing mapper
-            Mapping newMapping = parseMapping(mapping.type(), mapping.source());
+            Mapping newMapping = parseMapping(mapping);
             final CompressedXContent currentSource = this.mapper.mappingSource();
             final CompressedXContent newSource = newMapping.toCompressedXContent();
             if (Objects.equals(currentSource, newSource) == false) {
@@ -326,17 +325,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
-            merge(mappingMetadata.type(), mappingMetadata.source(), reason);
+            merge(mappingMetadata, reason);
         }
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+    public DocumentMapper merge(MappingMetadata mappingMetadata, MergeReason reason) {
         final DocumentMapper currentMapper = this.mapper;
-        if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
+        if (currentMapper != null && currentMapper.mappingSource().equals(mappingMetadata.source())) {
             return currentMapper;
         }
         synchronized (this) {
-            Mapping incomingMapping = parseMapping(type, mappingSource);
+            Mapping incomingMapping = parseMapping(mappingMetadata);
             Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
             // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
             // We should identify these cases reliably and save expensive serialization here
@@ -357,9 +356,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return newMapper;
     }
 
-    public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
+    public Mapping parseMapping(MappingMetadata mappingMetadata) {
         try {
-            return mappingParser.parse(mappingType, mappingSource);
+            return mappingParser.parse(mappingMetadata);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -378,7 +377,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        Mapping newMapping = parseMapping(mapper.type(), mappingSource);
+        Mapping newMapping = parseMapping(new MappingMetadata(mapper.mappingSource()));
         if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
             throw new AssertionError(
                 "Mapping serialization result is different from source. \n--> Source ["

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper.vectors;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -49,23 +49,18 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("index", settings);
         MapperService mapperService = indexService.mapperService();
 
-        BytesReference mapping = BytesReference.bytes(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject("my-vector")
-                .field("type", "sparse_vector")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my-vector")
+            .field("type", "sparse_vector")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.parseMapping(toMappingMetadata(mapping)));
         assertThat(e.getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));
     }
 
@@ -76,24 +71,18 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("index", settings);
         MapperService mapperService = indexService.mapperService();
 
-        BytesReference mapping = BytesReference.bytes(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject("my-vector")
-                .field("type", "sparse_vector")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my-vector")
+            .field("type", "sparse_vector")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
-        DocumentMapper mapper = mapperService.merge(
-            MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
+        DocumentMapper mapper = mapperService.merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
 
         // Check that new vectors cannot be indexed.

@@ -21,6 +21,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -299,18 +300,26 @@ public abstract class MapperServiceTestCase extends ESTestCase {
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
     protected final void merge(MapperService mapperService, String mapping) throws IOException {
-        mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(mappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     protected final void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
-        mapperService.merge(null, new CompressedXContent(mapping), reason);
+        mapperService.merge(mappingMetadata(mapping), reason);
     }
 
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
     protected final void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
-        mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), reason);
+        mapperService.merge(mappingMetadata(mapping), reason);
+    }
+
+    private static MappingMetadata mappingMetadata(String mapping) throws IOException {
+        return new MappingMetadata(new CompressedXContent(mapping));
+    }
+
+    private static MappingMetadata mappingMetadata(XContentBuilder mapping) throws IOException {
+        return mappingMetadata(Strings.toString(mapping));
     }
 
     protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {

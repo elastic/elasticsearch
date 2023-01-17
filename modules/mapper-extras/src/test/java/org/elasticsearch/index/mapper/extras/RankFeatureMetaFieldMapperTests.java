@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
@@ -33,20 +35,18 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testBasics() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "rank_feature")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "rank_feature")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
-        Mapping parsedMapping = createMapperService(mapping).parseMapping("type", new CompressedXContent(mapping));
+        Mapping parsedMapping = createMapperService(mapping).parseMapping(toMappingMetadata(mapping));
         assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
         assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }
@@ -58,8 +58,7 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
     public void testDocumentParsingFailsOnMetaField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         DocumentMapper mapper = createMapperService(mapping).merge(
-            "_doc",
-            new CompressedXContent(mapping),
+            new MappingMetadata(new CompressedXContent(mapping)),
             MapperService.MergeReason.MAPPING_UPDATE
         );
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;

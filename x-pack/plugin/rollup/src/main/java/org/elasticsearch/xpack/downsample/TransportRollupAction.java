@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
@@ -229,8 +230,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             // 2. Extract rollup config from index mappings
             final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
-            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+            final MappingMetadata sourceMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, sourceIndexMappings);
+            mapperService.merge(sourceMapping, MapperService.MergeReason.INDEX_TEMPLATE);
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
@@ -423,7 +424,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
     ) throws IOException {
-        final XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        final XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
 
         addDynamicTemplates(builder);
 
@@ -434,11 +435,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
+        builder.endObject(); // _doc
 
         final CompressedXContent rollupDiffXContent = CompressedXContent.fromJSON(
             XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON)
         );
-        return mapperService.merge(MapperService.SINGLE_MAPPING_NAME, rollupDiffXContent, MapperService.MergeReason.INDEX_TEMPLATE)
+        return mapperService.merge(new MappingMetadata(rollupDiffXContent), MapperService.MergeReason.INDEX_TEMPLATE)
             .mappingSource()
             .uncompressed()
             .utf8ToString();

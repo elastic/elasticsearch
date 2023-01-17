@@ -23,6 +23,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -423,50 +424,51 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
             if (registerType) {
                 mapperService.merge(
-                    "_doc",
-                    new CompressedXContent(
-                        Strings.toString(
-                            PutMappingRequest.simpleMapping(
-                                TEXT_FIELD_NAME,
-                                "type=text",
-                                KEYWORD_FIELD_NAME,
-                                "type=keyword",
-                                TEXT_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + TEXT_FIELD_NAME,
-                                INT_FIELD_NAME,
-                                "type=integer",
-                                INT_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + INT_FIELD_NAME,
-                                INT_RANGE_FIELD_NAME,
-                                "type=integer_range",
-                                DOUBLE_FIELD_NAME,
-                                "type=double",
-                                BOOLEAN_FIELD_NAME,
-                                "type=boolean",
-                                DATE_NANOS_FIELD_NAME,
-                                "type=date_nanos",
-                                DATE_FIELD_NAME,
-                                "type=date",
-                                DATE_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + DATE_FIELD_NAME,
-                                DATE_RANGE_FIELD_NAME,
-                                "type=date_range",
-                                OBJECT_FIELD_NAME,
-                                "type=object",
-                                GEO_POINT_FIELD_NAME,
-                                "type=geo_point",
-                                GEO_POINT_ALIAS_FIELD_NAME,
-                                "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                                BINARY_FIELD_NAME,
-                                "type=binary"
+                    new MappingMetadata(
+                        new CompressedXContent(
+                            Strings.toString(
+                                PutMappingRequest.simpleMapping(
+                                    TEXT_FIELD_NAME,
+                                    "type=text",
+                                    KEYWORD_FIELD_NAME,
+                                    "type=keyword",
+                                    TEXT_ALIAS_FIELD_NAME,
+                                    "type=alias,path=" + TEXT_FIELD_NAME,
+                                    INT_FIELD_NAME,
+                                    "type=integer",
+                                    INT_ALIAS_FIELD_NAME,
+                                    "type=alias,path=" + INT_FIELD_NAME,
+                                    INT_RANGE_FIELD_NAME,
+                                    "type=integer_range",
+                                    DOUBLE_FIELD_NAME,
+                                    "type=double",
+                                    BOOLEAN_FIELD_NAME,
+                                    "type=boolean",
+                                    DATE_NANOS_FIELD_NAME,
+                                    "type=date_nanos",
+                                    DATE_FIELD_NAME,
+                                    "type=date",
+                                    DATE_ALIAS_FIELD_NAME,
+                                    "type=alias,path=" + DATE_FIELD_NAME,
+                                    DATE_RANGE_FIELD_NAME,
+                                    "type=date_range",
+                                    OBJECT_FIELD_NAME,
+                                    "type=object",
+                                    GEO_POINT_FIELD_NAME,
+                                    "type=geo_point",
+                                    GEO_POINT_ALIAS_FIELD_NAME,
+                                    "type=alias,path=" + GEO_POINT_FIELD_NAME,
+                                    BINARY_FIELD_NAME,
+                                    "type=binary"
+                                )
                             )
                         )
                     ),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
                 // also add mappings for two inner field in the object field
-                mapperService.merge("_doc", new CompressedXContent(Strings.format("""
-                    {
+                mapperService.merge(new MappingMetadata(new CompressedXContent(Strings.format("""
+                    { "_doc" : {
                       "properties": {
                         "%s": {
                           "type": "object",
@@ -480,7 +482,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                           }
                         }
                       }
-                    }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
+                    }}""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME))), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }

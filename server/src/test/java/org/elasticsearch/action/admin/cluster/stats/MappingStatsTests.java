@@ -107,8 +107,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
               "mappings" : {
                 "total_field_count" : 12,
                 "total_deduplicated_field_count" : 6,
-                "total_deduplicated_mapping_size" : "260b",
-                "total_deduplicated_mapping_size_in_bytes" : 260,
+                "total_deduplicated_mapping_size" : "266b",
+                "total_deduplicated_mapping_size_in_bytes" : 266,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -227,8 +227,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
               "mappings" : {
                 "total_field_count" : 18,
                 "total_deduplicated_field_count" : 12,
-                "total_deduplicated_mapping_size" : "519b",
-                "total_deduplicated_mapping_size_in_bytes" : 519,
+                "total_deduplicated_mapping_size" : "530b",
+                "total_deduplicated_mapping_size_in_bytes" : 530,
                 "field_types" : [
                   {
                     "name" : "dense_vector",

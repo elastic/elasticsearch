@@ -121,6 +121,7 @@ public class TaskResultsService {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
+            builder.startObject("_doc");
             {
                 builder.startObject("_meta");
                 builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
@@ -199,7 +200,7 @@ public class TaskResultsService {
                 }
                 builder.endObject();
             }
-
+            builder.endObject();
             builder.endObject();
             return builder;
         } catch (IOException e) {

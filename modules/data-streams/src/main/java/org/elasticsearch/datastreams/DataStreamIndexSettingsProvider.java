@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -159,7 +160,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             for (var mapping : combinedTemplateMappings) {
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
+                mapperService.merge(new MappingMetadata(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
             }
 
             List<String> routingPaths = new ArrayList<>();

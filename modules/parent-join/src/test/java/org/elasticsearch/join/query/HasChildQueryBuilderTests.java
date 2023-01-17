@@ -23,8 +23,6 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -66,7 +64,6 @@ import static org.mockito.Mockito.when;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
 
-    private static final String TYPE = "_doc";
     private static final String PARENT_DOC = "parent";
     private static final String CHILD_DOC = "child";
 
@@ -120,7 +117,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             .endObject()
             .endObject();
 
-        mapperService.merge(TYPE, new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -216,6 +215,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
+            builder.startObject("_doc");
 
             for (int i = 0; i < source.length; i++) {
                 String fieldName = source[i++];
@@ -253,6 +253,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             }
             builder.endObject();
             builder.endObject();
+            builder.endObject();
             return builder;
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to generate simplified mapping definition", e);
@@ -270,13 +271,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(Map<String, ?> mappingSource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(mappingSource);
-            return source(BytesReference.bytes(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
-        }
+        return source(MapperService.SINGLE_MAPPING_NAME, mappingSource);
     }
 
     /**
@@ -290,13 +285,25 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        try {
-            this.source = XContentHelper.convertToJson(mappingSource, false, false, xContentType);
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to json", e);
+        return source(MapperService.SINGLE_MAPPING_NAME, XContentHelper.convertToMap(mappingSource, false, xContentType).v2());
+    }
+
+    public PutMappingRequest source(String type, Map<String, ?> mappings) {
+        // wrap it in a type map if its not
+        if (mappings.size() != 1 || mappings.containsKey(type) == false) {
+            mappings = Map.of(MapperService.SINGLE_MAPPING_NAME, mappings);
+        } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+            // if it has a different type name, then unwrap and rewrap with _doc
+            mappings = Map.of(MapperService.SINGLE_MAPPING_NAME, mappings.get(type));
         }
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.map(mappings);
+            this.source = Strings.toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + mappings + "]", e);
+        }
+        return this;
     }
 
     public PutMappingRequest writeIndexOnly(boolean writeIndexOnly) {

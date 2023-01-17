@@ -17,9 +17,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -51,26 +49,24 @@ import static org.hamcrest.Matchers.equalTo;
 public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
     public void testIndexingWithNoContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -101,26 +97,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -146,26 +140,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleNumberContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -191,26 +183,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleBooleanContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -236,26 +226,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleNULLContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
             .startObject()
@@ -279,26 +267,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithContextList() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -322,26 +308,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithMixedTypeContextList() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
@@ -365,26 +349,24 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithMixedTypeContextListHavingNULL() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("completion")
             .array("input", "suggestion5", "suggestion6", "suggestion7")
@@ -403,30 +385,28 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithMultipleContexts() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("completion")
-                .field("type", "completion")
-                .startArray("contexts")
-                .startObject()
-                .field("name", "ctx")
-                .field("type", "category")
-                .endObject()
-                .startObject()
-                .field("name", "type")
-                .field("type", "category")
-                .endObject()
-                .endArray()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "ctx")
+            .field("type", "category")
+            .endObject()
+            .startObject()
+            .field("name", "type")
+            .field("type", "category")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService()
-            .merge("type1", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            .merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")

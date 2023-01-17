@@ -30,7 +30,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -387,11 +386,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(
-            "_doc",
-            new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
-                )
+            toMappingMetadata(
+                PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

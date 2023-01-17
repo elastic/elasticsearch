@@ -8,10 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,33 +70,18 @@ public final class MappingParser {
         return remainingFields.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        Objects.requireNonNull(source, "source cannot be null");
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-        if (mapping.isEmpty()) {
-            if (type == null) {
-                throw new MapperParsingException("malformed mapping, no type name found");
-            }
-        } else {
-            String rootName = mapping.keySet().iterator().next();
-            if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
-                type = rootName;
-                mapping = (Map<String, Object>) mapping.get(rootName);
-            }
-        }
-        if (type == null) {
-            throw new MapperParsingException("Failed to derive type");
-        }
-        if (type.isEmpty()) {
-            throw new MapperParsingException("type cannot be an empty string");
-        }
-        return parse(type, mapping);
+    Mapping parse(MappingMetadata mappingMetadata) throws MapperParsingException {
+        Objects.requireNonNull(mappingMetadata, "mapping cannot be null");
+        return parse(mappingMetadata.sourceAsMap());
     }
 
-    private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    private Mapping parse(Map<String, Object> mapping) throws MapperParsingException {
 
-        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, this.mappingParserContext);
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(
+            MapperService.SINGLE_MAPPING_NAME,
+            mapping,
+            this.mappingParserContext
+        );
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;

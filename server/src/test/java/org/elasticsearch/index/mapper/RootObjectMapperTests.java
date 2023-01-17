@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -353,9 +352,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
         );
 
-        // Empty name not allowed in index created after 5.0
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+        // Type names are now ignored completely
+        MapperService mapperService = createMapperService(mapping);
+        assertNotNull(mapperService.fieldType("name"));
     }
 
 }

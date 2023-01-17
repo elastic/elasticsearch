@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -463,7 +464,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
 
-        mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, Strings.toString(mapperService.documentMapper().mapping()));
     }
 

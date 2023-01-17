@@ -52,6 +52,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
@@ -454,8 +455,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 .endObject()
         );
         final DocumentMapper nestedMapper = mapperService.merge(
-            "type",
-            new CompressedXContent(nestedMapping),
+            new MappingMetadata(new CompressedXContent(nestedMapping)),
             MapperService.MergeReason.MAPPING_UPDATE
         );
         return (docId, nestedFieldValues) -> {

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
 import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
@@ -371,7 +372,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             mappings.containsKey(concreteIndex),
             equalTo(true)
         );
-        final Map<String, Object> sourceAsMap = mappings.get(concreteIndex).getSourceAsMap();
+        final Map<String, Object> sourceAsMap = Map.of(MapperService.SINGLE_MAPPING_NAME, mappings.get(concreteIndex).getSourceAsMap());
 
         try {
             assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));

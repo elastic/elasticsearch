@@ -13,8 +13,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -51,7 +49,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
-    private static final String TYPE = "_doc";
+
     private static final String PARENT_DOC = "parent";
     private static final String CHILD_DOC = "child";
 
@@ -98,7 +96,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             .endObject()
             .endObject();
 
-        mapperService.merge(TYPE, new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

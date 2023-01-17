@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -42,7 +40,7 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTestC
             GEO_SHAPE_ALIAS_FIELD_NAME,
             "type=alias,path=" + GEO_SHAPE_FIELD_NAME
         );
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(builder)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(toMappingMetadata(builder), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

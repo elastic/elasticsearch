@@ -20,7 +20,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +35,7 @@ import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockKeywordPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
@@ -89,7 +90,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 }
             }
             """;
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(new MappingMetadata(new CompressedXContent(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         this.indexService = indexService;
     }
 
@@ -342,32 +343,30 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 .build()
         );
         MapperService mapperService = indexService.mapperService();
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("field_normalizer")
-                .field("type", "keyword")
-                .field("normalizer", "my_lowercase")
-                .endObject()
-                .startObject("field_split")
-                .field("type", "keyword")
-                .field("split_queries_on_whitespace", true)
-                .endObject()
-                .startObject("field_split_normalizer")
-                .field("type", "keyword")
-                .field("normalizer", "my_lowercase")
-                .field("split_queries_on_whitespace", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("field_normalizer")
+            .field("type", "keyword")
+            .field("normalizer", "my_lowercase")
+            .endObject()
+            .startObject("field_split")
+            .field("type", "keyword")
+            .field("split_queries_on_whitespace", true)
+            .endObject()
+            .startObject("field_split_normalizer")
+            .field("type", "keyword")
+            .field("normalizer", "my_lowercase")
+            .field("split_queries_on_whitespace", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
             randomInt(20),
             0,

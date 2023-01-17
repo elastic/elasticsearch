@@ -79,12 +79,12 @@ public class RestPutMappingAction extends BaseRestHandler {
             }
 
             Map<String, Object> mappingSource = prepareV7Mappings(includeTypeName, sourceAsMap);
-            putMappingRequest.source(mappingSource);
+            putMappingRequest.source(Map.of(MapperService.SINGLE_MAPPING_NAME, mappingSource));
         } else {
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
                 throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
             }
-            putMappingRequest.source(sourceAsMap);
+            putMappingRequest.source(Map.of(MapperService.SINGLE_MAPPING_NAME, sourceAsMap));
         }
 
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));

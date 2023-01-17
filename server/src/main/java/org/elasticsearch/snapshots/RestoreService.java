@@ -1660,10 +1660,7 @@ public class RestoreService implements ClusterStateApplier {
                 // TODO: automatically add runtime field definitions for source-only snapshots
             }
 
-            Map<String, Object> newMapping = new LinkedHashMap<>();
-            newMapping.put(mappingMetadata.type(), newMappingSource);
-
-            MappingMetadata updatedMappingMetadata = new MappingMetadata(mappingMetadata.type(), newMapping);
+            MappingMetadata updatedMappingMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, newMappingSource);
             convertedIndexMetadataBuilder.putMapping(updatedMappingMetadata);
             IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
 
@@ -1689,10 +1686,7 @@ public class RestoreService implements ClusterStateApplier {
                 newMappingSource.clear();
                 newMappingSource.put("_meta", legacyMapping);
 
-                newMapping = new LinkedHashMap<>();
-                newMapping.put(mappingMetadata.type(), newMappingSource);
-
-                updatedMappingMetadata = new MappingMetadata(mappingMetadata.type(), newMapping);
+                updatedMappingMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, newMappingSource);
                 convertedIndexMetadataBuilder.putMapping(updatedMappingMetadata);
                 throw new IllegalArgumentException(e);
             }

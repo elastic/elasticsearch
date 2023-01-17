@@ -95,6 +95,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
+            builder.startObject("_doc");
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.previousMajor().toString());
@@ -108,7 +109,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                 }
                 builder.endObject();
             }
-
+            builder.endObject();
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
@@ -121,6 +122,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
+            builder.startObject("_doc");
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
@@ -137,7 +139,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                 }
                 builder.endObject();
             }
-
+            builder.endObject();
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {

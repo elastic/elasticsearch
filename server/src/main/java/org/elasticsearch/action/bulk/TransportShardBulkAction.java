@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -363,8 +364,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             try {
                 primary.mapperService()
                     .merge(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate()),
+                        new MappingMetadata(new CompressedXContent(result.getRequiredMappingUpdate())),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {

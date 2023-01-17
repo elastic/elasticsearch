@@ -318,7 +318,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             @SuppressWarnings("unchecked")
             Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
-                logger.info("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
+                logger.info("Missing _meta field in mapping of index [{}]", indexName);
                 throw new IllegalStateException("Cannot read security-version string in index " + indexName);
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));

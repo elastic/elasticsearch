@@ -20,6 +20,7 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -254,7 +255,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("foo");
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> indexService.mapperService().parseMapping("type", new CompressedXContent(mapping))
+            () -> indexService.mapperService().parseMapping(new MappingMetadata(new CompressedXContent(mapping)))
         );
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: Unknown Similarity type [unknown_similarity] for field [field1]"));
     }

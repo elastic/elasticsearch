@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -144,7 +145,10 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
             mappings.containsKey(PRIMARY_INDEX_NAME),
             equalTo(true)
         );
-        final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap();
+        final Map<String, Object> sourceAsMap = Map.of(
+            MapperService.SINGLE_MAPPING_NAME,
+            mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap()
+        );
 
         try {
             assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));

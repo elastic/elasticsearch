@@ -41,7 +41,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         // TODO - it will be nice to get a random mapping generator
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties": { "field": { "type": "text" }}}""");
+            { "_doc": { "properties": { "field": { "type": "text" }}}}""");
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
@@ -63,7 +63,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties": { "field": { "type": "text" }}}""").indices(new Index[] { indexService.index() });
+            { "_doc": { "properties": { "field": { "type": "text" }}}}""").indices(new Index[] { indexService.index() });
         final var resultingState1 = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
             mappingService.putMappingExecutor,
@@ -83,7 +83,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties": { "field": { "type": "text" }}}""");
+            { "_doc": { "properties": { "field": { "type": "text" }}}}""");
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
@@ -98,7 +98,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("{ \"properties\": {}}");
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("{ \"_doc\": { \"properties\": {}} }");
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),

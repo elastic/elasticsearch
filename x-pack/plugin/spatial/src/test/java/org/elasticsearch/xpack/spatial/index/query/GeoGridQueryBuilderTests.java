@@ -15,7 +15,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -54,7 +53,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
             GEO_SHAPE_ALIAS_FIELD_NAME,
             "type=alias,path=" + GEO_SHAPE_FIELD_NAME
         );
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(builder)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(toMappingMetadata(builder), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

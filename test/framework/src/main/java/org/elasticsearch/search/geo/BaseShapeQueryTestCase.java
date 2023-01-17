@@ -72,6 +72,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject(defaultFieldName)
                 .field("type", fieldTypeName())
@@ -79,6 +80,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
                 .startObject("alias")
                 .field("type", "alias")
                 .field("path", defaultFieldName)
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -299,9 +301,11 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
     public void testEdgeCases() throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder()
             .startObject()
+            .startObject("_doc")
             .startObject("properties")
             .startObject(defaultFieldName)
             .field("type", fieldTypeName())
+            .endObject()
             .endObject()
             .endObject()
             .endObject();

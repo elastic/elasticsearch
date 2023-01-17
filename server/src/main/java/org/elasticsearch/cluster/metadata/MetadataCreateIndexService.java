@@ -1325,10 +1325,10 @@ public class MetadataCreateIndexService {
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
         final CompressedXContent defaultMapping = indexMode.getDefaultMapping();
         if (defaultMapping != null) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, defaultMapping, MergeReason.INDEX_TEMPLATE);
+            mapperService.merge(new MappingMetadata(defaultMapping), MergeReason.INDEX_TEMPLATE);
         }
         for (CompressedXContent mapping : mappings) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+            mapperService.merge(new MappingMetadata(mapping), MergeReason.INDEX_TEMPLATE);
         }
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 

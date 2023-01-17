@@ -16,6 +16,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -51,26 +52,27 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(
-            "_doc",
-            new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(
-                        TEXT_FIELD_NAME,
-                        "type=text",
-                        INT_FIELD_NAME,
-                        "type=integer",
-                        DOUBLE_FIELD_NAME,
-                        "type=double",
-                        BOOLEAN_FIELD_NAME,
-                        "type=boolean",
-                        DATE_FIELD_NAME,
-                        "type=date",
-                        OBJECT_FIELD_NAME,
-                        "type=object",
-                        GEO_POINT_FIELD_NAME,
-                        "type=geo_point",
-                        "nested1",
-                        "type=nested"
+            new MappingMetadata(
+                new CompressedXContent(
+                    Strings.toString(
+                        PutMappingRequest.simpleMapping(
+                            TEXT_FIELD_NAME,
+                            "type=text",
+                            INT_FIELD_NAME,
+                            "type=integer",
+                            DOUBLE_FIELD_NAME,
+                            "type=double",
+                            BOOLEAN_FIELD_NAME,
+                            "type=boolean",
+                            DATE_FIELD_NAME,
+                            "type=date",
+                            OBJECT_FIELD_NAME,
+                            "type=object",
+                            GEO_POINT_FIELD_NAME,
+                            "type=geo_point",
+                            "nested1",
+                            "type=nested"
+                        )
                     )
                 )
             ),

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -257,7 +258,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             )
         );
 
-        DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
+        DocumentMapper documentMapper = mapperService.merge(new MappingMetadata(mapping), MergeReason.MAPPING_RECOVERY);
 
         assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
     }

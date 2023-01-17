@@ -34,7 +34,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -135,72 +134,68 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         indexService = createIndex("test");
         mapperService = indexService.mapperService();
 
-        String mapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "text")
-                .endObject()
-                .startObject("field1")
-                .field("type", "text")
-                .endObject()
-                .startObject("field2")
-                .field("type", "text")
-                .endObject()
-                .startObject("_field3")
-                .field("type", "text")
-                .endObject()
-                .startObject("field4")
-                .field("type", "text")
-                .endObject()
-                .startObject("number_field1")
-                .field("type", "integer")
-                .endObject()
-                .startObject("number_field2")
-                .field("type", "long")
-                .endObject()
-                .startObject("number_field3")
-                .field("type", "long")
-                .endObject()
-                .startObject("number_field4")
-                .field("type", "half_float")
-                .endObject()
-                .startObject("number_field5")
-                .field("type", "float")
-                .endObject()
-                .startObject("number_field6")
-                .field("type", "double")
-                .endObject()
-                .startObject("number_field7")
-                .field("type", "ip")
-                .endObject()
-                .startObject("date_field")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder mapper = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .endObject()
+            .startObject("field2")
+            .field("type", "text")
+            .endObject()
+            .startObject("_field3")
+            .field("type", "text")
+            .endObject()
+            .startObject("field4")
+            .field("type", "text")
+            .endObject()
+            .startObject("number_field1")
+            .field("type", "integer")
+            .endObject()
+            .startObject("number_field2")
+            .field("type", "long")
+            .endObject()
+            .startObject("number_field3")
+            .field("type", "long")
+            .endObject()
+            .startObject("number_field4")
+            .field("type", "half_float")
+            .endObject()
+            .startObject("number_field5")
+            .field("type", "float")
+            .endObject()
+            .startObject("number_field6")
+            .field("type", "double")
+            .endObject()
+            .startObject("number_field7")
+            .field("type", "ip")
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(mapper), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     private void addQueryFieldMappings() throws Exception {
         fieldName = randomAlphaOfLength(4);
-        String percolatorMapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .startObject("properties")
-                .startObject(fieldName)
-                .field("type", "percolator")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder percolatorMapper = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject(fieldName)
+            .field("type", "percolator")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
     }
 
@@ -616,23 +611,21 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         addQueryFieldMappings();
         IndexService indexServiceWithoutSettings = createIndex("test1", Settings.EMPTY);
 
-        String percolatorMapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("doc")
-                .startObject("properties")
-                .startObject(fieldName)
-                .field("type", "percolator")
-                .field("index", "no")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder percolatorMapper = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("doc")
+            .startObject("properties")
+            .startObject(fieldName)
+            .field("type", "percolator")
+            .field("index", "no")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> indexServiceWithoutSettings.mapperService()
-                .merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE)
+                .merge(toMappingMetadata(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE)
         );
         assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
@@ -640,22 +633,20 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     // multiple percolator fields are allowed in the mapping, but only one field can be used at index time.
     public void testMultiplePercolatorFields() throws Exception {
         String typeName = "doc";
-        String percolatorMapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(typeName)
-                .startObject("properties")
-                .startObject("query_field1")
-                .field("type", "percolator")
-                .endObject()
-                .startObject("query_field2")
-                .field("type", "percolator")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder percolatorMapper = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(typeName)
+            .startObject("properties")
+            .startObject("query_field1")
+            .field("type", "percolator")
+            .endObject()
+            .startObject("query_field2")
+            .field("type", "percolator")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper()
@@ -679,24 +670,22 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     // percolator field can be nested under an object field, but only one query can be specified per document
     public void testNestedPercolatorField() throws Exception {
         String typeName = "doc";
-        String percolatorMapper = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(typeName)
-                .startObject("properties")
-                .startObject("object_field")
-                .field("type", "object")
-                .startObject("properties")
-                .startObject("query_field")
-                .field("type", "percolator")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder percolatorMapper = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(typeName)
+            .startObject("properties")
+            .startObject("object_field")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("query_field")
+            .field("type", "percolator")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(toMappingMetadata(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         QueryBuilder queryBuilder = matchQuery("field", "value");
         ParsedDocument doc = mapperService.documentMapper()
@@ -808,22 +797,17 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyName() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("")
-                .field("type", "percolator")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapperService.parseMapping("type1", new CompressedXContent(mapping))
-        );
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("")
+            .field("type", "percolator")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.parseMapping(toMappingMetadata(mapping)));
         assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
     }
 

@@ -11,8 +11,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
@@ -40,7 +38,7 @@ public class GeoBoundingBoxQueryBuilderGeoShapeTests extends GeoBoundingBoxQuery
             GEO_SHAPE_ALIAS_FIELD_NAME,
             "type=alias,path=" + GEO_SHAPE_FIELD_NAME
         );
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(builder)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(toMappingMetadata(builder), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

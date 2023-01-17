@@ -3129,7 +3129,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertThat(requestedMappingUpdates, hasKey("_doc"));
         assertThat(requestedMappingUpdates.get("_doc").source().string(), equalTo("""
-            {"properties":{"foo":{"type":"text"}}}"""));
+            {"_doc":{"properties":{"foo":{"type":"text"}}}}"""));
 
         closeShards(sourceShard, targetShard);
     }

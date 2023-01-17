@@ -230,8 +230,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * </pre>
      */
     public CreateIndexRequest mapping(String mapping) {
-        this.mappings = mapping;
-        return this;
+        return mapping(new BytesArray(mapping), null);
     }
 
     /**
@@ -262,7 +261,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
         return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
     }
@@ -278,10 +276,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(Strings.toString(builder));
+            this.mappings = Strings.toString(builder);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
+        return this;
     }
 
     /**

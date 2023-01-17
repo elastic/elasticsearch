@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.crypto.SecretKeyFactory;
@@ -489,7 +488,6 @@ public enum Hasher {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int HMAC_SHA512_BLOCK_SIZE_IN_BITS = 128;
     private static final int PBKDF2_MIN_SALT_LENGTH_IN_BYTES = 8;
-    private static final Set<Integer> PBKDF2_VALID_ITERATIONS = Set.of(1000, 10000, 50000, 100000, 500000, 1000000);
 
     /**
      * Returns a {@link Hasher} instance of the appropriate algorithm and associated cost as
@@ -625,23 +623,14 @@ public enum Hasher {
         if (separator == -1) {
             throw new IllegalArgumentException("unknown hash format");
         }
-        final int iterations;
         try {
-            iterations = Integer.parseInt(new String(hash, prefix.length(), separator - prefix.length()));
+            return Integer.parseInt(new String(hash, prefix.length(), separator - prefix.length()));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("hash must include a valid iteration number", e);
         }
-        if (PBKDF2_VALID_ITERATIONS.contains(iterations) == false) {
-            throw new IllegalArgumentException(
-                "[" + iterations + "] is not one of the supported iteration values for [" + prefix + "] hash function"
-            );
-        }
-        return iterations;
     }
 
     private static boolean verifyPbkdf2Hash(SecureString data, char[] hash, String prefix) {
-        // Hash is expected to be in the following format:
-        // {PBKDF2|PBKDF2_STRETCH}<iterations>$<base64_salt>$<base64_derived_key>
         if (CharArrays.charsBeginsWith(prefix, hash) == false) {
             return false;
         }
@@ -688,10 +677,6 @@ public enum Hasher {
     }
 
     private static boolean verifyPbkdf2Hash(SecureString data, int iterations, int keyLength, char[] saltChars, char[] hashChars) {
-        if (PBKDF2_VALID_ITERATIONS.contains(iterations) == false) {
-            throw new ElasticsearchException("[" + iterations + "] is not one of the supported iteration values for PBKDF2 hash function");
-        }
-        // We allow derived key lengths which are multiple of block size.
         if (keyLength <= 0 || keyLength % HMAC_SHA512_BLOCK_SIZE_IN_BITS != 0) {
             throw new ElasticsearchException(
                 "PBKDF2 key length must be positive and multiple of [" + HMAC_SHA512_BLOCK_SIZE_IN_BITS + "] bits"

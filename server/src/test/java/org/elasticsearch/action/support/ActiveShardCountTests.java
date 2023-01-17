@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -102,6 +103,30 @@ public class ActiveShardCountTests extends ESTestCase {
         runTestForOneActiveShard(ActiveShardCount.DEFAULT);
     }
 
+    public void testEnoughShardsActiveLevelDefaultWithNonDefaultRoles() {
+        final String indexName = "test-idx";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(4, 7);
+        ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas, new ShardRoutingRoleStrategy() {
+            @Override
+            public ShardRouting.Role newEmptyRole(int copyIndex) {
+                return copyIndex == 0 ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
+            }
+
+            @Override
+            public ShardRouting.Role newReplicaRole() {
+                return ShardRouting.Role.SEARCH_ONLY;
+            }
+        });
+        assertFalse(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        clusterState = startPrimaries(clusterState, indexName);
+        assertFalse(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        clusterState = startLessThanWaitOnShards(clusterState, indexName, 1);
+        assertTrue(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        clusterState = startAllShards(clusterState, indexName);
+        assertTrue(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+    }
+
     public void testEnoughShardsActiveRandom() {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
@@ -166,12 +191,11 @@ public class ActiveShardCountTests extends ESTestCase {
         }
     }
 
-    private void runTestForOneActiveShard(final ActiveShardCount activeShardCount) {
+    private void runTestForOneActiveShard(final ActiveShardCount waitForActiveShards) {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(4, 7);
-        assert activeShardCount == ActiveShardCount.ONE || activeShardCount == ActiveShardCount.DEFAULT;
-        final ActiveShardCount waitForActiveShards = activeShardCount;
+        assert waitForActiveShards == ActiveShardCount.ONE || waitForActiveShards == ActiveShardCount.DEFAULT;
         ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas);
         assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startPrimaries(clusterState, indexName);
@@ -180,7 +204,11 @@ public class ActiveShardCountTests extends ESTestCase {
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
     }
 
-    private ClusterState initializeWithNewIndex(final String indexName, final int numShards, final int numReplicas) {
+    private ClusterState initializeWithNewIndex(String indexName, int numShards, int numReplicas) {
+        return initializeWithNewIndex(indexName, numShards, numReplicas, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+    }
+
+    private ClusterState initializeWithNewIndex(String indexName, int numShards, int numReplicas, ShardRoutingRoleStrategy strategy) {
         // initial index creation and new routing table info
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
@@ -188,9 +216,7 @@ public class ActiveShardCountTests extends ESTestCase {
             .numberOfReplicas(numReplicas)
             .build();
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(indexMetadata)
-            .build();
+        final RoutingTable routingTable = RoutingTable.builder(strategy).addAsNew(indexMetadata).build();
         return ClusterState.builder(new ClusterName("test_cluster")).metadata(metadata).routingTable(routingTable).build();
     }
 

@@ -45,23 +45,22 @@ public class IndexShardRoutingTable {
 
     final ShardShuffler shuffler;
     final ShardId shardId;
-
+    final ShardRouting[] shards;
     final ShardRouting primary;
     final List<ShardRouting> replicas;
-    final ShardRouting[] shards;
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
-    final boolean allShardsStarted;
-
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
      * If we can come up with a better variable name, it would be nice...
      */
     final List<ShardRouting> allInitializingShards;
+    final boolean allShardsStarted;
+    final int activeSearchShardCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
-        this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+        this.shardId = shardId;
         this.shards = shards.toArray(ShardRouting[]::new);
 
         ShardRouting primary = null;
@@ -70,6 +69,7 @@ public class IndexShardRoutingTable {
         List<ShardRouting> assignedShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
         boolean allShardsStarted = true;
+        int activeSearchShardCount = 0;
         for (ShardRouting shard : this.shards) {
             if (shard.primary()) {
                 assert primary == null : "duplicate primary: " + primary + " vs " + shard;
@@ -79,6 +79,9 @@ public class IndexShardRoutingTable {
             }
             if (shard.active()) {
                 activeShards.add(shard);
+                if (shard.role().isSearchable()) {
+                    activeSearchShardCount++;
+                }
             }
             if (shard.initializing()) {
                 allInitializingShards.add(shard);
@@ -97,12 +100,13 @@ public class IndexShardRoutingTable {
                 allShardsStarted = false;
             }
         }
-        this.allShardsStarted = allShardsStarted;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
+        this.allShardsStarted = allShardsStarted;
+        this.activeSearchShardCount = activeSearchShardCount;
     }
 
     /**
@@ -459,6 +463,13 @@ public class IndexShardRoutingTable {
      */
     public boolean allShardsStarted() {
         return allShardsStarted;
+    }
+
+    /**
+     * @return the count of active shards that are searchable
+     */
+    public int getActiveSearchShardCount() {
+        return activeSearchShardCount;
     }
 
     @Nullable

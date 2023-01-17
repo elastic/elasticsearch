@@ -492,7 +492,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             throw t;
         }
 
-        var error = secretsLoader.autoConfigure(env, terminal, autoConfigDate, (p) -> {
+        var autoConfigureResult = secretsLoader.autoConfigure(env, terminal, autoConfigDate, (p) -> {
             try {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
                 transportKeystore.load(null);
@@ -534,13 +534,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
         });
 
-        if (error != null) {
+        if (autoConfigureResult.autoConfigureError() != null) {
             try {
                 deleteDirectory(tempGeneratedTlsCertsDir);
             } catch (Exception ex) {
-                error.addSuppressed(ex);
+                autoConfigureResult.autoConfigureError().addSuppressed(ex);
             }
-            throw error;
+            throw autoConfigureResult.autoConfigureError();
         }
 
         try {
@@ -564,7 +564,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
-                secretsLoader.onAutoConfigureFailure(env);
+                // let the secrets store do its own cleanup
+                autoConfigureResult.onFailure().apply(env);
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
@@ -738,7 +739,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             });
         } catch (Throwable t) {
             try {
-                secretsLoader.onAutoConfigureFailure(env);
+                // let the secrets store do its own cleanup
+                autoConfigureResult.onFailure().apply(env);
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
@@ -757,8 +759,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
             throw t;
         }
-        // only delete the backed-up keystore file if all went well, because the new keystore contains its entries
-        secretsLoader.onAutoConfigureSuccess(env);
+        // only cleanup if all went well, because the new secrets store contains its entries
+        autoConfigureResult.onSuccess().apply(env);
     }
 
     private String initialMasterNodesSettingValue(Environment environment) {

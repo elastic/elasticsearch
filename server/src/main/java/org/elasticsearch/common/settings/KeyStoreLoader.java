@@ -48,7 +48,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     }
 
     @Override
-    public Exception autoConfigure(
+    public AutoConfigureResult autoConfigure(
         Environment env,
         Terminal terminal,
         ZonedDateTime autoConfigDate,
@@ -66,11 +66,15 @@ public class KeyStoreLoader implements SecureSettingsLoader {
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
             } catch (Exception t) {
-                return t;
+                return new AutoConfigureResult(
+                    t,
+                    (e) -> onAutoConfigureSuccess(e, keystoreBackupPath),
+                    (e) -> onAutoConfigureFailure(e, keystoreBackupPath)
+                );
             }
         }
 
-        AtomicReference<SecureString> password = new AtomicReference<>(new SecureString(new char[0]));
+        AtomicReference<SecureString> password = new AtomicReference<>(null);
 
         try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
             password.set(new SecureString(terminal.readSecret("")));
@@ -119,16 +123,25 @@ public class KeyStoreLoader implements SecureSettingsLoader {
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
-            return t;
+            return new AutoConfigureResult(
+                t,
+                (e) -> onAutoConfigureSuccess(e, keystoreBackupPath),
+                (e) -> onAutoConfigureFailure(e, keystoreBackupPath)
+            );
         } finally {
-            password.get().close();
+            if (password.get() != null) {
+                password.get().close();
+            }
         }
 
-        return null;
+        return new AutoConfigureResult(
+            null,
+            (e) -> onAutoConfigureSuccess(e, keystoreBackupPath),
+            (e) -> onAutoConfigureFailure(e, keystoreBackupPath)
+        );
     }
 
-    @Override
-    public void onAutoConfigureFailure(Environment env) throws Exception {
+    private void onAutoConfigureFailure(Environment env, Path keystoreBackupPath) throws Exception {
         assert keystoreBackupPath != null;
         final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
 
@@ -145,9 +158,9 @@ public class KeyStoreLoader implements SecureSettingsLoader {
         }
     }
 
-    @Override
-    public void onAutoConfigureSuccess(Environment env) throws Exception {
+    public void onAutoConfigureSuccess(Environment env, Path keystoreBackupPath) throws Exception {
         assert keystoreBackupPath != null;
+        // only delete the backed-up keystore file if all went well, because the new keystore contains its entries
         Files.deleteIfExists(keystoreBackupPath);
     }
 

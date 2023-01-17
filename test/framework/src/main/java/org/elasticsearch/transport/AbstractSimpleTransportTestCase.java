@@ -15,6 +15,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -120,7 +121,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract Transport build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+    protected abstract Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake);
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
@@ -206,7 +207,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
-        Transport transport = build(updatedSettings, version, clusterSettings, doHandshake);
+        Transport transport = build(updatedSettings, version.transportVersion, clusterSettings, doHandshake);
         MockTransportService service = MockTransportService.createNewService(
             updatedSettings,
             transport,

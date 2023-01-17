@@ -191,13 +191,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
         VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
     }
 
-    /* To help migrate from Version.minimumCompatibilityVersion() */
-    @Deprecated
-    public TransportVersion minimumCompatibilityVersion() {
-        assert this == CURRENT;
-        return MINIMUM_COMPATIBLE;
-    }
-
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -235,6 +228,18 @@ public class TransportVersion implements Comparable<TransportVersion> {
     TransportVersion(int id, String uniqueId) {
         this.id = id;
         this.uniqueId = Strings.requireNonEmpty(uniqueId, "Each TransportVersion needs a unique string id");
+    }
+
+    /* To help migrate from Version.minimumCompatibilityVersion() */
+    @Deprecated
+    public TransportVersion minimumCompatibilityVersion() {
+        assert this == CURRENT;
+        return MINIMUM_COMPATIBLE;
+    }
+
+    @Deprecated
+    public boolean isCompatible(TransportVersion version) {
+        return this.compareTo(MINIMUM_COMPATIBLE) >= 0 && version.compareTo(MINIMUM_COMPATIBLE) >= 0;
     }
 
     public boolean after(TransportVersion version) {

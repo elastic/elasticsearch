@@ -488,6 +488,8 @@ public enum Hasher {
     private static final int PBKDF2_KEY_LENGTH = 256;
     private static final int BCRYPT_DEFAULT_COST = 10;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    public static final int HMAC_SHA512_BLOCK_SIZE_IN_BITS = 128;
+    public static final int PBKDF2_MIN_SALT_LENGHT_IN_BYTES = 8;
 
     /**
      * Returns a {@link Hasher} instance of the appropriate algorithm and associated cost as
@@ -689,12 +691,15 @@ public enum Hasher {
         if (PBKDF2_VALID_ITERATIONS.contains(iterations) == false) {
             throw new ElasticsearchException("[" + iterations + "] is not one of the supported iteration values for PBKDF2 hash function");
         }
-        if (keyLength <= 0 || keyLength % 128 != 0) {
-            throw new ElasticsearchException("PBKDF2 key length must be positive and multiple of 128 bits");
+        // We allow derived key lengths which are multiple of block size.
+        if (keyLength <= 0 || keyLength % HMAC_SHA512_BLOCK_SIZE_IN_BITS != 0) {
+            throw new ElasticsearchException(
+                "PBKDF2 key length must be positive and multiple of [" + HMAC_SHA512_BLOCK_SIZE_IN_BITS + "] bits"
+            );
         }
         final byte[] saltBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars));
-        if (saltBytes.length < 8) {
-            throw new ElasticsearchException("PBKDF2 salt must be at leas 8 bytes long");
+        if (saltBytes.length < PBKDF2_MIN_SALT_LENGHT_IN_BYTES) {
+            throw new ElasticsearchException("PBKDF2 salt must be at least [" + PBKDF2_MIN_SALT_LENGHT_IN_BYTES + "] bytes long");
         }
         char[] computedPwdHash = null;
         try {

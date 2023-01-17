@@ -5,6 +5,15 @@
     display-name: "elastic / elasticsearch # %BRANCH% - DRA staging"
     description: "Publishing Daily Releasable Artifacts (DRAs) of Elasticsearch %BRANCH% staging.\n"
     node: "ubuntu-20.04"
+    parameters:
+      - string:
+          name: BEATS_BUILD_ID
+          default: ""
+          description: "The build id of the beats dependency to use\n"
+      - string:
+          name: ML_CPP_BUILD_ID
+          default: ""
+          description: "The build id of the ml-cpp dependency to use\n"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -25,8 +34,12 @@
                   | grep elasticsearch \
                   | sed "s/elasticsearch *= *//g")
             VERSION_SUFFIX="" && [[ "$WORKFLOW" == "snapshot" ]] && VERSION_SUFFIX="-SNAPSHOT"
-            BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats $RM_BRANCH $ES_VERSION $WORKFLOW)"
-            ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp $RM_BRANCH $ES_VERSION $WORKFLOW)"
+            if [ -z "$BEATS_BUILD_ID" ]; then
+              BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats $RM_BRANCH $ES_VERSION $WORKFLOW)"
+            fi
+            if [ -z "$ML_CPP_BUILD_ID" ]; then
+              ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp $RM_BRANCH $ES_VERSION $WORKFLOW)"
+            fi
             set -euo pipefail
             set +x
             VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)

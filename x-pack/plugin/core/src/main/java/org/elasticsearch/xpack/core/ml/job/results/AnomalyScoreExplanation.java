@@ -31,6 +31,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     public static final ParseField UPPER_CONFIDENCE_BOUND = new ParseField("upper_confidence_bound");
     public static final ParseField HIGH_VARIANCE_PENALTY = new ParseField("high_variance_penalty");
     public static final ParseField INCOMPLETE_BUCKET_PENALTY = new ParseField("incomplete_bucket_penalty");
+    public static final ParseField MULTIMODAL_DISTRIBUTION = new ParseField("multimodal_distribution");
 
     public static final ObjectParser<AnomalyScoreExplanation, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<AnomalyScoreExplanation, Void> LENIENT_PARSER = createParser(true);
@@ -51,6 +52,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         parser.declareDouble(AnomalyScoreExplanation::setUpperConfidenceBound, UPPER_CONFIDENCE_BOUND);
         parser.declareBoolean(AnomalyScoreExplanation::setHighVariancePenalty, HIGH_VARIANCE_PENALTY);
         parser.declareBoolean(AnomalyScoreExplanation::setIncompleteBucketPenalty, INCOMPLETE_BUCKET_PENALTY);
+        parser.declareBoolean(AnomalyScoreExplanation::setMultimodalDistribution, MULTIMODAL_DISTRIBUTION);
         return parser;
     }
 
@@ -64,6 +66,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     private Double upperConfidenceBound;
     private Boolean highVariancePenalty;
     private Boolean incompleteBucketPenalty;
+    private Boolean multimodalDistribution;
 
     AnomalyScoreExplanation() {}
 
@@ -78,6 +81,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         this.upperConfidenceBound = in.readOptionalDouble();
         this.highVariancePenalty = in.readOptionalBoolean();
         this.incompleteBucketPenalty = in.readOptionalBoolean();
+        this.multimodalDistribution = in.readOptionalBoolean();
     }
 
     @Override
@@ -92,6 +96,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         out.writeOptionalDouble(upperConfidenceBound);
         out.writeOptionalBoolean(highVariancePenalty);
         out.writeOptionalBoolean(incompleteBucketPenalty);
+        out.writeOptionalBoolean(multimodalDistribution);
     }
 
     @Override
@@ -127,6 +132,9 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (incompleteBucketPenalty != null) {
             builder.field(INCOMPLETE_BUCKET_PENALTY.getPreferredName(), incompleteBucketPenalty);
         }
+        if (multimodalDistribution != null) {
+            builder.field(MULTIMODAL_DISTRIBUTION.getPreferredName(), multimodalDistribution);
+        }
         builder.endObject();
         return builder;
     }
@@ -143,7 +151,8 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
             typicalValue,
             upperConfidenceBound,
             highVariancePenalty,
-            incompleteBucketPenalty
+            incompleteBucketPenalty,
+            multimodalDistribution
         );
     }
 
@@ -166,7 +175,8 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
             && Objects.equals(this.typicalValue, that.typicalValue)
             && Objects.equals(this.upperConfidenceBound, that.upperConfidenceBound)
             && Objects.equals(this.highVariancePenalty, that.highVariancePenalty)
-            && Objects.equals(this.incompleteBucketPenalty, that.incompleteBucketPenalty);
+            && Objects.equals(this.incompleteBucketPenalty, that.incompleteBucketPenalty)
+            && Objects.equals(this.multimodalDistribution, that.multimodalDistribution);
     }
 
     public String getAnomalyType() {
@@ -247,6 +257,14 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
 
     public void setIncompleteBucketPenalty(Boolean incompleteBucketPenalty) {
         this.incompleteBucketPenalty = incompleteBucketPenalty;
+    }
+
+    public Boolean isMultimodalDistribution() {
+        return multimodalDistribution;
+    }
+
+    public void setMultimodalDistribution(Boolean multimodalDistribution) {
+        this.multimodalDistribution = multimodalDistribution;
     }
 
 }

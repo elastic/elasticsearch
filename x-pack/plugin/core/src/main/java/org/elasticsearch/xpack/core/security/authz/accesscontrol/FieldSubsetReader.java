@@ -22,7 +22,9 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorValues;
@@ -161,6 +163,34 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         f = new FieldFilterFields(f);
         // we need to check for emptyness, so we can return null:
         return f.iterator().hasNext() ? f : null;
+    }
+
+    @Override
+    public TermVectors termVectors() throws IOException {
+        TermVectors termVectors = super.termVectors();
+        return new TermVectors() {
+            @Override
+            public Fields get(int doc) throws IOException {
+                Fields f = termVectors.get(doc);
+                if (f == null) {
+                    return null;
+                }
+                f = new FieldFilterFields(f);
+                // we need to check for emptyness, so we can return null:
+                return f.iterator().hasNext() ? f : null;
+            }
+        };
+    }
+
+    @Override
+    public StoredFields storedFields() throws IOException {
+        StoredFields storedFields = super.storedFields();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+            }
+        };
     }
 
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */

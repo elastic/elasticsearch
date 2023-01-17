@@ -6,6 +6,7 @@
 # excluded.
 centos-6
 debian-8
+debian-11
 opensuse-leap-15.1
 ol-6.10
 ol-7.7

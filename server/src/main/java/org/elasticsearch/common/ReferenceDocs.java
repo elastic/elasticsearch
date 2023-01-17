@@ -34,6 +34,7 @@ public enum ReferenceDocs {
     UNSTABLE_CLUSTER_TROUBLESHOOTING,
     LAGGING_NODE_TROUBLESHOOTING,
     CONCURRENT_REPOSITORY_WRITERS,
+    ARCHIVE_INDICES,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

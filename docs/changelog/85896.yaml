@@ -1,0 +1,6 @@
+pr: 85896
+summary: Fewer `ThreadLocals` in version/seqno resolver
+area: CRUD
+type: bug
+issues:
+ - 56766

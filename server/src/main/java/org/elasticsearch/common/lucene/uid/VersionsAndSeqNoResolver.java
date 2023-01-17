@@ -12,69 +12,71 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentMap;
 
 /** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
 public final class VersionsAndSeqNoResolver {
 
-    static final ConcurrentMap<IndexReader.CacheKey, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]>> lookupStates =
-        ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private static final PerThreadIDVersionAndSeqNoLookup[] EMPTY_LOOKUP = new PerThreadIDVersionAndSeqNoLookup[0];
 
-    // Evict this reader from lookupStates once it's closed:
-    private static final IndexReader.ClosedListener removeLookupState = key -> {
-        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.remove(key);
-        if (ctl != null) {
-            ctl.close();
-        }
-    };
+    private static final ThreadLocal<PerThreadVersionsAndSeqNoResolver> resolversByThread = ThreadLocal.withInitial(
+        PerThreadVersionsAndSeqNoResolver::new
+    );
 
-    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField) throws IOException {
-        // We cache on the top level
+    private static class PerThreadVersionsAndSeqNoResolver {
+        // We cache on the top level.
         // This means cache entries have a shorter lifetime, maybe as low as 1s with the
         // default refresh interval and a steady indexing rate, but on the other hand it
         // proved to be cheaper than having to perform a CHM and a TL get for every segment.
         // See https://github.com/elastic/elasticsearch/pull/19856.
-        IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
-        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
-        if (ctl == null) {
-            // First time we are seeing this reader's core; make a new CTL:
-            ctl = new CloseableThreadLocal<>();
-            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> other = lookupStates.putIfAbsent(cacheHelper.getKey(), ctl);
-            if (other == null) {
-                // Our CTL won, we must remove it when the reader is closed:
-                cacheHelper.addClosedListener(removeLookupState);
-            } else {
-                // Another thread beat us to it: just use their CTL:
-                ctl = other;
-            }
+
+        private final Map<IndexReader.CacheKey, PerThreadIDVersionAndSeqNoLookup[]> lookupsByReader = ConcurrentCollections
+            .newConcurrentMap();
+
+        private void removeLookup(IndexReader.CacheKey cacheKey) {
+            lookupsByReader.remove(cacheKey); // not called on the owning thread, hence the need for a CHM.
         }
 
-        PerThreadIDVersionAndSeqNoLookup[] lookupState = ctl.get();
-        if (lookupState == null) {
-            lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
-            for (LeafReaderContext leaf : reader.leaves()) {
-                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField);
-            }
-            ctl.set(lookupState);
-        }
-
-        if (lookupState.length != reader.leaves().size()) {
-            throw new AssertionError("Mismatched numbers of leaves: " + lookupState.length + " != " + reader.leaves().size());
-        }
-
-        if (lookupState.length > 0 && Objects.equals(lookupState[0].uidField, uidField) == false) {
-            throw new AssertionError(
-                "Index does not consistently use the same uid field: [" + uidField + "] != [" + lookupState[0].uidField + "]"
+        private PerThreadIDVersionAndSeqNoLookup[] getLookupState(
+            IndexReader.CacheHelper cacheHelper,
+            List<LeafReaderContext> leaves,
+            String uidField
+        ) throws IOException {
+            assert leaves.isEmpty() == false;
+            final var lookupState = lookupsByReader.computeIfAbsent(
+                cacheHelper.getKey(),
+                ignored -> new PerThreadIDVersionAndSeqNoLookup[leaves.size()]
             );
+            if (lookupState[0] == null) {
+                for (final var leaf : leaves) {
+                    assert lookupState[leaf.ord] == null;
+                    lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField);
+                }
+                cacheHelper.addClosedListener(this::removeLookup);
+            }
+            assert lookupState.length == leaves.size();
+            assert Arrays.stream(lookupState).allMatch(leafLookup -> leafLookup != null && Objects.equals(leafLookup.uidField, uidField));
+            return lookupState;
         }
+    }
 
-        return lookupState;
+    // exposed for tests
+    static int getCurrentThreadCacheSize() {
+        return resolversByThread.get().lookupsByReader.size();
+    }
+
+    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField) throws IOException {
+        final var leaves = reader.leaves();
+        if (leaves.isEmpty()) {
+            return EMPTY_LOOKUP;
+        }
+        return resolversByThread.get().getLookupState(reader.getReaderCacheHelper(), leaves, uidField);
     }
 
     private VersionsAndSeqNoResolver() {}

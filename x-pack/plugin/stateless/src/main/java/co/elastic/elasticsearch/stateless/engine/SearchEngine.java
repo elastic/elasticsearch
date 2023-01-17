@@ -405,6 +405,6 @@ public class SearchEngine extends Engine {
 
     @Override
     public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
-        return null;
+        return ShardLongFieldRange.UNKNOWN;
     }
 }

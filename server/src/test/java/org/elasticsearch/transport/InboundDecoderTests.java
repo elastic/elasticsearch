@@ -87,7 +87,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
-            assertEquals(Version.CURRENT, header.getVersion());
+            assertEquals(TransportVersion.CURRENT, header.getVersion());
             assertFalse(header.isCompressed());
             assertFalse(header.isHandshake());
             if (isRequest) {
@@ -184,7 +184,7 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
-        TransportVersion handshakeCompat = TransportVersion.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        TransportVersion handshakeCompat = TransportVersion.CURRENT.calculateMinimumCompatVersion().calculateMinimumCompatVersion();
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -267,7 +267,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
-            assertEquals(Version.CURRENT, header.getVersion());
+            assertEquals(TransportVersion.CURRENT, header.getVersion());
             assertTrue(header.isCompressed());
             assertFalse(header.isHandshake());
             if (isRequest) {
@@ -307,7 +307,7 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
-        TransportVersion handshakeCompat = TransportVersion.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        TransportVersion handshakeCompat = TransportVersion.CURRENT.calculateMinimumCompatVersion().calculateMinimumCompatVersion();
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -344,7 +344,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersion.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        TransportVersion incompatibleVersion = TransportVersion.CURRENT.calculateMinimumCompatVersion().calculateMinimumCompatVersion();
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -382,26 +382,26 @@ public class InboundDecoderTests extends ESTestCase {
         );
         assertNull(ise);
 
-        TransportVersion version = TransportVersion.V_8_0_0;
-        ise = InboundDecoder.ensureVersionCompatibility(TransportVersion.V_7_0_0, version, true);
-        assertNull(ise);
-
-        ise = InboundDecoder.ensureVersionCompatibility(TransportVersion.V_7_0_0, version, false);
-        assertEquals(
-            "Received message from unsupported version: [7.0.0] minimal compatible version is: ["
-                + version.minimumCompatibilityVersion()
-                + "]",
-            ise.getMessage()
-        );
-
-        // For handshake we are compatible with N-2
+        TransportVersion version = Version.fromString("7.0.0").transportVersion;
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0").transportVersion, version, true);
         assertNull(ise);
 
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0").transportVersion, version, false);
         assertEquals(
-            "Received message from unsupported version: [6.0.0] minimal compatible version is: ["
-                + version.minimumCompatibilityVersion()
+            "Received message from unsupported version: [6000099] minimal compatible version is: ["
+                + version.calculateMinimumCompatVersion()
+                + "]",
+            ise.getMessage()
+        );
+
+        // For handshake we are compatible with N-2
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0").transportVersion, version, true);
+        assertNull(ise);
+
+        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0").transportVersion, version, false);
+        assertEquals(
+            "Received message from unsupported version: [5060099] minimal compatible version is: ["
+                + version.calculateMinimumCompatVersion()
                 + "]",
             ise.getMessage()
         );

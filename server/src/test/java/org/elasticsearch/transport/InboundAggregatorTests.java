@@ -90,7 +90,7 @@ public class InboundAggregatorTests extends ESTestCase {
         assertFalse(aggregated.isPing());
         assertTrue(aggregated.getHeader().isRequest());
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
-        assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
+        assertThat(aggregated.getHeader().getVersion(), equalTo(TransportVersion.CURRENT));
         for (ReleasableBytesReference reference : references) {
             assertTrue(reference.hasReferences());
         }

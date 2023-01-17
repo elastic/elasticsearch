@@ -217,7 +217,8 @@ public class InboundPipelineTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final TransportVersion invalidVersion = TransportVersion.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+            final TransportVersion invalidVersion = TransportVersion.CURRENT
+                .calculateMinimumCompatVersion().calculateMinimumCompatVersion();
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();

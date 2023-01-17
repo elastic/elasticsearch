@@ -49,10 +49,9 @@ import java.util.function.Consumer;
 /**
  * A {@link LeafReader} over a lucene document that exposes doc values and stored fields.
  * Note that unlike lucene's {@link MemoryIndex} implementation, this holds no state and
- * does not attempt to do any analysis on text fields.  It also supports stored
- * fields where MemoryIndex does not.  It is used to back index-time scripts that
- * reference field data and stored fields from a document that has not yet been
- * indexed.
+ * does not attempt to do any analysis on text fields.  It is used to back index-time
+ * scripts that reference field data and stored fields from a document that has not yet
+ * been indexed.
  */
 class DocumentLeafReader extends LeafReader {
 
@@ -179,6 +178,11 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
+    public StoredFields storedFields() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CacheHelper getCoreCacheHelper() {
         throw new UnsupportedOperationException();
     }
@@ -255,11 +259,6 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public TermVectors termVectors() throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public StoredFields storedFields() throws IOException {
         throw new UnsupportedOperationException();
     }
 

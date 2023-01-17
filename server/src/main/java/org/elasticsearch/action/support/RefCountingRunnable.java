@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The delegate action is completed when execution leaves the try-with-resources block and every acquired reference is released. Unlike a
  * {@link CountDown} there is no need to declare the number of subsidiary actions up front (refs can be acquired dynamically as needed) nor
  * does the caller need to check for completion each time a reference is released. Moreover even outside the try-with-resources block you
- * can continue to acquire additional listeners, even in a separate thread, as long as there's at least one listener outstanding:
+ * can continue to acquire additional references, even in a separate thread, as long as there's at least one reference outstanding:
  *
  * <pre>
  * try (var refs = new RefCountingRunnable(finalRunnable)) {

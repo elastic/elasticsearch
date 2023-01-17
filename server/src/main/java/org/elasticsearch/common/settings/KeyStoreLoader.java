@@ -167,8 +167,12 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     @Override
     public Exception removeAutoConfiguration(Environment env, Terminal terminal) {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
-            SecureString password = new SecureString(terminal.readSecret(""));
-            try (KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile())) {
+            try (
+                KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
+                SecureString password = existingKeystore.hasPassword()
+                    ? new SecureString(terminal.readSecret("Enter password for the elasticsearch keystore: "))
+                    : new SecureString(new char[0])
+            ) {
                 existingKeystore.decrypt(password.getChars());
                 List<String> secureSettingsToRemove = List.of(
                     "xpack.security.transport.ssl.keystore.secure_password",
@@ -191,8 +195,6 @@ public class KeyStoreLoader implements SecureSettingsLoader {
                 existingKeystore.save(env.configFile(), password.getChars());
             } catch (Exception e) {
                 return e;
-            } finally {
-                password.close();
             }
         }
 

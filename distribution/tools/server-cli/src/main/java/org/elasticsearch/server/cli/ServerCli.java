@@ -76,10 +76,6 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, origEnv);
 
-        String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command autoConfigureCommand = loadTool("auto-configure-node", autoConfigLibs);
-        assert autoConfigureCommand instanceof EnvironmentAwareCommand;
-
         AtomicReference<Environment> env = new AtomicReference<>(origEnv);
 
         try (var secrets = secureSettingsLoader(env.get()).load(env.get(), terminal, (p) -> {

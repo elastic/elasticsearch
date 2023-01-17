@@ -127,14 +127,14 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         }
         return new NodeCachesStatsResponse(
             clusterService.localNode(),
-            frozenCacheStats.getNumberOfRegions(),
-            frozenCacheStats.getSize(),
-            frozenCacheStats.getRegionSize(),
-            frozenCacheStats.getWriteCount(),
-            frozenCacheStats.getWriteBytes(),
-            frozenCacheStats.getReadCount(),
-            frozenCacheStats.getReadBytes(),
-            frozenCacheStats.getEvictCount()
+            frozenCacheStats.numberOfRegions(),
+            frozenCacheStats.size(),
+            frozenCacheStats.regionSize(),
+            frozenCacheStats.writeCount(),
+            frozenCacheStats.writeBytes(),
+            frozenCacheStats.readCount(),
+            frozenCacheStats.readBytes(),
+            frozenCacheStats.evictCount()
         );
     }
 

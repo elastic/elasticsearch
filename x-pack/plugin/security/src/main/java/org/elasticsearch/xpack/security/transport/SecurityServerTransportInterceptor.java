@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -293,11 +292,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
-                // TODO remove
-                final Subject effectiveSubject = securityContext.getAuthentication().getEffectiveSubject();
-                assert false == User.isInternal(effectiveSubject.getUser()) || SystemUser.is(effectiveSubject.getUser())
-                    : "unexpected internal user [" + effectiveSubject.getUser().principal() + "]";
-
                 final String remoteClusterAlias = optionalRemoteClusterAlias.get();
                 final String remoteClusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
                 if (remoteClusterCredential == null) {
@@ -312,6 +306,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
+                final Subject effectiveSubject = securityContext.getAuthentication().getEffectiveSubject();
                 if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
@@ -356,7 +351,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
                 if (User.isInternal(authentication.getEffectiveSubject().getUser())) {
-                    assertInternalUserUsedCrossCluster(authentication.getEffectiveSubject().getUser());
+                    assertInternalUserExpectedInCrossClusterRequest(authentication.getEffectiveSubject().getUser());
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         remoteAccessCredentials.writeToContext(threadContext);
                         // Access control is handled differently for internal users. Privileges are defined by the fulfilling cluster,
@@ -382,8 +377,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
 
-            private void assertInternalUserUsedCrossCluster(final User user) {
-                if (false == (SystemUser.is(user) || AsyncSearchUser.is(user))) {
+            private void assertInternalUserExpectedInCrossClusterRequest(final User user) {
+                if (false == (SystemUser.is(user))) {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
                     throw new IllegalStateException(message);

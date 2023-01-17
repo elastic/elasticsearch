@@ -1,4 +1,4 @@
-ext.stableApiSince = "8.5.0"
+ext.stableApiSince = "8.7.0"
 
 apply plugin: 'elasticsearch.stable-api'
 

@@ -122,8 +122,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             "assemble"
         );
 
-        // only run this section for versions where the stable projects would exist
-        if (bwcVersion.get().onOrAfter(Version.fromString("8.5.0"))) {
+        // only run this section for projects after the release of the stable API
+        if (bwcVersion.get().onOrAfter(Version.fromString("8.7.0"))) {
             for (Project stableApiProject : resolveStableProjects(project)) {
 
                 String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());

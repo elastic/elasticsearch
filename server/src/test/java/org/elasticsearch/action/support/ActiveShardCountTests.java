@@ -130,7 +130,7 @@ public class ActiveShardCountTests extends ESTestCase {
         assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startLessThanWaitOnShards(clusterState, indexName, activeShardCount - 2);
         assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
-        clusterState = startWaitOnShards(clusterState, indexName, activeShardCount - 1);
+        clusterState = startWaitOnShards(clusterState, indexName, activeShardCount);
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startAllShards(clusterState, indexName);
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));

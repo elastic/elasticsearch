@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;

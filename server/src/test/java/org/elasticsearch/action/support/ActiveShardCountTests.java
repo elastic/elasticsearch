@@ -107,25 +107,46 @@ public class ActiveShardCountTests extends ESTestCase {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(4, 7);
-        ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas, new ShardRoutingRoleStrategy() {
-            @Override
-            public ShardRouting.Role newEmptyRole(int copyIndex) {
-                return copyIndex == 0 ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
-            }
-
-            @Override
-            public ShardRouting.Role newReplicaRole() {
-                return ShardRouting.Role.SEARCH_ONLY;
-            }
-        });
-        assertFalse(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        final ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+        ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas, CUSTOM_ROLE_STRATEGY);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startPrimaries(clusterState, indexName);
-        assertFalse(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startLessThanWaitOnShards(clusterState, indexName, 1);
-        assertTrue(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startAllShards(clusterState, indexName);
-        assertTrue(ActiveShardCount.DEFAULT.enoughShardsActive(clusterState, indexName));
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
     }
+
+    public void testEnoughShardsActiveCustomLevelWithNonDefaultRoles() {
+        final String indexName = "test-idx";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(4, 7);
+        final int activeShardCount = randomIntBetween(2, numberOfReplicas);
+        final ActiveShardCount waitForActiveShards = ActiveShardCount.from(activeShardCount);
+        ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas, CUSTOM_ROLE_STRATEGY);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startPrimaries(clusterState, indexName);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startLessThanWaitOnShards(clusterState, indexName, activeShardCount - 2);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startWaitOnShards(clusterState, indexName, activeShardCount - 1);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startAllShards(clusterState, indexName);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+    }
+
+    private static final ShardRoutingRoleStrategy CUSTOM_ROLE_STRATEGY = new ShardRoutingRoleStrategy() {
+        @Override
+        public ShardRouting.Role newEmptyRole(int copyIndex) {
+            return copyIndex == 0 ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
+        }
+
+        @Override
+        public ShardRouting.Role newReplicaRole() {
+            return ShardRouting.Role.SEARCH_ONLY;
+        }
+    };
 
     public void testEnoughShardsActiveRandom() {
         final String indexName = "test-idx";

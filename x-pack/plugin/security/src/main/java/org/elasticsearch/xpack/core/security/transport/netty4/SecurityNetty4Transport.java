@@ -16,6 +16,7 @@ import io.netty.util.concurrent.Future;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -60,7 +61,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     public SecurityNetty4Transport(
         final Settings settings,
-        final Version version,
+        final TransportVersion version,
         final ThreadPool threadPool,
         final NetworkService networkService,
         final PageCacheRecycler pageCacheRecycler,

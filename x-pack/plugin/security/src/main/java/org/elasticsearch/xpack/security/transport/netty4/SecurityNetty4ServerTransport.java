@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -30,7 +31,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public SecurityNetty4ServerTransport(
         final Settings settings,
-        final Version version,
+        final TransportVersion version,
         final ThreadPool threadPool,
         final NetworkService networkService,
         final PageCacheRecycler pageCacheRecycler,

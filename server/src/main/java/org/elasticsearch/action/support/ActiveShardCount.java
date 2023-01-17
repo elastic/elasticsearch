@@ -173,10 +173,12 @@ public record ActiveShardCount(int value) implements Writeable {
             return activeShardCount == shardRoutingTable.size();
         } else if (value == 0) {
             return true;
-        } else if (value == 1 && shardRoutingTable.hasSearchShards()) {
-            return shardRoutingTable.getActiveSearchShardCount() >= 1;
+        } else if (value == 1) {
+            return shardRoutingTable.hasSearchShards() ? shardRoutingTable.getActiveSearchShardCount() >= 1 : activeShardCount >= 1;
         } else {
-            return shardRoutingTable.getActiveSearchShardCount() >= value - 1 && activeShardCount >= value;
+            return shardRoutingTable.hasSearchShards()
+                ? shardRoutingTable.getActiveSearchShardCount() >= value - 1 && activeShardCount >= value // assumes single index shard
+                : activeShardCount >= value;
         }
     }
 

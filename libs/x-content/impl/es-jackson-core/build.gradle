@@ -15,10 +15,6 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
 }
 
-tasks.named('shadowJar').configure {
- // exclude 'com/fasterxml/jackson/core/filter/FilteringParserDelegate$*.class'
-}
-
 ['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {
   tasks.named(it).configure {
     enabled = false
@@ -27,4 +23,10 @@ tasks.named('shadowJar').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
+}
+
+shadowJar {
+  manifest {
+    attributes 'Multi-Release' : 'true'
+  }
 }

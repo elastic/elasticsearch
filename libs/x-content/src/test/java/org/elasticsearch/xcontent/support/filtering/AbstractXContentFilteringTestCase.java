@@ -333,6 +333,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         throws IOException {
         assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes, matchFieldNamesWithDots));
     }
+
     public void testArrayWithEmptyObjectInInclude() throws IOException {
         testFilter(
             builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
@@ -387,6 +388,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             true
         );
     }
+
     protected abstract void assertFilterResult(XContentBuilder expected, XContentBuilder actual);
 
     protected abstract XContentType getXContentType();

@@ -1,7 +1,6 @@
 subprojects {
-  if (subprojects.isEmpty()) {
-    // leaf project
-    apply plugin: 'elasticsearch.java'
-    apply plugin: 'elasticsearch.bwc-test'
-  }
+  apply plugin: 'elasticsearch.java'
+  apply plugin: 'elasticsearch.bwc-test'
+
+  group = 'org.elasticsearch.qa.stable-api'
 }

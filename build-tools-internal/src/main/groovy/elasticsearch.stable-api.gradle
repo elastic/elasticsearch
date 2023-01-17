@@ -7,33 +7,39 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
 
+configurations {
+  newJar
+}
+
+dependencies {
+  newJar project(":libs:${project.name}")
+}
+
 BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
   && it != VersionProperties.elasticsearchVersion
 }) { bwcVersion, baseName ->
 
   BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-  Configuration stableApiConfiguration = configurations.create("stableApi${baseName}") {
-    transitive = false
-  }
-  Object libDependency = null
 
-  if (unreleasedVersion) {
-    // For unreleased snapshot versions, build them from source
-    libDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name)))
-  } else {
-    // For released versions, download it
-    libDependency = "org.elasticsearch:" + project.name + ":${bwcVersion}"
+  configurations {
+    "oldJar${baseName}" {
+      transitive = false
+    }
   }
 
   dependencies {
-    "stableApi${baseName}"(libDependency)
+    if (unreleasedVersion) {
+      // For unreleased snapshot versions, build them from source
+      "oldJar${baseName}"(files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name))))
+    } else {
+      // For released versions, download it
+      "oldJar${baseName}"("org.elasticsearch:${project.name}:${bwcVersion}")
+    }
   }
 
   def jarApiComparisonTask = tasks.register(bwcTaskName(bwcVersion), JarApiComparisonTask) {
-    // TODO: I know cross-project dependencies are bad, but I just wanted to get this working...
-    dependsOn project(":libs:" + project.name).tasks.named("jar")
-    oldJar = stableApiConfiguration
-    newJar = files(project(":libs:" + project.name).tasks.named("jar")).getSingleFile()
+    oldJar = configurations."oldJar${baseName}"
+    newJar = configurations.newJar
   }
 
   jarApiComparisonTask.configure {

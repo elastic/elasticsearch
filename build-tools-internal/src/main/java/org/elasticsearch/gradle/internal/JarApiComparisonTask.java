@@ -8,12 +8,12 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.BufferedReader;
@@ -46,20 +46,21 @@ import java.util.zip.ZipEntry;
  * <p>
  * We also assume that we will not be comparing multi-version JARs.
  */
-public abstract class JarApiComparisonTask extends DefaultTask {
+@CacheableTask
+public abstract class JarApiComparisonTask extends PrecommitTask {
 
     @TaskAction
     public void compare() {
         FileCollection fileCollection = getOldJar().get();
-        File newJarFile = getNewJar().get().getAsFile();
+        File newJarFile = getNewJar().get().getSingleFile();
 
         Set<String> oldJarNames = fileCollection.getFiles().stream().map(File::getName).collect(Collectors.toSet());
         if (oldJarNames.contains(newJarFile.getName())) {
             throw new IllegalStateException("what? " + oldJarNames);
         }
 
-        JarScanner oldJS = new JarScanner(getOldJar().get().getSingleFile().toString());
-        JarScanner newJS = new JarScanner(getNewJar().get().toString());
+        JarScanner oldJS = new JarScanner(getOldJar().get().getSingleFile().getPath());
+        JarScanner newJS = new JarScanner(newJarFile.getPath());
         try {
             JarScanner.compareSignatures(oldJS.jarSignature(), newJS.jarSignature());
         } catch (IOException e) {
@@ -67,11 +68,11 @@ public abstract class JarApiComparisonTask extends DefaultTask {
         }
     }
 
-    @InputFiles
+    @CompileClasspath
     public abstract Property<FileCollection> getOldJar();
 
-    @InputFile
-    public abstract RegularFileProperty getNewJar();
+    @CompileClasspath
+    public abstract Property<FileCollection> getNewJar();
 
     public static class JarScanner {
 

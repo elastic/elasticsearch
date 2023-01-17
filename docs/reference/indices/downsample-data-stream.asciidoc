@@ -14,6 +14,7 @@ a TSDS index that contains metrics sampled every 10 seconds can be downsampled
 to an hourly index. All documents within an hour interval are summarized and
 stored as a single document in the downsample index.
 
+// tag::downsample-example[]
 ////
 [source,console]
 ----
@@ -74,6 +75,7 @@ DELETE _index_template/*
 ----
 // TEST[continued]
 ////
+// end::downsample-example[]
 
 [[downsample-api-request]]
 ==== {api-request-title}

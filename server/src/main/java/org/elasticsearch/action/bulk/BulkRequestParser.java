@@ -57,6 +57,7 @@ public final class BulkRequestParser {
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
     private static final ParseField PIPELINE = new ParseField("pipeline");
+    private static final ParseField SKIP_PIPELINE = new ParseField("skip_pipeline");
     private static final ParseField SOURCE = new ParseField("_source");
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
@@ -206,6 +207,7 @@ public final class BulkRequestParser {
                 long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
+                boolean skipPipeline = false;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
                 Map<String, String> dynamicTemplates = Map.of();
 
@@ -256,6 +258,8 @@ public final class BulkRequestParser {
                                 retryOnConflict = parser.intValue();
                             } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                            } else if (SKIP_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                skipPipeline = parser.booleanValue();
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -339,6 +343,7 @@ public final class BulkRequestParser {
                                     .version(version)
                                     .versionType(versionType)
                                     .setPipeline(pipeline)
+                                    .skipPipeline(skipPipeline)
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
@@ -354,6 +359,7 @@ public final class BulkRequestParser {
                                     .versionType(versionType)
                                     .create("create".equals(opType))
                                     .setPipeline(pipeline)
+                                    .skipPipeline(skipPipeline)
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
@@ -370,6 +376,7 @@ public final class BulkRequestParser {
                                 .versionType(versionType)
                                 .create(true)
                                 .setPipeline(pipeline)
+                                .skipPipeline(skipPipeline)
                                 .setIfSeqNo(ifSeqNo)
                                 .setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
@@ -411,6 +418,7 @@ public final class BulkRequestParser {
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
                             upsertRequest.setPipeline(pipeline);
+                            upsertRequest.skipPipeline(skipPipeline);
                         }
 
                         updateRequestConsumer.accept(updateRequest);

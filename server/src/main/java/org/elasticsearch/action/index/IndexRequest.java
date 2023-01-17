@@ -97,6 +97,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private XContentType contentType;
 
     private String pipeline;
+    private boolean skipPipeline;
     private String finalPipeline;
 
     private boolean isPipelineResolved;
@@ -139,6 +140,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         pipeline = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            skipPipeline = in.readBoolean();
+        } else {
+            skipPipeline = false;
+        }
         if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             finalPipeline = in.readOptionalString();
         }
@@ -311,6 +317,26 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public String getPipeline() {
         return this.pipeline;
+    }
+
+    /**
+     * Sets if the pipeline for this request should be skipped.
+     *
+     * @param skipPipeline true if the pipeline should be skipped
+     * @return the request
+     */
+    public IndexRequest skipPipeline(final boolean skipPipeline) {
+        this.skipPipeline = skipPipeline;
+        return this;
+    }
+
+    /**
+     * Returns whether or not the pipeline for this request should be skipped.
+     *
+     * @return true if the pipeline has been resolved
+     */
+    public boolean skipPipeline() {
+        return this.skipPipeline;
     }
 
     /**
@@ -683,6 +709,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
+        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            out.writeBoolean(skipPipeline);
+        }
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalString(finalPipeline);
         }

@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.is;
+
 public class BulkRequestParserTests extends ESTestCase {
 
     public void testIndexRequest() throws IOException {
@@ -307,6 +309,37 @@ public class BulkRequestParserTests extends ESTestCase {
             "Malformed action/metadata line [1], expected field [create], [delete], [index] or [update] but found [invalidaction]",
             ex.getMessage()
         );
+    }
+
+    public void testSkipPipeline() throws IOException {
+        BytesArray request = new BytesArray("""
+            { "index":{ "_index": "bar", "pipeline": "foo", "skip_pipeline": "true"} }
+            {}
+            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub" } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(
+            request,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            XContentType.JSON,
+            (indexRequest, type) -> indexRequests.add(indexRequest),
+            req -> fail(),
+            req -> fail()
+        );
+        assertThat(indexRequests, Matchers.hasSize(2));
+        final IndexRequest first = indexRequests.get(0);
+        final IndexRequest second = indexRequests.get(1);
+        assertThat(first.skipPipeline(), is(true));
+        assertThat(first.getPipeline(), is("foo"));
+        assertThat(second.skipPipeline(), is(false));
+        assertThat(second.getPipeline(), is("foo"));
     }
 
 }

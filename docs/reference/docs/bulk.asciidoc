@@ -246,6 +246,8 @@ on.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=skip_pipeline]
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `require_alias`::

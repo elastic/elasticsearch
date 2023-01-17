@@ -130,8 +130,8 @@ shards. Statuses are:
     All shards are assigned.
 
   * `yellow`:
-    All primary shards are assigned, but one or more replica shards are 
-    unassigned. If a node in the cluster fails, some data could be unavailable 
+    All primary shards are assigned, but one or more replica shards are
+    unassigned. If a node in the cluster fails, some data could be unavailable
     until that node is repaired.
 
   * `red`:
@@ -715,6 +715,13 @@ tag::pipeline[]
 `pipeline`::
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
+
+tag::skip_pipeline[]
+`skip_pipeline`::
+(Optional, Boolean) If `true`, the pipeline (whether explicit or default) is not
+executed. However the final pipeline (if one exists) is still executed. This paramter
+is meant to support integrations that run pipelines external to {es}.
+end::skip_pipeline[]
 
 tag::pages-processed[]
 The number of search or bulk index operations processed. Documents are

@@ -235,7 +235,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
                     // find the default pipeline if one is defined from an existing index setting
                     defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
-                    indexRequest.setPipeline(defaultPipeline);
+                    setPipelineOrSkip(indexRequest, defaultPipeline);
                 }
                 if (IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {
                     // find the final pipeline if one is defined from an existing index setting
@@ -255,7 +255,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
                     }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
+                    setPipelineOrSkip(indexRequest, Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
                     indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
                 } else {
                     List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
@@ -279,13 +279,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             break;
                         }
                     }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
+                    setPipelineOrSkip(indexRequest, Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
                     indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
                 }
             }
 
             if (requestPipeline != null) {
-                indexRequest.setPipeline(requestPipeline);
+                setPipelineOrSkip(indexRequest, requestPipeline);
             }
 
             /*
@@ -304,6 +304,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // return whether this index request has a pipeline
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
+    }
+
+    private static void setPipelineOrSkip(IndexRequest indexRequest, String pipelineName) {
+        if (indexRequest.skipPipeline()) {
+            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+        } else {
+            indexRequest.setPipeline(pipelineName);
+        }
     }
 
     public ClusterService getClusterService() {

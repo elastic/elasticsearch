@@ -122,4 +122,20 @@ public class RestIndexActionTests extends RestActionTestCase {
         dispatchRequest(deprecatedRequest);
         assertCriticalWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
+
+    public void testSkipPipeline() {
+        final String pipelineName = "foo";
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            assertThat(request, instanceOf(IndexRequest.class));
+            assertThat(((IndexRequest) request).getPipeline(), equalTo(pipelineName));
+            assertThat(((IndexRequest) request).skipPipeline(), equalTo(true));
+            return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
+        });
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/some_index/_doc")
+            .withParams(Map.of("pipeline", pipelineName, "skip_pipeline", "true"))
+            .withContent(new BytesArray("{}"), XContentType.JSON)
+            .build();
+        dispatchRequest(request);
+    }
 }

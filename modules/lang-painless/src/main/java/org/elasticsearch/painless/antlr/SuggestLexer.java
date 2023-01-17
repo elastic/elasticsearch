@@ -1,4 +1,4 @@
-// Generated from java-escape by ANTLR 4.11.1
+// ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.painless.antlr;
 
 import org.antlr.v4.runtime.CharStream;

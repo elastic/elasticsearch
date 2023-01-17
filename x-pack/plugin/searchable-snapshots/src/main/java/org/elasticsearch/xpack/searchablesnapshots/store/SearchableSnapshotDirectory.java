@@ -532,7 +532,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         if (persistentCacheLength == file.length()) {
                             recoveryState.markIndexFileAsReused(file.physicalName());
                         } else {
-                            recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.partBytes(part));
                         }
 
                         logger.trace(

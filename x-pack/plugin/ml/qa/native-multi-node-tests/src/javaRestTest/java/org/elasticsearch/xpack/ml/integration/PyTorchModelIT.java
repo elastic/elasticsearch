@@ -606,7 +606,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=20s");
         request.setJsonEntity("""
             {
               "docs": [
@@ -989,7 +989,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -997,7 +997,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
         request.setJsonEntity("""
             {
               "docs": [ { "input": "%s" } ],

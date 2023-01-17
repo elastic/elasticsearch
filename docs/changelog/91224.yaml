@@ -1,5 +1,0 @@
-pr: 91224
-summary: Allow NLP truncate option to be updated when span is set
-area: Machine Learning
-type: bug
-issues: []

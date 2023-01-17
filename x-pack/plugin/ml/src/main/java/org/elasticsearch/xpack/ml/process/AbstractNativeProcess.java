@@ -257,6 +257,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             } catch (IOException e) {
                 // Ignore it - we're shutting down and the method itself has logged a warning
             }
+
+            LOGGER.debug("[{}] process {} killed", jobId, getName());
         }
     }
 

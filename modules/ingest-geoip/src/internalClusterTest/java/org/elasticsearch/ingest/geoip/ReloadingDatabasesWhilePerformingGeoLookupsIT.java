@@ -201,7 +201,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             configDatabases,
             Runnable::run
         );
-        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
+        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class), mock(ClusterService.class));
         return databaseNodeService;
     }
 

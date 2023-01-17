@@ -45,6 +45,18 @@ starting {es} for the first time, which means that you must
 <<manually-configure-security,manually configure security>>.
 --
 
+`xpack.security.enrollment.enabled`::
+(<<static-cluster-setting,Static>>)
+Defaults to `false`. Controls enrollment (of nodes and {kib}) to a local node
+that's been <<configuring-stack-security, autoconfigured for security>>.
+When set to `true`, the local node can generate new enrollment tokens. Existing
+tokens can be used for enrollment if they are still valid.
++
+--
+The security autoconfiguration process will set this to `true` unless
+an administrator sets it to `false` before starting {es}.
+--
+
 `xpack.security.hide_settings`::
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the

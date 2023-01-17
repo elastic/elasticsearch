@@ -1,0 +1,5 @@
+pr: 92493
+summary: Unsafe bootstrap memory optimization
+area: Cluster Coordination
+type: bug
+issues: []

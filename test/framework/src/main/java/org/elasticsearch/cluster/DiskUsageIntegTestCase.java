@@ -172,11 +172,11 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                     }
                     return total;
                 } catch (IOException | DirectoryIteratorException e) {
-                    if (isFileNotFoundException(e) == false) {
-                        throw e;
+                    if (isFileNotFoundException(e) || e instanceof AccessDeniedException) {
+                        // probably removed (Windows sometimes throws AccessDeniedException after a file has been deleted)
+                        return 0L;
                     }
-                    // probably removed
-                    return 0L;
+                    throw e;
                 }
             }
         }

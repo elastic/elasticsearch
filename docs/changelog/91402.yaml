@@ -1,5 +1,0 @@
-pr: 91402
-summary: Fix EQLSearchRequest serialization (bwc)
-area: EQL
-type: bug
-issues: []

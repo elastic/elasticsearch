@@ -894,7 +894,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             if (listenerHasBeenCalled.getAndSet(true)) {
-                logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
                 assert false : "A listener was unexpectedly called more than once";
             } else {
                 long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
@@ -928,13 +928,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
                         indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
                     } catch (IllegalArgumentException ex) {
-                        // An IllegalArgumentException can be thrown when an ingest
-                        // processor creates a source map that is self-referencing.
-                        // In that case, we catch and wrap the exception so we can
-                        // include which pipeline failed.
+                        // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                        // In that case, we catch and wrap the exception, so we can include which pipeline failed.
                         totalMetrics.ingestFailed();
                         handler.accept(
                             new IllegalArgumentException(
+                                "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
+                                ex
+                            )
+                        );
+                        return;
+                    } catch (Exception ex) {
+                        // If anything goes wrong here, we want to know, and cannot proceed with normal execution. For example,
+                        // *rarely*, a ConcurrentModificationException could be thrown if a pipeline leaks a reference to a shared mutable
+                        // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
+                        // no self references.
+                        totalMetrics.ingestFailed();
+                        handler.accept(
+                            new RuntimeException(
                                 "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
                                 ex
                             )

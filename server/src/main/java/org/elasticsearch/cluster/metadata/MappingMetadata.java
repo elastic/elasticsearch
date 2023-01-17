@@ -54,6 +54,12 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata>, ToXCont
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
+    /**
+     * Create MappingMetadata from compressed XContent
+     *
+     * The xcontent should have a containing map whose key is a type - typically '_doc'. This
+     * will be discarded when the mapping is returned via {@link #sourceAsMap()}
+     */
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         // TODO do this via pull parsing - we don't need to reify the whole map!
@@ -67,6 +73,11 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata>, ToXCont
         }
     }
 
+    /**
+     * Create MappingMetadata from a java map
+     * @param type      the type, typically _doc
+     * @param mapping   the mappings, which may or not be wrapped with the type
+     */
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {

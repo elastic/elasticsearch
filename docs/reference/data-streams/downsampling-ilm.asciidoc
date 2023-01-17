@@ -38,7 +38,7 @@ To enable downsampling, add a <<ilm-downsample,Downsample action>> and set
 <<ilm-downsample-options,`fixed_interval`>> to the downsampling interval at
 which you want to aggregate the original time series data.
 
-In this example, an ILM policy is configired for the `hot` phase. The downsample
+In this example, an ILM policy is configured for the `hot` phase. The downsample
 takes place after the initial index rollover, which for demonstration
 purposes is set to run after five minutes.
 

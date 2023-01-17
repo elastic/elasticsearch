@@ -63,6 +63,10 @@ public abstract class BlockDocValuesReader {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {
                 final SortedNumericDoubleValues doubleValues = numericVS.doubleValues(leafReaderContext);
+                final NumericDoubleValues singleton = FieldData.unwrapSingleton(doubleValues);
+                if (singleton != null) {
+                    return new DoubleSingletonValuesReader(singleton);
+                }
                 return new DoubleValuesReader(doubleValues);
             } else {
                 final SortedNumericDocValues longValues = numericVS.longValues(leafReaderContext);
@@ -152,12 +156,12 @@ public abstract class BlockDocValuesReader {
         }
     }
 
-    private static class DoubleValuesReader extends BlockDocValuesReader {
+    private static class DoubleSingletonValuesReader extends BlockDocValuesReader {
         private final NumericDoubleValues numericDocValues;
         private int docID = -1;
 
-        DoubleValuesReader(SortedNumericDoubleValues numericDocValues) {
-            this.numericDocValues = FieldData.unwrapSingleton(numericDocValues);
+        DoubleSingletonValuesReader(NumericDoubleValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
         }
 
         @Override
@@ -173,6 +177,45 @@ public abstract class BlockDocValuesReader {
                 }
                 if (numericDocValues.advanceExact(doc)) {
                     blockBuilder.appendDouble(numericDocValues.doubleValue());
+                } else {
+                    blockBuilder.appendNull();
+                }
+                lastDoc = doc;
+                this.docID = doc;
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+    }
+
+    private static class DoubleValuesReader extends BlockDocValuesReader {
+        private final SortedNumericDoubleValues numericDocValues;
+        private int docID = -1;
+
+        DoubleValuesReader(SortedNumericDoubleValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
+            int lastDoc = -1;
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (lastDoc >= doc) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                if (numericDocValues.advanceExact(doc)) {
+                    if (numericDocValues.docValueCount() != 1) {
+                        throw new UnsupportedOperationException("only single valued fields supported for now");
+                    }
+                    blockBuilder.appendDouble(numericDocValues.nextValue());
                 } else {
                     blockBuilder.appendNull();
                 }

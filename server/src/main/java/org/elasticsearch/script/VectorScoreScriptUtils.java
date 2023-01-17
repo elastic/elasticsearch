@@ -53,14 +53,17 @@ public class VectorScoreScriptUtils {
             super(scoreScript, field);
             DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
             this.queryVector = new byte[queryVector.size()];
+            float[] validateValues = new float[queryVector.size()];
             int queryMagnitude = 0;
             for (int i = 0; i < queryVector.size(); i++) {
-                byte value = queryVector.get(i).byteValue();
+                final Number number = queryVector.get(i);
+                byte value = number.byteValue();
                 this.queryVector[i] = value;
                 queryMagnitude += value * value;
+                validateValues[i] = number.floatValue();
             }
             this.qvMagnitude = (float) Math.sqrt(queryMagnitude);
-            // field.getElementType().checkVectorBounds(vector);
+            field.getElementType().checkVectorBounds(validateValues);
         }
     }
 

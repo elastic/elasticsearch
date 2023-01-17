@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -284,6 +285,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
+    }
+
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getByteVectorValues(field) : null;
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
         return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
     }
 

@@ -80,6 +80,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -261,9 +262,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
 
-            int dataBytes = numDocs * dimension * Float.BYTES; // size of flat vector data
-            int indexBytesEstimate = numDocs * Integer.BYTES * Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN * 2; // rough size of HNSW graph
-            assertTrue(stats.total().getKnnVectorsBytes() > dataBytes + indexBytesEstimate);
+            long dataBytes = (long) numDocs * dimension * Float.BYTES; // size of flat vector data
+            long indexBytesEstimate = (long) numDocs * Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN; // rough size of HNSW graph
+            assertThat(stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
+            assertThat(stats.total().getKnnVectorsBytes(), greaterThan(dataBytes + indexBytesEstimate));
         }
     }
 

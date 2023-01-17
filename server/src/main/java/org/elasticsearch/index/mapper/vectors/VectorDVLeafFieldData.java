@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.VectorValues;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -56,10 +55,9 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
         try {
             if (indexed) {
-                VectorValues values = reader.getVectorValues(field);
                 return switch (elementType) {
-                    case BYTE -> new ByteKnnDenseVectorDocValuesField(values, name, elementType, dims);
-                    case FLOAT -> new KnnDenseVectorDocValuesField(values, name, elementType, dims);
+                    case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
+                    case FLOAT -> new KnnDenseVectorDocValuesField(reader.getVectorValues(field), name, dims);
                 };
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);

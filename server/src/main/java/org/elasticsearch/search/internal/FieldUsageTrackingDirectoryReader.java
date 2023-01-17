@@ -10,6 +10,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
@@ -193,6 +194,24 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 notifier.onKnnVectorsUsed(field);
             }
             return vectorValues;
+        }
+
+        @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            ByteVectorValues vectorValues = super.getByteVectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+            if (topDocs != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return topDocs;
         }
 
         @Override

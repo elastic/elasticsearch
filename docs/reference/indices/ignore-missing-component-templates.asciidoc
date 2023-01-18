@@ -1,7 +1,7 @@
 [[ignore_missing_component_templates]]
 == Config ignore_missing_component_templates
 
-The configuration option `ignore_missing_component_templates` can be used when an index template references a component template that might not exist yet. Every time a data stream is create based on the index template, the existance of the component template will be checked. If it exists, it will taken as part of the mapping. If it does not exist, it is ignored.
+The configuration option `ignore_missing_component_templates` can be used when an index template references a component template that might not exist. Every time a data stream is created based on the index template, the existence of the component template will be checked. If it exists, it will used to form the index's composite settings. If it does not exist, it is ignored.
 
 === Usage example
 

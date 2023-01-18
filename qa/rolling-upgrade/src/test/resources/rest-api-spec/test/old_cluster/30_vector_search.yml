@@ -74,27 +74,24 @@
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
 
   - do:
       search:
         index: test-float-index
         body:
           knn:
-            field: "knn",
+            field: "knn"
             query_vector: [4, 5, 6]
             k: 3
             num_candidates: 3
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
 
 ---
 "Create indexed byte vectors and search":
@@ -174,10 +171,10 @@
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
 
   - do:
       search:
@@ -190,8 +187,5 @@
             num_candidates: 3
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }

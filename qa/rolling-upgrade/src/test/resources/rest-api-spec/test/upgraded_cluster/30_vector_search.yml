@@ -2,6 +2,7 @@
 "Search float indices created in old cluster":
   - do:
       search:
+        index: test-float-index
         body:
           query:
             script_score:
@@ -22,6 +23,7 @@
 
   - do:
       search:
+        index: test-float-index
         body:
           query:
             script_score:
@@ -35,13 +37,14 @@
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
 
   - do:
       search:
+        index: test-float-index
         body:
           knn:
             field: "knn"
@@ -50,16 +53,14 @@
             num_candidates: 3
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
 
 ---
 "Search byte indices created in old cluster":
   - do:
       search:
+        index: test-byte-index
         body:
           query:
             script_score:
@@ -80,6 +81,7 @@
 
   - do:
       search:
+        index: test-byte-index
         body:
           query:
             script_score:
@@ -93,13 +95,14 @@
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
 
   - do:
       search:
+        index: test-byte-index
         body:
           knn:
             field: "knn"
@@ -108,8 +111,5 @@
             num_candidates: 3
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }

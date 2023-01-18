@@ -11,19 +11,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.security.user.CrossClusterSearchUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class RemoteAccessAuthenticator implements Authenticator {
 
@@ -76,28 +81,43 @@ public class RemoteAccessAuthenticator implements Authenticator {
             ActionListener.wrap(authResult -> {
                 if (authResult.isAuthenticated()) {
                     final Authentication receivedAuthentication = remoteAccessCredentials.remoteAccessAuthentication().getAuthentication();
+                    final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList;
                     final User user = receivedAuthentication.getEffectiveSubject().getUser();
-                    if (CrossClusterSearchUser.is(user)) {
-                        listener.onResponse(
-                            AuthenticationResult.success(Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName))
-                        );
-                    } else {
-                        assert false == User.isInternal(user)
+                    if (User.isInternal(user)) {
+                        assert false == SystemUser.is(user)
                             : "received cross cluster request from an unexpected internal user [" + user.principal() + "]";
-                        final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
-                        authMetadata.put(
-                            AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
-                            remoteAccessCredentials.remoteAccessAuthentication().getRoleDescriptorsBytesList()
-                        );
-                        listener.onResponse(
-                            AuthenticationResult.success(
-                                Authentication.newRemoteAccessAuthentication(
-                                    AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),
-                                    nodeName
+                        roleDescriptorsBytesList = RemoteAccessAuthentication.toRoleDescriptorsBytesList(
+                            new RoleDescriptorsIntersection(
+                                List.of(
+                                    Set.of(
+                                        new RoleDescriptor(
+                                            "_remote_system",
+                                            new String[] { ClusterStateAction.NAME },
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            Map.of(),
+                                            null,
+                                            null
+                                        )
+                                    )
                                 )
                             )
                         );
+                    } else {
+                        roleDescriptorsBytesList = remoteAccessCredentials.remoteAccessAuthentication().getRoleDescriptorsBytesList();
                     }
+                    final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
+                    authMetadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, roleDescriptorsBytesList);
+                    listener.onResponse(
+                        AuthenticationResult.success(
+                            Authentication.newRemoteAccessAuthentication(
+                                AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),
+                                nodeName
+                            )
+                        )
+                    );
                 } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                     listener.onFailure(
                         (authResult.getException() != null)

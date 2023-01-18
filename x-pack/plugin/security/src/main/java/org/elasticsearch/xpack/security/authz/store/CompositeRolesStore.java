@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -109,7 +108,6 @@ public class CompositeRolesStore {
     private final Role securityProfileRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
-    private final Role crossClusterSearchUserRole;
     private final RestrictedIndices restrictedIndices;
 
     public CompositeRolesStore(
@@ -173,11 +171,6 @@ public class CompositeRolesStore {
         this.xpackUserRole = Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
         this.asyncSearchUserRole = Role.buildFromRoleDescriptor(
             AsyncSearchUser.ROLE_DESCRIPTOR,
-            fieldPermissionsCache,
-            this.restrictedIndices
-        );
-        this.crossClusterSearchUserRole = Role.buildFromRoleDescriptor(
-            CrossClusterSearchUser.ROLE_DESCRIPTOR,
             fieldPermissionsCache,
             this.restrictedIndices
         );
@@ -248,9 +241,6 @@ public class CompositeRolesStore {
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
-        }
-        if (CrossClusterSearchUser.is(user)) {
-            return crossClusterSearchUserRole;
         }
         return null;
     }

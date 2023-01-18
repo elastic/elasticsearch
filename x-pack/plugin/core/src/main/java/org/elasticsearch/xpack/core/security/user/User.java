@@ -152,8 +152,7 @@ public class User implements ToXContentObject {
             || XPackUser.is(user)
             || XPackSecurityUser.is(user)
             || SecurityProfileUser.is(user)
-            || AsyncSearchUser.is(user)
-            || CrossClusterSearchUser.is(user);
+            || AsyncSearchUser.is(user);
     }
 
     /** Write the given {@link User} */

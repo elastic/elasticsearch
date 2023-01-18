@@ -265,6 +265,13 @@ public class HasherTests extends ESTestCase {
             "admin",
             false
         );
+        check(
+            "{PBKDF2}100000$"
+                + "V+G8sM59pOTQ77ElFvIvbQ==$"
+                + "alomPA4LKmmu5d/y8BZI1fb5SnxxI6ClTFqe6vH3JJaz3cxrWfki5EO6Wy5eLuNr2BAdMVN0jnHGdsZzS+k+vw==",
+            "ginger",
+            true
+        );
 
         // PBKDF2withHMACSHA512, 8 byte salt, 128 bits key
         check("{PBKDF2}10000$vT/GxENkGSc=$4/b2cEHvSeAqzEoTM+RAYA==", "s3cr3t", true);

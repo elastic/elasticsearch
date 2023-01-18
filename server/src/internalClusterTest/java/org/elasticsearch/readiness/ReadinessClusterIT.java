@@ -327,10 +327,17 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
     }
 
     private void causeClusterStateUpdate() throws ExecutionException, InterruptedException {
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
-        // This should succeed, it's never a reserved state in this test
-        client().admin().cluster().updateSettings(req).get();
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                }
+            });
     }
 }

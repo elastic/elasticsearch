@@ -8,7 +8,7 @@ The configuration option `ignore_missing_component_templates` can be used when a
 In the following, one component template and an index template are created. The index template references two component templates, but only the `@package` one exists.
 
 
-Create of the component template `logs-foo@package`. This has to be created before the index template as it is not optional:
+Create the component template `logs-foo@package`. This has to be created before the index template as it is not optional:
 
 [source,console]
 ----

@@ -90,6 +90,10 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.targetRelocatingShard = initializeTargetRelocatingShard();
 
         assert relocationFailureInfo != null : "relocation failure info must be always set";
+        assert assertConsistent();
+    }
+
+    private boolean assertConsistent() {
         switch (state) {
             case UNASSIGNED -> {
                 assert currentNodeId == null : state + " shard must not be assigned to a node " + this;

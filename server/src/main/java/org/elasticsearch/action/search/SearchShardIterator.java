@@ -50,14 +50,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(
-            clusterAlias,
-            shardId,
-            shards.stream().filter(ShardRouting::isSearchable).map(ShardRouting::currentNodeId).toList(),
-            originalIndices,
-            null,
-            null
-        );
+        // TODO ensure all target nodes hold shards with a searchable ShardRoutingRole - at the moment, searches don't check this
+        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null);
     }
 
     public SearchShardIterator(

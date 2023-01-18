@@ -128,7 +128,7 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
         int idx = 0;
         for (int i = minXTile; i <= maxXTile; i++) {
             for (int j = minYTile; j <= maxYTile; j++) {
-                GeoRelation relation = relateTile(geoValue, i, j, precision);
+                final GeoRelation relation = relateTile(geoValue, i, j, precision);
                 if (relation != GeoRelation.QUERY_DISJOINT) {
                     values.resizeCell(idx + 1);
                     values.add(idx++, GeoTileUtils.longEncodeTiles(precision, i, j));
@@ -154,15 +154,15 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
         zTile++;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {
-                int nextX = 2 * xTile + i;
-                int nextY = 2 * yTile + j;
-                GeoRelation relation = relateTile(geoValue, nextX, nextY, zTile);
+                final int nextX = 2 * xTile + i;
+                final int nextY = 2 * yTile + j;
+                final GeoRelation relation = relateTile(geoValue, nextX, nextY, zTile);
                 if (GeoRelation.QUERY_INSIDE == relation) {
                     if (zTile == precision) {
                         values.resizeCell(getNewSize(valuesIndex, 1));
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        int numTilesAtPrecision = getNumTilesAtPrecision(precision, zTile);
+                        final int numTilesAtPrecision = getNumTilesAtPrecision(precision, zTile);
                         values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
                         valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex);
                     }
@@ -180,7 +180,7 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
     }
 
     private int getNewSize(int valuesIndex, int increment) {
-        long newSize = (long) valuesIndex + increment;
+        final long newSize = (long) valuesIndex + increment;
         if (newSize > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Tile aggregation array overflow");
         }
@@ -196,6 +196,16 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
     }
 
     protected abstract int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex);
+
+    protected int setValues(GeoShapeCellValues values, int valuesIndex, int minY, int maxY, int minX, int maxX) {
+        for (int i = minX; i < maxX; i++) {
+            for (int j = minY; j < maxY; j++) {
+                assert validTile(i, j, precision);
+                values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
+            }
+        }
+        return valuesIndex;
+    }
 
     /**
      * Bounded geotile aggregation. It accepts tiles that intersects the provided bounds.
@@ -220,7 +230,6 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
         }
 
         @Override
-        @SuppressWarnings("HiddenField")
         protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
             // For every level we go down, we half each dimension. The total number of splits is equal to 1 << (levelEnd - levelStart)
             final int splits = 1 << precision - zTile;
@@ -232,34 +241,18 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
             final int maxY = Math.min(predicate.maxY(), yTile * splits + splits);
             // Do the same for the X dimension taking into account that the bounding box might cross the dateline.
             if (predicate.crossesDateline()) {
-                final int eastMinX = xTile * splits;
                 final int westMinX = Math.max(predicate.leftX(), xTile * splits);
+                final int westMaxX = xTile * splits + splits;
+                valuesIndex = setValues(values, valuesIndex, minY, maxY, westMinX, westMaxX);
                 // when the left and right box land in the same tile, we need to make sure we don't count then twice
                 final int eastMaxX = Math.min(westMinX, Math.min(predicate.rightX(), xTile * splits + splits));
-                final int westMaxX = xTile * splits + splits;
-                for (int i = eastMinX; i < eastMaxX; i++) {
-                    for (int j = minY; j < maxY; j++) {
-                        assert predicate.validTile(i, j, precision);
-                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
-                    }
-                }
-                for (int i = westMinX; i < westMaxX; i++) {
-                    for (int j = minY; j < maxY; j++) {
-                        assert predicate.validTile(i, j, precision);
-                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
-                    }
-                }
+                final int eastMinX = xTile * splits;
+                return setValues(values, valuesIndex, minY, maxY, eastMinX, eastMaxX);
             } else {
-                final int _minX = Math.max(predicate.leftX(), xTile * splits);
-                final int _maxX = Math.min(predicate.rightX(), xTile * splits + splits);
-                for (int i = _minX; i < _maxX; i++) {
-                    for (int j = minY; j < maxY; j++) {
-                        assert predicate.validTile(i, j, precision);
-                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
-                    }
-                }
+                final int minX = Math.max(predicate.leftX(), xTile * splits);
+                final int maxX = Math.min(predicate.rightX(), xTile * splits + splits);
+                return setValues(values, valuesIndex, minY, maxY, minX, maxX);
             }
-            return valuesIndex;
         }
     }
 
@@ -295,13 +288,7 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
             // The end value of a dimension is calculated by adding to the start value the number of splits
             final int maxX = minX + splits;
             final int maxY = minY + splits;
-            for (int i = minX; i < maxX; i++) {
-                for (int j = minY; j < maxY; j++) {
-                    assert validTile(i, j, precision);
-                    values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
-                }
-            }
-            return valuesIndex;
+            return setValues(values, valuesIndex, minY, maxY, minX, maxX);
         }
     }
 }

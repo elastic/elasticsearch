@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.scanner;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleClass;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleInterface;
 import org.elasticsearch.plugin.scanner.test_model.TestNamedComponent;
@@ -100,6 +101,9 @@ public class NamedComponentScannerTests extends ESTestCase {
                 )
             )
         );
+
+        // aggressively delete the jar dir, so that any leaked filed handles fail this specific test on windows
+        IOUtils.rm(tmp);
     }
 
     public void testNamedComponentsCanExtednCommonSuperClass() throws IOException {
@@ -174,6 +178,9 @@ public class NamedComponentScannerTests extends ESTestCase {
                 )
             )
         );
+
+        // aggressively delete the jar dir, so that any leaked filed handles fail this specific test on windows
+        IOUtils.rm(tmp);
     }
 
     public void testWriteToFile() throws IOException {

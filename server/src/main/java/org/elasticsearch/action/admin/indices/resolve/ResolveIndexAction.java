@@ -138,6 +138,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public boolean includeDataStreams() {
+            // request must allow data streams because the index name expression resolver for the action handler assumes it
             return true;
         }
     }
@@ -473,7 +474,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
-            assert request.includeDataStreams() : "expression resolver includes datastreams but request doesn't allow it";
             resolveIndices(localIndices, clusterState, indexNameExpressionResolver, indices, aliases, dataStreams);
 
             if (remoteClusterIndices.size() > 0) {

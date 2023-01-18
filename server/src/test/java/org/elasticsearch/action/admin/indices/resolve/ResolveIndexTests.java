@@ -227,7 +227,7 @@ public class ResolveIndexTests extends ESTestCase {
             .metadata(buildMetadata(new Object[][] {}, indices))
             .build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
-        Set<String> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, requestedIndex);
+        Set<String> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, true, requestedIndex);
         assertThat(resolvedIndices.size(), is(1));
         assertThat(resolvedIndices, contains(oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix)));
     }

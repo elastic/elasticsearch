@@ -548,7 +548,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, names);
+            Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
             for (String s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
             }

@@ -440,7 +440,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
-        private final IndexNameExpressionResolver indexAbstractionResolver;
+        private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
 
         @Inject
@@ -455,7 +455,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
-            this.indexAbstractionResolver = indexNameExpressionResolver;
+            this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
@@ -479,7 +479,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     localIndices.indices(),
                     localIndices.indicesOptions(),
                     clusterState,
-                    indexAbstractionResolver,
+                    indexNameExpressionResolver,
                     indices,
                     aliases,
                     dataStreams

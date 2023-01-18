@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.readiness;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -31,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -258,6 +260,10 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
+        // we need this after we setup the listener above, in case the node started and processed
+        // settings before we set our listener to cluster state changes.
+        causeClusterStateUpdate();
+
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
         assertTrue(masterFileSettingsService.watching());
@@ -318,5 +324,13 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
         ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
         tcpReadinessProbeTrue(s);
+    }
+
+    private void causeClusterStateUpdate() throws ExecutionException, InterruptedException {
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().put("search.allow_expensive_queries", "false")
+        );
+        // This should succeed, it's never a reserved state in this test
+        client().admin().cluster().updateSettings(req).get();
     }
 }

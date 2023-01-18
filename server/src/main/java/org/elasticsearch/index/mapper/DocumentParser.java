@@ -232,7 +232,6 @@ public final class DocumentParser {
             rootBuilder.addRuntimeField(runtimeField);
         }
         RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic()));
-        root.fixRedundantIncludes();
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 

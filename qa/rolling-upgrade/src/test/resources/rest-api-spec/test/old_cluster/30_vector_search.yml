@@ -85,8 +85,8 @@
         body:
           knn:
             field: "knn",
-            query_vector: [4, 5, 6],
-            k: 3,
+            query_vector: [4, 5, 6]
+            k: 3
             num_candidates: 3
 
   - match: { hits.hits.0._id: "3" }
@@ -184,9 +184,9 @@
         index: test-byte-index
         body:
           knn:
-            field: "knn",
-            query_vector: [4, 5, 6],
-            k: 3,
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
             num_candidates: 3
 
   - match: { hits.hits.0._id: "3" }

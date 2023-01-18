@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +71,13 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
             assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
             assertThat(failure.getCause().getStackTrace(), emptyArray());
             // We don't write out the entire, repetitive stacktrace in the reason
-            assertThat(failure.reason(), equalTo("org.elasticsearch.action.NoShardAvailableActionException\n"));
+            assertThat(
+                failure.reason(),
+                anyOf(
+                    equalTo("org.elasticsearch.action.NoShardAvailableActionException\n"),
+                    equalTo("org.elasticsearch.action.NoShardAvailableActionException\r\n")
+                )
+            );
         }
     }
 

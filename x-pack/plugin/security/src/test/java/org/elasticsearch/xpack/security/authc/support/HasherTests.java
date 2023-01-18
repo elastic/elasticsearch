@@ -250,6 +250,9 @@ public class HasherTests extends ESTestCase {
     }
 
     public void testPbkdf2ArbitrarySaltAndKeyLengths() {
+        // In FIPS 140 mode, passwords for PBKDF2 need to be at least 14 chars (112 bits)
+        assumeFalse("This should not run in FIPS mode", inFipsJvm());
+
         // PBKDF2withHMACSHA512, 16 byte salt, 512 bits key
         check(
             "{PBKDF2}10000$"

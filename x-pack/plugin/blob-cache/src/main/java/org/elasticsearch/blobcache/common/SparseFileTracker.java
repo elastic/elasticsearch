@@ -9,7 +9,7 @@ package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
@@ -243,30 +243,7 @@ public class SparseFileTracker {
                     .collect(Collectors.toList());
         }
 
-        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
-        // there is no risk of concurrent modification.
-
-        switch (requiredRanges.size()) {
-            case 0 ->
-                // no need to wait for the gaps to be filled, the listener can be executed immediately
-                wrappedListener.onResponse(null);
-            case 1 -> {
-                final Range requiredRange = requiredRanges.get(0);
-                requiredRange.completionListener.addListener(
-                    wrappedListener.map(progress -> null),
-                    Math.min(requiredRange.completionListener.end, subRange.end())
-                );
-            }
-            default -> {
-                final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    requiredRanges.size(),
-                    wrappedListener.map(progress -> null)
-                );
-                requiredRanges.forEach(
-                    r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, subRange.end()))
-                );
-            }
-        }
+        subscribeToCompletionListeners(requiredRanges, subRange.end(), wrappedListener);
 
         return Collections.unmodifiableList(gaps);
     }
@@ -332,31 +309,32 @@ public class SparseFileTracker {
             assert invariant();
         }
 
+        subscribeToCompletionListeners(pendingRanges, range.end(), wrappedListener);
+        return true;
+    }
+
+    private void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
         // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
         // there is no risk of concurrent modification.
-
-        switch (pendingRanges.size()) {
-            case 0 -> wrappedListener.onResponse(null);
+        switch (requiredRanges.size()) {
+            case 0 ->
+                // no need to wait for the gaps to be filled, the listener can be executed immediately
+                listener.onResponse(null);
             case 1 -> {
-                final Range pendingRange = pendingRanges.get(0);
-                pendingRange.completionListener.addListener(
-                    wrappedListener.map(progress -> null),
-                    Math.min(pendingRange.completionListener.end, range.end())
+                final Range requiredRange = requiredRanges.get(0);
+                requiredRange.completionListener.addListener(
+                    listener.map(progress -> null),
+                    Math.min(requiredRange.completionListener.end, rangeEnd)
                 );
-                return true;
             }
             default -> {
-                final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    pendingRanges.size(),
-                    wrappedListener.map(progress -> null)
-                );
-                pendingRanges.forEach(
-                    r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, range.end()))
-                );
-                return true;
+                try (var listeners = new RefCountingListener(listener)) {
+                    for (Range range : requiredRanges) {
+                        range.completionListener.addListener(listeners.acquire(), Math.min(range.completionListener.end, rangeEnd));
+                    }
+                }
             }
         }
-        return true;
     }
 
     private ActionListener<Void> wrapWithAssertions(ActionListener<Void> listener) {

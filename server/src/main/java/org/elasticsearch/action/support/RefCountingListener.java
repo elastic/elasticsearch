@@ -102,24 +102,45 @@ public final class RefCountingListener implements Releasable {
         this.exceptionPermits = new Semaphore(maxExceptions);
     }
 
+    /**
+     * Release the original reference to this object, which commpletes the delegate {@link ActionListener} if there are no other references.
+     *
+     * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
+     * otherwise. This deviates from the contract of {@link java.io.Closeable}.
+     */
     @Override
     public void close() {
         refs.close();
     }
 
     private void finish() {
-        var exception = exceptionRef.get();
-        if (exception == null) {
-            delegate.onResponse(null);
-        } else {
-            final var droppedExceptions = droppedExceptionsRef.getAndSet(0);
-            if (droppedExceptions > 0) {
-                exception.addSuppressed(new ElasticsearchException(droppedExceptions + " further exceptions were dropped"));
+        try {
+            var exception = exceptionRef.get();
+            if (exception == null) {
+                delegate.onResponse(null);
+            } else {
+                final var droppedExceptions = droppedExceptionsRef.getAndSet(0);
+                if (droppedExceptions > 0) {
+                    exception.addSuppressed(new ElasticsearchException(droppedExceptions + " further exceptions were dropped"));
+                }
+                delegate.onFailure(exception);
             }
-            delegate.onFailure(exception);
+        } catch (Exception e) {
+            assert false : e;
+            throw e;
         }
     }
 
+    /**
+     * Acquire a reference to this object and return a listener which releases it. The delegate {@link ActionListener} is called when all
+     * its references have been released.
+     *
+     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
+     * will throw an {@link IllegalStateException} otherwise.
+     *
+     * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
+     * will be ignored otherwise.
+     */
     public <T> ActionListener<T> acquire() {
         return new ActionListener<>() {
             private final Releasable ref = refs.acquire();

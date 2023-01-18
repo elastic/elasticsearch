@@ -18,28 +18,19 @@ import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .module("mapper-extras")
         .module("ingest-common")
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:
         .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
-
-    @ClassRule
-    // Ensure the shared repo dir is created before cluster start
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

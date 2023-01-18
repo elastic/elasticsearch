@@ -8,6 +8,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -260,7 +261,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), minVersion, streamVersion),
+                randomVersionBetween(random(), minVersion, streamVersion).transportVersion,
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -270,7 +271,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT),
+                randomVersionBetween(random(), compatibleFutureVersion(streamVersion), Version.CURRENT).transportVersion,
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -380,8 +381,8 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             }
 
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.CURRENT;
             }
         };
     }

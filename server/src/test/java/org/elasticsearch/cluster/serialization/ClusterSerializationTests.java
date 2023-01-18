@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.serialization;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
@@ -305,8 +306,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
     }
@@ -348,8 +349,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT.minimumCompatibilityVersion();
         }
 
     }

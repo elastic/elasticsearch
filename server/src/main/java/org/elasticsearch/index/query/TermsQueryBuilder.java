@@ -12,6 +12,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -665,7 +666,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

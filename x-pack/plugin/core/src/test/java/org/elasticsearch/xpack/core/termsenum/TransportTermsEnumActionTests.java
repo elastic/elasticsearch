@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
@@ -70,8 +71,8 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         TermsEnumRequest request = new TermsEnumRequest().field("field").timeout(TimeValue.timeValueSeconds(5));
         request.indexFilter(new DummyQueryBuilder() {
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.CURRENT;
             }
         });
         ExecutionException ex = expectThrows(ExecutionException.class, () -> client().execute(TermsEnumAction.INSTANCE, request).get());

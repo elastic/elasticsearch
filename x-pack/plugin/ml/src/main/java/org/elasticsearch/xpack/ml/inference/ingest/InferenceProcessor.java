@@ -350,7 +350,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedVersion().after(minNodeVersion.transportVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,

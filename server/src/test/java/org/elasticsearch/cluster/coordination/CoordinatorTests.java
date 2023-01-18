@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -1187,8 +1188,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override
@@ -1932,8 +1933,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
 
         @Override

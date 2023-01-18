@@ -15,6 +15,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
@@ -1185,7 +1186,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

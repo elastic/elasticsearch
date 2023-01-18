@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -20,7 +20,7 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
     /**
      * All nodes in the cluster must be at least this version
      */
-    Version getMinimalSupportedVersion();
+    TransportVersion getMinimalSupportedVersion();
 
     default boolean requestingImportance() {
         return false;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,8 +29,8 @@ public class NullInferenceConfig implements InferenceConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.CURRENT;
     }
 
     @Override

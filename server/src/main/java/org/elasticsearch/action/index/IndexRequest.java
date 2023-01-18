@@ -325,7 +325,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param skipPipeline true if the pipeline should be skipped
      * @return the request
      */
-    public IndexRequest skipPipeline(final boolean skipPipeline) {
+    public IndexRequest setSkipPipeline(final boolean skipPipeline) {
         this.skipPipeline = skipPipeline;
         return this;
     }
@@ -335,7 +335,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @return true if the pipeline has been resolved
      */
-    public boolean skipPipeline() {
+    public boolean getSkipPipeline() {
         return this.skipPipeline;
     }
 

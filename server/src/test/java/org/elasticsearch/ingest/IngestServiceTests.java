@@ -1856,7 +1856,7 @@ public class IngestServiceTests extends ESTestCase {
         // no pipeline:
         {
             Metadata metadata = Metadata.builder().build();
-            IndexRequest indexRequest = new IndexRequest("idx").skipPipeline(true);
+            IndexRequest indexRequest = new IndexRequest("idx").setSkipPipeline(true);
             boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
@@ -1866,7 +1866,7 @@ public class IngestServiceTests extends ESTestCase {
         // request pipeline:
         {
             Metadata metadata = Metadata.builder().build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline").skipPipeline(true);
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline").setSkipPipeline(true);
             boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
@@ -1880,7 +1880,7 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
-            IndexRequest indexRequest = new IndexRequest("idx").skipPipeline(true);
+            IndexRequest indexRequest = new IndexRequest("idx").setSkipPipeline(true);
             boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
@@ -1894,7 +1894,7 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline").skipPipeline(true);
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline").setSkipPipeline(true);
             boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
@@ -1908,7 +1908,7 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline").skipPipeline(true);
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline").setSkipPipeline(true);
             boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));

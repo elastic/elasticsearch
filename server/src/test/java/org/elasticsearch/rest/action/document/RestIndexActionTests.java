@@ -128,7 +128,7 @@ public class RestIndexActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(IndexRequest.class));
             assertThat(((IndexRequest) request).getPipeline(), equalTo(pipelineName));
-            assertThat(((IndexRequest) request).skipPipeline(), equalTo(true));
+            assertThat(((IndexRequest) request).getSkipPipeline(), equalTo(true));
             return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
         });
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

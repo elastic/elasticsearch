@@ -336,9 +336,9 @@ public class BulkRequestParserTests extends ESTestCase {
         assertThat(indexRequests, Matchers.hasSize(2));
         final IndexRequest first = indexRequests.get(0);
         final IndexRequest second = indexRequests.get(1);
-        assertThat(first.skipPipeline(), is(true));
+        assertThat(first.getSkipPipeline(), is(true));
         assertThat(first.getPipeline(), is("foo"));
-        assertThat(second.skipPipeline(), is(false));
+        assertThat(second.getSkipPipeline(), is(false));
         assertThat(second.getPipeline(), is("foo"));
     }
 

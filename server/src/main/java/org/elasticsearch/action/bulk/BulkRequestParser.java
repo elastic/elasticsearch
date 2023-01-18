@@ -343,7 +343,7 @@ public final class BulkRequestParser {
                                     .version(version)
                                     .versionType(versionType)
                                     .setPipeline(pipeline)
-                                    .skipPipeline(skipPipeline)
+                                    .setSkipPipeline(skipPipeline)
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
@@ -359,7 +359,7 @@ public final class BulkRequestParser {
                                     .versionType(versionType)
                                     .create("create".equals(opType))
                                     .setPipeline(pipeline)
-                                    .skipPipeline(skipPipeline)
+                                    .setSkipPipeline(skipPipeline)
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
@@ -376,7 +376,7 @@ public final class BulkRequestParser {
                                 .versionType(versionType)
                                 .create(true)
                                 .setPipeline(pipeline)
-                                .skipPipeline(skipPipeline)
+                                .setSkipPipeline(skipPipeline)
                                 .setIfSeqNo(ifSeqNo)
                                 .setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
@@ -418,7 +418,7 @@ public final class BulkRequestParser {
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
                             upsertRequest.setPipeline(pipeline);
-                            upsertRequest.skipPipeline(skipPipeline);
+                            upsertRequest.setSkipPipeline(skipPipeline);
                         }
 
                         updateRequestConsumer.accept(updateRequest);

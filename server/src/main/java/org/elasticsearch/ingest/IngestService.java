@@ -307,7 +307,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static void setPipelineOrSkip(IndexRequest indexRequest, String pipelineName) {
-        if (indexRequest.skipPipeline()) {
+        if (indexRequest.getSkipPipeline()) {
             indexRequest.setPipeline(NOOP_PIPELINE_NAME);
         } else {
             indexRequest.setPipeline(pipelineName);

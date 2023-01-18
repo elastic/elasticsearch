@@ -288,7 +288,7 @@
   - is_true: purple-index.mappings.properties.nested.include_in_parent
 
 ---
-"Index template ignore_missing_component_template":
+"Index template ignore_missing_component_template valid":
   - skip:
       version: " - 8.6.99"
       reason: "index template v2 ignore_missing_component_template config not available before 8.7"
@@ -311,9 +311,47 @@
         body:
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
-          ignore_missing_component_template: ["blue"]
+          ignore_missing_component_templates: ["blue"]
           data_stream: { }
 
+
+  - do:
+      # I would like to create a data stream and not and index. But did not see the tests for it to copy
+      indices.create:
+        index: purple-index
+
+  - do:
+      indices.get:
+        index: purple-index
+
+  - match: {purple-index.mappings.properties.foo: {type: keyword}}
+
+---
+"Index template ignore_missing_component_template invalid":
+  - skip:
+      version: " - 8.6.99"
+      reason: "index template v2 ignore_missing_component_template config not available before 8.7"
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: red
+        body:
+          template:
+            mappings:
+              properties:
+                foo:
+                  type: keyword
+
+  # TODO: This should fail but it seems it doesn't
+  - do:
+      indices.put_index_template:
+        name: blue
+        body:
+          index_patterns: ["purple-index"]
+          composed_of: ["red", "blue"]
+          ignore_missing_component_templates: ["foo"]
+          data_stream: { }
 
   - do:
       indices.create:
@@ -324,5 +362,3 @@
         index: purple-index
 
   - match: {purple-index.mappings.properties.foo: {type: keyword}}
-
-## TODO: Add failure test, figure out how to test failures, I assume allowed_warnings can be used

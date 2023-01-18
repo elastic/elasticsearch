@@ -497,15 +497,16 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 if (indexShard.routingEntry().isPromotableToPrimary()) {
                     store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                    final String translogUUID = Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        globalCheckpoint,
+                        shardId,
+                        indexShard.getPendingPrimaryTerm()
+                    );
+                    store.associateIndexWithNewTranslog(translogUUID);
+                } else {
+                    indexShard.setGlobalCheckpointIfUnpromotable(globalCheckpoint);
                 }
-                final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(),
-                    globalCheckpoint,
-                    shardId,
-                    indexShard.getPendingPrimaryTerm()
-                );
-                store.associateIndexWithNewTranslog(translogUUID);
-
                 if (indexShard.getRetentionLeases().leases().isEmpty()) {
                     // if empty, may be a fresh IndexShard, so write an empty leases file to disk
                     indexShard.persistRetentionLeases();

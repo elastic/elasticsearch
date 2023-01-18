@@ -291,6 +291,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
 
+    // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
+    private volatile long globalCheckPointIfUnpromotable;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -1587,6 +1590,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ); // completes stats recording
     }
 
+    public void setGlobalCheckpointIfUnpromotable(long globalCheckpoint) {
+        assert shardRouting.isPromotableToPrimary() == false : "must only call this on unpromotable shards";
+        globalCheckPointIfUnpromotable = globalCheckpoint;
+    }
+
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
@@ -1885,12 +1893,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void loadGlobalCheckpointToReplicationTracker() throws IOException {
-        // we have to set it before we open an engine and recover from the translog because
-        // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
-        // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        if (shardRouting.isPromotableToPrimary()) {
+            // we have to set it before we open an engine and recover from the translog because
+            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        } else {
+            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckPointIfUnpromotable, "from CleanFilesRequest");
+        }
     }
 
     /**

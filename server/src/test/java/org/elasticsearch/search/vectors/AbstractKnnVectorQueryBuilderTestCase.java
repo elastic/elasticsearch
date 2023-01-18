@@ -185,7 +185,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewrittenQuery, instanceOf(MatchNoneQueryBuilder.class));
     }
 
-    public void testOldVersionSerialization() throws IOException {
+    public void testBWCVersionSerialization() throws IOException {
         float[] bwcFloat = new float[VECTOR_DIMENSION];
         KnnVectorQueryBuilder query = createTestQueryBuilder();
         if (query.queryVector() != null) {
@@ -229,17 +229,17 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     }
 
     @Override
-    public void testUnknownObjectException() throws IOException {
-        // Test isn't relevant, since query is never parsed from xContent
+    public void testUnknownObjectException() {
+        assumeTrue("Test isn't relevant, since query is never parsed from xContent", false);
     }
 
     @Override
-    public void testFromXContent() throws IOException {
-        // Test isn't relevant, since query is never parsed from xContent
+    public void testFromXContent() {
+        assumeTrue("Test isn't relevant, since query is never parsed from xContent", false);
     }
 
     @Override
-    public void testUnknownField() throws IOException {
-        // Test isn't relevant, since query is never parsed from xContent
+    public void testUnknownField() {
+        assumeTrue("Test isn't relevant, since query is never parsed from xContent", false);
     }
 }

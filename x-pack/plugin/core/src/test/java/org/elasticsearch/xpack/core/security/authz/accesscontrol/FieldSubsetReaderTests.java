@@ -11,6 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -20,6 +21,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -209,6 +211,39 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // Check that we can't see fieldB
         assertNull(leafReader.getVectorValues("fieldB"));
         assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE));
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, iw, dir);
+    }
+
+    public void testKnnByteVectors() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        Document doc = new Document();
+        doc.add(new KnnByteVectorField("fieldA", new BytesRef(new byte[] { 1, 2, 3 })));
+        doc.add(new KnnByteVectorField("fieldB", new BytesRef(new byte[] { 3, 2, 1 })));
+        iw.addDocument(doc);
+
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        LeafReader leafReader = ir.leaves().get(0).reader();
+
+        // Check that fieldA behaves as normal
+        ByteVectorValues vectorValues = leafReader.getByteVectorValues("fieldA");
+        assertEquals(3, vectorValues.dimension());
+        assertEquals(1, vectorValues.size());
+        assertEquals(0, vectorValues.nextDoc());
+        assertNotNull(vectorValues.binaryValue());
+        assertNotNull(vectorValues.vectorValue());
+
+        TopDocs topDocs = leafReader.searchNearestVectors("fieldA", new BytesRef(new byte[] { 1, 1, 1 }), 5, null, Integer.MAX_VALUE);
+        assertNotNull(topDocs);
+        assertEquals(1, topDocs.scoreDocs.length);
+
+        // Check that we can't see fieldB
+        assertNull(leafReader.getByteVectorValues("fieldB"));
+        assertNull(leafReader.searchNearestVectors("fieldB", new BytesRef(new byte[] { 1, 1, 1 }), 5, null, Integer.MAX_VALUE));
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);

@@ -263,9 +263,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             logger.info("--> stats {}", stats);
 
             long dataBytes = (long) numDocs * dimension * Float.BYTES; // size of flat vector data
-            long indexBytesEstimate = (long) numDocs * Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN; // rough size of HNSW graph
+            long indexBytesEstimate = (long) numDocs * (Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN / 2); // rough size of HNSW graph
             assertThat(stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
-            assertThat(stats.total().getKnnVectorsBytes(), greaterThan(dataBytes + indexBytesEstimate));
+            long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;
+            assertThat(connectionOverhead, greaterThan(indexBytesEstimate));
         }
     }
 

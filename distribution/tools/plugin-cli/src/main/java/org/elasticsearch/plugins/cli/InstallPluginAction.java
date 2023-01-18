@@ -213,12 +213,6 @@ public class InstallPluginAction implements Closeable {
         this.proxy = proxy;
     }
 
-    // pkg private for testing
-    public void setNamedComponentScanner(NamedComponentScanner scanner) {
-        this.scanner = scanner;
-    }
-
-    // pkg private for testing
     public void execute(List<InstallablePlugin> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");

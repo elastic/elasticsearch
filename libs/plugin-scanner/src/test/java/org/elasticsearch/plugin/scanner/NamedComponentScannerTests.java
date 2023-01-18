@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.scanner;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleClass;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleInterface;
 import org.elasticsearch.plugin.scanner.test_model.TestNamedComponent;
@@ -64,13 +65,13 @@ public class NamedComponentScannerTests extends ESTestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
             package p;
-            import org.elasticsearch.plugin.api.*;
+            import org.elasticsearch.plugin.*;
             import org.elasticsearch.plugin.scanner.test_model.*;
             @NamedComponent("a_component")
             public class A extends ExtensibleClass {}
             """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
             package p;
-            import org.elasticsearch.plugin.api.*;
+            import org.elasticsearch.plugin.*;
             import org.elasticsearch.plugin.scanner.test_model.*;
             @NamedComponent("b_component")
             public class B implements ExtensibleInterface{}
@@ -100,6 +101,9 @@ public class NamedComponentScannerTests extends ESTestCase {
                 )
             )
         );
+
+        // aggressively delete the jar dir, so that any leaked filed handles fail this specific test on windows
+        IOUtils.rm(tmp);
     }
 
     public void testNamedComponentsCanExtednCommonSuperClass() throws IOException {
@@ -107,7 +111,7 @@ public class NamedComponentScannerTests extends ESTestCase {
             "p.CustomExtensibleInterface",
             """
                 package p;
-                import org.elasticsearch.plugin.api.*;
+                import org.elasticsearch.plugin.*;
                 import org.elasticsearch.plugin.scanner.test_model.*;
                 public interface CustomExtensibleInterface extends ExtensibleInterface {}
                 """,
@@ -115,14 +119,14 @@ public class NamedComponentScannerTests extends ESTestCase {
             "p.CustomExtensibleClass",
             """
                 package p;
-                import org.elasticsearch.plugin.api.*;
+                import org.elasticsearch.plugin.*;
                 import org.elasticsearch.plugin.scanner.test_model.*;
                 public class CustomExtensibleClass implements CustomExtensibleInterface {}
                 """,
             "p.A",
             """
                 package p;
-                import org.elasticsearch.plugin.api.*;
+                import org.elasticsearch.plugin.*;
                 import org.elasticsearch.plugin.scanner.test_model.*;
                 @NamedComponent("a_component")
                 public class A extends CustomExtensibleClass {}
@@ -130,7 +134,7 @@ public class NamedComponentScannerTests extends ESTestCase {
             "p.B",
             """
                 package p;
-                import org.elasticsearch.plugin.api.*;
+                import org.elasticsearch.plugin.*;
                 import org.elasticsearch.plugin.scanner.test_model.*;
                 @NamedComponent("b_component")
                 public class B implements CustomExtensibleInterface{}
@@ -174,6 +178,9 @@ public class NamedComponentScannerTests extends ESTestCase {
                 )
             )
         );
+
+        // aggressively delete the jar dir, so that any leaked filed handles fail this specific test on windows
+        IOUtils.rm(tmp);
     }
 
     public void testWriteToFile() throws IOException {

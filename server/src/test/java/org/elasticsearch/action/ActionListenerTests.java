@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -305,6 +306,15 @@ public class ActionListenerTests extends ESTestCase {
             assertThat(onResponseTimes.get(), equalTo(0));
             assertThat(onFailureTimes.get(), equalTo(1));
         }
+    }
+
+    public void testNotifyOnceReleasesDelegate() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final var listener = ActionListener.notifyOnce(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        reachabilityChecker.checkReachable();
+        listener.onResponse(null);
+        reachabilityChecker.ensureUnreachable();
+        assertEquals("notifyOnce[null]", listener.toString());
     }
 
     public void testConcurrentNotifyOnce() throws InterruptedException {

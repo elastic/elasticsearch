@@ -117,7 +117,7 @@ final class ServerTransportFilter {
             }
         }, listener::onFailure);
         logger.info("Inbound on transport profile [{}] and action [{}]", transportChannel.getProfileName(), securityAction);
-        if (shouldAuthenticateRemoteAccess()) {
+        if (shouldAuthenticateAsRemoteAccess()) {
             logger.info(
                 "Authenticating remote access on transport profile [{}] and action [{}]",
                 transportChannel.getProfileName(),
@@ -137,7 +137,7 @@ final class ServerTransportFilter {
         // }
     }
 
-    private boolean shouldAuthenticateRemoteAccess() {
+    private boolean shouldAuthenticateAsRemoteAccess() {
         return threadContext.getHeader(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) != null;
     }
 

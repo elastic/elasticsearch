@@ -37,6 +37,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.Arrays;
@@ -57,6 +58,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
+    private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
 
     private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
@@ -104,6 +106,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
                 initializeWorkingDirectory();
+                copyExtraJarFiles();
                 installPlugins();
                 if (spec.getDistributionType() == DistributionType.INTEG_TEST) {
                     installModules();
@@ -213,6 +216,22 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
+        private void copyExtraJarFiles() {
+            String fipsJarsPath = System.getProperty(TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP);
+            if (fipsJarsPath != null) {
+                LOGGER.info("FIPS is enabled. Copying FIPS jars for node: {}", this);
+                Path libsDir = distributionDir.resolve("lib");
+                Arrays.stream(fipsJarsPath.split(File.pathSeparator)).map(Path::of).forEach(jar -> {
+                    LOGGER.info("Copying jar {} to {}", jar, libsDir);
+                    try {
+                        Files.copy(jar, libsDir.resolve(jar.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("An error occurred copy extra jar files for: " + this, e);
+                    }
+                });
+            }
+        }
+
         private DistributionDescriptor resolveDistribution() {
             return TEST_DISTRIBUTIONS.computeIfAbsent(
                 Pair.of(spec.getVersion(), spec.getDistributionType()),
@@ -273,17 +292,24 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void createKeystore() {
             try {
-                ProcessUtils.exec(
-                    workingDir,
-                    OS.conditional(
-                        c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
-                            .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
-                    ),
-                    getEnvironmentVariables(),
-                    false,
-                    "-v",
-                    "create"
-                ).waitFor();
+                Path executable = OS.conditional(
+                    c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
+                        .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
+                );
+
+                if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
+                    ProcessUtils.exec(workingDir, executable, getEnvironmentVariables(), false, "-v", "create").waitFor();
+                } else {
+                    ProcessUtils.exec(
+                        spec.getKeystorePassword() + "\n" + spec.getKeystorePassword(),
+                        workingDir,
+                        executable,
+                        getEnvironmentVariables(),
+                        false,
+                        "create",
+                        "-p"
+                    ).waitFor();
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -291,9 +317,13 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void addKeystoreSettings() {
             spec.getKeystoreSettings().forEach((key, value) -> {
+                String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
+                    ? value
+                    : spec.getKeystorePassword() + "\n" + value;
+
                 try {
                     ProcessUtils.exec(
-                        value,
+                        input,
                         workingDir,
                         OS.conditional(
                             c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
@@ -478,6 +508,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void startElasticsearch() {
             process = ProcessUtils.exec(
+                spec.getKeystorePassword(),
                 workingDir,
                 OS.conditional(
                     c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch.bat"))
@@ -506,12 +537,22 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .collect(Collectors.joining(" "));
             }
 
+            String systemProperties = "";
+            if (spec.getSystemProperties().isEmpty() == false) {
+                systemProperties = spec.getSystemProperties()
+                    .entrySet()
+                    .stream()
+                    .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                    .collect(Collectors.joining(" "));
+            }
+
             String heapSize = System.getProperty("tests.heap.size", "512m");
             environment.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa "
             // Support passing in additional JVM arguments
                 + System.getProperty("tests.jvm.argline", "")
                 + " "
-                + featureFlagProperties);
+                + featureFlagProperties
+                + systemProperties);
 
             return environment;
         }

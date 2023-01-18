@@ -106,8 +106,8 @@ final class CoordIJK {
      * Find the center point in 2D cartesian coordinates of a hex.
      */
     public Vec2d ijkToHex2d() {
-        int i = this.i - this.k;
-        int j = this.j - this.k;
+        final int i = Math.subtractExact(this.i, this.k);
+        final int j = Math.subtractExact(this.j, this.k);
         return new Vec2d(i - 0.5 * j, j * Constants.M_SQRT3_2);
     }
 
@@ -120,9 +120,9 @@ final class CoordIJK {
      */
 
     public void ijkAdd(int i, int j, int k) {
-        this.i += i;
-        this.j += j;
-        this.k += k;
+        this.i = Math.addExact(this.i, i);
+        this.j = Math.addExact(this.j, j);
+        this.k = Math.addExact(this.k, k);
     }
 
     /**
@@ -133,9 +133,9 @@ final class CoordIJK {
      * @param k the k coordinate
      */
     public void ijkSub(int i, int j, int k) {
-        this.i -= i;
-        this.j -= j;
-        this.k -= k;
+        this.i = Math.subtractExact(this.i, i);
+        this.j = Math.subtractExact(this.j, j);
+        this.k = Math.subtractExact(this.k, k);
     }
 
     /**
@@ -144,9 +144,7 @@ final class CoordIJK {
      */
     public void ijkNormalize() {
         final int min = Math.min(i, Math.min(j, k));
-        i -= min;
-        j -= min;
-        k -= min;
+        ijkSub(min, min, min);
     }
 
     /**
@@ -158,9 +156,9 @@ final class CoordIJK {
         // iVec (3, 0, 1)
         // jVec (1, 3, 0)
         // kVec (0, 1, 3)
-        final int i = this.i * 3 + this.j * 1 + this.k * 0;
-        final int j = this.i * 0 + this.j * 3 + this.k * 1;
-        final int k = this.i * 1 + this.j * 0 + this.k * 3;
+        final int i = Math.addExact(Math.multiplyExact(this.i, 3), this.j);
+        final int j = Math.addExact(Math.multiplyExact(this.j, 3), this.k);
+        final int k = Math.addExact(Math.multiplyExact(this.k, 3), this.i);
         this.i = i;
         this.j = j;
         this.k = k;
@@ -175,9 +173,9 @@ final class CoordIJK {
         // iVec (3, 1, 0)
         // jVec (0, 3, 1)
         // kVec (1, 0, 3)
-        final int i = this.i * 3 + this.j * 0 + this.k * 1;
-        final int j = this.i * 1 + this.j * 3 + this.k * 0;
-        final int k = this.i * 0 + this.j * 1 + this.k * 3;
+        final int i = Math.addExact(Math.multiplyExact(this.i, 3), this.k);
+        final int j = Math.addExact(Math.multiplyExact(this.j, 3), this.i);
+        final int k = Math.addExact(Math.multiplyExact(this.k, 3), this.j);
         this.i = i;
         this.j = j;
         this.k = k;
@@ -193,9 +191,9 @@ final class CoordIJK {
         // iVec (2, 0, 1)
         // jVec (1, 2, 0)
         // kVec (0, 1, 2)
-        final int i = this.i * 2 + this.j * 1 + this.k * 0;
-        final int j = this.i * 0 + this.j * 2 + this.k * 1;
-        final int k = this.i * 1 + this.j * 0 + this.k * 2;
+        final int i = Math.addExact(Math.multiplyExact(this.i, 2), this.j);
+        final int j = Math.addExact(Math.multiplyExact(this.j, 2), this.k);
+        final int k = Math.addExact(Math.multiplyExact(this.k, 2), this.i);
         this.i = i;
         this.j = j;
         this.k = k;
@@ -211,9 +209,9 @@ final class CoordIJK {
         // iVec (2, 1, 0)
         // jVec (0, 2, 1)
         // kVec (1, 0, 2)
-        final int i = this.i * 2 + this.j * 0 + this.k * 1;
-        final int j = this.i * 1 + this.j * 2 + this.k * 0;
-        final int k = this.i * 0 + this.j * 1 + this.k * 2;
+        final int i = Math.addExact(Math.multiplyExact(this.i, 2), this.k);
+        final int j = Math.addExact(Math.multiplyExact(this.j, 2), this.i);
+        final int k = Math.addExact(Math.multiplyExact(this.k, 2), this.j);
         this.i = i;
         this.j = j;
         this.k = k;
@@ -229,9 +227,9 @@ final class CoordIJK {
         // iVec (1, 0, 1)
         // jVec (1, 1, 0)
         // kVec (0, 1, 1)
-        final int i = this.i * 1 + this.j * 1 + this.k * 0;
-        final int j = this.i * 0 + this.j * 1 + this.k * 1;
-        final int k = this.i * 1 + this.j * 0 + this.k * 1;
+        final int i = Math.addExact(this.i, this.j);
+        final int j = Math.addExact(this.j, this.k);
+        final int k = Math.addExact(this.i, this.k);
         this.i = i;
         this.j = j;
         this.k = k;
@@ -246,9 +244,9 @@ final class CoordIJK {
         // iVec (1, 1, 0)
         // jVec (0, 1, 1)
         // kVec (1, 0, 1)
-        final int i = this.i * 1 + this.j * 0 + this.k * 1;
-        final int j = this.i * 1 + this.j * 1 + this.k * 0;
-        final int k = this.i * 0 + this.j * 1 + this.k * 1;
+        final int i = Math.addExact(this.i, this.k);
+        final int j = Math.addExact(this.i, this.j);
+        final int k = Math.addExact(this.j, this.k);
         this.i = i;
         this.j = j;
         this.k = k;
@@ -272,10 +270,10 @@ final class CoordIJK {
      * clockwise aperture 7 grid.
      */
     public void upAp7r() {
-        i = this.i - this.k;
-        j = this.j - this.k;
-        int i = (int) Math.round((2 * this.i + this.j) / 7.0);
-        int j = (int) Math.round((3 * this.j - this.i) / 7.0);
+        i = Math.subtractExact(this.i, this.k);
+        j = Math.subtractExact(this.j, this.k);
+        final int i = (int) Math.round((Math.addExact(Math.multiplyExact(2, this.i), this.j)) / 7.0);
+        final int j = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, this.j), this.i)) / 7.0);
         this.i = i;
         this.j = j;
         this.k = 0;
@@ -288,10 +286,10 @@ final class CoordIJK {
      *
      */
     public void upAp7() {
-        i = this.i - this.k;
-        j = this.j - this.k;
-        int i = (int) Math.round((3 * this.i - this.j) / 7.0);
-        int j = (int) Math.round((this.i + 2 * this.j) / 7.0);
+        i = Math.subtractExact(this.i, this.k);
+        j = Math.subtractExact(this.j, this.k);
+        final int i = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, this.i), this.j)) / 7.0);
+        final int j = (int) Math.round((Math.addExact(Math.multiplyExact(2, this.j), this.i)) / 7.0);
         this.i = i;
         this.j = j;
         this.k = 0;

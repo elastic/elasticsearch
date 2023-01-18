@@ -134,8 +134,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_7_0 = new Version(8_07_00_99, TransportVersion.V_8_7_0, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version CURRENT = V_8_7_0;
 
-    private static final Map<Integer, Version> idToVersion;
-    private static final Map<String, Version> stringToVersion;
+    private static final Map<Integer, Version> VERSION_IDS;
+    private static final Map<String, Version> VERSION_STRINGS;
 
     static {
         final Map<Integer, Version> builder = new HashMap<>();
@@ -180,8 +180,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = Map.copyOf(builder);
-        stringToVersion = Map.copyOf(builderByString);
+        VERSION_IDS = Map.copyOf(builder);
+        VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -189,7 +189,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     public static Version fromId(int id) {
-        final Version known = idToVersion.get(id);
+        final Version known = VERSION_IDS.get(id);
         if (known != null) {
             return known;
         }
@@ -226,14 +226,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     /**
-     * Returns the minimum version between the 2.
+     * Returns the minimum version of {@code version1} and {@code version2}
      */
     public static Version min(Version version1, Version version2) {
         return version1.id < version2.id ? version1 : version2;
     }
 
     /**
-     * Returns the maximum version between the 2
+     * Returns the maximum version of {@code version1} and {@code version2}
      */
     public static Version max(Version version1, Version version2) {
         return version1.id > version2.id ? version1 : version2;
@@ -246,7 +246,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
-        final Version cached = stringToVersion.get(version);
+        final Version cached = VERSION_STRINGS.get(version);
         if (cached != null) {
             return cached;
         }

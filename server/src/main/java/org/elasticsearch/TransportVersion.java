@@ -14,12 +14,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
@@ -154,9 +154,9 @@ public class TransportVersion implements Comparable<TransportVersion> {
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
-    private static final Map<Integer, TransportVersion> idToVersion;
+    private static final Map<Integer, TransportVersion> VERSION_IDS;
 
-    private static final TreeSet<TransportVersion> declaredVersions;
+    private static final NavigableSet<TransportVersion> ALL_VERSIONS;
 
     static {
         Map<Integer, TransportVersion> builder = new HashMap<>();
@@ -189,8 +189,8 @@ public class TransportVersion implements Comparable<TransportVersion> {
                 }
             }
         }
-        idToVersion = Map.copyOf(builder);
-        declaredVersions = idToVersion.values().stream().collect(Collectors.toCollection(() -> new TreeSet<>()));
+        VERSION_IDS = Map.copyOf(builder);
+        ALL_VERSIONS = Collections.unmodifiableNavigableSet(new TreeSet<>(VERSION_IDS.values()));
     }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
@@ -198,7 +198,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     public static TransportVersion fromId(int id) {
-        TransportVersion known = idToVersion.get(id);
+        TransportVersion known = VERSION_IDS.get(id);
         if (known != null) {
             return known;
         }
@@ -211,20 +211,26 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     /**
-     * Returns the minimum version between the 2.
+     * Returns the minimum version of {@code version1} and {@code version2}
      */
     public static TransportVersion min(TransportVersion version1, TransportVersion version2) {
         return version1.id < version2.id ? version1 : version2;
     }
 
     /**
-     * Returns the maximum version between the 2
+     * Returns the maximum version of {@code version1} and {@code version2}
      */
     public static TransportVersion max(TransportVersion version1, TransportVersion version2) {
         return version1.id > version2.id ? version1 : version2;
     }
 
-    // TODO for testing or a getter? should this be used?
+    /**
+     * returns a sorted set of all transport version constants
+     */
+    public static NavigableSet<TransportVersion> getAllVersions() {
+        return ALL_VERSIONS;
+    }
+
     final int id;
     private final String uniqueId;
 
@@ -252,13 +258,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
     @Override
     public int compareTo(TransportVersion other) {
         return Integer.compare(this.id, other.id);
-    }
-
-    /**
-     * returns a sorted list of declared transport version constants
-     */
-    public static NavigableSet<TransportVersion> getDeclaredVersions() {
-        return declaredVersions;
     }
 
     @Override

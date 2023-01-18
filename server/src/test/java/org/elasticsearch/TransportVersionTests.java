@@ -11,7 +11,10 @@ package org.elasticsearch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.lang.reflect.Modifier;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -42,6 +45,43 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
         assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
         assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
+    }
+
+    private static String padNumber(String number) {
+        return number.length() == 1 ? "0" + number : number;
+    }
+
+    public void testDefinedConstants() throws IllegalAccessException {
+        Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
+        Pattern transportVersion = Pattern.compile("^V_(\\d{2,})_(\\d{3})_(\\d{3})$");
+        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
+
+        for (java.lang.reflect.Field field : TransportVersion.class.getFields()) {
+            if (Modifier.isStatic(field.getModifiers())
+                && field.getType() == TransportVersion.class
+                && ignore.contains(field.getName()) == false) {
+                Matcher historical = historicalVersion.matcher(field.getName());
+                Matcher transport;
+                if (historical.matches()) {
+                    // old-style version constant
+                    String idString = historical.group(1) + padNumber(historical.group(2)) + padNumber(historical.group(3)) + "99";
+                    assertEquals(
+                        "Field " + field.getName() + " does not have expected id " + idString,
+                        idString,
+                        field.get(null).toString()
+                    );
+                } else if ((transport = transportVersion.matcher(field.getName())).matches()) {
+                    String idString = transport.group(1) + transport.group(2) + transport.group(3);
+                    assertEquals(
+                        "Field " + field.getName() + " does not have expected id " + idString,
+                        idString,
+                        field.get(null).toString()
+                    );
+                } else {
+                    fail("Field " + field.getName() + " does not have expected format");
+                }
+            }
+        }
     }
 
     public void testMin() {

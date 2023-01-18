@@ -18,7 +18,7 @@ public class TransportVersionUtils {
     private static final NavigableSet<TransportVersion> ALL_VERSIONS;
 
     static {
-        ALL_VERSIONS = TransportVersion.getDeclaredVersions();
+        ALL_VERSIONS = TransportVersion.getAllVersions();
     }
 
     /** Returns a random {@link TransportVersion} from all available versions. */

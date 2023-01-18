@@ -45,6 +45,7 @@ final class ServerTransportFilter {
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
+    private final boolean isForRemoteClusterTraffic;
 
     ServerTransportFilter(
         AuthenticationService authcService,
@@ -54,12 +55,25 @@ final class ServerTransportFilter {
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext
     ) {
+        this(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext, false);
+    }
+
+    ServerTransportFilter(
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        ThreadContext threadContext,
+        boolean extractClientCert,
+        DestructiveOperations destructiveOperations,
+        SecurityContext securityContext,
+        boolean isForRemoteClusterTraffic
+    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
+        this.isForRemoteClusterTraffic = isForRemoteClusterTraffic;
     }
 
     /**
@@ -116,8 +130,14 @@ final class ServerTransportFilter {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
         }, listener::onFailure);
-        logger.info("Inbound on transport profile [{}] and action [{}]", transportChannel.getProfileName(), securityAction);
-        if (shouldAuthenticateAsRemoteAccess()) {
+        // TODO remove logs
+        logger.info(
+            "Inbound on transport profile [{}] [{}] and action [{}]",
+            transportChannel.getProfileName(),
+            unwrappedChannel instanceof TcpTransportChannel ? ((TcpTransportChannel) unwrappedChannel).getChannel() : "non-transport",
+            securityAction
+        );
+        if (isForRemoteClusterTraffic) {
             logger.info(
                 "Authenticating remote access on transport profile [{}] and action [{}]",
                 transportChannel.getProfileName(),
@@ -127,18 +147,5 @@ final class ServerTransportFilter {
         } else {
             authcService.authenticate(securityAction, request, true, authorizationStep);
         }
-        // TODO also check that remote port is enabled
-        // if (transportChannel.getProfileName().equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE)
-        // // For handshake, don't use RCS 2.0
-        // && false == securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
-        // authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
-        // } else {
-        // authcService.authenticate(securityAction, request, true, authorizationStep);
-        // }
     }
-
-    private boolean shouldAuthenticateAsRemoteAccess() {
-        return threadContext.getHeader(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) != null;
-    }
-
 }

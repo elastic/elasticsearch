@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -84,7 +83,7 @@ public class RemoteAccessAuthenticator implements Authenticator {
                     final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList;
                     final User user = receivedAuthentication.getEffectiveSubject().getUser();
                     if (User.isInternal(user)) {
-                        assert false == SystemUser.is(user)
+                        assert SystemUser.is(user)
                             : "received cross cluster request from an unexpected internal user [" + user.principal() + "]";
                         roleDescriptorsBytesList = RemoteAccessAuthentication.toRoleDescriptorsBytesList(
                             new RoleDescriptorsIntersection(

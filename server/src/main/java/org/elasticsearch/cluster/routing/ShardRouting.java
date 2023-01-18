@@ -126,6 +126,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 assert recoverySource == null : state + "shard must be created without a recovery source" + this;
             }
         }
+        return true;
     }
 
     @Nullable

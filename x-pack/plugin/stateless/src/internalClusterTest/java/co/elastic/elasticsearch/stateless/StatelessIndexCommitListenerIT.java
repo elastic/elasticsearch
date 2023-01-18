@@ -165,6 +165,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
     public void setupTest() {
         startMasterOnlyNode();
         indexNode = startIndexNode();
+        searchNode = startSearchNode();
 
         indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -176,9 +177,6 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()
         );
-        ensureYellow(indexName);
-
-        searchNode = startSearchNode();
         ensureGreen(indexName);
         shardId = new ShardId(resolveIndex(indexName), 0);
 

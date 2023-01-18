@@ -14,7 +14,6 @@ import org.elasticsearch.test.cluster.ClusterHandle;
 import org.elasticsearch.test.cluster.local.LocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
-import org.elasticsearch.test.cluster.util.Retry;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
@@ -22,7 +21,6 @@ import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -30,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -154,7 +151,7 @@ public class LocalClusterHandle implements ClusterHandle {
         writeUnicastHostsFile();
         try {
             WaitForHttpResource wait = configureWaitForReady();
-            wait.wait(CLUSTER_UP_TIMEOUT.toMillis());
+            wait.waitFor(CLUSTER_UP_TIMEOUT.toMillis());
         } catch (Exception e) {
             throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
         }

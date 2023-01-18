@@ -7,10 +7,11 @@
  */
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -32,7 +33,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -326,7 +326,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         tcpReadinessProbeTrue(s);
     }
 
-    private void causeClusterStateUpdate() throws ExecutionException, InterruptedException {
+    private void causeClusterStateUpdate() {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
             .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
                 @Override

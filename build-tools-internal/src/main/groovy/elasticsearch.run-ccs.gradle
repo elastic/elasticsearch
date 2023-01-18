@@ -24,6 +24,20 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
 }
 
+def fulfillingCluster2 = testClusters.register('fulfilling-cluster2') {
+  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'remote_cluster.enabled', 'true'
+  // TODO
+  setting 'remote_cluster.port', '9902'
+
+  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+}
+
 def queryingCluster = testClusters.register('querying-cluster') {
   testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
 
@@ -38,6 +52,7 @@ def queryingCluster = testClusters.register('querying-cluster') {
 }
 
 tasks.register("run-ccs", RunTask) {
+  useCluster fulfillingCluster2
   useCluster fulfillingCluster
   useCluster queryingCluster
   doFirst {
@@ -45,6 +60,8 @@ tasks.register("run-ccs", RunTask) {
       if (proxyMode) {
         node.setting('cluster.remote.my_remote_cluster.mode', 'proxy')
         node.setting('cluster.remote.my_remote_cluster.proxy_address', "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\"")
+        node.setting('cluster.remote.my_remote_cluster2.mode', 'proxy')
+        node.setting('cluster.remote.my_remote_cluster2.proxy_address', "\"${fulfillingCluster2.get().getAllRemoteAccessPortURI().get(0)}\"")
       } else {
         node.setting('cluster.remote.my_remote_cluster.seeds', fulfillingCluster.get().getAllRemoteAccessPortURI().collect { "\"$it\"" }.toString())
         node.setting('cluster.remote.my_remote_cluster2.seeds', fulfillingCluster2.get().getAllRemoteAccessPortURI().collect { "\"$it\"" }.toString())
@@ -58,5 +75,9 @@ tasks.register("run-ccs", RunTask) {
     println "** Fulfilling cluster HTTP endpoints are: ${-> fulfillingCluster.get().allHttpSocketURI.join(",")}"
     println "** Fulfilling cluster transport endpoints are: ${-> fulfillingCluster.get().getAllTransportPortURI().join(",")}"
     println "** Fulfilling cluster remote access endpoints are: ${-> fulfillingCluster.get().getAllRemoteAccessPortURI().join(",")}"
+
+    println "** Fulfilling cluster 2 HTTP endpoints are: ${-> fulfillingCluster2.get().allHttpSocketURI.join(",")}"
+    println "** Fulfilling cluster 2 transport endpoints are: ${-> fulfillingCluster2.get().getAllTransportPortURI().join(",")}"
+    println "** Fulfilling cluster 2 remote access endpoints are: ${-> fulfillingCluster2.get().getAllRemoteAccessPortURI().join(",")}"
   }
 }

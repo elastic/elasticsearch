@@ -334,7 +334,6 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
 
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
@@ -436,17 +435,6 @@ public class IndexNameExpressionResolver {
         }
         if (resolvedNetNewSystemIndices.isEmpty() == false) {
             throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
-        }
-    }
-
-    private void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, String... indexExpressions) {
-        if (options.ignoreUnavailable() == false && indexExpressions != null) {
-            List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
-            if (crossClusterIndices.size() > 0) {
-                throw new IllegalArgumentException(
-                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
-                );
-            }
         }
     }
 
@@ -1523,6 +1511,7 @@ public class IndexNameExpressionResolver {
          * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
          */
         public static List<String> filterUnavailable(Context context, List<String> expressions) {
+            ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), expressions);
             List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 validateAliasOrIndex(expression);
@@ -1580,6 +1569,17 @@ public class IndexNameExpressionResolver {
             // if the expression can't be found.
             if (expression.expression().charAt(0) == '_') {
                 throw new InvalidIndexNameException(expression.expression(), "must not start with '_'.");
+            }
+        }
+
+        private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, List<String> indexExpressions) {
+            if (options.ignoreUnavailable() == false) {
+                List<String> crossClusterIndices = indexExpressions.stream().filter(index -> index.contains(":")).toList();
+                if (crossClusterIndices.size() > 0) {
+                    throw new IllegalArgumentException(
+                        "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                    );
+                }
             }
         }
     }

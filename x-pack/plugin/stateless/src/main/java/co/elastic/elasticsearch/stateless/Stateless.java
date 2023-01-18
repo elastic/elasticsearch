@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
+import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
@@ -36,6 +37,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -166,7 +168,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
                 ActionRunnable.run(listener, () -> {
-                    if (indexShard.recoveryState().getPrimary() == false) {
+                    if (indexShard.routingEntry().role().isSearchable()) {
                         final Store store = indexShard.store();
                         store.incRef();
                         try {
@@ -207,6 +209,11 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
         return Optional.of(
             config -> config.isRecoveringAsPrimary() ? new IndexEngine(config) : new SearchEngine(config, getObjectStoreService())
         );
+    }
+
+    @Override
+    public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
+        return new StatelessShardRoutingRoleStrategy();
     }
 
     /**

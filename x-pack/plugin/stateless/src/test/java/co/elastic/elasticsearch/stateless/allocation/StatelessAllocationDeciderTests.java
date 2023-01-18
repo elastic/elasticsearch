@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -68,8 +67,8 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
         state = applyStartedShardsUntilNoChange(state, service);
 
         assertThat(state.getRoutingNodes().hasUnassignedShards(), equalTo(false));
-        assertThat(findShard(state, indexName, 0, "index").currentNodeId(), equalTo("index-node-0"));
-        assertThat(findShard(state, indexName, 0, "search").currentNodeId(), equalTo("search-node-0"));
+        assertThat(findShard(state, indexName, 0, ShardRouting.Role.INDEX_ONLY).currentNodeId(), equalTo("index-node-0"));
+        assertThat(findShard(state, indexName, 0, ShardRouting.Role.SEARCH_ONLY).currentNodeId(), equalTo("search-node-0"));
     }
 
     public void testAllocationExplain() {
@@ -88,14 +87,14 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         assertContainsDecision(
-            service.explainShardAllocation(findShard(state, indexName, 0, "index"), allocation),
+            service.explainShardAllocation(findShard(state, indexName, 0, ShardRouting.Role.INDEX_ONLY), allocation),
             Decision.Type.YES,
             "shard role matches stateless node role"
         );
         assertContainsDecision(
-            service.explainShardAllocation(findShard(state, indexName, 0, "search"), allocation),
+            service.explainShardAllocation(findShard(state, indexName, 0, ShardRouting.Role.SEARCH_ONLY), allocation),
             Decision.Type.NO,
-            "shard role [search] does not match stateless node role [index]"
+            "shard role [SEARCH_ONLY] does not match stateless node role [index]"
         );
     }
 
@@ -120,18 +119,19 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
 
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .routingTable(RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).addAsNew(indexMetadata))
             .nodes(discoveryNodesBuilder)
             .build();
     }
 
-    private static ShardRouting findShard(ClusterState state, String indexName, int shardId, String role) {
+    private static ShardRouting findShard(ClusterState state, String indexName, int shardId, ShardRouting.Role role) {
         var indexShardRouting = state.routingTable().index(indexName).shard(shardId);
-        return switch (role) {
-            case "index" -> indexShardRouting.primaryShard();
-            case "search" -> indexShardRouting.replicaShards().get(0);
-            default -> throw new AssertionError("Unknown shard role [" + role + "]");
-        };
+        for (int i = 0; i < indexShardRouting.size(); i++) {
+            if (indexShardRouting.shard(i).role() == role) {
+                return indexShardRouting.shard(i);
+            }
+        }
+        throw new AssertionError("Shard [" + indexName + "][" + shardId + "] with role [" + role + "] is not found");
     }
 
     private static AllocationService createAllocationService(AllocationDecider... deciders) {
@@ -141,7 +141,7 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            new StatelessShardRoutingRoleStrategy()
         );
     }
 

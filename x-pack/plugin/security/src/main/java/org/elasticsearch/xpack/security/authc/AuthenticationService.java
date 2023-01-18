@@ -130,7 +130,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        this.remoteAccessAuthenticator.authenticate(context, authenticationListener);
+        remoteAccessAuthenticator.authenticate(context, authenticationListener);
     }
 
     /**
@@ -207,7 +207,6 @@ public class AuthenticationService {
         boolean allowAnonymous,
         ActionListener<Authentication> listener
     ) {
-        // TODO assert no remote access authentication headers
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),

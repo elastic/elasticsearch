@@ -81,6 +81,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
+        List<String> ignoreMissingComponentTemplates = randomList(1, 4, () -> randomAlphaOfLength(4));
         return new ComposableIndexTemplate(
             indexPatterns,
             template,
@@ -90,8 +91,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             meta,
             dataStreamTemplate,
             randomBoolean() ? null : randomBoolean(),
-            // TODO: should this align with line 87 for some scenarios?
-            null
+            randomBoolean() ? null : ignoreMissingComponentTemplates
         );
     }
 

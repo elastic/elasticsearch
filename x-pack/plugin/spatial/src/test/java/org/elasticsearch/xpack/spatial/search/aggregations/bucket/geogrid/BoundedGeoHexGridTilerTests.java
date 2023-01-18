@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -20,19 +21,14 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
-import static org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridTiler.BoundedGeoHexGridTiler.wAvg;
+import static org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridTiler.BoundedGeoHexGridTiler.height;
+import static org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridTiler.BoundedGeoHexGridTiler.width;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
-public abstract class BoundedGeoHexGridTilerTests extends ESTestCase {
-
-    /** Call the appropriate algorithms for inflating the bounding box */
-    protected abstract GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox, double factor);
-
-    /** Calculate the bounds of the h3 cell assuming the test bbox is entirely within the cell */
-    protected abstract Rectangle getFullBounds(Rectangle bounds, GeoBoundingBox bbox);
+public class BoundedGeoHexGridTilerTests extends ESTestCase {
 
     public void testBoundedTilerInflation() {
         for (int i = 0; i < 10000; i++) {
@@ -125,12 +121,39 @@ public abstract class BoundedGeoHexGridTilerTests extends ESTestCase {
         }
     }
 
+    /** Calculate weighted average: 1 means second dominates, 0 means first dominates */
+    private static double wAvg(double first, double second, double weight) {
+        double width = (second - first) * weight;
+        return first + width;
+    }
+
     // We usually got longitude values the same side of the dateline by adding 360, never subtracting 360
-    static double normLonAgainst(double value, double other) {
+    private static double normLonAgainst(double value, double other) {
         if (other > 0 && value < 0) {
             value += 360;
         }
         return value;
+    }
+
+    private GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox, double factor) {
+        return GeoHexGridTiler.BoundedGeoHexGridTiler.inflateBbox(precision, bbox, factor);
+    }
+
+    /* Calculate the bounds of the h3 cell assuming the test bbox is entirely within the cell */
+    private Rectangle getFullBounds(Rectangle bounds, GeoBoundingBox bbox) {
+        final double height = height(bounds);
+        final double width = width(bounds);
+        // inflate the coordinates by the full width and height
+        final double minY = Math.max(bbox.bottom() - height, -90d);
+        final double maxY = Math.min(bbox.top() + height, 90d);
+        final double left = GeoUtils.normalizeLon(bbox.left() - width);
+        final double right = GeoUtils.normalizeLon(bbox.right() + width);
+        if (2 * width + width(bbox) >= 360d) {
+            // if the total width is bigger than the world, then it covers all longitude range.
+            return new Rectangle(-180, 180, maxY, minY);
+        } else {
+            return new Rectangle(left, right, maxY, minY);
+        }
     }
 
     public void testBoundsMatcher() {

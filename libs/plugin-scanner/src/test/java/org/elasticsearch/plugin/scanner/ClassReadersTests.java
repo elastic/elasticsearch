@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.scanner;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -39,6 +40,9 @@ public class ClassReadersTests extends ESTestCase {
 
         List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar));
         org.hamcrest.MatcherAssert.assertThat(classReaders, Matchers.empty());
+
+        // aggressively delete the jar dir, so that any leaked filed handles fail this specific test on windows
+        IOUtils.rm(tmp);
     }
 
     public void testTwoClassesInAStreamFromJar() throws IOException {
@@ -57,6 +61,9 @@ public class ClassReadersTests extends ESTestCase {
         List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar));
         List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
         org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
+
+        // aggressively delete the jar dir, so that any leaked filed handles fail this specific test on windows
+        IOUtils.rm(tmp);
     }
 
     public void testStreamOfJarsAndIndividualClasses() throws IOException {

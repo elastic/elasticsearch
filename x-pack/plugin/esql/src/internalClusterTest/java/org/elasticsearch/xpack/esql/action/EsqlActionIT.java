@@ -850,6 +850,49 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
+    public void testProjectAfterTopN() {
+        EsqlQueryResponse results = run("from test | sort time | limit 2 | project count");
+        logger.info(results);
+        assertEquals(1, results.columns().size());
+        assertEquals(new ColumnInfo("count", "long"), results.columns().get(0));
+        assertEquals(2, results.values().size());
+        assertEquals(40L, results.values().get(0).get(0));
+        assertEquals(42L, results.values().get(1).get(0));
+    }
+
+    public void testProjectAfterTopNDesc() {
+        EsqlQueryResponse results = run("from test | sort time desc | limit 2 | project count");
+        logger.info(results);
+        assertEquals(1, results.columns().size());
+        assertEquals(new ColumnInfo("count", "long"), results.columns().get(0));
+        assertEquals(2, results.values().size());
+        assertEquals(46L, results.values().get(0).get(0));
+        assertEquals(44L, results.values().get(1).get(0));
+    }
+
+    public void testTopNProjectEval() {
+        EsqlQueryResponse results = run("from test | sort time | limit 2 | project count | eval x = count + 1");
+        logger.info(results);
+        assertEquals(2, results.columns().size());
+        assertEquals(new ColumnInfo("count", "long"), results.columns().get(0));
+        assertEquals(new ColumnInfo("x", "long"), results.columns().get(1));
+        assertEquals(2, results.values().size());
+        assertEquals(40L, results.values().get(0).get(0));
+        assertEquals(41L, results.values().get(0).get(1));
+        assertEquals(42L, results.values().get(1).get(0));
+        assertEquals(43L, results.values().get(1).get(1));
+    }
+
+    public void testTopNProjectEvalProject() {
+        EsqlQueryResponse results = run("from test | sort time | limit 2 | project count | eval x = count + 1 | project x");
+        logger.info(results);
+        assertEquals(1, results.columns().size());
+        assertEquals(new ColumnInfo("x", "long"), results.columns().get(0));
+        assertEquals(2, results.values().size());
+        assertEquals(41L, results.values().get(0).get(0));
+        assertEquals(43L, results.values().get(1).get(0));
+    }
+
     public void testEmptyIndex() {
         ElasticsearchAssertions.assertAcked(
             client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get()

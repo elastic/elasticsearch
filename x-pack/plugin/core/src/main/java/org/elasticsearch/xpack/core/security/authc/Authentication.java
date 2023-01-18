@@ -512,6 +512,7 @@ public final class Authentication implements ToXContentObject {
      */
     public boolean canAccessResourcesOf(Authentication resourceCreatorAuthentication) {
         // if we introduce new authentication types in the future, it is likely that we'll need to revisit this method
+
         assert EnumSet.of(
             Authentication.AuthenticationType.REALM,
             Authentication.AuthenticationType.API_KEY,
@@ -1000,10 +1001,10 @@ public final class Authentication implements ToXContentObject {
     public enum AuthenticationType {
         REALM,
         API_KEY,
-        REMOTE_ACCESS,
         TOKEN,
         ANONYMOUS,
-        INTERNAL
+        INTERNAL,
+        REMOTE_ACCESS
     }
 
     public static class AuthenticationSerializationHelper {

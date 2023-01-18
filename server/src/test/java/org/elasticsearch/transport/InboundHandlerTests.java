@@ -178,7 +178,7 @@ public class InboundHandlerTests extends ESTestCase {
         handler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
-        assertEquals(TransportVersion.CURRENT, transportChannel.getVersion());
+        assertEquals(TransportVersion.CURRENT, transportChannel.getTransportVersion());
         assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 

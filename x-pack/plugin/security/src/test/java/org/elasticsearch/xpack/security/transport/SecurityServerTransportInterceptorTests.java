@@ -23,7 +23,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -156,7 +156,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         sender.sendRequest(connection, "indices:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
@@ -206,7 +206,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         Connection connection = mock(Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         sender.sendRequest(connection, "internal:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertNotEquals(user, sendingUser.get());
@@ -248,7 +248,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> sender.sendRequest(connection, "indices:foo", null, null, null)
@@ -312,11 +312,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final Version connectionVersion = Version.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
-        assertEquals(Version.CURRENT, Version.min(connectionVersion, Version.CURRENT));
+        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
+        assertEquals(TransportVersion.CURRENT, TransportVersion.min(connectionVersion, TransportVersion.CURRENT));
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(connectionVersion);
+        when(connection.getTransportVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
@@ -379,11 +379,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final Version connectionVersion = Version.fromId(Version.CURRENT.id - randomIntBetween(100, 100000));
-        assertEquals(connectionVersion, Version.min(connectionVersion, Version.CURRENT));
+        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id - randomIntBetween(100, 100000));
+        assertEquals(connectionVersion, TransportVersion.min(connectionVersion, TransportVersion.CURRENT));
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(connectionVersion);
+        when(connection.getTransportVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
@@ -441,8 +441,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AsyncSender sender = interceptor.interceptSender(intercepted);
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        final Version connectionVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        when(connection.getVersion()).thenReturn(connectionVersion);
+        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(connectionVersion);
 
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertThat(calledWrappedSender.get(), is(true));
@@ -615,7 +615,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
             @Override
@@ -722,7 +722,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
@@ -782,13 +782,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        final Version versionBeforeRemoteAccessHeaders = VersionUtils.getPreviousVersion(Version.V_8_7_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeRemoteAccessHeaders = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_7_0);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             versionBeforeRemoteAccessHeaders.minimumCompatibilityVersion(),
             versionBeforeRemoteAccessHeaders
         );
-        when(connection.getVersion()).thenReturn(version);
+        when(connection.getTransportVersion()).thenReturn(version);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
@@ -820,7 +820,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 "Settings for remote cluster ["
                     + remoteClusterAlias
                     + "] indicate remote access headers should be sent but target cluster version ["
-                    + connection.getVersion()
+                    + connection.getTransportVersion()
                     + "] does not support receiving them"
             )
         );

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -101,7 +100,7 @@ final class ServerTransportFilter {
             }
         }
 
-        TransportVersion version = transportChannel.getVersion();
+        TransportVersion version = transportChannel.getTransportVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)

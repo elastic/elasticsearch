@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -1430,7 +1429,7 @@ public final class TokenService {
 
     TransportVersion getTokenVersionCompatibility() {
         // newly minted tokens are compatible with the min node version in the cluster
-        return clusterService.state().nodes().getMinNodeVersion().transportVersion;//should there be getMinNodeTransportVersion ?
+        return clusterService.state().nodes().getMinNodeVersion().transportVersion;// should there be getMinNodeTransportVersion ?
     }
 
     public static Boolean isTokenServiceEnabled(Settings settings) {
@@ -1796,7 +1795,10 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client");
                 if (userToken.getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
-                    builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getTransportVersion()).encode());
+                    builder.field(
+                        "authentication",
+                        originatingClientAuth.maybeRewriteForOlderVersion(userToken.getTransportVersion()).encode()
+                    );
                 } else {
                     builder.field("user", originatingClientAuth.getEffectiveSubject().getUser().principal())
                         .field("realm", originatingClientAuth.getAuthenticatingSubject().getRealm().getName());

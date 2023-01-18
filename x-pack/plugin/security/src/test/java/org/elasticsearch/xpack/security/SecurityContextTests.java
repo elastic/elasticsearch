@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -196,7 +195,11 @@ public class SecurityContextTests extends ESTestCase {
             new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
 
-        final Authentication original = AuthenticationTestHelper.builder().apiKey().metadata(metadata).transportVersion(TransportVersion.V_8_0_0).build();
+        final Authentication original = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(metadata)
+            .transportVersion(TransportVersion.V_8_0_0)
+            .build();
         original.writeToContext(threadContext);
 
         // If target is old node, rewrite new style API key metadata to old format

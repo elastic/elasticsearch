@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;

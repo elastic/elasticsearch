@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -2840,7 +2839,11 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         if (isFallback) {
             return Authentication.newInternalFallbackAuthentication(SystemUser.INSTANCE, randomAlphaOfLengthBetween(3, 8));
         } else {
-            return Authentication.newInternalAuthentication(SystemUser.INSTANCE, TransportVersion.CURRENT, randomAlphaOfLengthBetween(3, 8));
+            return Authentication.newInternalAuthentication(
+                SystemUser.INSTANCE,
+                TransportVersion.CURRENT,
+                randomAlphaOfLengthBetween(3, 8)
+            );
         }
     }
 

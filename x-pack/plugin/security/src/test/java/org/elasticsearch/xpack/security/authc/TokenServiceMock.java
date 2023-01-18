@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
@@ -51,7 +50,9 @@ public class TokenServiceMock {
 
     public MockToken mockAccessToken() throws Exception {
         final String uuid = UUIDs.randomBase64UUID();
-        final SecureString encoded = new SecureString(tokenService.prependVersionAndEncodeAccessToken(TransportVersion.CURRENT, uuid).toCharArray());
+        final SecureString encoded = new SecureString(
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersion.CURRENT, uuid).toCharArray()
+        );
         final String hashedToken = TokenService.hashTokenString(uuid);
         return new MockToken(uuid, encoded, hashedToken);
     }

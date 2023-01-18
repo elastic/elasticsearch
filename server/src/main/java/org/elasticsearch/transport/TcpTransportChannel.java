@@ -88,7 +88,7 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public TransportVersion getVersion() {
+    public TransportVersion getTransportVersion() {
         return version;
     }
 

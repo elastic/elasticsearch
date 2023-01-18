@@ -48,7 +48,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -1847,7 +1846,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1));
+        final TransportVersion version = randomFrom(
+            TransportVersion.CURRENT,
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
+        );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -1927,7 +1929,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1));
+        final TransportVersion version = randomFrom(
+            TransportVersion.CURRENT,
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
+        );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(

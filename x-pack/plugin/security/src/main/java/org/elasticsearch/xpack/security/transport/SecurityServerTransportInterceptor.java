@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -63,7 +62,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
-    private static final Version VERSION_REMOTE_ACCESS_HEADERS = Version.V_8_7_0;
+    private static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
@@ -328,12 +327,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportResponseHandler<T> handler
             ) {
                 final String remoteClusterAlias = remoteAccessCredentials.clusterAlias();
-                if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
+                if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate remote access headers should be sent but target cluster version ["
-                            + connection.getVersion()
+                            + connection.getTransportVersion()
                             + "] does not support receiving them"
                     );
                 }

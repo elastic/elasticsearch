@@ -1518,7 +1518,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public TransportVersion getVersion() {
+        public TransportVersion getTransportVersion() {
             return localNode.getVersion().transportVersion;
         }
     }

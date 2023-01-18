@@ -806,6 +806,7 @@ public class DataStreamIT extends ESIntegTestCase {
         String alias = randomAlphaOfLength(4);
         String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
             .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .distinct()
             .toArray(String[]::new);
         for (String dataStream : dataStreams) {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);

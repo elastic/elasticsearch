@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * {@link DatafeedTimingStatsReporter} class handles the logic of persisting {@link DatafeedTimingStats} for a single job
@@ -109,7 +108,7 @@ public class DatafeedTimingStatsReporter {
             try {
                 flush(WriteRequest.RefreshPolicy.NONE, false);
             } catch (InterruptedException e) {
-                // This is extremely unlikely to happen, as we only wait 1 nanosecond in this case
+                assert false : "This should never happen when flush is called with mustWait set to false";
                 Thread.currentThread().interrupt();
             }
         }
@@ -129,7 +128,7 @@ public class DatafeedTimingStatsReporter {
             logger.trace("[{}] not persisting datafeed timing stats as persistence is disallowed", jobId);
             return;
         }
-        if (persistInProgressLatch != null && persistInProgressLatch.await(1, TimeUnit.NANOSECONDS) == false) {
+        if (persistInProgressLatch != null && persistInProgressLatch.getCount() > 0) {
             logger.trace("[{}] not persisting datafeed timing stats as the previous persist is still in progress", jobId);
             return;
         }

@@ -133,8 +133,6 @@ not yet been retrieved into the local copy. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
 recovery. On-disk data is preserved across restarts, such that the node does
 not need to re-download data that is already stored on the node after a restart.
-Note that the underlying snapshot still needs to be always available and reliable
-for a fully-mounted index (see <<searchable-snapshots-reliability>>).
 +
 Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 
@@ -305,7 +303,7 @@ snapshots of {search-snap} indices.
 
 [discrete]
 [[searchable-snapshots-reliability]]
-=== Reliability of {search-snaps}
+=== Underlying repository snapshots must be available and reliable
 
 The sole copy of the data in a {search-snap} index is the underlying snapshot,
 stored in the repository. A {search-snap} shard can fail if the underlying

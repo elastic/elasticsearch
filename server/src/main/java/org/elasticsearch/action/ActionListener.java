@@ -483,7 +483,7 @@ public interface ActionListener<Response> {
 
             @Override
             public String toString() {
-                return "notifyOnce[" + delegate + "]";
+                return "notifyOnce[" + delegateRef.get() + "]";
             }
         };
     }

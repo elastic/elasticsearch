@@ -719,7 +719,7 @@ end::pipeline[]
 tag::skip_pipeline[]
 `skip_pipeline`::
 (Optional, Boolean) If `true`, the pipeline (whether explicit or default) is not
-executed. However the final pipeline (if one exists) is still executed. This paramter
+executed. However the final pipeline (if one exists) is still executed. This parameter
 is meant to support integrations that run pipelines external to {es}.
 end::skip_pipeline[]
 

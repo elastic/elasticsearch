@@ -22,6 +22,7 @@ import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -152,13 +153,9 @@ public class LocalClusterHandle implements ClusterHandle {
     private void waitUntilReady() {
         writeUnicastHostsFile();
         try {
-            Retry.retryUntilTrue(CLUSTER_UP_TIMEOUT, Duration.ZERO, () -> {
-                WaitForHttpResource wait = configureWaitForReady();
-                return wait.wait(500);
-            });
-        } catch (TimeoutException e) {
-            throw new RuntimeException("Timed out after " + CLUSTER_UP_TIMEOUT + " waiting for cluster '" + name + "' status to be yellow");
-        } catch (ExecutionException e) {
+            WaitForHttpResource wait = configureWaitForReady();
+            wait.wait(CLUSTER_UP_TIMEOUT.toMillis());
+        } catch (Exception e) {
             throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
         }
     }

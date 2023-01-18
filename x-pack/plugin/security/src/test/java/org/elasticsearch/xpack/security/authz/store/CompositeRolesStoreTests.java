@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -46,6 +47,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -1845,7 +1847,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
+        final TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1));
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -1862,7 +1864,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
-        if (version == Version.CURRENT) {
+        if (version == TransportVersion.CURRENT) {
             verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         } else {
             verify(apiKeyService, times(1)).parseRoleDescriptors(anyString(), anyMap(), any());
@@ -1925,7 +1927,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
+        final TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1));
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -1943,7 +1945,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = roleFuture.actionGet();
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, AuthenticationTestHelper.builder().build()), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        if (version == Version.CURRENT) {
+        if (version == TransportVersion.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
                 (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),

@@ -151,7 +151,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
-            assertEquals(version, authentication.getEffectiveSubject().getVersion());
+            assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
@@ -160,7 +160,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
-            assertEquals(version, authentication.getEffectiveSubject().getVersion());
+            assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
             listener.onResponse(null);
         };

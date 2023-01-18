@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -202,7 +203,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     ) {
         // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
         // ourselves otherwise we wind up using a version newer than what we can actually send
-        final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+        final TransportVersion minVersion = TransportVersion.min(connection.getTransportVersion(), TransportVersion.CURRENT);
 
         // Sometimes a system action gets executed like a internal create index request or update mappings request
         // which means that the user is copied over to system actions so we need to change the user
@@ -233,7 +234,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 )
             );
         } else if (securityContext.getAuthentication() != null
-            && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
+            && securityContext.getAuthentication().getEffectiveSubject().getTransportVersion().equals(minVersion) == false) {
                 // re-write the authentication since we want the authentication version to match the version of the connection
                 securityContext.executeAfterRewritingAuthentication(
                     original -> sendWithUser(

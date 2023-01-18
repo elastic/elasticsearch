@@ -2546,7 +2546,7 @@ public final class TokenService {
             String iv,
             String salt
         ) {
-            assert associatedAuthentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            assert associatedAuthentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
             this.invalidated = invalidated;
             // not used, filled-in for consistency's sake
             this.associatedUser = associatedAuthentication.getEffectiveSubject().getUser().principal();

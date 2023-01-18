@@ -320,8 +320,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
-        assertEquals(Version.CURRENT, authRef.get().getEffectiveSubject().getVersion());
-        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getVersion());
+        assertEquals(Version.CURRENT, authRef.get().getEffectiveSubject().getTransportVersion());
+        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
@@ -387,8 +387,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
-        assertEquals(connectionVersion, authRef.get().getEffectiveSubject().getVersion());
-        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getVersion());
+        assertEquals(connectionVersion, authRef.get().getEffectiveSubject().getTransportVersion());
+        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
     }
 
     public void testSetUserBasedOnActionOrigin() {
@@ -448,7 +448,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Authentication authentication = authenticationRef.get();
         assertThat(authentication, notNullValue());
         assertThat(authentication.getEffectiveSubject().getUser(), equalTo(originToUserMap.get(origin)));
-        assertThat(authentication.getEffectiveSubject().getVersion(), equalTo(connectionVersion));
+        assertThat(authentication.getEffectiveSubject().getTransportVersion(), equalTo(connectionVersion));
     }
 
     public void testContextRestoreResponseHandler() throws Exception {

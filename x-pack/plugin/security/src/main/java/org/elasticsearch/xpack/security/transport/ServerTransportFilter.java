@@ -106,7 +106,7 @@ final class ServerTransportFilter {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
-                    securityContext.executeAsSystemUser(Version.fromId(version.id), original -> {
+                    securityContext.executeAsSystemUser(TransportVersion.fromId(version.id), original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
                     });

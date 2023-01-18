@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -93,7 +94,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            clusterState.nodes().getMinNodeVersion()
+            clusterState.nodes().getMinNodeVersion().transportVersion //TODO should we change getMinNodeVersion to transport version
         );
     }
 
@@ -109,14 +110,14 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(headers),
             authenticationReader,
-            clusterState.nodes().getMinNodeVersion()
+            clusterState.nodes().getMinNodeVersion().transportVersion //TODO should we change getMinNodeVersion to transport version
         );
     }
 
     private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
         Map<String, String> filteredHeaders,
         CheckedFunction<String, Authentication, IOException> authenticationReader,
-        Version minNodeVersion
+        TransportVersion minNodeVersion
     ) {
         Map<String, String> newHeaders = null;
 
@@ -154,11 +155,11 @@ public final class ClientHelper {
     private static String maybeRewriteSingleAuthenticationHeaderForVersion(
         CheckedFunction<String, Authentication, IOException> authenticationReader,
         String authenticationHeaderKey,
-        Version minNodeVersion
+        TransportVersion minNodeVersion
     ) {
         try {
             final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
-            if (authentication != null && authentication.getEffectiveSubject().getVersion().after(minNodeVersion)) {
+            if (authentication != null && authentication.getEffectiveSubject().getTransportVersion().after(minNodeVersion)) {
                 return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
             }
         } catch (IOException e) {

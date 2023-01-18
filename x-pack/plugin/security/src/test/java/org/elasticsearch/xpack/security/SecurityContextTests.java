@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -91,13 +93,13 @@ public class SecurityContextTests extends ESTestCase {
         final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setInternalUser(internalUser, Version.CURRENT);
+        securityContext.setInternalUser(internalUser, TransportVersion.CURRENT);
         assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), Version.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), TransportVersion.CURRENT)
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -123,7 +125,7 @@ public class SecurityContextTests extends ESTestCase {
             AsyncSearchUser.INSTANCE
         );
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsInternalUser(executionUser, Version.CURRENT, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, TransportVersion.CURRENT, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
@@ -169,12 +171,12 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
             assertEquals(original.isRunAs(), authentication.isRunAs());
             assertEquals(original.getEffectiveSubject().getRealm(), authentication.getEffectiveSubject().getRealm());
-            assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getVersion());
+            assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getTransportVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
             // Other request headers should be preserved
             requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
-        }, VersionUtils.getPreviousVersion());
+        }, TransportVersionUtils.getPreviousVersion());
 
         final Authentication authAfterExecution = securityContext.getAuthentication();
         assertEquals(original, authAfterExecution);
@@ -194,7 +196,7 @@ public class SecurityContextTests extends ESTestCase {
             new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
 
-        final Authentication original = AuthenticationTestHelper.builder().apiKey().metadata(metadata).version(Version.V_8_0_0).build();
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().metadata(metadata).transportVersion(TransportVersion.V_8_0_0).build();
         original.writeToContext(threadContext);
 
         // If target is old node, rewrite new style API key metadata to old format
@@ -208,17 +210,17 @@ public class SecurityContextTests extends ESTestCase {
                 Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
                 authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
             );
-        }, Version.V_7_8_0);
+        }, TransportVersion.V_7_8_0);
 
         // If target is new node, no need to rewrite the new style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
-        final Authentication original = AuthenticationTestHelper.builder().apiKey().version(Version.V_7_8_0).build();
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().transportVersion(TransportVersion.V_7_8_0).build();
 
         // original authentication has the old style of role descriptor maps
         assertThat(
@@ -236,7 +238,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, Version.V_7_8_0);
+        }, TransportVersion.V_7_8_0);
 
         // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
@@ -254,7 +256,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {

@@ -181,13 +181,14 @@ public class StatelessReaderManager implements Closeable {
                     indexState.addFileDetail(fileMetadata.name(), fileMetadata.length(), false);
                 }
 
+                store.incRef();
                 objectStoreService.onNewCommitReceived(
                     shardId,
                     commit.primaryTerm(),
                     commit.generation(),
                     toDownload,
                     multiFileWriter,
-                    new ActionListener<>() {
+                    ActionListener.runAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
                             try (multiFileWriter) {
@@ -208,7 +209,7 @@ public class StatelessReaderManager implements Closeable {
                             multiFileWriter.close();
                             finish(e);
                         }
-                    }
+                    }, store::decRef)
                 );
             }
         });

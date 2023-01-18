@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -25,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,10 +63,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
     public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
     public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
+
+    public FullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
 
     @Override
     protected Settings restClientSettings() {

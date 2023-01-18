@@ -69,7 +69,6 @@ public class LocalClusterSpec implements ClusterSpec {
     public static class LocalNodeSpec {
         private final LocalClusterSpec cluster;
         private final String name;
-        private final Version version;
         private final List<SettingsProvider> settingsProviders;
         private final Map<String, String> settings;
         private final List<EnvironmentProvider> environmentProviders;
@@ -79,7 +78,9 @@ public class LocalClusterSpec implements ClusterSpec {
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
         private final Map<String, String> keystoreSettings;
+        private final Map<String, Resource> keystoreFiles;
         private final Map<String, Resource> extraConfigFiles;
+        private Version version;
 
         public LocalNodeSpec(
             LocalClusterSpec cluster,
@@ -94,6 +95,7 @@ public class LocalClusterSpec implements ClusterSpec {
             DistributionType distributionType,
             Set<FeatureFlag> features,
             Map<String, String> keystoreSettings,
+            Map<String, Resource> keystoreFiles,
             Map<String, Resource> extraConfigFiles
         ) {
             this.cluster = cluster;
@@ -108,7 +110,12 @@ public class LocalClusterSpec implements ClusterSpec {
             this.distributionType = distributionType;
             this.features = features;
             this.keystoreSettings = keystoreSettings;
+            this.keystoreFiles = keystoreFiles;
             this.extraConfigFiles = extraConfigFiles;
+        }
+
+        void setVersion(Version version) {
+            this.version = version;
         }
 
         public LocalClusterSpec getCluster() {
@@ -149,6 +156,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public Map<String, String> getKeystoreSettings() {
             return keystoreSettings;
+        }
+
+        public Map<String, Resource> getKeystoreFiles() {
+            return keystoreFiles;
         }
 
         public Map<String, Resource> getExtraConfigFiles() {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -14,7 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -23,7 +25,11 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class WatcherMappingUpdateIT extends AbstractFullClusterRestartTestCase {
+public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
+
+    public WatcherMappingUpdateIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
 
     @Override
     protected Settings restClientSettings() {

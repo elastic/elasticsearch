@@ -352,6 +352,8 @@
           #data_stream: { }
 
   - do:
+      catch: /index template matching \[blue\] not found/
+      # TODO: Could head_index_template be used instead? But have not seen this anywhere.
       indices.get_index_template:
         name: blue
 

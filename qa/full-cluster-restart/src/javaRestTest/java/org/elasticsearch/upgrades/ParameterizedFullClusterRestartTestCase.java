@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -58,6 +59,11 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
+    }
+
+    @AfterClass
+    public static void resetUpgrade() {
+        upgradeFailed = false;
     }
 
     public boolean isRunningAgainstOldCluster() {

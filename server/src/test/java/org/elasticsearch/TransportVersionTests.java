@@ -59,18 +59,25 @@ public class TransportVersionTests extends ESTestCase {
         public static final TransportVersion V3 = new TransportVersion(3, "3");
     }
 
-    public static class WrongFakeVersion {
+    public static class DuplicatedIdFakeVersion {
         public static final TransportVersion V1 = new TransportVersion(1, "1");
         public static final TransportVersion V2 = new TransportVersion(2, "2");
         public static final TransportVersion V3 = new TransportVersion(2, "3");
     }
 
+    public static class DuplicatedStringIdFakeVersion {
+        public static final TransportVersion V1 = new TransportVersion(1, "1");
+        public static final TransportVersion V2 = new TransportVersion(2, "2");
+        public static final TransportVersion V3 = new TransportVersion(3, "2");
+    }
+
     public void testStaticTransportVersionChecks() {
-        assertThat(TransportVersion.getAllVersionIds(CorrectFakeVersion.class), equalTo(Map.of(
-            1, CorrectFakeVersion.V1,
-            2, CorrectFakeVersion.V2,
-            3, CorrectFakeVersion.V3)));
-        expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(WrongFakeVersion.class));
+        assertThat(
+            TransportVersion.getAllVersionIds(CorrectFakeVersion.class),
+            equalTo(Map.of(1, CorrectFakeVersion.V1, 2, CorrectFakeVersion.V2, 3, CorrectFakeVersion.V3))
+        );
+        expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class));
     }
 
     public void testDefinedConstants() throws IllegalAccessException {

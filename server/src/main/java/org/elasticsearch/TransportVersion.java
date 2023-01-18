@@ -156,6 +156,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
 
     static Map<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, TransportVersion> builder = new HashMap<>();
+        Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
         for (Field declaredField : cls.getFields()) {
@@ -171,6 +172,13 @@ public class TransportVersion implements Comparable<TransportVersion> {
                     assert maybePrevious == null
                         : "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
 
+                    TransportVersion sameUniqueId = uniqueIds.put(version.uniqueId, version);
+                    assert sameUniqueId == null
+                        : "Versions "
+                            + version
+                            + " and "
+                            + sameUniqueId
+                            + " have the same unique id. Each TransportVersion should have a different unique id";
                 } catch (IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 }
@@ -186,18 +194,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
 
     static {
         VERSION_IDS = getAllVersionIds(TransportVersion.class);
-        Map<String, TransportVersion> uniqueIds = new HashMap<>();
-
-        for (TransportVersion version : VERSION_IDS.values()) {
-            TransportVersion sameUniqueId = uniqueIds.put(version.uniqueId, version);
-            assert sameUniqueId == null
-                : "Versions "
-                + version
-                + " and "
-                + sameUniqueId
-                + " have the same unique id. Each TransportVersion should have a different unique id";
-        }
-
         ALL_VERSIONS = Collections.unmodifiableNavigableSet(new TreeSet<>(VERSION_IDS.values()));
     }
 

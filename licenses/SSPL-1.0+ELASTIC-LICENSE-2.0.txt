@@ -1,7 +1,7 @@
                      Server Side Public License
                      VERSION 1, OCTOBER 16, 2018
 
-                    Copyright © 2018 MongoDB, Inc.
+                    Copyright © 2023 MongoDB, Inc.
 
   Everyone is permitted to copy and distribute verbatim copies of this
   license document, but changing it is not allowed.

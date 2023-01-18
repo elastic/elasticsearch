@@ -1142,6 +1142,10 @@ public abstract class TransportReplicationAction<
                 listener = listener.map(result -> {
                     assert result.replicaRequest() == null || result.finalFailure == null
                         : "a replica request [" + result.replicaRequest() + "] with a primary failure [" + result.finalFailure + "]";
+                    assert result.replicaRequest() == null
+                        || (result.replicaRequest().getParentTask().isSet()
+                            && result.replicaRequest().getParentTask().equals(request.getParentTask()))
+                        : "a replica request must have the same parent task as the primary request";
                     return result;
                 });
             }

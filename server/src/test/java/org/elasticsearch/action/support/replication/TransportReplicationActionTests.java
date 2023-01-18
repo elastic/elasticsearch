@@ -713,6 +713,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
         setState(clusterService, state);
         Request request = new Request(shardId).timeout("1ms");
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong()); // dummy parent task
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
@@ -783,6 +784,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryTargetNodeId)).build();
         setState(clusterService, state);
         Request request = new Request(shardId).timeout("1ms");
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong()); // dummy parent task
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
@@ -916,6 +918,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardRouting routingEntry = clusterService.state().getRoutingTable().index("test").shard(0).primaryShard();
         final long primaryTerm = clusterService.state().metadata().index(index).primaryTerm(shardId.id());
         Request request = new Request(shardId);
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong()); // dummy parent task
         TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
             new TransportReplicationAction.ConcreteShardRequest<>(request, routingEntry.allocationId().getId(), primaryTerm);
         PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
@@ -977,6 +980,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
         final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
         Request request = new Request(shardId);
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong()); // dummy parent task
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         int i = randomInt(2);

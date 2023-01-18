@@ -260,7 +260,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
             Thread thread = new Thread(() -> {
                 final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest =
-                    new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+                    new TransportReplicationAction.ConcreteShardRequest<>(requestWithDummyParents(), allocationId(), primaryTerm());
                 @SuppressWarnings("rawtypes")
                 TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction = singlePermitAction.new AsyncPrimaryAction(
                     primaryRequest, listener, null
@@ -326,7 +326,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         Thread thread = new Thread(() -> {
             @SuppressWarnings("rawtypes")
             final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest =
-                new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+                new TransportReplicationAction.ConcreteShardRequest<>(requestWithDummyParents(), allocationId(), primaryTerm());
             @SuppressWarnings("rawtypes")
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction = allPermitsAction.new AsyncPrimaryAction(
                 primaryRequest, allPermitFuture, null
@@ -423,6 +423,12 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
     private Request request() {
         return new Request(primary.shardId());
+    }
+
+    private Request requestWithDummyParents() {
+        var request = request();
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
+        return request;
     }
 
     /**

@@ -1039,7 +1039,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
-            // Another exception here would eat the orriginal.
+            // Another exception here would eat the original.
             return;
         }
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
@@ -1086,6 +1086,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // and in that case the ML processes will be grandchildren of the wrapper.
         List<ProcessHandle> children = processHandle.children().toList();
         try {
+            ProcessHandle.Info processInfo1 = processHandle.info();
             logProcessInfo("Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":", processHandle.info());
 
             if (forcibly) {
@@ -1102,6 +1103,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
             waitForProcessToExit(processHandle);
             if (processHandle.isAlive()) {
+                ProcessHandle.Info processInfo2 = processHandle.info();
+                if (processInfo1.commandLine().isPresent() && processInfo2.commandLine().isPresent() == false) {
+                    LOGGER.info(
+                        "Process command line {} is no longer present. Assuming process has terminated",
+                        processInfo1.commandLine().get()
+                    );
+                    return;
+                }
                 throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
             }
         } finally {
@@ -1210,6 +1219,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void waitForProcessToExit(ProcessHandle processHandle) {
+        logProcessInfo("Waiting for elasticsearch process to terminate:", processHandle.info());
         try {
             processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {

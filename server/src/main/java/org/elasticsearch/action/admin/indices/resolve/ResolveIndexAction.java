@@ -473,18 +473,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
-            if (localIndices != null) {
-                assert request.includeDataStreams() : "expression resolver includes datastreams but request doesn't allow it";
-                resolveIndices(
-                    localIndices.indices(),
-                    localIndices.indicesOptions(),
-                    clusterState,
-                    indexNameExpressionResolver,
-                    indices,
-                    aliases,
-                    dataStreams
-                );
-            }
+            assert request.includeDataStreams() : "expression resolver includes datastreams but request doesn't allow it";
+            resolveIndices(localIndices, clusterState, indexNameExpressionResolver, indices, aliases, dataStreams);
 
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
@@ -511,6 +501,30 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             } else {
                 listener.onResponse(new Response(indices, aliases, dataStreams));
             }
+        }
+
+        /**
+         * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
+         *
+         * @param localIndices   The names and wildcard expressions to resolve
+         * @param clusterState   Cluster state
+         * @param resolver       Resolver instance for matching names
+         * @param indices        List containing any matching indices
+         * @param aliases        List containing any matching aliases
+         * @param dataStreams    List containing any matching data streams
+         */
+        static void resolveIndices(
+            @Nullable OriginalIndices localIndices,
+            ClusterState clusterState,
+            IndexNameExpressionResolver resolver,
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams
+        ) {
+            if (localIndices == null) {
+                return;
+            }
+            resolveIndices(localIndices.indices(), localIndices.indicesOptions(), clusterState, resolver, indices, aliases, dataStreams);
         }
 
         /**

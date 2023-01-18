@@ -122,31 +122,33 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             "assemble"
         );
 
-        // only run this section for projects after the release of the stable API
-        if (bwcVersion.get().onOrAfter(Version.fromString("8.7.0"))) {
-            for (Project stableApiProject : resolveStableProjects(project)) {
+        // for versions before 8.7.0, we do not need to set up stable API bwc
+        if (bwcVersion.get().before(Version.fromString("8.7.0"))) {
+            return;
+        }
 
-                String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
+        for (Project stableApiProject : resolveStableProjects(project)) {
 
-                DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
-                    new File(
-                        checkoutDir.get(),
-                        relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
-                    ),
-                    null
-                );
+            String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
 
-                createBuildBwcTask(
-                    bwcSetupExtension,
-                    project,
-                    bwcVersion,
-                    stableApiProject.getName(),
-                    "libs/" + stableApiProject.getName(),
-                    stableAnalysisPluginProjectArtifact,
-                    buildBwcTaskProvider,
-                    "assemble"
-                );
-            }
+            DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
+                new File(
+                    checkoutDir.get(),
+                    relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
+                ),
+                null
+            );
+
+            createBuildBwcTask(
+                bwcSetupExtension,
+                project,
+                bwcVersion,
+                stableApiProject.getName(),
+                "libs/" + stableApiProject.getName(),
+                stableAnalysisPluginProjectArtifact,
+                buildBwcTaskProvider,
+                "assemble"
+            );
         }
     }
 

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -15,15 +17,22 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import java.io.IOException;
 
 /**
- * Implements most of the logic for the GeoTile aggregation.
+ * Implements the logic for the GeoTile aggregation over a geoshape doc value.
  */
-abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
+public abstract class GeoTileGridTiler extends GeoGridTiler {
 
     protected final int tiles;
 
-    AbstractGeoTileGridTiler(int precision) {
+    private GeoTileGridTiler(int precision) {
         super(precision);
         tiles = 1 << precision;
+    }
+
+    /** Factory method to create GeoTileGridTiler objects */
+    public static GeoTileGridTiler makeGridTiler(int precision, GeoBoundingBox geoBoundingBox) {
+        return geoBoundingBox == null || geoBoundingBox.isUnbounded()
+            ? new GeoTileGridTiler.UnboundedGeoTileGridTiler(precision)
+            : new GeoTileGridTiler.BoundedGeoTileGridTiler(precision, geoBoundingBox);
     }
 
     /** check if the provided tile is in the solution space of this tiler */
@@ -48,7 +57,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
      */
     @Override
     public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
-        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+        final GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
         // geo tiles are not defined at the extreme latitudes due to them
@@ -95,7 +104,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     /**
      * Sets a singular doc-value with the provided x/y.
      */
-    protected int setValue(GeoShapeCellValues docValues, int xTile, int yTile) {
+    private int setValue(GeoShapeCellValues docValues, int xTile, int yTile) {
         if (validTile(xTile, yTile, precision)) {
             docValues.resizeCell(1);
             docValues.add(0, GeoTileUtils.longEncodeTiles(precision, xTile, yTile));
@@ -105,12 +114,10 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     /**
-     *
-     * @param values the bucket values as longs
-     * @param geoValue the shape value
-     * @return the number of buckets the geoValue is found in
+     * Checks all tiles between minXTile/maxXTile and minYTile/maxYTile.
      */
-    protected int setValuesByBruteForceScan(
+    // pack private for testing
+    int setValuesByBruteForceScan(
         GeoShapeCellValues values,
         GeoShapeValues.GeoShapeValue geoValue,
         int minXTile,
@@ -121,7 +128,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         int idx = 0;
         for (int i = minXTile; i <= maxXTile; i++) {
             for (int j = minYTile; j <= maxYTile; j++) {
-                GeoRelation relation = relateTile(geoValue, i, j, precision);
+                final GeoRelation relation = relateTile(geoValue, i, j, precision);
                 if (relation != GeoRelation.QUERY_DISJOINT) {
                     values.resizeCell(idx + 1);
                     values.add(idx++, GeoTileUtils.longEncodeTiles(precision, i, j));
@@ -131,7 +138,12 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         return idx;
     }
 
-    protected int setValuesByRasterization(
+    /**
+     * Recursively search the tile tree, only following branches that intersect the geometry.
+     * Once at the required depth, then all cells that intersect are added to the collection.
+     */
+    // pkg protected for testing
+    int setValuesByRasterization(
         int xTile,
         int yTile,
         int zTile,
@@ -142,15 +154,15 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         zTile++;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {
-                int nextX = 2 * xTile + i;
-                int nextY = 2 * yTile + j;
-                GeoRelation relation = relateTile(geoValue, nextX, nextY, zTile);
+                final int nextX = 2 * xTile + i;
+                final int nextY = 2 * yTile + j;
+                final GeoRelation relation = relateTile(geoValue, nextX, nextY, zTile);
                 if (GeoRelation.QUERY_INSIDE == relation) {
                     if (zTile == precision) {
                         values.resizeCell(getNewSize(valuesIndex, 1));
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                     } else {
-                        int numTilesAtPrecision = getNumTilesAtPrecision(precision, zTile);
+                        final int numTilesAtPrecision = getNumTilesAtPrecision(precision, zTile);
                         values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
                         valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex);
                     }
@@ -168,7 +180,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     private int getNewSize(int valuesIndex, int increment) {
-        long newSize = (long) valuesIndex + increment;
+        final long newSize = (long) valuesIndex + increment;
         if (newSize > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Tile aggregation array overflow");
         }
@@ -184,4 +196,99 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     protected abstract int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex);
+
+    protected int setValues(GeoShapeCellValues values, int valuesIndex, int minY, int maxY, int minX, int maxX) {
+        for (int i = minX; i < maxX; i++) {
+            for (int j = minY; j < maxY; j++) {
+                assert validTile(i, j, precision);
+                values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
+            }
+        }
+        return valuesIndex;
+    }
+
+    /**
+     * Bounded geotile aggregation. It accepts tiles that intersects the provided bounds.
+     */
+    private static class BoundedGeoTileGridTiler extends GeoTileGridTiler {
+
+        private final GeoTileBoundedPredicate predicate;
+
+        BoundedGeoTileGridTiler(int precision, GeoBoundingBox bbox) {
+            super(precision);
+            this.predicate = new GeoTileBoundedPredicate(precision, bbox);
+        }
+
+        @Override
+        protected boolean validTile(int x, int y, int z) {
+            return predicate.validTile(x, y, z);
+        }
+
+        @Override
+        protected long getMaxCells() {
+            return predicate.getMaxTiles();
+        }
+
+        @Override
+        protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
+            // For every level we go down, we half each dimension. The total number of splits is equal to 1 << (levelEnd - levelStart)
+            final int splits = 1 << precision - zTile;
+            // The start value of a dimension is calculated by multiplying the value of that dimension at the start level
+            // by the number of splits. Choose the max value with respect to the bounding box.
+            final int minY = Math.max(predicate.minY(), yTile * splits);
+            // The end value of a dimension is calculated by adding to the start value the number of splits.
+            // Choose the min value with respect to the bounding box.
+            final int maxY = Math.min(predicate.maxY(), yTile * splits + splits);
+            // Do the same for the X dimension taking into account that the bounding box might cross the dateline.
+            if (predicate.crossesDateline()) {
+                final int westMinX = Math.max(predicate.leftX(), xTile * splits);
+                final int westMaxX = xTile * splits + splits;
+                valuesIndex = setValues(values, valuesIndex, minY, maxY, westMinX, westMaxX);
+                // when the left and right box land in the same tile, we need to make sure we don't count then twice
+                final int eastMaxX = Math.min(westMinX, Math.min(predicate.rightX(), xTile * splits + splits));
+                final int eastMinX = xTile * splits;
+                return setValues(values, valuesIndex, minY, maxY, eastMinX, eastMaxX);
+            } else {
+                final int minX = Math.max(predicate.leftX(), xTile * splits);
+                final int maxX = Math.min(predicate.rightX(), xTile * splits + splits);
+                return setValues(values, valuesIndex, minY, maxY, minX, maxX);
+            }
+        }
+    }
+
+    /**
+     * Unbounded geotile aggregation. It accepts any tile.
+     */
+    private static class UnboundedGeoTileGridTiler extends GeoTileGridTiler {
+        private final long maxTiles;
+
+        UnboundedGeoTileGridTiler(int precision) {
+            super(precision);
+            maxTiles = (long) tiles * tiles;
+        }
+
+        @Override
+        protected boolean validTile(int x, int y, int z) {
+            return true;
+        }
+
+        @Override
+        protected long getMaxCells() {
+            return maxTiles;
+        }
+
+        @Override
+        protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
+            // For every level we go down, we half each dimension. The total number of splits is equal to 1 << (levelEnd - levelStart)
+            final int splits = 1 << precision - zTile;
+            // The start value of a dimension is calculated by multiplying the value of that dimension at the start level
+            // by the number of splits
+            final int minX = xTile * splits;
+            final int minY = yTile * splits;
+            // The end value of a dimension is calculated by adding to the start value the number of splits
+            final int maxX = minX + splits;
+            final int maxY = minY + splits;
+            return setValues(values, valuesIndex, minY, maxY, minX, maxX);
+        }
+    }
 }

@@ -19,11 +19,14 @@
 package org.elasticsearch.h3;
 
 import org.apache.lucene.spatial3d.geom.GeoPoint;
+import org.apache.lucene.spatial3d.geom.LatLonBounds;
+import org.apache.lucene.spatial3d.geom.Plane;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.spatial3d.geom.SidedPlane;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
-public class AzimuthTests extends ESTestCase {
+public class LatLngTests extends ESTestCase {
 
     public void testLatLonVec3d() {
         final GeoPoint point = safePoint();
@@ -46,5 +49,42 @@ public class AzimuthTests extends ESTestCase {
             point = new GeoPoint(PlanetModel.SPHERE, lat, lon);
         } while (point.getLatitude() == -Math.PI / 2);
         return point;
+    }
+
+    public void testGreatCircleMaxMinLatitude() {
+        for (int i = 0; i < 10; i++) {
+            final GeoPoint point1 = safePoint();
+            final GeoPoint point2 = safePoint();
+            final LatLng latLng1 = new LatLng(point1.getLatitude(), point1.getLongitude());
+            final LatLng latLng2 = new LatLng(point2.getLatitude(), point2.getLongitude());
+            final LatLonBounds bounds = getBounds(point1, point2);
+            assertEquals(bounds.getMaxLatitude(), latLng1.greatCircleMaxLatitude(latLng2), 1e-7);
+            assertEquals(bounds.getMinLatitude(), latLng1.greatCircleMinLatitude(latLng2), 1e-7);
+        }
+    }
+
+    private LatLonBounds getBounds(final GeoPoint point1, final GeoPoint point2) {
+        final LatLonBounds bounds = new LatLonBounds();
+        bounds.addPoint(point1);
+        bounds.addPoint(point2);
+        if (point1.isNumericallyIdentical(point2) == false) {
+            final Plane plane = new Plane(point1, point2);
+            bounds.addPlane(PlanetModel.SPHERE, plane, new SidedPlane(point1, plane, point2), new SidedPlane(point2, point1, plane));
+        }
+        return bounds;
+    }
+
+    public void testEqualsAndHashCode() {
+        final LatLng latLng = new LatLng(0, 0);
+        {
+            LatLng otherLatLng = new LatLng(1, 1);
+            assertNotEquals(latLng, otherLatLng);
+            assertNotEquals(latLng.hashCode(), otherLatLng.hashCode());
+        }
+        {
+            LatLng otherLatLng = new LatLng(0, 0);
+            assertEquals(latLng, otherLatLng);
+            assertEquals(latLng.hashCode(), otherLatLng.hashCode());
+        }
     }
 }

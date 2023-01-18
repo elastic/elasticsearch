@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
@@ -50,11 +49,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestFileSettingsIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -107,7 +101,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                  "ingest_pipelines": {
                    "my_ingest_pipeline": {
                        "description": "_description",
-                       "processors": [
+                       "processors":
                           {
                             "foo" : {
                               "field": "pipeline",
@@ -210,11 +204,11 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
+                    assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
                         reservedState.errorMetadata().errors().get(0),
-                        containsString("org.elasticsearch.ElasticsearchParseException: No processor type exists with name [foo]")
+                        containsString("org.elasticsearch.xcontent.XContentParseException: [17:16] [reserved_state_chunk] failed")
                     );
                 }
             }

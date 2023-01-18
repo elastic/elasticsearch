@@ -44,8 +44,8 @@ public class ClassReaders {
         if (dir == null) {
             return Collections.emptyList();
         }
-        try (var list = Files.list(dir)) {
-            return ofPaths(list);
+        try (var stream = Files.list(dir)) {
+            return ofPaths(stream);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

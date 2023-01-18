@@ -531,7 +531,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                 .setId("my_script")
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
                 .setContent(
-                    new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\"," + " \"source\": \"my_script\" } }"),
+                    new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\", \"source\": \"my_script\" } }"),
                     XContentType.JSON
                 )
         );

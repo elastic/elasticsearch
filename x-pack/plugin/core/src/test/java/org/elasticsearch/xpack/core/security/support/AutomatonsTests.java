@@ -12,13 +12,13 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
@@ -223,13 +223,14 @@ public class AutomatonsTests extends ESTestCase {
     // (and it is annoying to have to rewrite it each time it's needed)
     public static <A extends Appendable> A debug(Automaton a, A out) throws IOException {
         out.append("Automaton {");
-        out.append(String.format(Locale.ROOT, "States:%d  Deterministic:%s", a.getNumStates(), a.isDeterministic()));
+        out.append(Strings.format("States:%d  Deterministic:%s", a.getNumStates(), a.isDeterministic()));
         for (int s = 0; s < a.getNumStates(); s++) {
-            out.append(String.format(Locale.ROOT, " [State#%d %s", s, a.isAccept(s) ? "(accept)" : ""));
+            Object[] args = new Object[] { s, a.isAccept(s) ? "(accept)" : "" };
+            out.append(Strings.format(" [State#%d %s", args));
             for (int t = 0; t < a.getNumTransitions(s); t++) {
                 Transition transition = new Transition();
                 a.getTransition(s, t, transition);
-                out.append(String.format(Locale.ROOT, " (%05d - %05d => %s)", transition.min, transition.max, transition.dest));
+                out.append(Strings.format(" (%05d - %05d => %s)", transition.min, transition.max, transition.dest));
             }
             out.append("]");
         }

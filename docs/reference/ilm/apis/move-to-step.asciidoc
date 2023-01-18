@@ -95,11 +95,11 @@ For more information, see <<index-lifecycle-error-handling, {ilm-init} error han
 The name of the phase that contains the action you want to perform or resume.
 
 `action`::
-(Required, string)
+(Optional, string)
 The name action you want to perform or resume. 
 
 `name`::
-(Required, string)
+(Optional, string)
 The name of the step to move to and execute. 
 
 ====

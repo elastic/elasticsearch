@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -145,22 +146,19 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals(
-            """
-                IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
-                {"total":%s,"successful":%s,"failed":0}]\
-                """.formatted(
-                shardId.getIndexName(),
-                id,
-                version,
-                created ? "created" : "updated",
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                0,
-                total,
-                successful
-            ),
-            indexResponse.toString()
-        );
+        Object[] args = new Object[] {
+            shardId.getIndexName(),
+            id,
+            version,
+            created ? "created" : "updated",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            total,
+            successful };
+        assertEquals(Strings.format("""
+            IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
+            {"total":%s,"successful":%s,"failed":0}]\
+            """, args), indexResponse.toString());
     }
 
     public void testIndexRequestXContentSerialization() throws IOException {
@@ -256,16 +254,16 @@ public class IndexRequestTests extends ESTestCase {
         request.source(source, XContentType.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
-        source = """
+        source = Strings.format("""
             {"name":"%s"}
-            """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
+            """, randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
-                + new ByteSizeValue(actualBytes).toString()
+                + ByteSizeValue.ofBytes(actualBytes).toString()
                 + "], max length: "
-                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + ByteSizeValue.ofBytes(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
                 + "]}",
             request.toString()
         );

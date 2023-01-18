@@ -63,7 +63,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(
-        new ByteSizeValue(1),
+        ByteSizeValue.ofBytes(1),
         null,
         null,
         null,
@@ -357,6 +357,101 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             } catch (Exception e) {
                 fail("unexpected exception while validating phase [ " + frozenPhase + " ] but got [" + e.getMessage() + "]");
             }
+        }
+    }
+
+    public void testValidateDownsamplingAction() {
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION));
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(warmPhase, coldPhase, hotPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [1h] for phase [cold] must be greater than the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [30m] for phase [cold] must be greater than the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(130)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [130m] for phase [cold] must be a multiple of the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase hotPhase = new Phase(
+                "hot",
+                TimeValue.ZERO,
+                Map.of(
+                    RolloverAction.NAME,
+                    TEST_ROLLOVER_ACTION,
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.minutes(10))
+                )
+            );
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(2)))
+            );
+
+            // This is a valid interval combination
+            TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase, hotPhase));
         }
     }
 

@@ -1376,6 +1376,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits(), emptyArray());
     }
 
+    public void testCreateIndexAndAliasWithSameNameFails() {
+        final String indexName = "index-name";
+        final IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate(indexName).addAlias(new Alias(indexName)).execute().actionGet()
+        );
+        assertEquals("alias name [" + indexName + "] self-conflicts with index name", iae.getMessage());
+    }
+
     public void testGetAliasAndAliasExistsForHiddenAliases() {
         final String writeIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         final String nonWriteIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);

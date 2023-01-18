@@ -12,50 +12,89 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class OperationModeUpdateTaskTests extends ESTestCase {
 
-    public void testExecute() {
-        assertMove(OperationMode.RUNNING, OperationMode.STOPPING);
-        assertMove(OperationMode.STOPPING, randomFrom(OperationMode.RUNNING, OperationMode.STOPPED));
-        assertMove(OperationMode.STOPPED, OperationMode.RUNNING);
+    public void testILMExecute() {
+        assertILMMove(OperationMode.RUNNING, OperationMode.STOPPING);
+        assertILMMove(OperationMode.STOPPING, OperationMode.RUNNING);
+        assertILMMove(OperationMode.STOPPING, OperationMode.STOPPED);
+        assertILMMove(OperationMode.STOPPED, OperationMode.RUNNING);
 
         OperationMode mode = randomFrom(OperationMode.values());
-        assertNoMove(mode, mode);
-        assertNoMove(OperationMode.STOPPED, OperationMode.STOPPING);
-        assertNoMove(OperationMode.RUNNING, OperationMode.STOPPED);
+        assertNoILMMove(mode, mode);
+        assertNoILMMove(OperationMode.STOPPED, OperationMode.STOPPING);
+        assertNoILMMove(OperationMode.RUNNING, OperationMode.STOPPED);
+    }
+
+    public void testSLMExecute() {
+        assertSLMMove(OperationMode.RUNNING, OperationMode.STOPPING);
+        assertSLMMove(OperationMode.STOPPING, OperationMode.RUNNING);
+        assertSLMMove(OperationMode.STOPPING, OperationMode.STOPPED);
+        assertSLMMove(OperationMode.STOPPED, OperationMode.RUNNING);
+
+        OperationMode mode = randomFrom(OperationMode.values());
+        assertNoSLMMove(mode, mode);
+        assertNoSLMMove(OperationMode.STOPPED, OperationMode.STOPPING);
+        assertNoSLMMove(OperationMode.RUNNING, OperationMode.STOPPED);
     }
 
     public void testExecuteWithEmptyMetadata() {
         OperationMode requestedMode = OperationMode.STOPPING;
-        OperationMode newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(), requestedMode, false);
+        OperationMode newMode = executeILMUpdate(false, LifecycleOperationMetadata.EMPTY.getILMOperationMode(), requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
 
-        requestedMode = randomFrom(OperationMode.RUNNING, OperationMode.STOPPED);
-        newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(), requestedMode, false);
+        newMode = executeSLMUpdate(false, LifecycleOperationMetadata.EMPTY.getSLMOperationMode(), requestedMode, false);
+        assertThat(newMode, equalTo(requestedMode));
+
+        requestedMode = OperationMode.RUNNING;
+        newMode = executeILMUpdate(false, LifecycleOperationMetadata.EMPTY.getILMOperationMode(), requestedMode, true);
+        assertThat(newMode, equalTo(OperationMode.RUNNING));
+        requestedMode = OperationMode.STOPPED;
+        newMode = executeILMUpdate(false, LifecycleOperationMetadata.EMPTY.getILMOperationMode(), requestedMode, true);
+        assertThat(newMode, equalTo(OperationMode.RUNNING));
+
+        requestedMode = OperationMode.RUNNING;
+        newMode = executeSLMUpdate(false, LifecycleOperationMetadata.EMPTY.getSLMOperationMode(), requestedMode, true);
+        assertThat(newMode, equalTo(OperationMode.RUNNING));
+        requestedMode = OperationMode.STOPPED;
+        newMode = executeSLMUpdate(false, LifecycleOperationMetadata.EMPTY.getSLMOperationMode(), requestedMode, true);
         assertThat(newMode, equalTo(OperationMode.RUNNING));
     }
 
-    private void assertMove(OperationMode currentMode, OperationMode requestedMode) {
-        OperationMode newMode = executeUpdate(true, currentMode, requestedMode, false);
+    private void assertILMMove(OperationMode currentMode, OperationMode requestedMode) {
+        OperationMode newMode = executeILMUpdate(true, currentMode, requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
     }
 
-    private void assertNoMove(OperationMode currentMode, OperationMode requestedMode) {
-        OperationMode newMode = executeUpdate(true, currentMode, requestedMode, true);
+    private void assertSLMMove(OperationMode currentMode, OperationMode requestedMode) {
+        OperationMode newMode = executeSLMUpdate(true, currentMode, requestedMode, false);
+        assertThat(newMode, equalTo(requestedMode));
+    }
+
+    private void assertNoILMMove(OperationMode currentMode, OperationMode requestedMode) {
+        OperationMode newMode = executeILMUpdate(true, currentMode, requestedMode, true);
         assertThat(newMode, equalTo(currentMode));
     }
 
-    private OperationMode executeUpdate(
+    private void assertNoSLMMove(OperationMode currentMode, OperationMode requestedMode) {
+        OperationMode newMode = executeSLMUpdate(true, currentMode, requestedMode, true);
+        assertThat(newMode, equalTo(currentMode));
+    }
+
+    @SuppressWarnings("deprecated")
+    private OperationMode executeILMUpdate(
         boolean metadataInstalled,
         OperationMode currentMode,
         OperationMode requestMode,
@@ -77,12 +116,48 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
+            assertSame("expected the same state instance but they were different", state, newState);
+        } else {
+            assertThat("expected a different state instance but they were the same", state, not(equalTo(newState)));
+        }
+        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
+        IndexLifecycleMetadata oldMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        return Optional.ofNullable(newMetadata)
+            .map(LifecycleOperationMetadata::getILMOperationMode)
+            .orElseGet(oldMetadata::getOperationMode);
+    }
+
+    @SuppressWarnings("deprecated")
+    private OperationMode executeSLMUpdate(
+        boolean metadataInstalled,
+        OperationMode currentMode,
+        OperationMode requestMode,
+        boolean assertSameClusterState
+    ) {
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
+            Collections.emptyMap(),
+            currentMode,
+            new SnapshotLifecycleStats()
+        );
+        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(Version.CURRENT).build());
+        if (metadataInstalled) {
+            metadata.customs(
+                Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
+            );
+        }
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        OperationModeUpdateTask task = OperationModeUpdateTask.slmMode(requestMode);
+        ClusterState newState = task.execute(state);
+        if (assertSameClusterState) {
             assertSame(state, newState);
         } else {
             assertThat(state, not(equalTo(newState)));
         }
-        IndexLifecycleMetadata newMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        assertThat(newMetadata.getPolicyMetadatas(), equalTo(indexLifecycleMetadata.getPolicyMetadatas()));
-        return newMetadata.getOperationMode();
+        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
+        SnapshotLifecycleMetadata oldMetadata = newState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        return Optional.ofNullable(newMetadata)
+            .map(LifecycleOperationMetadata::getSLMOperationMode)
+            .orElseGet(oldMetadata::getOperationMode);
     }
 }

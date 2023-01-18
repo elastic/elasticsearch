@@ -9,9 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Builder;
@@ -65,7 +67,8 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = Metadata.builder();
@@ -82,7 +85,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
         }
         Metadata metadata = metaBuilder.build();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 0; i < indices; i++) {
             routingTableBuilder.addAsNew(metadata.index("INDEX_" + i));
         }
@@ -137,7 +140,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             if (nodesRemoved) {
                 clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
             } else {
-                clusterState = strategy.reroute(clusterState, "reroute");
+                clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
             }
             if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -160,7 +163,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         int iterations = 0;
         do {
             iterations++;
-            clusterState = strategy.reroute(clusterState, "reroute");
+            clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
             if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }

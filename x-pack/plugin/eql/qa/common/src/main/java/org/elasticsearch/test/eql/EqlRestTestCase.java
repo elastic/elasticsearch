@@ -51,30 +51,48 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             {"query": "%s", "size": -1}
             """, validQuery), "size must be greater than or equal to 0" },
         { String.format(Locale.ROOT, """
+            {"query": "%s", "fetch_size": 1}
+            """, validQuery), "fetch size must be greater than 1" },
+        { String.format(Locale.ROOT, """
             {"query": "%s", "filter": null}
             """, validQuery), "filter doesn't support values of type: VALUE_NULL" },
         { String.format(Locale.ROOT, """
             {"query": "%s", "filter": {}}
-            """, validQuery), "query malformed, empty clause found" } };
+            """, validQuery), "query malformed, empty clause found" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "max_samples_per_key": 0}
+            """, validQuery), "max_samples_per_key must be greater than 0" } };
 
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, (String) null);
 
-        final String contentType = "application/json";
         for (String[] test : testBadRequests) {
-            final String endpoint = "/" + indexPattern(defaultValidationIndexName) + "/_eql/search";
-            Request request = new Request("GET", endpoint);
-            request.setJsonEntity(test[0]);
-
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-            Response response = e.getResponse();
-
-            assertThat(response.getHeader("Content-Type"), containsString(contentType));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
-            assertThat(response.getStatusLine().getStatusCode(), is(400));
+            assertBadRequest(test[0], test[1], 400);
         }
 
+        bulkIndex("""
+            {"index": {"_index": "%s", "_id": 1}}
+            {"event":{"category":"process"},"@timestamp":"2020-01-01T12:34:56Z"}
+            """.formatted(defaultValidationIndexName));
+        assertBadRequest("""
+            {"query": "sample by event.category [any where true] [any where true]",
+             "fetch_size": 1001}
+            """, "Fetch size cannot be greater than [1000]", 500);
+
         deleteIndexWithProvisioningClient(defaultValidationIndexName);
+    }
+
+    private void assertBadRequest(String query, String errorMessage, int errorCode) throws IOException {
+        final String endpoint = "/" + indexPattern(defaultValidationIndexName) + "/_eql/search";
+        Request request = new Request("GET", endpoint);
+        request.setJsonEntity(query);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        Response response = e.getResponse();
+
+        assertThat(response.getHeader("Content-Type"), containsString("application/json"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString(errorMessage));
+        assertThat(response.getStatusLine().getStatusCode(), is(errorCode));
     }
 
     @SuppressWarnings("unchecked")

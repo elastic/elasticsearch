@@ -822,6 +822,38 @@ Occurrences of the built-in analyzer in selected nodes.
 Number of indices using the built-in analyzer in selected nodes.
 ======
 =====
+
+`search`::
+(object)
+Contains usage statistics about search requests submitted to selected nodes
+that acted as coordinator during the search execution. Search requests are
+tracked when they are successfully parsed, regardless of their results:
+requests that yield errors after parsing contribute to the usage stats, as
+well as requests that don't access any data.
+
++
+.Properties of `search` objects
+[%collapsible%open]
+=====
+`total`::
+(integer)
+Total number of incoming search requests. Search requests that don't specify a
+request body are not counted.
+
+`queries`::
+(object)
+Query types used in selected nodes. For each query, name and number of times
+it's been used within the `query` or `post_filter` section is reported. Queries
+are counted once per search request, meaning that if the same query type is used
+multiple times in the same search request, its counter will be incremented by 1
+rather than by the number of times it's been used in that individual search request.
+
+`sections`::
+(object)
+Search sections used in selected nodes. For each section, name and number of times
+it's been used is reported.
+
+=====
 ====
 
 [[cluster-stats-api-response-body-nodes]]
@@ -1334,6 +1366,9 @@ The API returns the following response:
          "reserved": "0b",
          "reserved_in_bytes": 0
       },
+      "search": {
+          ...
+      },
       "fielddata": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
@@ -1563,6 +1598,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]
 // TESTRESPONSE[s/"runtime_field_types": \[[^\]]*\]/"runtime_field_types": $body.$_path/]
+// TESTRESPONSE[s/"search": \{[^\}]*\}/"search": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]

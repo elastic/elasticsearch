@@ -120,7 +120,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue rxSize() {
-        return new ByteSizeValue(rxSize);
+        return ByteSizeValue.ofBytes(rxSize);
     }
 
     public ByteSizeValue getRxSize() {
@@ -136,7 +136,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue txSize() {
-        return new ByteSizeValue(txSize);
+        return ByteSizeValue.ofBytes(txSize);
     }
 
     public ByteSizeValue getTxSize() {
@@ -168,9 +168,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.field(Fields.SERVER_OPEN, serverOpen);
         builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
         builder.field(Fields.RX_COUNT, rxCount);
-        builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
+        builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
-        builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
+        builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
         if (inboundHandlingTimeBucketFrequencies.length > 0) {
             histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
             histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);

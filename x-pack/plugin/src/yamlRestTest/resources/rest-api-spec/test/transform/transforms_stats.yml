@@ -91,6 +91,16 @@ teardown:
   - match: { transforms.0.stats.search_failures: 0 }
 
 ---
+"Test get transform stats with timeout":
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-stats"
+        timeout: "10s"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+---
 "Test get transform stats on missing transform":
   - do:
       transform.get_transform_stats:

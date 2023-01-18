@@ -56,6 +56,8 @@ A feature state contains the indices and data streams used to store
 configurations, history, and other data for an Elastic feature, such as {es}
 security or {kib}.
 
+TIP: To retrieve a list of feature states, use the <<get-features-api,Features API>>.
+
 A feature state typically includes one or more <<system-indices,system indices
 or system data streams>>. It may also include regular indices and data streams
 used by the feature. For example, a feature state may include a regular index

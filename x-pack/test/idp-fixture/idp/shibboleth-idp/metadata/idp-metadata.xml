@@ -115,7 +115,7 @@ NgQpDdo=
         </KeyDescriptor>
 
         <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" req-attr:supportsRequestedAttributes="true"
-                             Location="https://localhost:4443/idp/profile/SAML2/Redirect/SSO"/>
+                             Location="https://localhost:${port}/idp/profile/SAML2/Redirect/SSO"/>
 
     </IDPSSODescriptor>
 </EntityDescriptor>

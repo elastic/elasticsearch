@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAc
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -138,10 +137,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }""";
 
     @After
-    public void cleanUp() throws IOException {
-        var fileSettingsService = internalCluster().getInstance(FileSettingsService.class, internalCluster().getMasterName());
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
-
+    public void cleanUp() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -167,7 +163,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
@@ -177,7 +173,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains("everyone_kibana")) {
+                    if (handlerMetadata != null && handlerMetadata.keys().contains(expectedKey)) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
@@ -283,7 +279,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
     public void testRoleMappingsApplied() throws Exception {
         ensureGreen();
 
-        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
+        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
         writeJSONFile(internalCluster().getMasterName(), testJSON);
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
@@ -349,7 +345,24 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
     public void testErrorSaved() throws Exception {
         ensureGreen();
 
-        var savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
+        // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
+        var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
+
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        final ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
+            .get();
+
+        assertNull(
+            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+        );
+
+        // save a bad file
+        savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
 
         writeJSONFile(internalCluster().getMasterName(), testErrorJSON);
         assertRoleMappingsNotSaved(savedClusterState.v1(), savedClusterState.v2());

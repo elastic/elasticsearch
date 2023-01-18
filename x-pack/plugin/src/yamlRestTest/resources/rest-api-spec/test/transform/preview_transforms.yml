@@ -11,6 +11,10 @@ setup:
                 type: keyword
               responsetime:
                 type: float
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ "min", "max" ]
+                default_metric: "max"
               event_rate:
                 type: integer
               _isDeleted:
@@ -155,6 +159,26 @@ setup:
   - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
   - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+
+---
+"Test preview transform with timeout":
+  - do:
+      transform.preview_transform:
+        timeout: "10s"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
 
 ---
 "Test preview transform with disabled mapping deduction":
@@ -616,5 +640,21 @@ setup:
             },
             "settings": {
               "unattended": true
+            }
+          }
+
+---
+"Test preview transform latest with unique key field of aggregate_metric_double type":
+  - do:
+      catch: /Field \[agg_metric\] of type \[aggregate_metric_double\] is not supported for aggregation \[terms\]/
+      transform.preview_transform:
+        body:  >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "latest": {
+              "unique_key": ["agg_metric"],
+              "sort": "time"
             }
           }

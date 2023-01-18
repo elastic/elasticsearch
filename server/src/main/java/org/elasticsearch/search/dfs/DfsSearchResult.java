@@ -19,9 +19,11 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class DfsSearchResult extends SearchPhaseResult {
@@ -31,8 +33,9 @@ public class DfsSearchResult extends SearchPhaseResult {
     private Term[] terms;
     private TermStatistics[] termStatistics;
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
-    private DfsKnnResults knnResults;
+    private List<DfsKnnResults> knnResults;
     private int maxDoc;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
@@ -54,7 +57,15 @@ public class DfsSearchResult extends SearchPhaseResult {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            knnResults = in.readOptionalWriteable(DfsKnnResults::new);
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+                knnResults = in.readOptionalList(DfsKnnResults::new);
+            } else {
+                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
+                knnResults = results != null ? List.of(results) : List.of();
+            }
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
 
@@ -84,8 +95,13 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public DfsSearchResult knnResults(DfsKnnResults knnResults) {
+    public DfsSearchResult knnResults(List<DfsKnnResults> knnResults) {
         this.knnResults = knnResults;
+        return this;
+    }
+
+    public DfsSearchResult profileResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
         return this;
     }
 
@@ -101,8 +117,12 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
-    public DfsKnnResults knnResults() {
+    public List<DfsKnnResults> knnResults() {
         return knnResults;
+    }
+
+    public SearchProfileDfsPhaseResult searchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
     }
 
     @Override
@@ -119,7 +139,21 @@ public class DfsSearchResult extends SearchPhaseResult {
             out.writeOptionalWriteable(getShardSearchRequest());
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeOptionalWriteable(knnResults);
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+                out.writeOptionalCollection(knnResults);
+            } else {
+                if (knnResults != null && knnResults.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Versions before 8.7.0 don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
+            }
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
     }
 

@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -87,7 +86,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         new ShardId("myindex", "myindex", 0),
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+        ShardRouting.Role.DEFAULT
     );
 
     public void testIndexPrefer() {
@@ -187,8 +187,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     clusterState,
                     node,
                     Decision.Type.NO,
-                    String.format(
-                        Locale.ROOT,
+                    org.elasticsearch.core.Strings.format(
                         "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
                         tierPreference
                     )

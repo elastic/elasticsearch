@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DateHistogramGroupConfigSerializingTests extends AbstractSerializingTestCase<DateHistogramGroupConfig> {
+public class DateHistogramGroupConfigSerializingTests extends AbstractXContentSerializingTestCase<DateHistogramGroupConfig> {
 
     private enum DateHistoType {
         FIXED,

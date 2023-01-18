@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -230,7 +231,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88842")
     public void testScaleWhileShrinking() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -514,7 +514,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
+            null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),
@@ -523,6 +524,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .stream()
                     .filter(DiscoveryNodeRole::canContainData)
                     .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.SEARCH_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.INDEX_ROLE)
                     .sorted()
                     .collect(Collectors.toList())
             )

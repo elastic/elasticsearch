@@ -9,9 +9,11 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.StatelessSecureSettings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -156,7 +158,12 @@ public class Environment {
             assert sharedDataFile != null;
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
-        this.settings = finalSettings.build();
+
+        if (DiscoveryNode.isStateless(settings)) {
+            this.settings = StatelessSecureSettings.install(finalSettings.build());
+        } else {
+            this.settings = finalSettings.build();
+        }
     }
 
     /**

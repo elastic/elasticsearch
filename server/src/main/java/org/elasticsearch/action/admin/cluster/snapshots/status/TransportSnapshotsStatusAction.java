@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -90,7 +91,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             SnapshotsStatusRequest::new,
             indexNameExpressionResolver,
             SnapshotsStatusResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.SNAPSHOT_META // building the response is somewhat expensive for large snapshots so we fork
         );
         this.repositoriesService = repositoriesService;
         this.client = client;
@@ -141,16 +142,22 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 TransportNodesSnapshotsStatus.TYPE,
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
                     .timeout(request.masterNodeTimeout()),
-                ActionListener.wrap(
-                    nodeSnapshotStatuses -> buildResponse(
-                        snapshotsInProgress,
-                        request,
-                        currentSnapshots,
-                        nodeSnapshotStatuses,
-                        cancellableTask,
-                        listener
+                new ThreadedActionListener<>(
+                    logger,
+                    threadPool,
+                    ThreadPool.Names.SNAPSHOT_META, // fork to snapshot meta since building the response is expensive for large snapshots
+                    ActionListener.wrap(
+                        nodeSnapshotStatuses -> buildResponse(
+                            snapshotsInProgress,
+                            request,
+                            currentSnapshots,
+                            nodeSnapshotStatuses,
+                            cancellableTask,
+                            listener
+                        ),
+                        listener::onFailure
                     ),
-                    listener::onFailure
+                    false
                 )
             );
         } else {

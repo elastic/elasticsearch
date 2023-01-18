@@ -61,7 +61,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             TermQueryBuilder[] queryBuilders = new TermQueryBuilder[randomIntBetween(1, 16)];
             IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
             config.setMergePolicy(NoMergePolicy.INSTANCE);
-            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(MapperBuilderContext.ROOT);
+            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(MapperBuilderContext.root(false));
             MappedFieldType.FielddataOperation fielddataOperation = MappedFieldType.FielddataOperation.SEARCH;
 
             Version version = Version.CURRENT;

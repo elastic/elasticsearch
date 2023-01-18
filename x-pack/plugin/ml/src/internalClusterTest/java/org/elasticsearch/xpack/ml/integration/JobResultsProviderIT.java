@@ -468,7 +468,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         ModelSizeStats storedModelSizeStats = new ModelSizeStats.Builder(job.getId()).setModelBytes(10L).build();
         jobResultsPersister.persistModelSizeStats(storedModelSizeStats, () -> false);
-        jobResultsPersister.commitResultWrites(job.getId());
+        jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
         assertThat(dataCountsAtomicReference.get().getJobId(), equalTo(job.getId()));
@@ -479,7 +479,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         storedTimingStats.updateStats(10);
 
         jobResultsPersister.bulkPersisterBuilder(job.getId()).persistTimingStats(storedTimingStats).executeRequest();
-        jobResultsPersister.commitResultWrites(job.getId());
+        jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
 
@@ -492,7 +492,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         storedDataCounts.incrementMissingFieldCount(1L);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
         jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts);
-        jobResultsPersister.commitResultWrites(job.getId());
+        jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
         assertThat(dataCountsAtomicReference.get(), equalTo(storedDataCounts));

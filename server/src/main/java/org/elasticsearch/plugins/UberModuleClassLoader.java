@@ -10,13 +10,13 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
-import java.net.URI;
+import java.lang.module.ModuleReference;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -26,14 +26,12 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
-import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.jar.JarFile;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -59,54 +57,84 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
-    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths) {
-        return getInstance(parent, moduleName, jarPaths, Set.of());
+    private static Map<String, Set<String>> getModuleToServiceMap(ModuleLayer moduleLayer) {
+        Set<String> unqualifiedExports = moduleLayer.modules()
+            .stream()
+            .flatMap(module -> module.getDescriptor().exports().stream())
+            .filter(Predicate.not(ModuleDescriptor.Exports::isQualified))
+            .map(ModuleDescriptor.Exports::source)
+            .collect(Collectors.toSet());
+        return moduleLayer.modules()
+            .stream()
+            .map(Module::getDescriptor)
+            .filter(ModuleSupport::hasAtLeastOneUnqualifiedExport)
+            .collect(
+                Collectors.toMap(
+                    ModuleDescriptor::name,
+                    md -> md.provides()
+                        .stream()
+                        .map(ModuleDescriptor.Provides::service)
+                        .filter(name -> unqualifiedExports.contains(packageName(name)))
+                        .collect(Collectors.toSet())
+                )
+            );
     }
 
-    @SuppressForbidden(reason = "need access to the jar file")
+    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {
+        return getInstance(parent, ModuleLayer.boot(), moduleName, jarUrls, Set.of());
+    }
+
     @SuppressWarnings("removal")
-    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths, Set<String> moduleDenyList) {
-        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths.toArray(new Path[0]), Set.of());
-        List<URL> jarURLs = new ArrayList<>();
-        try {
-            for (Path jarPath : jarPaths) {
-                URI toUri = jarPath.toUri();
-                URL toURL = toUri.toURL();
-                jarURLs.add(toURL);
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-        ModuleLayer mparent = ModuleLayer.boot();
-        Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
+    static UberModuleClassLoader getInstance(
+        ClassLoader parent,
+        ModuleLayer parentLayer,
+        String moduleName,
+        Set<URL> jarUrls,
+        Set<String> moduleDenyList
+    ) {
+        Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
+        var parentLayerModuleToServiceMap = getModuleToServiceMap(parentLayer);
+        Set<String> requires = parentLayerModuleToServiceMap.keySet()
+            .stream()
+            .filter(Predicate.not(moduleDenyList::contains))
+            .collect(Collectors.toSet());
+        Set<String> uses = parentLayerModuleToServiceMap.entrySet()
+            .stream()
+            .filter(Predicate.not(entry -> moduleDenyList.contains(entry.getKey())))
+            .flatMap(entry -> entry.getValue().stream())
+            .collect(Collectors.toSet());
 
-        Set<String> packageNames = new HashSet<>();
-        for (URL url : jarURLs) {
-            try (JarFile jarFile = new JarFile(new File(url.toURI()))) {
-                Set<String> jarPackages = ModuleSupport.scan(jarFile)
-                    .classFiles()
-                    .stream()
-                    .map(e -> ModuleSupport.toPackageName(e, "/"))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toSet());
+        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(
+            moduleName,
+            jarPaths,
+            requires,
+            uses,
+            s -> isPackageInLayers(s, parentLayer)
+        );
+        // TODO: check that denied modules are not brought as transitive dependencies (or switch to allow-list?)
+        Configuration cf = parentLayer.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
 
-                packageNames.addAll(jarPackages);
-            } catch (IOException | URISyntaxException e) {
-                throw new IllegalArgumentException(e);
-            }
-        }
+        Set<String> packageNames = finder.find(moduleName).map(ModuleReference::descriptor).map(ModuleDescriptor::packages).orElseThrow();
 
         PrivilegedAction<UberModuleClassLoader> pa = () -> new UberModuleClassLoader(
             parent,
             moduleName,
-            jarURLs.toArray(new URL[0]),
+            jarUrls.toArray(new URL[0]),
             cf,
-            mparent,
-            moduleDenyList,
+            parentLayer,
             packageNames
         );
         return AccessController.doPrivileged(pa);
+    }
+
+    private static boolean isPackageInLayers(String packageName, ModuleLayer moduleLayer) {
+        if (moduleLayer.modules().stream().map(Module::getPackages).anyMatch(p -> p.contains(packageName))) {
+            return true;
+        }
+        if (moduleLayer.parents().equals(List.of(ModuleLayer.empty()))) {
+            return false;
+        }
+        return moduleLayer.parents().stream().anyMatch(ml -> isPackageInLayers(packageName, ml));
     }
 
     /**
@@ -118,7 +146,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         URL[] jarURLs,
         Configuration cf,
         ModuleLayer mparent,
-        Set<String> moduleDenyList,
         Set<String> packageNames
     ) {
         super(parent);
@@ -132,16 +159,11 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
         this.module = this.moduleController.layer().findModule(moduleName).orElseThrow();
 
-        // Every module reads java.base by default, but we can add all other modules
-        // that are not in the deny list so that plugins can use, for example, java.management
-        mparent.modules()
-            .stream()
-            .filter(Module::isNamed)
-            .filter(m -> "java.base".equals(m.getName()) == false)
-            .filter(m -> moduleDenyList.contains(m.getName()) == false)
-            .forEach(m -> moduleController.addReads(module, m));
-
         this.packageNames = packageNames;
+    }
+
+    public ModuleLayer getLayer() {
+        return moduleController.layer();
     }
 
     /**
@@ -258,12 +280,28 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         }
     }
 
+    // For testing in cases where code must be given access to an unnamed module
+    void addReadsSystemClassLoaderUnnamedModule() {
+        moduleController.layer()
+            .modules()
+            .forEach(module -> moduleController.addReads(module, ClassLoader.getSystemClassLoader().getUnnamedModule()));
+    }
+
     /**
      * Returns the package name for the given class name
      */
-    private String packageName(String cn) {
+    private static String packageName(String cn) {
         int pos = cn.lastIndexOf('.');
         return (pos < 0) ? "" : cn.substring(0, pos);
+    }
+
+    @SuppressForbidden(reason = "plugin infrastructure provides URLs but module layer uses Paths")
+    static Path urlToPathUnchecked(URL url) {
+        try {
+            return Path.of(url.toURI());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     @Override
@@ -278,5 +316,10 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             return null;
         };
         AccessController.doPrivileged(pa);
+    }
+
+    // visible for testing
+    public URLClassLoader getInternalLoader() {
+        return internalLoader;
     }
 }

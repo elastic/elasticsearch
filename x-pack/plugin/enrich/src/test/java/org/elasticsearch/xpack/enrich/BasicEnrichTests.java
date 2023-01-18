@@ -20,6 +20,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -97,7 +98,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = """
+        String pipelineBody = Strings.format("""
             {
               "processors": [
                 {
@@ -109,7 +110,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                   }
                 }
               ]
-            }""".formatted(policyName, MATCH_FIELD, maxMatches);
+            }""", policyName, MATCH_FIELD, maxMatches);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -190,7 +191,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = """
+        String pipelineBody = Strings.format("""
             {
               "processors": [
                 {
@@ -202,7 +203,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                   }
                 }
               ]
-            }""".formatted(policyName, matchField);
+            }""", policyName, matchField);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -250,10 +251,10 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
             String pipelineName = "pipeline" + i;
-            String pipelineBody = """
+            String pipelineBody = Strings.format("""
                 {
                   "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
-                }""".formatted(policyName);
+                }""", policyName);
             PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
         }
@@ -308,10 +309,10 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         });
 
         String pipelineName = "test-pipeline";
-        String pipelineBody = """
+        String pipelineBody = Strings.format("""
             {
               "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
-            }""".formatted(policyName);
+            }""", policyName);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -350,9 +351,11 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = """
-            {"processors": [{"enrich": {"policy_name":"%s", "field": "{{indirection1}}", "target_field": "{{indirection2}}"}}]}"""
-            .formatted(policyName);
+        String pipelineBody = Strings.format(
+            """
+                {"processors": [{"enrich": {"policy_name":"%s", "field": "{{indirection1}}", "target_field": "{{indirection2}}"}}]}""",
+            policyName
+        );
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 

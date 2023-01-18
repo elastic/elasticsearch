@@ -14,7 +14,10 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -30,15 +33,17 @@ import java.util.Set;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "attachment";
-
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AttachmentProcessor.class);
     private static final int NUMBER_OF_CHARS_INDEXED = 100000;
+
+    public static final String TYPE = "attachment";
 
     private final String field;
     private final String targetField;
@@ -221,6 +226,15 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
+        static {
+            if (Version.CURRENT.major >= 9) {
+                throw new IllegalStateException(
+                    "[poison pill] update the [remove_binary] default to be 'true' assuming "
+                        + "enough time has passed. Deprecated in September 2022."
+                );
+            }
+        }
+
         @Override
         public AttachmentProcessor create(
             Map<String, Processor.Factory> registry,
@@ -235,7 +249,17 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
-            boolean removeBinary = readBooleanProperty(TYPE, processorTag, config, "remove_binary", false);
+            Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
+            if (removeBinary == null) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.PARSING,
+                    "attachment-remove-binary",
+                    "The default [remove_binary] value of 'false' is deprecated and will be "
+                        + "set to 'true' in a future release. Set [remove_binary] explicitly to "
+                        + "'true' or 'false' to ensure no behavior change."
+                );
+                removeBinary = false;
+            }
 
             final Set<Property> properties;
             if (propertyNames != null) {

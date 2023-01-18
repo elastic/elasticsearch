@@ -154,7 +154,7 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
+            registerCancellableTask(task, traceRequest);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
@@ -165,7 +165,8 @@ public class TaskManager implements ClusterStateApplier {
         return task;
     }
 
-    private void startTrace(ThreadContext threadContext, Task task) {
+    // package private for testing
+    void startTrace(ThreadContext threadContext, Task task) {
         TaskId parentTask = task.getParentTaskId();
         Map<String, Object> attributes = Map.of(
             Tracer.AttributeKeys.TASK_ID,
@@ -230,11 +231,13 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    private void registerCancellableTask(Task task) {
+    private void registerCancellableTask(Task task, boolean traceRequest) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        startTrace(threadPool.getThreadContext(), task);
+        if (traceRequest) {
+            startTrace(threadPool.getThreadContext(), task);
+        }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {
             final Ban ban = bannedParents.get(task.getParentTaskId());

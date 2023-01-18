@@ -18,7 +18,7 @@ import java.util.Map;
 public class PointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(MapperBuilderContext.ROOT).fieldType();
+        MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(MapperBuilderContext.root(false)).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         String wktPoint = "POINT (42.0 27.1)";

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -35,7 +36,7 @@ public abstract class ItemSetMapReduceValueSource {
 
     @FunctionalInterface
     public interface ValueSourceSupplier {
-        ItemSetMapReduceValueSource build(ValuesSourceConfig config, int id);
+        ItemSetMapReduceValueSource build(ValuesSourceConfig config, int id, IncludeExclude includeExclude);
     }
 
     enum ValueFormatter {
@@ -120,7 +121,7 @@ public abstract class ItemSetMapReduceValueSource {
             return Objects.hash(id, valueFormatter, name, format);
         }
 
-    };
+    }
 
     private final Field field;
 
@@ -128,7 +129,6 @@ public abstract class ItemSetMapReduceValueSource {
 
     ItemSetMapReduceValueSource(ValuesSourceConfig config, int id, ValueFormatter valueFormatter) {
         String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
-
         if (Strings.isNullOrEmpty(fieldName)) {
             throw new IllegalArgumentException("scripts are not supported");
         }
@@ -142,10 +142,12 @@ public abstract class ItemSetMapReduceValueSource {
 
     public static class KeywordValueSource extends ItemSetMapReduceValueSource {
         private final ValuesSource.Bytes source;
+        private final IncludeExclude.StringFilter stringFilter;
 
-        public KeywordValueSource(ValuesSourceConfig config, int id) {
+        public KeywordValueSource(ValuesSourceConfig config, int id, IncludeExclude includeExclude) {
             super(config, id, ValueFormatter.BYTES_REF);
             this.source = (Bytes) config.getValuesSource();
+            this.stringFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(config.format());
         }
 
         @Override
@@ -157,20 +159,26 @@ public abstract class ItemSetMapReduceValueSource {
                 List<Object> objects = new ArrayList<>(valuesCount);
 
                 for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(BytesRef.deepCopyOf(values.nextValue()));
+                    BytesRef v = values.nextValue();
+                    if (stringFilter == null || stringFilter.accept(v)) {
+                        objects.add(BytesRef.deepCopyOf(v));
+                    }
                 }
                 return new Tuple<>(getField(), objects);
             }
             return new Tuple<>(getField(), Collections.emptyList());
         }
+
     }
 
     public static class NumericValueSource extends ItemSetMapReduceValueSource {
         private final ValuesSource.Numeric source;
+        private final IncludeExclude.LongFilter longFilter;
 
-        public NumericValueSource(ValuesSourceConfig config, int id) {
+        public NumericValueSource(ValuesSourceConfig config, int id, IncludeExclude includeExclude) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();
+            this.longFilter = includeExclude == null ? null : includeExclude.convertToLongFilter(config.format());
         }
 
         @Override
@@ -182,7 +190,10 @@ public abstract class ItemSetMapReduceValueSource {
                 List<Object> objects = new ArrayList<>(valuesCount);
 
                 for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(values.nextValue());
+                    long v = values.nextValue();
+                    if (longFilter == null || longFilter.accept(v)) {
+                        objects.add(v);
+                    }
                 }
                 return new Tuple<>(getField(), objects);
             }

@@ -743,7 +743,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * @return true if the request contains kNN search
      */
     public boolean hasKnnSearch() {
-        return source != null && source.knnSearch() != null;
+        return source != null && source.knnSearch().isEmpty() == false;
     }
 
     public int resolveTrackTotalHitsUpTo() {

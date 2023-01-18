@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RealmDomainTests extends AbstractSerializingTestCase<RealmDomain> {
+public class RealmDomainTests extends AbstractXContentSerializingTestCase<RealmDomain> {
 
     @Override
     protected RealmDomain doParseInstance(XContentParser parser) throws IOException {

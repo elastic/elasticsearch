@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -47,7 +48,6 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
@@ -181,12 +181,11 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 final Task task = mock(Task.class);
                 when(task.getId()).thenReturn(randomNonNegativeLong());
 
-                final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
                 final ResyncReplicationRequest request = new ResyncReplicationRequest(
                     shardId,
                     42L,
                     100,
-                    new Translog.Operation[] { new Translog.Index("id", 0, primaryTerm, 0L, bytes, null, -1) }
+                    new Translog.Operation[] { TranslogOperationsUtils.indexOp("id", 0, primaryTerm) }
                 );
 
                 final PlainActionFuture<ResyncReplicationResponse> listener = new PlainActionFuture<>();

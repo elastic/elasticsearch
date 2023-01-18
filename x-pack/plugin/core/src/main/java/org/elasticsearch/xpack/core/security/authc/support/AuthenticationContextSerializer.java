@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -22,6 +24,8 @@ import java.util.Base64;
  * {@link org.elasticsearch.common.util.concurrent.ThreadContext} under a specified key
  */
 public class AuthenticationContextSerializer {
+
+    private static final Logger logger = LogManager.getLogger(AuthenticationContextSerializer.class);
 
     private final String contextKey;
 
@@ -57,11 +61,16 @@ public class AuthenticationContextSerializer {
     }
 
     public static Authentication decode(String header) throws IOException {
-        byte[] bytes = Base64.getDecoder().decode(header);
-        StreamInput input = StreamInput.wrap(bytes);
-        Version version = Version.readVersion(input);
-        input.setVersion(version);
-        return new Authentication(input);
+        try {
+            byte[] bytes = Base64.getDecoder().decode(header);
+            StreamInput input = StreamInput.wrap(bytes);
+            Version version = Version.readVersion(input);
+            input.setVersion(version);
+            return new Authentication(input);
+        } catch (IOException | RuntimeException e) {
+            logger.warn("Failed to decode authentication [" + header + "]", e);
+            throw e;
+        }
     }
 
     public Authentication getAuthentication(ThreadContext context) {

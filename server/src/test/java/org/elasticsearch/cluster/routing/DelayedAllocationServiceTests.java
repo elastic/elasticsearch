@@ -9,11 +9,13 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -81,12 +83,12 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
@@ -127,7 +129,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(
@@ -141,7 +143,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         final long baseTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(baseTimestampNanos);
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
@@ -242,7 +244,12 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("short_delay")).addAsNew(metadata.index("long_delay")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNew(metadata.index("short_delay"))
+                    .addAsNew(metadata.index("long_delay"))
+                    .build()
+            )
             .nodes(
                 DiscoveryNodes.builder()
                     .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
@@ -255,7 +262,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             )
             .build();
         // allocate shards
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // start primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // start replicas
@@ -426,7 +433,12 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("foo")).addAsNew(metadata.index("bar")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNew(metadata.index("foo"))
+                    .addAsNew(metadata.index("bar"))
+                    .build()
+            )
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(
@@ -442,7 +454,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         final long nodeLeftTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(nodeLeftTimestampNanos);
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas

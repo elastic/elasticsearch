@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -140,6 +141,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                 "restore master",
                 () -> ClusterState.builder(currentState)
                     .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
+                    .incrementVersion()
                     .build(),
                 ActionListener.noop()
             );
@@ -153,7 +155,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             threadPool,
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
-            new AllocationService(null, new TestGatewayAllocator(), null, null, null)
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);
@@ -321,7 +323,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             .numberOfReplicas(numberOfReplicas)
             .build();
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(indexMetadata)
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
             .metadata(metadata)
@@ -356,7 +360,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             indexMetadata = idxMetaWithAllocationIds.build();
         }
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder().addAsRecovery(indexMetadata).build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsRecovery(indexMetadata)
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
             .metadata(metadata)

@@ -1,5 +1,0 @@
-pr: 88665
-summary: "Script: Reindex & `UpdateByQuery` Metadata"
-area: Infra/Scripting
-type: enhancement
-issues: []

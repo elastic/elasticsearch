@@ -31,10 +31,10 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
 
     /**
      * Creates a new listener
-     * @param delegate the delegate listener
      * @param groupSize the group size
+     * @param delegate the delegate listener
      */
-    public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize) {
+    public GroupedActionListener(int groupSize, ActionListener<Collection<T>> delegate) {
         super(delegate);
         if (groupSize <= 0) {
             assert false : "illegal group size [" + groupSize + "]";

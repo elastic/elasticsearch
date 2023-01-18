@@ -29,7 +29,7 @@ import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
@@ -50,9 +50,10 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             String name,
             GeoPointFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new GeoPointScriptFieldType(name, factory, getScript(), meta());
+            return new GeoPointScriptFieldType(name, factory, getScript(), meta(), onScriptError);
         }
 
         @Override
@@ -66,10 +67,16 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         }
     });
 
-    GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    GeoPointScriptFieldType(
+        String name,
+        GeoPointFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -154,7 +161,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     ) {
         return ctx -> {
             GeoPointFieldScript script = delegateLeafFactory.apply(ctx);
-            return new AbstractLongFieldScript(name, Map.of(), lookup, ctx) {
+            return new AbstractLongFieldScript(name, Map.of(), lookup, OnScriptError.FAIL, ctx) {
                 private int docId;
 
                 @Override
@@ -197,8 +204,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
-                script.runForDoc(lookup.docId());
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                script.runForDoc(doc);
                 if (script.count() == 0) {
                     return List.of();
                 }

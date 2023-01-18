@@ -1670,3 +1670,35 @@
           {
             "allow_no_match" : true
           }
+
+---
+"Test job with rule referencing missing filter":
+
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-rule-missing-filter
+        body:  >
+          {
+            "analysis_config": {
+              "detectors": [
+                {
+                  "function": "count",
+                  "by_field_name": "country",
+                  "custom_rules": [
+                    {
+                      "actions": ["skip_result"],
+                      "scope": {
+                        "country": {"filter_id": "safe_countries"}
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      catch: /Unable to find filter \[safe_countries\]/
+      ml.open_job:
+        job_id: jobs-crud-rule-missing-filter

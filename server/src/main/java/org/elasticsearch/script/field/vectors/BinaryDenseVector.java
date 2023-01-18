@@ -16,6 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 public class BinaryDenseVector implements DenseVector {
+
     protected final BytesRef docVector;
     protected final int dims;
     protected final Version indexVersion;
@@ -43,6 +44,11 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public int dotProduct(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
+    }
+
+    @Override
     public double dotProduct(float[] queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
 
@@ -62,6 +68,11 @@ public class BinaryDenseVector implements DenseVector {
             dotProduct += byteBuffer.getFloat() * queryVector.get(i).floatValue();
         }
         return dotProduct;
+    }
+
+    @Override
+    public int l1Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l1Norm(float[] queryVector)] instead");
     }
 
     @Override
@@ -87,6 +98,11 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public double l2Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
+    }
+
+    @Override
     public double l2Norm(float[] queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
         double l2norm = 0;
@@ -106,6 +122,11 @@ public class BinaryDenseVector implements DenseVector {
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
+    }
+
+    @Override
+    public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
+        throw new UnsupportedOperationException("use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 
     @Override

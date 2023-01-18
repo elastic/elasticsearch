@@ -57,6 +57,7 @@ class APMAgentSettings {
         });
         clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
+        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }
 
@@ -138,6 +139,27 @@ class APMAgentSettings {
     static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
         APM_SETTING_PREFIX + "names.exclude",
         Collections.emptyList(),
+        Function.identity(),
+        OperatorDynamic,
+        NodeScope
+    );
+
+    static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
+        APM_SETTING_PREFIX + "sanitize_field_names",
+        List.of(
+            "password",
+            "passwd",
+            "pwd",
+            "secret",
+            "*key",
+            "*token*",
+            "*session*",
+            "*credit*",
+            "*card*",
+            "*auth*",
+            "*principal*",
+            "set-cookie"
+        ),
         Function.identity(),
         OperatorDynamic,
         NodeScope

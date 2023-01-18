@@ -251,11 +251,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
                 new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT) };
             Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
-            indicesAndAliases.put(
-                "foo",
-                new AliasFilter(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias")
-            );
-            indicesAndAliases.put("bar", new AliasFilter(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
+            indicesAndAliases.put("foo", AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"));
+            indicesAndAliases.put("bar", AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
             ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("foo", "foo_id", 0),
@@ -283,7 +280,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new ShardRouting[] { TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED) }
                 ) };
             Map<String, AliasFilter> filter = new HashMap<>();
-            filter.put("xyz", new AliasFilter(null, "some_alias_for_xyz"));
+            filter.put("xyz", AliasFilter.of(null, "some_alias_for_xyz"));
             searchShardsResponseMap.put("test_cluster_2", new ClusterSearchShardsResponse(groups2, nodes2, filter));
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
@@ -1054,7 +1051,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 source.pointInTimeBuilder(null);
-                source.knnSearch(null);
+                source.knnSearch(List.of());
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
@@ -1068,7 +1065,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50)));
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
@@ -1083,7 +1080,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50)));
             searchRequest.source(source);
 
             TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
@@ -1212,7 +1209,6 @@ public class TransportSearchActionTests extends ESTestCase {
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
-            ;
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
                     blocksBuilder.addIndexBlock(indices[i], IndexMetadata.INDEX_WRITE_BLOCK);

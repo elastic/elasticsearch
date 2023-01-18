@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.conventions;
 
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
@@ -18,13 +19,7 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File workspaceDir;
-        if (project.getGradle().getIncludedBuilds().isEmpty()) {
-            // This is an included build, use the parent directory as workspace root
-            workspaceDir = project.getRootDir().getParentFile();
-        } else {
-            workspaceDir = project.getRootDir();
-        }
+        File workspaceDir = Util.locateElasticsearchWorkspace(project.getGradle());
 
         // Register the service if not done yet
         File infoPath = new File(workspaceDir, "build-tools-internal");

@@ -35,12 +35,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
     private static final int NUM_CANDS_LIMIT = 10000;
-    static final ParseField FIELD_FIELD = new ParseField("field");
-    static final ParseField K_FIELD = new ParseField("k");
-    static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
-    static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
-    static final ParseField FILTER_FIELD = new ParseField("filter");
-    static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField K_FIELD = new ParseField("k");
+    public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
+    public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
+    public static final ParseField FILTER_FIELD = new ParseField("filter");
+    public static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
 
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
         @SuppressWarnings("unchecked")
@@ -59,7 +59,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFieldArray(
             KnnSearchBuilder::addFilterQueries,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );

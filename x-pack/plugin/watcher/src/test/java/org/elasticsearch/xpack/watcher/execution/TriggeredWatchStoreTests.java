@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -183,7 +184,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                     )
                 )
             );
-            indexRoutingTableBuilder.addReplica();
+            indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
 
@@ -208,7 +209,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
@@ -225,7 +226,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo", null, null);
+        SearchHit hit = new SearchHit(0, "first_foo");
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);
@@ -240,7 +241,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo", null, null);
+        hit = new SearchHit(0, "second_foo");
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);
@@ -340,7 +341,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
@@ -374,7 +375,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(

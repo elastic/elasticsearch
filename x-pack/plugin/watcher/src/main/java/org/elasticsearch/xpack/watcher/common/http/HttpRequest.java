@@ -196,11 +196,15 @@ public class HttpRequest implements ToXContentObject {
     }
 
     private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
-        if (headers.containsKey("Authorization") == false) {
+        String authorizationHeader = headers.containsKey("Authorization") ? "Authorization" : null;
+        if (authorizationHeader == null) {
+            authorizationHeader = headers.containsKey("authorization") ? "authorization" : null;
+        }
+        if (authorizationHeader == null) {
             return headers;
         }
         Map<String, String> sanitizedHeaders = new HashMap<>(headers);
-        sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
+        sanitizedHeaders.put(authorizationHeader, WatcherXContentParser.REDACTED_PASSWORD);
         return sanitizedHeaders;
     }
 

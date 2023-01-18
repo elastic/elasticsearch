@@ -157,7 +157,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     public static ComposableIndexTemplate mutateTemplate(ComposableIndexTemplate orig) {
-        switch (randomIntBetween(0, 6)) {
+        switch (randomIntBetween(0, 7)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(
                     orig.indexPatterns(),
@@ -248,6 +248,22 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate),
                     orig.getAllowAutoCreate(),
                     orig.getIgnoreMissingComponentTemplates()
+                );
+            case 7:
+                List<String> ignoreMissingComponentTemplates = randomValueOtherThan(
+                    orig.getIgnoreMissingComponentTemplates(),
+                    () -> randomList(1, 4, () -> randomAlphaOfLength(4))
+                );
+                return new ComposableIndexTemplate(
+                    orig.indexPatterns(),
+                    orig.template(),
+                    orig.composedOf(),
+                    orig.priority(),
+                    orig.version(),
+                    orig.metadata(),
+                    randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate),
+                    orig.getAllowAutoCreate(),
+                    ignoreMissingComponentTemplates
                 );
             default:
                 throw new IllegalStateException("illegal randomization branch");

@@ -510,8 +510,6 @@ public class MetadataIndexTemplateService {
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
             .toList();
 
-        // TODO: Should the code be split up in two parts for better error messages? If ignore_missing_component_templates is not set
-        // it throws a different error?
         final List<String> ignoreMissingComponentTemplates = template.getIgnoreMissingComponentTemplates();
 
         // Check

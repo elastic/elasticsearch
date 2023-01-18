@@ -26,7 +26,7 @@ PUT _component_template/logs-foo@package
 }
 ----
 
-The index template is now created and and it references two component templates:
+Next, the index template will be created and it references two component templates:
 
 [source,JSON]
 ----

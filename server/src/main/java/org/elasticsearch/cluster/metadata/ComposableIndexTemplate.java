@@ -174,7 +174,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        this.ignoreMissingComponentTemplates = in.readOptionalStringList();
+        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            this.ignoreMissingComponentTemplates = in.readOptionalStringList();
+        } else {
+            this.ignoreMissingComponentTemplates = null;
+        }
     }
 
     public List<String> indexPatterns() {
@@ -245,7 +249,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
+        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
+        }
     }
 
     @Override
@@ -312,7 +318,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.metadata, other.metadata)
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
-            // TODO: componentTemplates list has a more complex comparison. Is this needed here too?
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates);
     }
 

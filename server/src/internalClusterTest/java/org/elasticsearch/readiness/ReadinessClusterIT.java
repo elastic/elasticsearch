@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.readiness;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -327,17 +328,24 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
     }
 
     private void causeClusterStateUpdate() {
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).build();
-                }
+        PlainActionFuture.get(
+            fut -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    assert false : e;
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e;
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        fut.onResponse(null);
+                    }
+                })
+        );
     }
 }

@@ -166,7 +166,7 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
             return new LocalNodeSpec(
                 cluster,
                 name,
-                Optional.of(getVersion()).orElse(Version.CURRENT),
+                Optional.ofNullable(getVersion()).orElse(Version.CURRENT),
                 getSettingsProviders(),
                 getSettings(),
                 getEnvironmentProviders(),

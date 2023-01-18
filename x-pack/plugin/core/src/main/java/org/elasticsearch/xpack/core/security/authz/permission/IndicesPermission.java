@@ -185,14 +185,30 @@ public final class IndicesPermission {
             this.biPredicate = biPredicate;
         }
 
+        /**
+        * Given another {@link IsResourceAuthorizedPredicate} instance in {@param other},
+        * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
+        * authorization tests of that other instance and this one.
+        */
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
             return new IsResourceAuthorizedPredicate(this.biPredicate.and(other.biPredicate));
         }
 
+        /**
+         * Verifies if access is authorized to the given {@param indexAbstraction} resource.
+         * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction)} method.
+         * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
+         */
         public final boolean test(IndexAbstraction indexAbstraction) {
             return test(indexAbstraction.getName(), indexAbstraction);
         }
 
+        /**
+         * Verifies if access is authorized to the resource with the given {@param name}.
+         * The {@param indexAbstraction}, which is the resource to be accessed, must be supplied if the resource exists or be {@code null}
+         * if it doesn't.
+         * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
+         */
         @Override
         public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
             return biPredicate.test(name, indexAbstraction);

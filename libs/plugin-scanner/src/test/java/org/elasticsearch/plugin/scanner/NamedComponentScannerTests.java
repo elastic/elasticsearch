@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.scanner;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleClass;
 import org.elasticsearch.plugin.scanner.test_model.ExtensibleInterface;
 import org.elasticsearch.plugin.scanner.test_model.TestNamedComponent;
@@ -32,6 +33,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93026")
 public class NamedComponentScannerTests extends ESTestCase {
 
     private Path tmpDir() throws IOException {

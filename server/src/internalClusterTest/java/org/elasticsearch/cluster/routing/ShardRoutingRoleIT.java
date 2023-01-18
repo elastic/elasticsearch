@@ -356,7 +356,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93010")
     public void testSearchRouting() throws InterruptedException {
 
         var routingTableWatcher = new RoutingTableWatcher();

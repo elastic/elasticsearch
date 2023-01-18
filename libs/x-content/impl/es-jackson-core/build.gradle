@@ -26,6 +26,9 @@ tasks.named("dependencyLicenses").configure {
 }
 
 shadowJar {
+  exclude { element ->
+    element.file == null && element.path.endsWith("FilteringParserDelegate.class")
+  }
   manifest {
     attributes 'Multi-Release' : 'true'
   }

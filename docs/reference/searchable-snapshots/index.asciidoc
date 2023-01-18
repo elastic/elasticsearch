@@ -110,6 +110,12 @@ recovered by copying data from the snapshot repository, just like primaries of
 {search-snap} shards. In contrast, replicas of regular indices are restored by
 copying data from the primary.
 
+Searchable snapshots recover from repository snapshots. The repository and
+the associated snapshots must be available and reliable (see
+<<searchable-snapshots-reliability>> for more details), irrespective of the
+mount options. It is not allowed to remove a repository if there are any
+mounted searchable snapshots from it.
+
 [discrete]
 [[searchable-snapshot-mount-storage-options]]
 ==== Mount options

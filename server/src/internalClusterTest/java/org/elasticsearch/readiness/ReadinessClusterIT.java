@@ -242,7 +242,6 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93036")
     public void testNotReadyOnBadFileSettings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

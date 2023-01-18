@@ -712,6 +712,26 @@ public class RestControllerTests extends ESTestCase {
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(GET.toString())));
     }
 
+    public void testRegisterWithReservedPath() {
+        final RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        for (String path : RestController.RESERVED_PATHS) {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+                restController.registerHandler(new Route(randomFrom(RestRequest.Method.values()), path), new RestHandler() {
+                    @Override
+                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                        channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                    }
+
+                    @Override
+                    public boolean supportsContentStream() {
+                        return true;
+                    }
+                });
+            });
+            assertThat(iae.getMessage(), containsString("path [" + path + "] is a reserved path and may not be registered"));
+        }
+    }
+
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
         TestHttpServerTransport() {}

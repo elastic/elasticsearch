@@ -28,7 +28,7 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
                 .systemProperty("javax.net.ssl.keyStorePassword", "password")
                 .systemProperty("javax.net.ssl.keyStoreType", "BCFKS")
                 .systemProperty("org.bouncycastle.fips.approved_only", "true")
-                .setting("http.host", "localhost")
+                .setting("network.host", "_local:ipv4_")
                 .setting("xpack.security.enabled", "false")
                 .setting("xpack.security.fips_mode.enabled", "true")
                 .setting("xpack.license.self_generated.type", "trial")

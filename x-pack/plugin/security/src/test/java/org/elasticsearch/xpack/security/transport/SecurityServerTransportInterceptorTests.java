@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -160,7 +161,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
@@ -211,7 +212,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertNotEquals(user, sendingUser.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext).executeAsInternalUser(any(User.class), eq(Version.CURRENT), anyConsumer());
+        verify(securityContext).executeAsInternalUser(any(User.class), eq(TransportVersion.CURRENT), anyConsumer());
     }
 
     public void testSendWithoutUser() throws Exception {
@@ -254,7 +255,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {

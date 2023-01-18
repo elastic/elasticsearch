@@ -892,7 +892,10 @@ public final class Authentication implements ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(TransportVersion streamVersion, Authentication authentication) {
+    private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(
+        TransportVersion streamVersion,
+        Authentication authentication
+    ) {
         Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors

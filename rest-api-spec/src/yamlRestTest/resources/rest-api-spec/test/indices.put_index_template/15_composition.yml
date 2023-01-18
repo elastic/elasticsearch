@@ -342,9 +342,6 @@
                   type: keyword
 
   - do:
-      # This is not supported :-( java.lang.RuntimeException: Failure at [indices.put_index_template/15_composition:344]: catch value [/invalid_index_template_exception] not supported
-      #catch: /invalid_index_template_exception
-      # figuring out how to catch text error message
       catch: /index_template \[blue\] invalid, cause \[index template \[blue\] specifies a missing component templates \[blue\] that does not exist/
       indices.put_index_template:
         name: blue
@@ -355,7 +352,7 @@
           #data_stream: { }
 
   - do:
-      cluster.get_index_template:
+      indices.get_index_template:
         name: blue
 
   - is_false: blue

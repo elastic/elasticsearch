@@ -77,7 +77,7 @@ public class NamedComponentScannerTests extends ESTestCase {
             public class B implements ExtensibleInterface{}
             """)));
         List<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()).stream(),
+            ClassReaders.ofDirWithJars(dirWithJar).stream(),
             ClassReaders.ofClassPath().stream()
         )// contains plugin-api
             .toList();
@@ -154,13 +154,11 @@ public class NamedComponentScannerTests extends ESTestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        List<ClassReader> classReaderStream = Stream.concat(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()).stream(),
-            ClassReaders.ofClassPath().stream()
-        )// contains plugin-api
+        Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream();
+        List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(dirWithJar).stream(), classPath)// contains plugin-api
             .toList();
 
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
+        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,

@@ -304,7 +304,6 @@
                 foo:
                   type: keyword
 
-
   - do:
       indices.put_index_template:
         name: blue
@@ -312,8 +311,7 @@
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["blue"]
-          data_stream: { }
-
+          #data_stream: { }
 
   - do:
       # I would like to create a data stream and not and index. But did not see the tests for it to copy
@@ -343,22 +341,21 @@
                 foo:
                   type: keyword
 
-  # TODO: This should fail but it seems it doesn't
   - do:
+      # This is not supported :-( java.lang.RuntimeException: Failure at [indices.put_index_template/15_composition:344]: catch value [/invalid_index_template_exception] not supported
+      #catch: /invalid_index_template_exception
+      # figuring out how to catch text error message
+      catch: /index_template \[blue\] invalid, cause \[index template \[blue\] specifies a missing component templates \[blue\] that does not exist/
       indices.put_index_template:
         name: blue
         body:
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["foo"]
-          data_stream: { }
+          #data_stream: { }
 
   - do:
-      indices.create:
-        index: purple-index
+      cluster.get_index_template:
+        name: blue
 
-  - do:
-      indices.get:
-        index: purple-index
-
-  - match: {purple-index.mappings.properties.foo: {type: keyword}}
+  - is_false: blue

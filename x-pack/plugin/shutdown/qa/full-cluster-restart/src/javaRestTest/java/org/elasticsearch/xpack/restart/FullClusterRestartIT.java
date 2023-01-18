@@ -24,6 +24,7 @@ import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -85,10 +86,13 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             .build();
     }
 
+    @BeforeClass
+    public static void checkClusterVersion() {
+        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testNodeShutdown() throws Exception {
-        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
-
         if (isRunningAgainstOldCluster()) {
             final Request getNodesReq = new Request("GET", "_nodes");
             final Response getNodesResp = adminClient().performRequest(getNodesReq);

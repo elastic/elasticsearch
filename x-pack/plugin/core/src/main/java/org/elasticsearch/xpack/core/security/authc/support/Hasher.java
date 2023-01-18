@@ -679,12 +679,12 @@ public enum Hasher {
     private static boolean verifyPbkdf2Hash(SecureString data, int iterations, int keyLength, char[] saltChars, char[] hashChars) {
         if (keyLength <= 0 || keyLength % HMAC_SHA512_BLOCK_SIZE_IN_BITS != 0) {
             throw new ElasticsearchException(
-                "PBKDF2 key length must be positive and multiple of [" + HMAC_SHA512_BLOCK_SIZE_IN_BITS + "] bits"
+                "PBKDF2 key length must be positive and multiple of [" + HMAC_SHA512_BLOCK_SIZE_IN_BITS + " bits]"
             );
         }
         final byte[] saltBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars));
         if (saltBytes.length < PBKDF2_MIN_SALT_LENGTH_IN_BYTES) {
-            throw new ElasticsearchException("PBKDF2 salt must be at least [" + PBKDF2_MIN_SALT_LENGTH_IN_BYTES + "] bytes long");
+            throw new ElasticsearchException("PBKDF2 salt must be at least [" + PBKDF2_MIN_SALT_LENGTH_IN_BYTES + " bytes] long");
         }
         char[] computedPwdHash = null;
         try {

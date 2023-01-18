@@ -297,11 +297,11 @@ public class HasherTests extends ESTestCase {
             ElasticsearchException.class,
             () -> { check("{PBKDF2}10000$erwUfw==$Pv/wuOn49EH5nY88LOtY2g==", "s3cr3t", true); }
         );
-        assertThat(ee.getMessage(), containsString("PBKDF2 salt must be at least [8] bytes long"));
+        assertThat(ee.getMessage(), containsString("PBKDF2 salt must be at least [8 bytes] long"));
 
         // derived key length is not multiple of 128 bits
         ee = expectThrows(ElasticsearchException.class, () -> { check("{PBKDF2}10000$0jtIBOnhz7Q=$njOn++ANoMAXn0gi", "s3cr3t", true); });
-        assertThat(ee.getMessage(), containsString("PBKDF2 key length must be positive and multiple of [128] bits"));
+        assertThat(ee.getMessage(), containsString("PBKDF2 key length must be positive and multiple of [128 bits]"));
     }
 
     public void testPbkdf2WithShortPasswordThrowsInFips() {

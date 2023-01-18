@@ -2,7 +2,7 @@
 === ICU Analysis Plugin
 
 The ICU Analysis plugin integrates the Lucene ICU module into {es},
-adding extended Unicode support using the http://site.icu-project.org/[ICU]
+adding extended Unicode support using the https://icu.unicode.org/[ICU]
 libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and
 transliteration.
@@ -48,7 +48,7 @@ The following parameters are accepted:
 ==== ICU Normalization Character Filter
 
 Normalizes characters as explained
-http://userguide.icu-project.org/transforms/normalization[here].
+https://unicode-org.github.io/icu/userguide/transforms/normalization/[here].
 It registers itself as the `icu_normalizer` character filter, which is
 available to all indices without any further configuration. The type of
 normalization can be specified with the `name` parameter, which accepts `nfc`,
@@ -202,7 +202,7 @@ The above `analyze` request returns the following:
 ==== ICU Normalization Token Filter
 
 Normalizes characters as explained
-http://userguide.icu-project.org/transforms/normalization[here]. It registers
+https://unicode-org.github.io/icu/userguide/transforms/normalization/[here]. It registers
 itself as the `icu_normalizer` token filter, which is available to all indices
 without any further configuration. The type of normalization can be specified
 with the `name` parameter, which accepts `nfc`, `nfkc`, and `nfkc_cf`
@@ -554,4 +554,4 @@ GET icu_sample/_analyze
 <3> Returns `zdravstvujte`.
 <4> Returns `kon'nichiha`.
 
-For more documentation, Please see the http://userguide.icu-project.org/transforms/general[user guide of ICU Transform].
+For more documentation, Please see the https://unicode-org.github.io/icu/userguide/transforms/[user guide of ICU Transform].

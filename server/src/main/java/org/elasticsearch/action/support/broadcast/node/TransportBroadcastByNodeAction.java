@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -70,6 +72,8 @@ public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
     Response extends BaseBroadcastResponse,
     ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportBroadcastByNodeAction.class);
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -349,7 +353,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
-                final NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                final NodeRequest nodeRequest = new NodeRequest(request, shards, node.getId());
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
@@ -552,7 +556,7 @@ public abstract class TransportBroadcastByNodeAction<
                 listener.onFailure(failure);
             };
             try {
-                shardOperation(request.indicesLevelRequest, shardRouting, task, new ActionListener<>() {
+                shardOperation(request.getIndicesLevelRequest(), shardRouting, task, new ActionListener<>() {
                     @Override
                     public void onResponse(ShardOperationResult shardOperationResult) {
                         if (logger.isTraceEnabled()) {
@@ -574,11 +578,10 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     public class NodeRequest extends TransportRequest implements IndicesRequest {
-        private String nodeId;
 
-        private List<ShardRouting> shards;
-
-        protected Request indicesLevelRequest;
+        private final Request indicesLevelRequest;
+        private final List<ShardRouting> shards;
+        private final String nodeId;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -587,8 +590,8 @@ public abstract class TransportBroadcastByNodeAction<
             nodeId = in.readString();
         }
 
-        public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
-            this.indicesLevelRequest = request;
+        public NodeRequest(Request indicesLevelRequest, List<ShardRouting> shards, String nodeId) {
+            this.indicesLevelRequest = indicesLevelRequest;
             this.shards = shards;
             this.nodeId = nodeId;
         }
@@ -599,6 +602,10 @@ public abstract class TransportBroadcastByNodeAction<
 
         public String getNodeId() {
             return nodeId;
+        }
+
+        public Request getIndicesLevelRequest() {
+            return indicesLevelRequest;
         }
 
         @Override
@@ -692,13 +699,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         private EmptyResult() {}
 
-        private EmptyResult(StreamInput in) {}
-
         @Override
         public void writeTo(StreamOutput out) {}
-
-        public static EmptyResult readEmptyResultFrom(StreamInput in) {
-            return INSTANCE;
-        }
     }
 }

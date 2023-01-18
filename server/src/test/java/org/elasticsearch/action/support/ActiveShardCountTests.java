@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -187,7 +188,9 @@ public class ActiveShardCountTests extends ESTestCase {
             .numberOfReplicas(numReplicas)
             .build();
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(indexMetadata)
+            .build();
         return ClusterState.builder(new ClusterName("test_cluster")).metadata(metadata).routingTable(routingTable).build();
     }
 

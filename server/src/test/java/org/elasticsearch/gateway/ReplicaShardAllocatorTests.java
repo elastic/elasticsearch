@@ -563,7 +563,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         UnassignedInfo.AllocationStatus.NO_ATTEMPT,
                                         Collections.emptySet(),
                                         lastAllocatedNodeId
-                                    )
+                                    ),
+                                    ShardRouting.Role.DEFAULT
                                 )
                             )
                     )

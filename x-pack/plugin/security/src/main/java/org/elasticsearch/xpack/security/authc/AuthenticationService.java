@@ -130,7 +130,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateRemoteAccessAsync(context, authenticationListener);
+        this.remoteAccessAuthenticator.authenticate(context, authenticationListener);
     }
 
     /**

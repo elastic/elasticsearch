@@ -47,7 +47,6 @@ class AuthenticatorChain {
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
-    private final RemoteAccessAuthenticator remoteAccessAuthenticator;
 
     AuthenticatorChain(
         Settings settings,
@@ -67,8 +66,6 @@ class AuthenticatorChain {
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
         this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
-        // TODO pass this in?
-        this.remoteAccessAuthenticator = new RemoteAccessAuthenticator(apiKeyAuthenticator.getApiKeyService(), nodeName);
     }
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
@@ -97,20 +94,6 @@ class AuthenticatorChain {
         } else {
             doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
         }
-    }
-
-    void authenticateRemoteAccessAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
-        // assert context.getMostRecentAuthenticationToken() == null;
-        assert lookForExistingAuthentication(context) == null;
-        getAuthenticatorConsumer(context, true).accept(remoteAccessAuthenticator, ActionListener.runBefore(ActionListener.wrap(result -> {
-            assert result.getStatus() != AuthenticationResult.Status.TERMINATE
-                : "terminate should already be handled by remote access authenticator";
-            if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                finishAuthentication(context, result.getValue(), listener);
-            } else {
-                listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
-            }
-        }, listener::onFailure), context::close));
     }
 
     /**

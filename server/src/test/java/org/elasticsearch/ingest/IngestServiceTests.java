@@ -2054,6 +2054,20 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
         }
 
+        // _none default pipeline with request pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
+        }
+
         // _none request pipeline with default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
@@ -2081,6 +2095,21 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        }
+
+        // _none final pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
+            assertThat(indexRequest.getFinalPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
         }
     }
 

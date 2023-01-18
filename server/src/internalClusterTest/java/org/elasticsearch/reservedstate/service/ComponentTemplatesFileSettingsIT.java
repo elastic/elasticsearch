@@ -52,11 +52,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
-    }
-
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String emptyJSON = """

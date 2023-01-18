@@ -131,7 +131,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         @Override
         protected EmptyResult readShardResult(StreamInput in) {
-            return EmptyResult.readEmptyResultFrom(in);
+            return EmptyResult.INSTANCE;
         }
 
         @Override
@@ -214,7 +214,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        setClusterState(clusterService, TEST_INDEX);
+        setClusterState(clusterService);
         action = new TestTransportBroadcastByNodeAction(
             transportService,
             new ActionFilters(new HashSet<>()),
@@ -230,10 +230,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         clusterService.close();
     }
 
-    void setClusterState(ClusterService clusterService, String index) {
+    void setClusterState(ClusterService clusterService) {
         int numberOfNodes = randomIntBetween(3, 5);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(index, "_na_"));
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(new Index(TEST_INDEX, "_na_"));
 
         int shardIndex = -1;
         int totalIndexShards = 0;
@@ -243,9 +243,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             int numberOfShards = randomIntBetween(1, 10);
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {
-                final ShardId shardId = new ShardId(index, "_na_", ++shardIndex);
+                final ShardId shardId = new ShardId(TEST_INDEX, "_na_", ++shardIndex);
                 ShardRouting shard = TestShardRouting.newShardRouting(
-                    index,
+                    TEST_INDEX,
                     shardId.getId(),
                     node.getId(),
                     true,
@@ -260,7 +260,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         discoBuilder.masterNodeId(newNode(numberOfNodes - 1).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
-        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(TEST_INDEX)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfReplicas(0)
             .numberOfShards(totalIndexShards);
@@ -283,7 +283,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testGlobalBlock() {
-        Request request = new Request(new String[] { TEST_INDEX });
+        Request request = new Request(TEST_INDEX);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
@@ -298,7 +298,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testRequestBlock() {
-        Request request = new Request(new String[] { TEST_INDEX });
+        Request request = new Request(TEST_INDEX);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
@@ -316,7 +316,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testOneRequestIsSentToEachNodeHoldingAShard() {
-        Request request = new Request(new String[] { TEST_INDEX });
+        Request request = new Request(TEST_INDEX);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         action.doExecute(null, request, listener);
@@ -357,7 +357,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
         TestTransportChannel channel = new TestTransportChannel(future);
 
-        handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel, cancelledTask());
+        handler.messageReceived(action.new NodeRequest(new Request(), new ArrayList<>(shards), nodeId), channel, cancelledTask());
         expectThrows(TaskCancelledException.class, future::actionGet);
 
         assertThat(action.getResults(), anEmptyMap());
@@ -368,7 +368,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     // that node will not be in the local cluster state on any node that has detected the master as failing
     // in this case, such a shard should be treated as unassigned
     public void testRequestsAreNotSentToFailedMaster() {
-        Request request = new Request(new String[] { TEST_INDEX });
+        Request request = new Request(TEST_INDEX);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
@@ -419,7 +419,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
         TestTransportChannel channel = new TestTransportChannel(future);
 
-        handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel, null);
+        handler.messageReceived(action.new NodeRequest(new Request(), new ArrayList<>(shards), nodeId), channel, null);
 
         // check the operation was executed only on the expected shards
         assertEquals(shards, action.getResults().keySet());
@@ -455,7 +455,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testResultAggregation() throws ExecutionException, InterruptedException {
-        Request request = new Request(new String[] { TEST_INDEX });
+        Request request = new Request(TEST_INDEX);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         // simulate removing the master
@@ -524,7 +524,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     public void testNoResultAggregationIfTaskCancelled() {
-        Request request = new Request(new String[] { TEST_INDEX });
+        Request request = new Request(TEST_INDEX);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.AsyncAction asyncAction =

@@ -16,7 +16,7 @@ import java.util.function.BooleanSupplier;
 /**
  * Holds context for building Mapper objects from their Builders
  */
-public final class MapperBuilderContext {
+public class MapperBuilderContext {
 
     /**
      * The root context, to be used when building a tree of mappers

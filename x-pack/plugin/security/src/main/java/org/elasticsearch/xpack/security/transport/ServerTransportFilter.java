@@ -45,7 +45,7 @@ final class ServerTransportFilter {
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
-    private final boolean isForRemoteClusterTraffic;
+    private final boolean requiresRemoteAccessAuthentication;
 
     ServerTransportFilter(
         AuthenticationService authcService,
@@ -65,7 +65,7 @@ final class ServerTransportFilter {
         boolean extractClientCert,
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext,
-        boolean isForRemoteClusterTraffic
+        boolean requiresRemoteAccessAuthentication
     ) {
         this.authcService = authcService;
         this.authzService = authzService;
@@ -73,7 +73,7 @@ final class ServerTransportFilter {
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        this.isForRemoteClusterTraffic = isForRemoteClusterTraffic;
+        this.requiresRemoteAccessAuthentication = requiresRemoteAccessAuthentication;
     }
 
     /**
@@ -131,11 +131,11 @@ final class ServerTransportFilter {
             }
         }, listener::onFailure);
 
-        if (isForRemoteClusterTraffic
+        if (requiresRemoteAccessAuthentication
             // The handshake action is special; under the hood it will be executed by the system user - there won't be remote access
             // headers, so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication
             // strategy
-            && false == TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
+            && false == TransportService.HANDSHAKE_ACTION_NAME.equals(securityAction)) {
             authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
         } else {
             authcService.authenticate(securityAction, request, true, authorizationStep);

@@ -883,7 +883,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
-                return predicate.testMissingResource(name);
+                return predicate.test(name, null);
             } else {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream

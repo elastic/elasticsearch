@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -166,50 +167,39 @@ public final class IndicesPermission {
      * This encapsulates the authorization test for resources.
      * There is an additional test for resources that are missing or that are not a datastream or a backing index.
      */
-    public static class IsResourceAuthorizedPredicate {
+    public static class IsResourceAuthorizedPredicate implements BiPredicate<String, IndexAbstraction> {
 
-        private final StringMatcher resourceNameMatcher;
-        private final StringMatcher additionalNonDatastreamNameMatcher;
+        private final BiPredicate<String, IndexAbstraction> biPredicate;
 
         // public for tests
         public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
-            this.resourceNameMatcher = resourceNameMatcher;
-            this.additionalNonDatastreamNameMatcher = additionalNonDatastreamNameMatcher;
+            this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
+                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                return resourceNameMatcher.test(name)
+                    || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
+            });
         }
 
-        /**
-         * Authorization test for resources: returns {@code true} when the access is granted to the {@param indexAbstraction} or
-         * {@code false} otherwise.
-         * An additional predicate tests datastreams and backing indices, apart from the regular predicate that tests all resource types.
-         */
-        public final boolean test(IndexAbstraction indexAbstraction) {
-            return resourceNameMatcher.test(indexAbstraction.getName())
-                || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstraction.getName()));
+        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate) {
+            this.biPredicate = biPredicate;
         }
 
-        /**
-         * Authorization test for a resource name when the resource does not exist (e.g. the authorization test for creating an index).
-         * Returns {@code true} when access is granted to the resource with the given {@param name}, or {@code false} otherwise.
-         * Use {@link #test(IndexAbstraction)} if the resource exists.
-         */
-        public final boolean testMissingResource(String name) {
-            return resourceNameMatcher.test(name) || additionalNonDatastreamNameMatcher.test(name);
-        }
-
-        /**
-         * Given another {@link IsResourceAuthorizedPredicate}, return a new one that is equivalent to the conjunction of that other one
-         * and this current one.
-         */
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
-            StringMatcher andedResourceNameMatcher = this.resourceNameMatcher.and(other.resourceNameMatcher);
-            StringMatcher andedAdditionalNonDatastreamNameMatcher = (this.resourceNameMatcher.and(other.additionalNonDatastreamNameMatcher))
-                .or((this.additionalNonDatastreamNameMatcher.and(other.resourceNameMatcher)))
-                .or((this.additionalNonDatastreamNameMatcher.and(other.additionalNonDatastreamNameMatcher)));
-            return new IsResourceAuthorizedPredicate(andedResourceNameMatcher, andedAdditionalNonDatastreamNameMatcher);
+            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other.biPredicate));
         }
 
-        private boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
-            return indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM || indexAbstraction.getParentDataStream() != null;
+        public final boolean test(IndexAbstraction indexAbstraction) {
+            return test(indexAbstraction.getName(), indexAbstraction);
+        }
+
+        @Override
+        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
+            return biPredicate.test(name, indexAbstraction);
+        }
+
+        private static boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
+            return indexAbstraction != null
+                && (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM || indexAbstraction.getParentDataStream() != null);
         }
     }
 

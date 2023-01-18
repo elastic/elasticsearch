@@ -716,9 +716,11 @@ public class IndicesPermissionTests extends ESTestCase {
             StringMatcher.of(dataStreamName, backingIndex.getName(), concreteIndex.getName(), alias.getName())
         );
         assertThat(predicate.test(dataStream), is(false));
-        assertThat(predicate.testMissingResource(dataStream.getName()), is(true));
+        // test authorization for a missing resource with the datastream's name
+        assertThat(predicate.test(dataStream.getName(), null), is(true));
         assertThat(predicate.test(backingIndex), is(false));
-        assertThat(predicate.testMissingResource(backingIndex.getName()), is(true));
+        // test authorization for a missing resource with the backing index's name
+        assertThat(predicate.test(backingIndex.getName(), null), is(true));
         assertThat(predicate.test(concreteIndex), is(true));
         assertThat(predicate.test(alias), is(true));
     }

@@ -146,12 +146,12 @@ public abstract class TransportNodesAction<
                 .execute(ActionRunnable.wrap(resultListener, l -> newResponseAsync(task, request, responses, exceptions, l)));
         });
 
-        final var nodeFailureListeners = new ListenableFuture<NodeResponse>();
+        final var nodeCancellationListener = new ListenableFuture<NodeResponse>(); // collects node listeners & completes them if cancelled
         if (task instanceof CancellableTask cancellableTask) {
             cancellableTask.addListener(() -> {
                 assert cancellableTask.isCancelled();
                 resultListenerCompleter.run();
-                cancellableTask.notifyIfCancelled(nodeFailureListeners);
+                cancellableTask.notifyIfCancelled(nodeCancellationListener);
             });
         }
 
@@ -189,7 +189,7 @@ public abstract class TransportNodesAction<
                 });
 
                 if (task instanceof CancellableTask) {
-                    nodeFailureListeners.addListener(nodeResponseListener);
+                    nodeCancellationListener.addListener(nodeResponseListener);
                 }
 
                 final var nodeRequest = newNodeRequest(request);

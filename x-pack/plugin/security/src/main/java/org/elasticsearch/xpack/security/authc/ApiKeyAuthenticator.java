@@ -30,11 +30,6 @@ class ApiKeyAuthenticator implements Authenticator {
         this.nodeName = nodeName;
     }
 
-    // TODO shortcut, remove
-    public ApiKeyService getApiKeyService() {
-        return apiKeyService;
-    }
-
     @Override
     public String name() {
         return "API key";

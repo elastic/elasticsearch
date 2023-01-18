@@ -130,20 +130,11 @@ final class ServerTransportFilter {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
         }, listener::onFailure);
-        // TODO remove logs
-        logger.info(
-            "Inbound on transport profile [{}] [{}] and action [{}]",
-            transportChannel.getProfileName(),
-            unwrappedChannel instanceof TcpTransportChannel ? ((TcpTransportChannel) unwrappedChannel).getChannel() : "non-transport",
-            securityAction
-        );
-        // Handshake action is an exception
-        if (isForRemoteClusterTraffic && false == TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
-            logger.info(
-                "Authenticating remote access on transport profile [{}] and action [{}]",
-                transportChannel.getProfileName(),
-                securityAction
-            );
+
+        if (isForRemoteClusterTraffic
+            // Handshake action is special; under the hood it will be executed by the system user - there won't be remote access headers,
+            // so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication strategy
+            && false == TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
             authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
         } else {
             authcService.authenticate(securityAction, request, true, authorizationStep);

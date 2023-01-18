@@ -66,7 +66,7 @@ public final class TranslogConfig {
         this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, (d, s, l) -> {});
     }
 
-    TranslogConfig(
+    public TranslogConfig(
         ShardId shardId,
         Path translogPath,
         IndexSettings indexSettings,

@@ -194,7 +194,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50).boost(5.0f);
-        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50).boost(10.0f);
+        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50).boost(50.0f);
         SearchResponse response = client().prepareSearch("index")
             .setKnnSearch(List.of(knnSearch, knnSearch2))
             .setQuery(QueryBuilders.matchQuery("text", "goodnight"))

@@ -398,11 +398,15 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         private boolean mayContainTerm(BytesRef term) throws IOException {
-            final int hash = hashTerm(term) % bloomFilterSize;
-            final int pos = hash >> 3;
-            final int mask = 1 << (hash & 0x7);
-            final byte bits = data.readByte(pos);
-            return (bits & mask) != 0;
+            for (int i = 0; i < 7; ++i) {
+                final int hash = hashTermWithSeed(term, i) % bloomFilterSize;
+                final int pos = hash >> 3;
+                final int mask = 1 << (hash & 7);
+                final byte bits = data.readByte(pos);
+                if ((bits & mask) == 0)
+                    return false;
+            }
+            return true;
         }
 
         @Override
@@ -513,8 +517,14 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         return Math.toIntExact((bloomFilterSize + 7L) / 8L);
     }
 
-    static int hashTerm(BytesRef br) {
-        final int hash = murmurhash3_x86_32(br.bytes, br.offset, br.length, 0x9747b28c);
+    // The "optimal" choice of number-of-hash-functions given 10 bits per item appears to be 7, according
+    // to https://hur.st/bloomfilter/?n=4000000&p=&m=40000000&k=
+    static int hashTermWithSeed(BytesRef br, int seedIndex) {
+        // Random seeds to obtain 7 differently seeded hashes.
+        final int[] seeds = { 0x73616c45, 0x49636974, 0x69457473, 0x726f436e, 0x6863696e, 0x72546e6f, 0x707075 };
+        final int hash = murmurhash3_x86_32(br.bytes, br.offset, br.length, seeds[seedIndex % seeds.size()]);
+        // For the bloom filter, the hash is used as index, so we need to ensure we are not returning a negative
+        // value.
         return hash & 0x7FFF_FFFF;
     }
 

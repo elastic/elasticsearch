@@ -101,32 +101,16 @@ class AuthenticatorChain {
 
     void authenticateRemoteAccessAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
         // assert context.getMostRecentAuthenticationToken() == null;
-        // assert lookForExistingAuthentication(context) == null;
-        // TODO kind of sort of but not really
-        final Authentication authentication;
-        try {
-            authentication = lookForExistingAuthentication(context);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        if (authentication != null) {
-            logger.info("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
-            listener.onResponse(authentication);
-        } else {
-            getAuthenticatorConsumer(context, true).accept(
-                remoteAccessAuthenticator,
-                ActionListener.runBefore(ActionListener.wrap(result -> {
-                    assert result.getStatus() != AuthenticationResult.Status.TERMINATE
-                        : "terminate should already be handled by remote access authenticator";
-                    if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                        finishAuthentication(context, result.getValue(), listener);
-                    } else {
-                        listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
-                    }
-                }, listener::onFailure), context::close)
-            );
-        }
+        assert lookForExistingAuthentication(context) == null;
+        getAuthenticatorConsumer(context, true).accept(remoteAccessAuthenticator, ActionListener.runBefore(ActionListener.wrap(result -> {
+            assert result.getStatus() != AuthenticationResult.Status.TERMINATE
+                : "terminate should already be handled by remote access authenticator";
+            if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
+                finishAuthentication(context, result.getValue(), listener);
+            } else {
+                listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
+            }
+        }, listener::onFailure), context::close));
     }
 
     /**

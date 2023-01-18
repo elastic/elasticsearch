@@ -73,7 +73,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
     static {
         final Stream<String> actions = Stream.of(
-            TransportService.HANDSHAKE_ACTION_NAME,
             SearchAction.NAME,
             ClusterStateAction.NAME,
             ClusterSearchShardsAction.NAME,
@@ -171,9 +170,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                // TODO bring this back once we properly clear the thread context on fulfilling cluster of remote access headers
-                // once they are processed
-                // assertNoRemoteAccessHeadersInContext();
+                assertNoRemoteAccessHeadersInContext();
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {

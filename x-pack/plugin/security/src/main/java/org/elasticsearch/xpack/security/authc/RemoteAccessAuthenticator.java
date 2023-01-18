@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -53,11 +54,12 @@ public class RemoteAccessAuthenticator implements Authenticator {
         if (apiKeyCredentials == null) {
             return null;
         }
-        // TODO once we've read the headers, we should clear them from the context
         assert threadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) != null;
         try {
             logger.info("Extracting remote access credentials for [{}]", apiKeyCredentials.principal());
             final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
+            // TODO hack hack hack
+            context.getThreadContext().removeRemoteAccessHeaders();
             return new RemoteAccessCredentials(apiKeyCredentials, remoteAccessAuthentication);
         } catch (IOException ex) {
             logger.error("Failed extracting remote access authentication header", ex);
@@ -67,6 +69,9 @@ public class RemoteAccessAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
+        assert context.getThreadContext().getHeader(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) == null;
+        assert context.getThreadContext().getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null;
+
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         if (false == authenticationToken instanceof RemoteAccessCredentials) {
             listener.onResponse(AuthenticationResult.notHandled());

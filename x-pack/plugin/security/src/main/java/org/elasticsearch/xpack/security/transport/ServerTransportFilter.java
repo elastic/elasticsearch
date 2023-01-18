@@ -137,7 +137,8 @@ final class ServerTransportFilter {
             unwrappedChannel instanceof TcpTransportChannel ? ((TcpTransportChannel) unwrappedChannel).getChannel() : "non-transport",
             securityAction
         );
-        if (isForRemoteClusterTraffic) {
+        // Handshake action is an exception
+        if (isForRemoteClusterTraffic && false == TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
             logger.info(
                 "Authenticating remote access on transport profile [{}] and action [{}]",
                 transportChannel.getProfileName(),

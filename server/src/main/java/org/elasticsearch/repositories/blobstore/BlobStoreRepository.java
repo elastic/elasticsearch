@@ -27,10 +27,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -1421,7 +1422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexMetaIdentifiers = null;
             }
 
-            final ActionListener<Void> allMetaListener = new CountDownActionListener(2 + indices.size(), ActionListener.wrap(v -> {
+            try (var allMetaListeners = new RefCountingListener(ActionListener.wrap(v -> {
                 final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
@@ -1444,52 +1445,53 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }, onUpdateFailure)
                 );
-            }, onUpdateFailure));
+            }, onUpdateFailure))) {
 
-            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
-            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-            // index or global metadata will be compatible with the segments written in this snapshot as well.
-            // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
-            // that decrements the generation it points at
-            final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
-            // Write Global MetaData
-            executor.execute(
-                ActionRunnable.run(
-                    allMetaListener,
-                    () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
-                )
-            );
+                // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
+                // will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of
+                // the index or global metadata will be compatible with the segments written in this snapshot as well.
+                // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
+                // that decrements the generation it points at
+                final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
+                // Write Global MetaData
+                executor.execute(
+                    ActionRunnable.run(
+                        allMetaListeners.acquire(),
+                        () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
+                    )
+                );
 
-            // write the index metadata for each index in the snapshot
-            for (IndexId index : indices) {
-                executor.execute(ActionRunnable.run(allMetaListener, () -> {
-                    final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
-                    if (writeIndexGens) {
-                        final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                        String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
-                        if (metaUUID == null) {
-                            // We don't yet have this version of the metadata so we write it
-                            metaUUID = UUIDs.base64UUID();
-                            INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                            indexMetaIdentifiers.put(identifiers, metaUUID);
+                // write the index metadata for each index in the snapshot
+                for (IndexId index : indices) {
+                    executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
+                        final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
+                        if (writeIndexGens) {
+                            final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                            if (metaUUID == null) {
+                                // We don't yet have this version of the metadata so we write it
+                                metaUUID = UUIDs.base64UUID();
+                                INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                indexMetaIdentifiers.put(identifiers, metaUUID);
+                            }
+                            indexMetas.put(index, identifiers);
+                        } else {
+                            INDEX_METADATA_FORMAT.write(
+                                clusterMetadata.index(index.getName()),
+                                indexContainer(index),
+                                snapshotId.getUUID(),
+                                compress
+                            );
                         }
-                        indexMetas.put(index, identifiers);
-                    } else {
-                        INDEX_METADATA_FORMAT.write(
-                            clusterMetadata.index(index.getName()),
-                            indexContainer(index),
-                            snapshotId.getUUID(),
-                            compress
-                        );
-                    }
-                }));
+                    }));
+                }
+                executor.execute(
+                    ActionRunnable.run(
+                        allMetaListeners.acquire(),
+                        () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
+                    )
+                );
             }
-            executor.execute(
-                ActionRunnable.run(
-                    allMetaListener,
-                    () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
-                )
-            );
         }, onUpdateFailure);
     }
 
@@ -2058,20 +2060,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryException corruptedStateException(@Nullable Exception cause, @Nullable Tuple<Long, String> previousWriterInfo) {
-        return new RepositoryException(
-            metadata.name(),
-            "The repository has been disabled to prevent data corruption because its contents were found not to match its expected state. "
-                + "This is either because something other than this cluster modified the repository contents, or because the repository's "
-                + "underlying storage behaves incorrectly. To re-enable this repository, first ensure that this cluster has exclusive "
-                + "write access to it, and then re-register the repository with this cluster. "
-                + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
-                + Version.CURRENT.major
-                + "."
-                + Version.CURRENT.minor
-                + "/add-repository.html for further information."
-                + previousWriterMessage(previousWriterInfo),
-            cause
-        );
+        return new RepositoryException(metadata.name(), Strings.format("""
+            The repository has been disabled to prevent data corruption because its contents were found not to match its expected state. \
+            This is either because something other than this cluster modified the repository contents, or because the repository's \
+            underlying storage behaves incorrectly. To re-enable this repository, first ensure that this cluster has exclusive write \
+            access to it, and then re-register the repository with this cluster. See %s for further information.\
+            %s""", ReferenceDocs.CONCURRENT_REPOSITORY_WRITERS, previousWriterMessage(previousWriterInfo)), cause);
     }
 
     private static String previousWriterMessage(@Nullable Tuple<Long, String> previousWriterInfo) {

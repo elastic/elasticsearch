@@ -45,8 +45,8 @@ public class ClassReaders {
             return Collections.emptyList();
         }
         Path dir = Paths.get(path);
-        try {
-            return ofPaths(Files.list(dir));
+        try (var stream = Files.list(dir)) {
+            return ofPaths(stream);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -88,9 +88,8 @@ public class ClassReaders {
     }
 
     private static List<ClassReader> classesInPath(Path root) {
-        try {
-            return Files.walk(root)
-                .filter(p -> p.toString().endsWith(".class"))
+        try (var stream = Files.walk(root)) {
+            return stream.filter(p -> p.toString().endsWith(".class"))
                 .filter(p -> p.toString().endsWith(MODULE_INFO) == false)
                 .filter(p -> p.toString().startsWith("/META-INF") == false)// skip multi-release files
                 .map(p -> {

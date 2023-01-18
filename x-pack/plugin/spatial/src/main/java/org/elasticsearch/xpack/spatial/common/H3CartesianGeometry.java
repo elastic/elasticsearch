@@ -109,14 +109,13 @@ class H3CartesianGeometry extends LatLonGeometry {
             if (Component2D.within(getMinX(), getMaxX(), getMinY(), getMaxY(), minX, maxX, minY, maxY)) {
                 return PointValues.Relation.CELL_CROSSES_QUERY;
             }
-            int numCorners = numberOfCorners(minX, maxX, minY, maxY);
-            if (numCorners == 4) {
-                // need to check in case we are crossing the dateline
-                if (crossesDateline && H3CartesianUtil.crossesBox(xs, ys, xs.length, crossesDateline, minX, maxX, minY, maxY, true)) {
+            ContainsCorners containsCorners = containsCorners(minX, maxX, minY, maxY);
+            if (containsCorners == ContainsCorners.ALL) {
+                if (H3CartesianUtil.crossesBox(xs, ys, xs.length, crossesDateline, minX, maxX, minY, maxY, true)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
                 return PointValues.Relation.CELL_INSIDE_QUERY;
-            } else if (numCorners == 0) {
+            } else if (containsCorners == ContainsCorners.NONE) {
                 if (Component2D.containsPoint(xs[0], ys[0], minX, maxX, minY, maxY)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
@@ -325,7 +324,7 @@ class H3CartesianGeometry extends LatLonGeometry {
             return H3CartesianUtil.crossesLine(xs, ys, xs.length, crossesDateline, minX, maxX, minY, maxY, aX, aY, bX, bY, includeBoundary);
         }
 
-        private int numberOfCorners(double minX, double maxX, double minY, double maxY) {
+        private ContainsCorners containsCorners(double minX, double maxX, double minY, double maxY) {
             int containsCount = 0;
             if (contains(minX, minY)) {
                 containsCount++;
@@ -334,18 +333,24 @@ class H3CartesianGeometry extends LatLonGeometry {
                 containsCount++;
             }
             if (containsCount == 1) {
-                return containsCount;
+                return ContainsCorners.SOME;
             }
             if (contains(maxX, maxY)) {
                 containsCount++;
             }
             if (containsCount == 2) {
-                return containsCount;
+                return ContainsCorners.SOME;
             }
             if (contains(minX, maxY)) {
                 containsCount++;
             }
-            return containsCount;
+            return containsCount == 0 ? ContainsCorners.NONE : containsCount == 4 ? ContainsCorners.ALL : ContainsCorners.SOME;
+        }
+
+        private enum ContainsCorners {
+            NONE,
+            SOME,
+            ALL
         }
     }
 }

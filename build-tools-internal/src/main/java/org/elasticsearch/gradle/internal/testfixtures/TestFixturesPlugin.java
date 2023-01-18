@@ -117,6 +117,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             maybeSkipTask(dockerSupport, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
+            composeExtension.setProjectName(project.getName());
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
             composeExtension.getCaptureContainersOutput()

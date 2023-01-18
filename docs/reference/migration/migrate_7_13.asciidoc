@@ -288,8 +288,10 @@ errors in 8.0.0.
 The `index.indexing.slowlog.level` and `index.search.slowlog.level` index
 settings are now deprecated. You use these setting to set the logging level for
 the search and indexing slow logs. To reproduce similar results, use the
-respective `index.*.slowlog.threshold.index.debug` and
-`index.*.slowlog.threshold.index.trace` index settings instead.
+respective `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` index settings instead.
+The same applies to `index.search.slowlog.level` which should be replaced with
+`index.search.slowlog.threshold.query.{level}`.
 
 For example, to reproduce a `index.indexing.slowlog.level` setting of `INFO`,
 set `index.indexing.slowlog.threshold.index.debug` and

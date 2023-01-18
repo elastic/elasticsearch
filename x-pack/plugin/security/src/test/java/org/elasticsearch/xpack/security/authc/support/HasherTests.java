@@ -280,10 +280,28 @@ public class HasherTests extends ESTestCase {
 
         // PBKDF2withHMACSHA512, 32 byte salt, 256 bits key
         check(
-            "{PBKDF2}50000$" + "bjxn3/UGdT7zNtCVfgRp0REhPvLkIv4PZm9fullIQxc=$" + "wuSFQZeOxifopubSzKbIE2xAGdxJlEcUVlqvjFU1TTI=",
+            "{PBKDF2}50000$bjxn3/UGdT7zNtCVfgRp0REhPvLkIv4PZm9fullIQxc=$wuSFQZeOxifopubSzKbIE2xAGdxJlEcUVlqvjFU1TTI=",
             "Tr0ub4dor&3",
             true
         );
+
+        // 12345 iterations are not supported
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { check("{PBKDF2}12345$Rvr0LPiggps=$qBVD7TdDG3mgnLI5yZuR2g==", "s3cr3t", true); }
+        );
+        assertThat(e.getMessage(), containsString("unknown hash function [pbkdf2_12345]"));
+
+        // salt smaller than 8 bytes is not supported
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> { check("{PBKDF2}10000$erwUfw==$Pv/wuOn49EH5nY88LOtY2g==", "s3cr3t", true); }
+        );
+        assertThat(ee.getMessage(), containsString("PBKDF2 salt must be at least [8] bytes long"));
+
+        // derived key length is not multiple of 128 bits
+        ee = expectThrows(ElasticsearchException.class, () -> { check("{PBKDF2}10000$0jtIBOnhz7Q=$njOn++ANoMAXn0gi", "s3cr3t", true); });
+        assertThat(ee.getMessage(), containsString("PBKDF2 key length must be positive and multiple of [128] bits"));
     }
 
     public void testPbkdf2WithShortPasswordThrowsInFips() {

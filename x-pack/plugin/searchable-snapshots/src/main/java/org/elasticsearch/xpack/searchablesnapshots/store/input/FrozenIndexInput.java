@@ -10,9 +10,8 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.FrozenCacheFile;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFile;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -37,7 +36,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
-    private final FrozenCacheFile frozenCacheFile;
+    private final CacheFile cacheFile;
 
     public FrozenIndexInput(
         String name,
@@ -77,7 +76,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         long compoundFileOffset,
         long length,
         CacheFileReference cacheFileReference,
-        FrozenCacheFile frozenCacheFile,
+        CacheFile cacheFile,
         int defaultRangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,
@@ -99,7 +98,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             headerBlobCacheByteRange,
             footerBlobCacheByteRange
         );
-        this.frozenCacheFile = frozenCacheFile;
+        this.cacheFile = cacheFile;
     }
 
     @Override
@@ -139,7 +138,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
 
-            final StepListener<Integer> populateCacheFuture = frozenCacheFile.populateAndRead(
+            final int bytesRead = cacheFile.populateAndRead(
                 rangeToWrite,
                 rangeToRead,
                 (channel, pos, relativePos, len) -> readCacheFile(
@@ -162,8 +161,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                 },
                 directory.cacheFetchAsyncExecutor()
             );
-
-            final int bytesRead = populateCacheFuture.asFuture().get();
             assert bytesRead == length : bytesRead + " vs " + length;
             assert luceneByteBufLock.getReadHoldCount() == 0;
 
@@ -201,7 +198,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             channelPos,
             relativePos,
             length,
-            frozenCacheFile
+            cacheFile
         );
         if (length == 0L) {
             return 0;
@@ -230,7 +227,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                             "unexpected EOF reading [%d-%d] from %s",
                             channelPos,
                             channelPos + dup.remaining(),
-                            this.frozenCacheFile
+                            this.cacheFile
                         )
                     );
                 }
@@ -275,18 +272,18 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             fileChannelPos,
             relativePos,
             length,
-            frozenCacheFile
+            cacheFile
         );
         final long end = relativePos + length;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", relativePos, end, frozenCacheFile));
+        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", relativePos, end, cacheFile));
 
         long bytesCopied = 0L;
         long remaining = length;
         final ByteBuffer buf = writeBuffer.get();
         buf.clear();
         while (remaining > 0L) {
-            final int bytesRead = MetadataCachingIndexInput.readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
+            final int bytesRead = MetadataCachingIndexInput.readSafe(input, copyBuffer, relativePos, end, remaining, cacheFile);
             if (bytesRead > buf.remaining()) {
                 // always fill up buf to the max
                 final int bytesToAdd = buf.remaining();
@@ -339,7 +336,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,
-            frozenCacheFile,
+            cacheFile,
             defaultRangeSize,
             recoveryRangeSize,
             sliceHeaderByteRange,

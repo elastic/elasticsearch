@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The delegate action is completed when execution leaves the try-with-resources block and every acquired reference is released. Unlike a
  * {@link CountDown} there is no need to declare the number of subsidiary actions up front (refs can be acquired dynamically as needed) nor
  * does the caller need to check for completion each time a reference is released. Moreover even outside the try-with-resources block you
- * can continue to acquire additional listeners, even in a separate thread, as long as there's at least one listener outstanding:
+ * can continue to acquire additional references, even in a separate thread, as long as there's at least one reference outstanding:
  *
  * <pre>
  * try (var refs = new RefCountingRunnable(finalRunnable)) {
@@ -95,7 +95,11 @@ public final class RefCountingRunnable implements Releasable {
      * Acquire a reference to this object and return an action which releases it. The delegate {@link Runnable} is called when all its
      * references have been released.
      *
-     * Callers must take care to close the returned resource exactly once. This deviates from the contract of {@link java.io.Closeable}.
+     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
+     * will throw an {@link IllegalStateException} otherwise.
+     *
+     * It is also invalid to release the acquired resource more than once. Doing so will trip an assertion if assertions are enabled, but
+     * will be ignored otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */
     public Releasable acquire() {
         if (refCounted.tryIncRef()) {
@@ -116,7 +120,8 @@ public final class RefCountingRunnable implements Releasable {
     /**
      * Release the original reference to this object, which executes the delegate {@link Runnable} if there are no other references.
      *
-     * Callers must take care to close this resource exactly once. This deviates from the contract of {@link java.io.Closeable}.
+     * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
+     * otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */
     @Override
     public void close() {

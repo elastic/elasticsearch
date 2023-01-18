@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,9 +56,10 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
      * @param indexSettings the shard's index settings
      */
     @Override
-    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
+    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
+        listener.onResponse(null);
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {

@@ -7,9 +7,11 @@
  */
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -158,5 +160,24 @@ public class ListenableActionFutureTests extends ESTestCase {
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);
         }
+    }
+
+    public void testAddedListenersReleasedOnCompletion() {
+        final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+
+        for (int i = between(1, 3); i > 0; i--) {
+            future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        }
+        reachabilityChecker.checkReachable();
+        if (randomBoolean()) {
+            future.onResponse(null);
+        } else {
+            future.onFailure(new ElasticsearchException("simulated"));
+        }
+        reachabilityChecker.ensureUnreachable();
+
+        future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        reachabilityChecker.ensureUnreachable();
     }
 }

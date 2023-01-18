@@ -33,7 +33,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93026")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93005")
 public class NamedComponentScannerTests extends ESTestCase {
 
     private Path tmpDir() throws IOException {

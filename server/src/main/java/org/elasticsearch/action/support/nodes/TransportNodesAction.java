@@ -131,7 +131,6 @@ public abstract class TransportNodesAction<
             assert request.concreteNodes() != null;
         }
 
-        final var mutex = new Object();
         final var responses = new ArrayList<NodeResponse>(request.concreteNodes().length);
         final var exceptions = new ArrayList<FailedNodeException>(0);
 
@@ -166,7 +165,7 @@ public abstract class TransportNodesAction<
                 final ActionListener<NodeResponse> nodeResponseListener = ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
                     public void onResponse(NodeResponse nodeResponse) {
-                        synchronized (mutex) {
+                        synchronized (responses) {
                             responses.add(nodeResponse);
                         }
                     }
@@ -178,7 +177,7 @@ public abstract class TransportNodesAction<
                         }
 
                         logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, node), e);
-                        synchronized (mutex) {
+                        synchronized (exceptions) {
                             exceptions.add(new FailedNodeException(node.getId(), "Failed node [" + node.getId() + "]", e));
                         }
                     }

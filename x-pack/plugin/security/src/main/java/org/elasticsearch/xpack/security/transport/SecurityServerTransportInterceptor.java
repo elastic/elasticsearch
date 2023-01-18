@@ -450,7 +450,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
-            final boolean remoteClusterProfile = remoteClusterPortEnabled
+            final boolean isRemoteClusterProfile = remoteClusterPortEnabled
                 && entry.getKey().equals(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
             profileFilters.put(
                 entry.getKey(),
@@ -461,7 +461,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     extractClientCert,
                     destructiveOperations,
                     securityContext,
-                    remoteClusterProfile
+                    isRemoteClusterProfile
                 )
             );
         }

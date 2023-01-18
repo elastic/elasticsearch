@@ -107,6 +107,7 @@ public class RemoteAccessAuthenticator {
                 final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
                 authMetadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, roleDescriptorsBytesList);
                 final Authentication successfulAuthentication = Authentication.newRemoteAccessAuthentication(
+                    receivedAuthentication,
                     AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),
                     nodeName
                 );

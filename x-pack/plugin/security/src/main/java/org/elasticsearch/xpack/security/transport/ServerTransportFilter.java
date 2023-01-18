@@ -132,8 +132,9 @@ final class ServerTransportFilter {
         }, listener::onFailure);
 
         if (isForRemoteClusterTraffic
-            // Handshake action is special; under the hood it will be executed by the system user - there won't be remote access headers,
-            // so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication strategy
+            // The handshake action is special; under the hood it will be executed by the system user - there won't be remote access
+            // headers, so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication
+            // strategy
             && false == TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
             authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
         } else {

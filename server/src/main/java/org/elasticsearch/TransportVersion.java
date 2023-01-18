@@ -154,16 +154,11 @@ public class TransportVersion implements Comparable<TransportVersion> {
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
-    private static final Map<Integer, TransportVersion> VERSION_IDS;
-
-    private static final NavigableSet<TransportVersion> ALL_VERSIONS;
-
-    static {
+    static Map<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, TransportVersion> builder = new HashMap<>();
-        Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
-        for (Field declaredField : TransportVersion.class.getFields()) {
+        for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
                 if (ignore.contains(fieldName)) {
@@ -176,20 +171,33 @@ public class TransportVersion implements Comparable<TransportVersion> {
                     assert maybePrevious == null
                         : "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
 
-                    TransportVersion sameUniqueId = uniqueIds.put(version.uniqueId, version);
-                    assert sameUniqueId == null
-                        : "Versions "
-                            + version
-                            + " and "
-                            + sameUniqueId
-                            + " have the same unique id. Each TransportVersion should have a different unique id";
-
                 } catch (IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 }
             }
         }
-        VERSION_IDS = Map.copyOf(builder);
+
+        return Map.copyOf(builder);
+    }
+
+    private static final Map<Integer, TransportVersion> VERSION_IDS;
+
+    private static final NavigableSet<TransportVersion> ALL_VERSIONS;
+
+    static {
+        VERSION_IDS = getAllVersionIds(TransportVersion.class);
+        Map<String, TransportVersion> uniqueIds = new HashMap<>();
+
+        for (TransportVersion version : VERSION_IDS.values()) {
+            TransportVersion sameUniqueId = uniqueIds.put(version.uniqueId, version);
+            assert sameUniqueId == null
+                : "Versions "
+                + version
+                + " and "
+                + sameUniqueId
+                + " have the same unique id. Each TransportVersion should have a different unique id";
+        }
+
         ALL_VERSIONS = Collections.unmodifiableNavigableSet(new TreeSet<>(VERSION_IDS.values()));
     }
 

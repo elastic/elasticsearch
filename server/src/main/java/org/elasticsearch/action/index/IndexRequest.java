@@ -97,7 +97,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private XContentType contentType;
 
     private String pipeline;
-    private boolean skipPipeline;
+    /**
+     * If true, the request pipeline and default pipeline are to be skipped (the final pipeline will still be executed if it exists).
+     */
+    private boolean skipPipeline = false;
     private String finalPipeline;
 
     private boolean isPipelineResolved;

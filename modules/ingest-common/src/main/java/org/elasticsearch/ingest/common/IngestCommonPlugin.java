@@ -86,7 +86,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
-            entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory())
+            entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
+            entry(RedactProcessor.TYPE, new RedactProcessor.Factory(createGrokThreadWatchdog(parameters)))
         );
     }
 

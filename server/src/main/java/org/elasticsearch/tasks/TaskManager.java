@@ -295,8 +295,12 @@ public class TaskManager implements ClusterStateApplier {
             }
         } finally {
             tracer.stopTrace("task-" + task.getId());
-            for (RemovedTaskListener listener : removedTaskListeners) {
-                threadPool.generic().submit(() -> listener.onRemoved(task));
+            if (removedTaskListeners.size() > 0) {
+                threadPool.generic().submit(() -> {
+                    for (RemovedTaskListener listener : removedTaskListeners) {
+                        listener.onRemoved(task);
+                    }
+                });
             }
         }
     }

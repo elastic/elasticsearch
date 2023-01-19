@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -81,7 +80,9 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         assertThat(
             ex.getCause().getCause().getMessage(),
             containsString(
-                "was released first in version " + Version.CURRENT + ", failed compatibility check trying to send it to node with version"
+                "was released first in version "
+                    + TransportVersion.CURRENT
+                    + ", failed compatibility check trying to send it to node with version"
             )
         );
     }

@@ -93,7 +93,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readImmutableList(SnapshotInfo::readFrom);
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
             this.failures = Collections.unmodifiableMap(failedResponses);
             this.next = in.readOptionalString();
@@ -101,7 +101,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             this.failures = Collections.emptyMap();
             this.next = null;
         }
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
             this.total = in.readVInt();
             this.remaining = in.readVInt();
         } else {
@@ -149,7 +149,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(snapshots);
-        if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
             out.writeOptionalString(next);
         } else {
@@ -158,7 +158,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
                 throw failures.values().iterator().next();
             }
         }
-        if (out.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
             out.writeVInt(total);
             out.writeVInt(remaining);
         }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -44,7 +44,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         super(in);
         shardIds = in.readList(ShardId::new);
         fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             filters = in.readStringArray();
             allowedTypes = in.readStringArray();
         } else {
@@ -124,7 +124,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         super.writeTo(out);
         out.writeList(shardIds);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(allowedTypes);
         }

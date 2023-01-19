@@ -113,7 +113,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
         return new DesiredBalanceShardsAllocator(
-            createBuiltInClusterSettings(),
+            createBuiltInClusterSettings(settings),
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             null,

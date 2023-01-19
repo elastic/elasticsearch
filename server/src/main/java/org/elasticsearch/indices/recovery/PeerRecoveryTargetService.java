@@ -217,6 +217,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final RecoveryTarget recoveryTarget = recoveryRef.target();
         assert recoveryTarget.sourceNode() != null : "cannot do a recovery without a source node";
         final RecoveryState.Timer timer = recoveryTarget.state().getTimer();
+        final IndexShard indexShard = recoveryTarget.indexShard();
+        final boolean promotableToPrimary = indexShard.routingEntry().isPromotableToPrimary();
 
         record StartRecoveryRequestToSend(StartRecoveryRequest startRecoveryRequest, String actionName, TransportRequest requestToSend) {}
         final ActionListener<StartRecoveryRequestToSend> toSendListener = ActionListener.notifyOnce(
@@ -224,17 +226,23 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 @Override
                 public void onResponse(StartRecoveryRequestToSend r) {
                     logger.trace(
-                        "{} [{}]: recovery from {}",
+                        "{}{} [{}]: recovery from {}",
                         r.startRecoveryRequest().shardId(),
+                        promotableToPrimary ? " (promotable)" : "",
                         r.actionName(),
                         r.startRecoveryRequest().sourceNode()
                     );
-                    transportService.sendRequest(
-                        r.startRecoveryRequest().sourceNode(),
-                        r.actionName(),
-                        r.requestToSend(),
-                        new RecoveryResponseHandler(r.startRecoveryRequest(), timer)
-                    );
+                    RecoveryResponseHandler recoveryResponseHandler = new RecoveryResponseHandler(r.startRecoveryRequest(), timer);
+                    if (promotableToPrimary) {
+                        transportService.sendRequest(
+                            r.startRecoveryRequest().sourceNode(),
+                            r.actionName(),
+                            r.requestToSend(),
+                            recoveryResponseHandler
+                        );
+                    } else {
+                        onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                    }
                 }
 
                 @Override
@@ -252,7 +260,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         if (preExistingRequest == null) {
             try {
-                final IndexShard indexShard = recoveryTarget.indexShard();
                 indexShard.preRecovery(toSendListener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
@@ -267,7 +274,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             store.decRef();
                         }
                     }
-                    final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                    long startingSeqNo = UNASSIGNED_SEQ_NO;
+                    if (promotableToPrimary) {
+                        startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                    } else {
+                        indexShard.openEngineAndSkipTranslogRecovery();
+                    }
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
@@ -277,6 +289,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 toSendListener.onFailure(e);
             }
         } else {
+            assert indexShard.routingEntry().isPromotableToPrimary();
             toSendListener.onResponse(
                 new StartRecoveryRequestToSend(
                     preExistingRequest,

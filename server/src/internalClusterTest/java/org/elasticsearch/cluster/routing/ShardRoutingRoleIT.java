@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -40,6 +41,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -97,11 +100,19 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-            return Optional.of(
-                config -> config.isPromotableToPrimary()
-                    ? new InternalEngine(config)
-                    : new NoOpEngine(config, new TranslogStats(0, 0, 0, 0, 0))
-            );
+            return Optional.of(config -> {
+                if (config.isPromotableToPrimary()) {
+                    return new InternalEngine(config);
+                } else {
+                    try {
+                        config.getStore().createEmpty();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    return new NoOpEngine(EngineTestCase.copy(config, () -> -1L), new TranslogStats(0, 0, 0, 0, 0));
+                }
+            });
         }
     }
 
@@ -112,7 +123,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestPlugin.class);
+        return CollectionUtils.concatLists(List.of(MockTransportService.TestPlugin.class, TestPlugin.class), super.nodePlugins());
     }
 
     @Override
@@ -196,11 +207,25 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
-    public void testShardCreation() {
+    private static void installMockTransportVerifications(RoutingTableWatcher routingTableWatcher) {
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (routingTableWatcher.numIndexingCopies == 1) {
+                    assertThat("no recovery action should be exchanged", action, not(containsString("recovery")));
+                    assertThat("no replicated action should be exchanged", action, not(containsString("[r]")));
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+    }
+
+    public void testShardCreation() throws Exception {
         var routingTableWatcher = new RoutingTableWatcher();
 
         var numDataNodes = routingTableWatcher.numReplicas + 2;
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -237,6 +262,8 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
+            indexRandom(randomBoolean(), INDEX_NAME, randomIntBetween(50, 100));
+            ensureGreen(INDEX_NAME);
 
             // removing replicas drops SEARCH_ONLY copies first
             while (routingTableWatcher.numReplicas > 0) {
@@ -343,6 +370,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         var numDataNodes = routingTableWatcher.numReplicas + 2;
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -401,14 +429,14 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    public void testSearchRouting() {
-
+    public void testSearchRouting() throws Exception {
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);
         routingTableWatcher.numIndexingCopies = Math.min(routingTableWatcher.numIndexingCopies, routingTableWatcher.numReplicas);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
         internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numReplicas + 1);
+        installMockTransportVerifications(routingTableWatcher);
 
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         try {
@@ -416,7 +444,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             masterClusterService.addListener(routingTableWatcher);
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
-            // TODO index some documents here once recovery/replication ignore unpromotable shards
+            indexRandom(randomBoolean(), INDEX_NAME, randomIntBetween(50, 100));
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 

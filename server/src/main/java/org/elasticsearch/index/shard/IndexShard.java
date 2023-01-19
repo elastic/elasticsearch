@@ -709,11 +709,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
+
             final Set<ShardRouting> shardRoutings = Sets.newHashSetWithExpectedSize(routingTable.size());
             for (int copy = 0; copy < routingTable.size(); copy++) {
-                shardRoutings.add(routingTable.shard(copy));
+                ShardRouting shardRouting = routingTable.shard(copy);
+                if (shardRouting.isPromotableToPrimary()) shardRoutings.add(shardRouting);
             }
-            shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
+
+            // include relocation targets
+            shardRoutings.addAll(routingTable.assignedShards().stream().filter(ShardRouting::isPromotableToPrimary).toList());
+
             if (shardRoutings.stream()
                 .allMatch(
                     shr -> shr.assignedToNode() && retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shr))
@@ -1668,6 +1673,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (state == IndexShardState.STARTED) {
                     throw new IndexShardStartedException(shardId);
                 }
+                if (routingEntry().isPromotableToPrimary() == false) {
+                    // Swiftly skip intermediate stages
+                    recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+                    recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+                    recoveryState.getIndex().setFileDetailsComplete();
+                    recoveryState.setStage(RecoveryState.Stage.FINALIZE);
+                }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
             }
@@ -1935,7 +1947,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        recoveryState.validateCurrentStage(
+            routingEntry().isPromotableToPrimary() ? RecoveryState.Stage.TRANSLOG : RecoveryState.Stage.INDEX
+        );
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
@@ -1972,7 +1986,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         assert assertSequenceNumbersInCommit();
-        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        recoveryState.validateCurrentStage(
+            routingEntry().isPromotableToPrimary() ? RecoveryState.Stage.TRANSLOG : RecoveryState.Stage.INDEX
+        );
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {

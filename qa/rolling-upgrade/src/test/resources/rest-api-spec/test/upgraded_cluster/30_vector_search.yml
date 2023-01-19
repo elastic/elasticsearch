@@ -50,7 +50,21 @@
             field: "knn"
             query_vector: [4, 5, 6]
             k: 3
-            num_candidates: 3
+            num_candidates: 7
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [ 4, 5, 6 ]
+            k: 3
+            num_candidates: 6
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.1._id: "5" }
@@ -108,7 +122,21 @@
             field: "knn"
             query_vector: [4, 5, 6]
             k: 3
-            num_candidates: 3
+            num_candidates: 6
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 7
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.1._id: "5" }

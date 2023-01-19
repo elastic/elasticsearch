@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -18,11 +19,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -37,7 +42,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -46,6 +53,8 @@ import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -269,12 +278,58 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }, 60, TimeUnit.SECONDS);
     }
 
+    protected String getModelId(String jobId) {
+        SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
+            .get();
+        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+        return searchResponse.getHits().getHits()[0].getId();
+
+    }
+
+    protected TrainedModelMetadata getModelMetadata(String modelId) {
+        SearchResponse response = client().prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("model_id", modelId))
+                    .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelMetadata.NAME))
+            )
+            .setSize(1)
+            .get();
+
+        assertThat(response.getHits().getHits(), arrayWithSize(1));
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                response.getHits().getHits()[0].getSourceRef(),
+                XContentType.JSON
+            )
+        ) {
+            return TrainedModelMetadata.LENIENT_PARSER.apply(parser, null);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    protected TrainedModelDefinition getModelDefinition(String modelId) throws IOException {
+        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(
+            modelId,
+            Collections.emptyList(),
+            Collections.singleton(GetTrainedModelsAction.Includes.DEFINITION)
+        );
+        GetTrainedModelsAction.Response response = client().execute(GetTrainedModelsAction.INSTANCE, request).actionGet();
+        assertThat(response.getResources().results().size(), equalTo(1));
+        TrainedModelConfig modelConfig = response.getResources().results().get(0);
+        modelConfig.ensureParsedDefinition(xContentRegistry());
+        return modelConfig.getModelDefinition();
+    }
+
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
-     *  1. the number of fetched messages must equal the number of provided prefixes
+     * 1. the number of fetched messages must equal the number of provided prefixes
      * AND
-     *  2. each fetched message must start with the corresponding prefix
+     * 2. each fetched message must start with the corresponding prefix
      */
     protected static void assertThatAuditMessagesMatch(String configId, String... expectedAuditMessagePrefixes) throws Exception {
         // Make sure we wrote to the audit

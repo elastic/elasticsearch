@@ -56,6 +56,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptCompiler;
@@ -386,7 +387,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             ).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
-            AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
+            AnalysisModule analysisModule = new AnalysisModule(
+                TestEnvironment.newEnvironment(nodeSettings),
+                emptyList(),
+                new StablePluginsRegistry()
+            );
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
@@ -460,7 +465,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
                 // also add mappings for two inner field in the object field
-                mapperService.merge("_doc", new CompressedXContent("""
+                mapperService.merge("_doc", new CompressedXContent(Strings.format("""
                     {
                       "properties": {
                         "%s": {
@@ -475,7 +480,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                           }
                         }
                       }
-                    }""".formatted(OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
+                    }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }

@@ -138,6 +138,16 @@ public class TerminalTests extends ESTestCase {
         assertRead(passphrase + "\r\n", passphrase);
     }
 
+    /**
+     * Tests an edge case when read buffer gets completely filled (up to 128 chars) with the last character being carriage return
+     * and asserts that this last CR character is properly removed.
+     */
+    public void testReadLineToCharArrayBufferWithCarriageReturnRemoval() throws Exception {
+        String passphrase = randomAlphaOfLength(127);
+        assertRead(passphrase + "\n", passphrase);
+        assertRead(passphrase + "\r\n", passphrase);
+    }
+
     private void assertRead(String source, String expected) {
         try (StringReader reader = new StringReader(source)) {
             char[] result = readLineToCharArray(reader);

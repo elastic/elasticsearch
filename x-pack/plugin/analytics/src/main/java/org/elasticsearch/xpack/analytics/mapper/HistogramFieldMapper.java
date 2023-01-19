@@ -120,7 +120,8 @@ public class HistogramFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }
 
@@ -386,7 +387,7 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         int count;
         boolean isExhausted;
-        ByteArrayStreamInput streamInput;
+        final ByteArrayStreamInput streamInput;
 
         InternalHistogramValue() {
             streamInput = new ByteArrayStreamInput();

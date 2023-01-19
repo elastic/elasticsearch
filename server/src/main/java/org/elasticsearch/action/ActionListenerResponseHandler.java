@@ -24,7 +24,7 @@ import java.util.Objects;
  */
 public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
-    private final ActionListener<? super Response> listener;
+    protected final ActionListener<? super Response> listener;
     private final Writeable.Reader<Response> reader;
     private final String executor;
 

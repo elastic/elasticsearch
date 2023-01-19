@@ -154,13 +154,6 @@
                         "data": {
                           "type": "long"
                         },
-                        "stats": {
-                          "properties": {
-                            "data": {
-                              "type": "long"
-                            }
-                          }
-                        },
                         "count": {
                           "type": "long"
                         },
@@ -216,28 +209,28 @@
                       "type": "keyword"
                     }
                   }
-                },
-                "pending_task": {
+                }
+              }
+            },
+            "pending_tasks": {
+              "properties": {
+                "time_in_queue": {
                   "properties": {
-                    "time_in_queue": {
-                      "properties": {
-                        "ms": {
-                          "type": "long"
-                        }
-                      }
-                    },
-                    "source": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "priority": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
-                    },
-                    "insert_order": {
+                    "ms": {
                       "type": "long"
                     }
                   }
+                },
+                "source": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "priority": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "insert_order": {
+                  "type": "long"
                 }
               }
             },
@@ -485,6 +478,49 @@
                     },
                     "indices": {
                       "properties": {
+                        "bulk": {
+                          "properties": {
+                            "operations": {
+                              "properties": {
+                                "total": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "total_size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "avg_size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "avg_time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "search": {
                           "properties": {
                             "query_total": {
@@ -1112,6 +1148,9 @@
               "properties": {
                 "shards": {
                   "properties": {
+                    "primaries": {
+                      "type": "long"
+                    },
                     "total": {
                       "type": "long"
                     }
@@ -1246,6 +1285,25 @@
                 },
                 "total": {
                   "properties": {
+                    "bulk": {
+                      "properties": {
+                        "avg_time_in_millis": {
+                          "type": "long"
+                        },
+                        "avg_size_in_bytes": {
+                          "type": "long"
+                        },
+                        "total_time_in_millis": {
+                          "type": "long"
+                        },
+                        "total_operations": {
+                          "type": "long"
+                        },
+                        "total_size_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
                     "search": {
                       "properties": {
                         "query_total": {

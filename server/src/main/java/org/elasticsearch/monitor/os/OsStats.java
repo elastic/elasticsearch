@@ -202,7 +202,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public ByteSizeValue getUsed() {
@@ -217,13 +217,13 @@ public class OsStats implements Writeable, ToXContentFragment {
                 if (free > 0) {
                     logger.debug("cannot compute used swap when total swap is 0 and free swap is " + free);
                 }
-                return new ByteSizeValue(0);
+                return ByteSizeValue.ZERO;
             }
-            return new ByteSizeValue(total - free);
+            return ByteSizeValue.ofBytes(total - free);
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         @Override
@@ -306,11 +306,11 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         public ByteSizeValue getAdjustedTotal() {
-            return new ByteSizeValue(adjustedTotal);
+            return ByteSizeValue.ofBytes(adjustedTotal);
         }
 
         public ByteSizeValue getUsed() {
@@ -324,9 +324,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 if (free > 0) {
                     logger.debug("cannot compute used memory when total memory is 0 and free memory is " + free);
                 }
-                return new ByteSizeValue(0);
+                return ByteSizeValue.ZERO;
             }
-            return new ByteSizeValue(total - free);
+            return ByteSizeValue.ofBytes(total - free);
         }
 
         public short getUsedPercent() {
@@ -334,7 +334,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public short getFreePercent() {

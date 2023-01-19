@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -92,6 +93,11 @@ public class SetsTests extends ESTestCase {
             int capacity = Sets.capacity(size);
             assertThat(size, lessThanOrEqualTo((int) (capacity * 0.75f)));
         }
+    }
+
+    public void testAddToCopy() {
+        assertThat(addToCopy(Set.of("a", "b"), "c"), containsInAnyOrder("a", "b", "c"));
+        assertThat(addToCopy(Set.of("a", "b"), "c", "d"), containsInAnyOrder("a", "b", "c", "d"));
     }
 
     /**

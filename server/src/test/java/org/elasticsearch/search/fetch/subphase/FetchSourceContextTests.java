@@ -10,7 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,7 +19,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class FetchSourceContextTests extends AbstractSerializingTestCase<FetchSourceContext> {
+public class FetchSourceContextTests extends AbstractXContentSerializingTestCase<FetchSourceContext> {
     @Override
     protected FetchSourceContext doParseInstance(XContentParser parser) throws IOException {
         return FetchSourceContext.fromXContent(parser);

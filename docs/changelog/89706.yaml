@@ -1,5 +1,0 @@
-pr: 89706
-summary: "Synthetic _source: support version field type"
-area: "TSDB"
-type: enhancement
-issues: []

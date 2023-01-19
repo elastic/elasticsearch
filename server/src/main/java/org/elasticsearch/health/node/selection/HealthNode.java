@@ -22,12 +22,6 @@ import java.util.Map;
  */
 public class HealthNode extends AllocatedPersistentTask {
 
-    public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.health_node_feature_flag_enabled"));
-
-    public static boolean isEnabled() {
-        return FEATURE_FLAG_ENABLED;
-    }
-
     public static final String TASK_NAME = "health-node";
 
     HealthNode(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {

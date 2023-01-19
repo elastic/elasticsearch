@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
@@ -92,7 +94,12 @@ public class WebhookActionTests extends ESTestCase {
         HttpRequestTemplate httpRequest = getHttpRequestTemplate(method, TEST_HOST, TEST_PORT, testPath, testBody, null);
 
         WebhookAction action = new WebhookAction(httpRequest);
-        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
+        WebhookService webhookService = new WebhookService(
+            Settings.EMPTY,
+            httpClient,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, webhookService, templateEngine);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple("foo", "bar"));
 
         Action.Result actionResult = executable.execute("_id", ctx, Payload.EMPTY);
@@ -155,7 +162,12 @@ public class WebhookActionTests extends ESTestCase {
 
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
         WebhookAction action = new WebhookAction(request);
-        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, ExecuteScenario.Success.client(), templateEngine);
+        WebhookService webhookService = new WebhookService(
+            Settings.EMPTY,
+            ExecuteScenario.Success.client(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, webhookService, templateEngine);
 
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -217,7 +229,12 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
-        return new WebhookActionFactory(client, templateEngine);
+        WebhookService webhookService = new WebhookService(
+            Settings.EMPTY,
+            client,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        return new WebhookActionFactory(webhookService, templateEngine);
     }
 
     public void testThatSelectingProxyWorks() throws Exception {
@@ -235,7 +252,12 @@ public class WebhookActionTests extends ESTestCase {
                 .proxy(new HttpProxy("localhost", proxyServer.getPort()));
             WebhookAction action = new WebhookAction(builder.build());
 
-            ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
+            WebhookService webhookService = new WebhookService(
+                Settings.EMPTY,
+                httpClient,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, webhookService, templateEngine);
             String watchId = "test_url_encode" + randomAlphaOfLength(10);
             ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(
                 watchId,
@@ -268,7 +290,12 @@ public class WebhookActionTests extends ESTestCase {
         HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody, null);
         WebhookAction action = new WebhookAction(requestTemplate);
 
-        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
+        WebhookService webhookService = new WebhookService(
+            Settings.EMPTY,
+            client,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, webhookService, templateEngine);
 
         ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(
             watchId,

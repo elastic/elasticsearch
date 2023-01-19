@@ -171,7 +171,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         assertThat(target.getLocalCheckpoint(), equalTo(0L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
-        IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
 
         assertDocs(target, "0", "2");

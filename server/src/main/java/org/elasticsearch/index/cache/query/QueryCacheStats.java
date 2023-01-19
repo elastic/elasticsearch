@@ -47,6 +47,9 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
     }
 
     public void add(QueryCacheStats stats) {
+        if (stats == null) {
+            return;
+        }
         ramBytesUsed += stats.ramBytesUsed;
         hitCount += stats.hitCount;
         missCount += stats.missCount;
@@ -59,7 +62,7 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getMemorySize() {
-        return new ByteSizeValue(ramBytesUsed);
+        return ByteSizeValue.ofBytes(ramBytesUsed);
     }
 
     /**

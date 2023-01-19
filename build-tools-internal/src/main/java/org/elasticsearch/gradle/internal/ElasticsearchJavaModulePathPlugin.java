@@ -105,11 +105,10 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     Logger logger = task.getLogger();
                     if (logger.isInfoEnabled()) {
                         logger.info(
-                            "%s%n Module path args: %s%n Classpath: %s".formatted(
-                                task.toString(),
-                                argsToString(argumentProvider.asArguments()),
-                                pathToString(task.getClasspath().getAsPath())
-                            )
+                            "{}\n Module path args: {}\n Classpath: {}",
+                            task.getPath(),
+                            argsToString(argumentProvider.asArguments()),
+                            pathToString(task.getClasspath().getAsPath())
                         );
                     }
                 }

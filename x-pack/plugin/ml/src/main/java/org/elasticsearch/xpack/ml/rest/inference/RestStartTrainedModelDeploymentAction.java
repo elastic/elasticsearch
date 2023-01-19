@@ -92,6 +92,12 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                 );
             }
             request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
+            request.setPriority(
+                restRequest.param(
+                    StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName(),
+                    request.getPriority().toString()
+                )
+            );
         }
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
@@ -96,7 +97,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return Strings.format("""
             %s%s:
               cluster: [ "manage_own_api_key" ]
               indices:
@@ -160,7 +161,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
                 privileges:
                 - "read"
                 query: {"template":{"id":"my-script"}}
-            """.formatted(super.configRoles(), DLS_FLS_USER, DLS_TEMPLATE_ROLE_QUERY_ROLE);
+            """, super.configRoles(), DLS_FLS_USER, DLS_TEMPLATE_ROLE_QUERY_ROLE);
     }
 
     @Override

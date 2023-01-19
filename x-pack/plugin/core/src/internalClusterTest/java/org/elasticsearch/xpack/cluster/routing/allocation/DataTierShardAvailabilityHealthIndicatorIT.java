@@ -70,7 +70,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         ensureYellow("test");
         GetHealthAction.Response healthResponse = client().execute(
             GetHealthAction.INSTANCE,
-            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true)
+            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
         assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));
@@ -79,7 +79,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             hasItem(
                 new Diagnosis(
                     ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT),
-                    List.of("test")
+                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("test")))
                 )
             )
         );
@@ -107,7 +107,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         ensureYellow("test");
         GetHealthAction.Response healthResponse = client().execute(
             GetHealthAction.INSTANCE,
-            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true)
+            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         ClusterAllocationExplanation explain = client().admin()
             .cluster()
@@ -125,7 +125,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             hasItem(
                 new Diagnosis(
                     ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT),
-                    List.of("test")
+                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("test")))
                 )
             )
         );
@@ -152,14 +152,19 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         ensureYellow("test");
         GetHealthAction.Response healthResponse = client().execute(
             GetHealthAction.INSTANCE,
-            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true)
+            new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
         assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));
         assertThat(indicatorResult.diagnosisList().size(), equalTo(1));
         assertThat(
             indicatorResult.diagnosisList(),
-            hasItem(new Diagnosis(ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("test")))
+            hasItem(
+                new Diagnosis(
+                    ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("test")))
+                )
+            )
         );
     }
 

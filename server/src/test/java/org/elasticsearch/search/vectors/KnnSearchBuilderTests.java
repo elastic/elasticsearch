@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,9 +28,29 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 
-public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearchBuilder> {
+public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<KnnSearchBuilder> {
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
+
+    public static KnnSearchBuilder randomTestInstance() {
+        String field = randomAlphaOfLength(6);
+        int dim = randomIntBetween(2, 30);
+        float[] vector = randomVector(dim);
+        int k = randomIntBetween(1, 100);
+        int numCands = randomIntBetween(k + 20, 1000);
+
+        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
+        if (randomBoolean()) {
+            builder.boost(randomFloat());
+        }
+
+        int numFilters = randomIntBetween(0, 3);
+        for (int i = 0; i < numFilters; i++) {
+            builder.addFilterQuery(QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        }
+
+        return builder;
+    }
 
     @Before
     public void registerNamedXContents() {
@@ -61,23 +81,7 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
 
     @Override
     protected KnnSearchBuilder createTestInstance() {
-        String field = randomAlphaOfLength(6);
-        int dim = randomIntBetween(2, 30);
-        float[] vector = randomVector(dim);
-        int k = randomIntBetween(1, 100);
-        int numCands = randomIntBetween(k + 20, 1000);
-
-        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
-        if (randomBoolean()) {
-            builder.boost(randomFloat());
-        }
-
-        int numFilters = randomIntBetween(0, 3);
-        for (int i = 0; i < numFilters; i++) {
-            builder.addFilterQuery(QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(10)));
-        }
-
-        return builder;
+        return randomTestInstance();
     }
 
     @Override

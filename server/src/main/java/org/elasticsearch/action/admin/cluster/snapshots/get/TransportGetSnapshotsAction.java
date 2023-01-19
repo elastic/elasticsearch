@@ -176,7 +176,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return;
         }
         final GroupedActionListener<Tuple<Tuple<String, ElasticsearchException>, SnapshotsInRepo>> groupedActionListener =
-            new GroupedActionListener<>(listener.map(responses -> {
+            new GroupedActionListener<>(repos.size(), listener.map(responses -> {
                 assert repos.size() == responses.size();
                 final List<SnapshotInfo> allSnapshots = responses.stream()
                     .map(Tuple::v2)
@@ -203,7 +203,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     responses.stream().map(Tuple::v2).filter(Objects::nonNull).mapToInt(s -> s.totalCount).sum(),
                     remaining
                 );
-            }), repos.size());
+            }));
 
         for (final RepositoryMetadata repo : repos) {
             final String repoName = repo.name();

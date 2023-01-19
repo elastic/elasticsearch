@@ -9,13 +9,20 @@ to limit the number of matched documents with a `query` parameter.
 
 This is the list of available vector functions and vector access methods:
 
-1. `cosineSimilarity` – calculates cosine similarity
-2. `dotProduct` – calculates dot product
-3. `l1norm` – calculates L^1^ distance
-4. `l2norm` - calculates L^2^ distance
-5. `doc[<field>].vectorValue` – returns a vector's value as an array of floats
-6. `doc[<field>].magnitude` – returns a vector's magnitude
+1. <<vector-functions-cosine,`cosineSimilarity`>> – calculates cosine similarity
+2. <<vector-functions-dot-product,`dotProduct`>> – calculates dot product
+3. <<vector-functions-l1,`l1norm`>> – calculates L^1^ distance
+4. <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance
+5. <<vector-functions-accessing-vectors,`doc[<field>].vectorValue`>> – returns a vector's value as an array of floats
+6. <<vector-functions-accessing-vectors,`doc[<field>].magnitude`>> – returns a vector's magnitude
 
+NOTE: The recommended way to access dense vectors is through the
+`cosineSimilarity`, `dotProduct`, `l1norm` or `l2norm` functions. Please note
+however, that you should call these functions only once per script. For example,
+don’t use these functions in a loop to calculate the similarity between a
+document vector and multiple other vectors. If you need that functionality,
+reimplement these functions yourself by
+<<vector-functions-accessing-vectors,accessing vector values directly>>.
 
 Let's create an index with a `dense_vector` mapping and index a couple
 of documents into it.
@@ -54,6 +61,9 @@ POST my-index-000001/_refresh
 --------------------------------------------------
 // TESTSETUP
 
+[[vector-functions-cosine]]
+====== Cosine similarity
+
 The `cosineSimilarity` function calculates the measure of
 cosine similarity between a given query vector and document vectors.
 
@@ -90,6 +100,9 @@ GET my-index-000001/_search
 NOTE: If a document's dense vector field has a number of dimensions
 different from the query's vector, an error will be thrown.
 
+[[vector-functions-dot-product]]
+====== Dot product
+
 The `dotProduct` function calculates the measure of
 dot product between a given query vector and document vectors.
 
@@ -123,6 +136,9 @@ GET my-index-000001/_search
 --------------------------------------------------
 
 <1> Using the standard sigmoid function prevents scores from being negative.
+
+[[vector-functions-l1]]
+====== L^1^ distance (Manhattan distance)
 
 The `l1norm` function calculates L^1^ distance
 (Manhattan distance) between a given query vector and
@@ -163,6 +179,9 @@ we reversed the output from `l1norm` and `l2norm`. Also, to avoid
 division by 0 when a document vector matches the query exactly,
 we added `1` in the denominator.
 
+[[vector-functions-l2]]
+====== L^2^ distance (Euclidean distance)
+
 The `l2norm` function calculates L^2^ distance
 (Euclidean distance) between a given query vector and
 document vectors.
@@ -193,10 +212,13 @@ GET my-index-000001/_search
 }
 --------------------------------------------------
 
-NOTE: If a document doesn't have a value for a vector field on which
-a vector function is executed, an error will be thrown.
+[[vector-functions-missing-values]]
+====== Checking for missing values
 
-You can check if a document has a value for the field `my_vector` by
+If a document doesn't have a value for a vector field on which a vector function
+is executed, an error will be thrown.
+
+You can check if a document has a value for the field `my_vector` with
 `doc['my_vector'].size() == 0`. Your overall script can look like this:
 
 [source,js]
@@ -205,9 +227,10 @@ You can check if a document has a value for the field `my_vector` by
 --------------------------------------------------
 // NOTCONSOLE
 
-The recommended way to access dense vectors is through `cosineSimilarity`,
-`dotProduct`, `l1norm` or `l2norm` functions. But for custom use cases,
-you can access dense vectors's values directly through the following functions:
+[[vector-functions-accessing-vectors]]
+====== Accessing vectors directly
+
+You can access vector values directly through the following functions:
 
 - `doc[<field>].vectorValue` – returns a vector's value as an array of floats
 

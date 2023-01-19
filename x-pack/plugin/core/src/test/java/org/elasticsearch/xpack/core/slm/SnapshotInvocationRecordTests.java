@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<SnapshotInvocationRecord> {
+public class SnapshotInvocationRecordTests extends AbstractXContentSerializingTestCase<SnapshotInvocationRecord> {
 
     @Override
     protected SnapshotInvocationRecord doParseInstance(XContentParser parser) throws IOException {

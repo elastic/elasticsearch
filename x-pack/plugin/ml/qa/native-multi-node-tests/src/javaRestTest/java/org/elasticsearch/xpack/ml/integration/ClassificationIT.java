@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -1101,45 +1102,46 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void createIndex(String index, boolean isDatastream) {
-        String mapping = """
-            {
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "%s": {
-                  "type": "boolean"
-                },
-                "%s": {
-                  "type": "double"
-                },
-                "%s": {
-                  "type": "integer"
-                },
-                "%s": {
-                  "type": "text",
-                  "fields": {
-                    "keyword": {
+        String mapping = Strings.format(
+            """
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "%s": {
+                      "type": "boolean"
+                    },
+                    "%s": {
+                      "type": "double"
+                    },
+                    "%s": {
+                      "type": "integer"
+                    },
+                    "%s": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "%s": {
                       "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
                     }
                   }
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                }
-              }
-            }""".formatted(
+                }""",
             BOOLEAN_FIELD,
             NUMERICAL_FIELD,
             DISCRETE_NUMERICAL_FIELD,

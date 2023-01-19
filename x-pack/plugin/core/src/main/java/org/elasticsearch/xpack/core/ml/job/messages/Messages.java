@@ -132,6 +132,7 @@ public final class Messages {
     public static final String INFERENCE_DEPLOYMENT_STARTED = "Started deployment";
     public static final String INFERENCE_DEPLOYMENT_STOPPED = "Stopped deployment";
     public static final String INFERENCE_DEPLOYMENT_REBALANCED = "Rebalanced trained model allocations because [{0}]";
+    public static final String INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS = "Updated number_of_allocations to [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
         + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
@@ -157,6 +158,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
+    public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";

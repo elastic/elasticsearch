@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -23,5 +22,5 @@ public abstract class ShapeValuesSourceType implements ValuesSourceType {
     }
 
     @Override
-    public abstract ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context);
+    public abstract ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 }

@@ -7,24 +7,22 @@
 
 package org.elasticsearch.xpack.downsample;
 
-/**
- * Base class for classes that read metric and label fields.
- */
-abstract class AbstractRollupFieldProducer<T> {
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 
-    protected final String name;
+import java.io.IOException;
+
+/**
+ * Base class that reads fields from the source index and produces their downsampled values
+ */
+abstract class AbstractRollupFieldProducer implements RollupFieldSerializer {
+
+    private final String name;
     protected boolean isEmpty;
 
     AbstractRollupFieldProducer(String name) {
         this.name = name;
         this.isEmpty = true;
     }
-
-    /**
-     * Collect a value for the field applying the specific subclass collection strategy.
-     * @param value the value to collect.
-     */
-    public abstract void collect(T value);
 
     /**
      * @return the name of the field.
@@ -34,12 +32,7 @@ abstract class AbstractRollupFieldProducer<T> {
     }
 
     /**
-     * @return the value of the field.
-     */
-    public abstract Object value();
-
-    /**
-     * Resets the collected value to the specific subclass reset value.
+     * Resets the producer to an empty value.
      */
     public abstract void reset();
 
@@ -49,4 +42,6 @@ abstract class AbstractRollupFieldProducer<T> {
     public boolean isEmpty() {
         return isEmpty;
     }
+
+    public abstract void collect(FormattedDocValues docValues, int docId) throws IOException;
 }

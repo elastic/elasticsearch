@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -60,7 +61,11 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP, null);
-        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(plugin),
+            new StablePluginsRegistry()
+        );
 
         IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);
 

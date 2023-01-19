@@ -80,7 +80,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             numberOfAllocations,
             params.getThreadsPerAllocation(),
             params.getQueueCapacity(),
-            null
+            params.getCacheSize().orElse(null),
+            params.getPriority()
         );
     }
 
@@ -129,7 +130,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void infer(
-        Map<String, Object> doc,
+        NlpInferenceInput input,
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
@@ -155,7 +156,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         trainedModelAssignmentNodeService.infer(
             this,
             update.apply(inferenceConfigHolder.get()),
-            doc,
+            input,
             skipQueue,
             timeout,
             parentActionTask,

@@ -242,4 +242,10 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
             }
         });
     }
+
+    @Override
+    public void testToString() throws Exception {
+        // override parent since empty sort value serializes to empty string
+        assertNotNull(createTestInstance().toString());
+    }
 }

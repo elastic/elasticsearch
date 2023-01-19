@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -53,7 +52,7 @@ public class QuerySearchResultTests extends ESTestCase {
             shardId,
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             randomNonNegativeLong(),
             null

@@ -1,0 +1,138 @@
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "support for byte vectors added in 8.6"
+      features: headers
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+              indexed_vector:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: true
+                similarity: cosine
+
+  - do:
+      index:
+        index: test-index
+        id: "1"
+        body:
+          vector: [8, 5, -15, 1, -7]
+          indexed_vector: [8, 5, -15, 1, -7]
+
+  - do:
+      index:
+        index: test-index
+        id: "2"
+        body:
+          vector: [-1, 115, -3, 4, -128]
+          indexed_vector: [-1, 115, -3, 4, -128]
+
+  - do:
+      index:
+        index: test-index
+        id: "3"
+        body:
+          vector: [2, 18, -5, 0, -124]
+          indexed_vector: [2, 18, -5, 0, -124]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Dot Product":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 28732.0}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1._score: 17439.0}
+
+  - match: {hits.hits.2._id: "1"}
+  - match: {hits.hits.2._score: 1632.0}
+
+---
+"Cosine Similarity":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - gte: {hits.hits.0._score: 0.995}
+  - lte: {hits.hits.0._score: 0.998}
+
+  - match: {hits.hits.1._id: "3"}
+  - gte: {hits.hits.1._score: 0.829}
+  - lte: {hits.hits.1._score: 0.832}
+
+  - match: {hits.hits.2._id: "1"}
+  - gte: {hits.hits.2._score: 0.509}
+  - lte: {hits.hits.2._score: 0.512}
+
+---
+"Cosine similarity with indexed vector":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - gte: {hits.hits.0._score: 0.995}
+  - lte: {hits.hits.0._score: 0.998}
+
+  - match: {hits.hits.1._id: "3"}
+  - gte: {hits.hits.1._score: 0.829}
+  - lte: {hits.hits.1._score: 0.832}
+
+  - match: {hits.hits.2._id: "1"}
+  - gte: {hits.hits.2._score: 0.509}
+  - lte: {hits.hits.2._score: 0.512}

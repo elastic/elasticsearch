@@ -358,7 +358,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "no_long_term",
                 "This is a test where foo is highlighed and should be highlighted",
                 "long_term",
-                "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighed " + "and should be highlighted"
+                "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighed and should be highlighted"
             )
             .get();
         refresh();
@@ -1339,14 +1339,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
 
         for (int i = 0; i < 5; i++) {
-            assertHighlight(
-                search,
-                i,
-                "title",
-                0,
-                1,
-                equalTo("This is a test on the highlighting <em>bug</em> " + "present in elasticsearch")
-            );
+            assertHighlight(search, i, "title", 0, 1, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
         }
     }
 
@@ -1624,7 +1617,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(new HighlightBuilder().field("title", 50, 1, 10).highlighterType("fvh")),
             RestStatus.BAD_REQUEST,
             containsString(
-                "the field [title] should be indexed with term vector with position offsets to be " + "used with fast vector highlighter"
+                "the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"
             )
         );
 

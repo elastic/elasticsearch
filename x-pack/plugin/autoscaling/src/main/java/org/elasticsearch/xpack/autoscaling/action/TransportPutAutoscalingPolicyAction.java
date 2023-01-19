@@ -188,12 +188,12 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedAutoscalingPolicyAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(PutAutoscalingPolicyAction.Request request) {
+    public Set<String> modifiedKeys(PutAutoscalingPolicyAction.Request request) {
         return Set.of(request.name());
     }
 }

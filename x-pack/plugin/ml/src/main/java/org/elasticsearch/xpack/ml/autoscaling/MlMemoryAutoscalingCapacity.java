@@ -25,6 +25,10 @@ public record MlMemoryAutoscalingCapacity(ByteSizeValue nodeSize, ByteSizeValue 
         return "MlMemoryAutoscalingCapacity{" + "nodeSize=" + nodeSize + ", tierSize=" + tierSize + ", reason='" + reason + '\'' + '}';
     }
 
+    public boolean isUndetermined() {
+        return nodeSize == null && tierSize == null;
+    }
+
     public static class Builder {
 
         private ByteSizeValue nodeSize;
@@ -32,6 +36,7 @@ public record MlMemoryAutoscalingCapacity(ByteSizeValue nodeSize, ByteSizeValue 
         private String reason;
 
         public Builder(ByteSizeValue nodeSize, ByteSizeValue tierSize) {
+            assert (nodeSize == null) == (tierSize == null) : "nodeSize " + nodeSize + " tierSize " + tierSize;
             this.nodeSize = nodeSize;
             this.tierSize = tierSize;
         }

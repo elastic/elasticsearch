@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -31,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -298,14 +296,6 @@ public interface Repository extends LifecycleComponent {
         @Nullable ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     );
-
-    /**
-     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * during snapshot initialization.
-     */
-    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
-        return userMetadata;
-    }
 
     /**
      * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed

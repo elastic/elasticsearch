@@ -10,12 +10,12 @@ package org.elasticsearch.plugins.scanners;
 
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
 
 public class StablePluginsRegistryTests extends ESTestCase {
@@ -49,16 +49,17 @@ public class StablePluginsRegistryTests extends ESTestCase {
         registry.scanBundleForStablePlugins(Mockito.mock(PluginBundle.class), loader2); // bundle 3
 
         assertThat(
-            registry.getNamedComponents(),
-            Matchers.equalTo(
-                Map.of(
-                    "extensibleInterfaceName",
-                    new NameToPluginInfo().put("namedComponentName1", new PluginInfo("namedComponentName1", "XXClassName", loader))
-                        .put("namedComponentName2", new PluginInfo("namedComponentName2", "YYClassName", loader)),
-                    "extensibleInterfaceName2",
-                    new NameToPluginInfo().put("namedComponentName3", new PluginInfo("namedComponentName3", "ZZClassName", loader2))
-                )
+            registry.getPluginInfosForExtensible("extensibleInterfaceName"),
+            containsInAnyOrder(
+                new PluginInfo("namedComponentName1", "XXClassName", loader),
+                new PluginInfo("namedComponentName2", "YYClassName", loader)
             )
         );
+
+        assertThat(
+            registry.getPluginInfosForExtensible("extensibleInterfaceName2"),
+            containsInAnyOrder(new PluginInfo("namedComponentName3", "ZZClassName", loader2))
+        );
+
     }
 }

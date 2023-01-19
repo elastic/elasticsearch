@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'

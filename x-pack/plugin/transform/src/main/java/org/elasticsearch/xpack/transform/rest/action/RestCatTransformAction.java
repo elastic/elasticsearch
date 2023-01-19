@@ -59,7 +59,7 @@ public class RestCatTransformAction extends AbstractCatAction {
         GetTransformAction.Request request = new GetTransformAction.Request(id);
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
-        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id);
+        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id, null);
         statsRequest.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

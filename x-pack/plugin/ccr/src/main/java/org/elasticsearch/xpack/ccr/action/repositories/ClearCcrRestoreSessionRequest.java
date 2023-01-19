@@ -19,7 +19,7 @@ import java.io.IOException;
 public class ClearCcrRestoreSessionRequest extends ActionRequest implements RemoteClusterAwareRequest {
 
     private DiscoveryNode node;
-    private String sessionUUID;
+    private final String sessionUUID;
 
     ClearCcrRestoreSessionRequest(StreamInput in) throws IOException {
         super(in);

@@ -209,7 +209,7 @@ public record ReservedStateMetadata(
          */
         public Builder(String namespace) {
             this.namespace = namespace;
-            this.version = 0L;
+            this.version = -1L;
             this.handlers = new HashMap<>();
             this.errorMetadata = null;
         }
@@ -281,6 +281,13 @@ public record ReservedStateMetadata(
         public Builder putHandler(ReservedStateHandlerMetadata handler) {
             this.handlers.put(handler.name(), handler);
             return this;
+        }
+
+        /**
+         * Returns the current handler metadata stored in the builder
+         */
+        public ReservedStateHandlerMetadata getHandler(String handlerName) {
+            return this.handlers.get(handlerName);
         }
 
         /**

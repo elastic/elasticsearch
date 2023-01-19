@@ -1506,6 +1506,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
     private String jobId;
     private String sourceIndex;
     private String destIndex;
+    private long randomizeSeed;
 
     @Before
     public void setupLogging() {
@@ -1518,6 +1519,11 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                     .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
             )
             .get();
+    }
+
+    @Before
+    public void setUpTests() {
+        randomizeSeed = randomLong();
     }
 
     @After
@@ -1549,7 +1555,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                 null,
                 null,
                 35.0,
-                null,
+                randomizeSeed,
                 null,
                 null
             )

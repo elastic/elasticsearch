@@ -78,7 +78,7 @@ import static org.mockito.Mockito.when;
 
 public class RestControllerTests extends ESTestCase {
 
-    private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);
+    private static final ByteSizeValue BREAKER_LIMIT = ByteSizeValue.ofBytes(20);
     private CircuitBreaker inFlightRequestsBreaker;
     private RestController restController;
     private HierarchyCircuitBreakerService circuitBreakerService;
@@ -936,6 +936,21 @@ public class RestControllerTests extends ESTestCase {
             channel.getRestResponse().content().utf8ToString(),
             containsString("Content-Type header [" + mediaType + "] is not supported")
         );
+    }
+
+    public void testRegisterWithReservedPath() {
+        final RestController restController = new RestController(Set.of(), null, client, circuitBreakerService, usageService, tracer);
+        for (String path : RestController.RESERVED_PATHS) {
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+                restController.registerHandler(
+                    new Route(randomFrom(RestRequest.Method.values()), path),
+                    (request, channel, client) -> channel.sendResponse(
+                        new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                    )
+                );
+            });
+            assertThat(iae.getMessage(), containsString("path [" + path + "] is a reserved path and may not be registered"));
+        }
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {

@@ -7,59 +7,36 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.io.IOException;
 
 /**
  * Class that produces values for a label field.
  */
-abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
+abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
 
-    private final Label label;
-
-    LabelFieldProducer(String name, Label label) {
+    LabelFieldProducer(String name) {
         super(name);
-        this.label = label;
     }
 
-    public String name() {
-        return name;
-    }
-
-    /** Collect the value of a raw field  */
-    @Override
-    public void collect(Object value) {
-        label.collect(value);
-        isEmpty = false;
-    }
-
-    public Label label() {
-        return this.label;
-    }
-
-    public void reset() {
-        label.reset();
-        isEmpty = true;
-    }
-
-    /**
-     * Return the downsampled value as computed after collecting all raw values.
-     * @return
-     */
-    public abstract Object value();
+    abstract Label label();
 
     abstract static class Label {
-        final String name;
+        private final String name;
 
         /**
-         * Abstract class that defines the how a label is computed.
-         * @param name
+         * Abstract class that defines how a label is downsampled.
+         * @param name the name of the field as it will be stored in the downsampled document
          */
         protected Label(String name) {
             this.name = name;
+        }
+
+        public String name() {
+            return name;
         }
 
         abstract void collect(Object value);
@@ -79,15 +56,12 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
     static class LastValueLabel extends Label {
         private Object lastValue;
 
-        LastValueLabel() {
-            super("last_value");
+        LastValueLabel(String name) {
+            super(name);
         }
 
-        @Override
-        void collect(Object value) {
-            if (lastValue == null) {
-                lastValue = value;
-            }
+        LastValueLabel() {
+            this("last_value");
         }
 
         @Override
@@ -99,32 +73,75 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         void reset() {
             lastValue = null;
         }
+
+        void collect(Object value) {
+            if (lastValue == null) {
+                lastValue = value;
+            }
+        }
     }
 
     /**
      * {@link LabelFieldProducer} implementation for a last value label
      */
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
+        private final LastValueLabel label;
+
+        LabelLastValueFieldProducer(String name, LastValueLabel label) {
+            super(name);
+            this.label = label;
+        }
 
         LabelLastValueFieldProducer(String name) {
-            super(name, new LastValueLabel());
+            this(name, new LastValueLabel());
         }
 
         @Override
-        public Object value() {
-            return label().get();
+        Label label() {
+            return label;
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), label.get());
+            }
+        }
+
+        @Override
+        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+            if (isEmpty() == false) {
+                return;
+            }
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+
+            int docValuesCount = docValues.docValueCount();
+            assert docValuesCount > 0;
+            isEmpty = false;
+            if (docValuesCount == 1) {
+                label.collect(docValues.nextValue());
+            } else {
+                Object[] values = new Object[docValuesCount];
+                for (int i = 0; i < docValuesCount; i++) {
+                    values[i] = docValues.nextValue();
+                }
+                label.collect(values);
+            }
+        }
+
+        @Override
+        public void reset() {
+            label.reset();
+            isEmpty = true;
         }
     }
 
-    /**
-     * Produce a collection of label field producers.
-     */
-    static Map<String, LabelFieldProducer> buildLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
-        final Map<String, LabelFieldProducer> fields = new LinkedHashMap<>();
-        for (String field : labelFields) {
-            LabelFieldProducer producer = new LabelLastValueFieldProducer(field);
-            fields.put(field, producer);
+    static class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
+
+        AggregateMetricFieldProducer(String name, Metric metric) {
+            super(name, new LastValueLabel(metric.name()));
         }
-        return Collections.unmodifiableMap(fields);
     }
 }

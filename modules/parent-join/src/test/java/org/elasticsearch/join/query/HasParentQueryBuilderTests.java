@@ -124,6 +124,11 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     @Override
+    protected HasParentQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new HasParentQueryBuilder("type", queryBuilder, randomBoolean());
+    }
+
+    @Override
     protected void doAssertLuceneQuery(HasParentQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(LateParsingQuery.class));
         LateParsingQuery lpq = (LateParsingQuery) query;

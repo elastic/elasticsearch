@@ -16,7 +16,6 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,24 +35,24 @@ public class KeyValueProcessorTests extends ESTestCase {
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
-        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(Arrays.asList("world", "universe")));
+        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(List.of("world", "universe")));
     }
 
     public void testRootTarget() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         ingestDocument.setFieldValue("myField", "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor("myField", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("first", String.class), equalTo("hello"));
-        assertThat(ingestDocument.getFieldValue("second", List.class), equalTo(Arrays.asList("world", "universe")));
+        assertThat(ingestDocument.getFieldValue("second", List.class), equalTo(List.of("world", "universe")));
     }
 
     public void testKeySameAsSourceField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         ingestDocument.setFieldValue("first", "first=hello");
         Processor processor = createKvProcessor("first", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("first", List.class), equalTo(Arrays.asList("first=hello", "hello")));
+        assertThat(ingestDocument.getFieldValue("first", List.class), equalTo(List.of("first=hello", "hello")));
     }
 
     public void testIncludeKeys() throws Exception {
@@ -97,7 +96,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     }
 
     public void testMissingField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         Processor processor = createKvProcessor("unknown", "&", "=", null, null, "target", false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [unknown] doesn't exist"));
@@ -116,7 +115,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     }
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = createKvProcessor("unknown", "", "", null, null, "target", true);
         processor.execute(ingestDocument);
@@ -133,7 +132,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     }
 
     public void testFailValueSplitMatch() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("foo", "bar"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("foo", "bar"));
         Processor processor = createKvProcessor("foo", "&", "=", null, null, "target", false);
         Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [foo] does not contain value_split [=]"));
@@ -145,7 +144,7 @@ public class KeyValueProcessorTests extends ESTestCase {
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, " ", " ", false, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
-        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(Arrays.asList("world", "universe")));
+        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(List.of("world", "universe")));
     }
 
     public void testTrimMultiCharSequence() throws Exception {
@@ -177,7 +176,7 @@ public class KeyValueProcessorTests extends ESTestCase {
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, null, null, true, null);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
-        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(Arrays.asList("world", "universe")));
+        assertThat(ingestDocument.getFieldValue("target.second", List.class), equalTo(List.of("world", "universe")));
         assertThat(ingestDocument.getFieldValue("target.third", String.class), equalTo("foo"));
         assertThat(ingestDocument.getFieldValue("target.fourth", String.class), equalTo("bar"));
         assertThat(ingestDocument.getFieldValue("target.fifth", String.class), equalTo("last"));
@@ -189,7 +188,7 @@ public class KeyValueProcessorTests extends ESTestCase {
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, null, null, false, "arg_");
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target.arg_first", String.class), equalTo("hello"));
-        assertThat(ingestDocument.getFieldValue("target.arg_second", List.class), equalTo(Arrays.asList("world", "universe")));
+        assertThat(ingestDocument.getFieldValue("target.arg_second", List.class), equalTo(List.of("world", "universe")));
     }
 
     private static KeyValueProcessor createKvProcessor(

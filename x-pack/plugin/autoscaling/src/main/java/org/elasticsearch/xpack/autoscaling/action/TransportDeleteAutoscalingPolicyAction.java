@@ -123,12 +123,12 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedAutoscalingPolicyAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeleteAutoscalingPolicyAction.Request request) {
+    public Set<String> modifiedKeys(DeleteAutoscalingPolicyAction.Request request) {
         return Set.of(request.name());
     }
 }

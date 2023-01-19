@@ -194,6 +194,9 @@ instructions are below in case you need them.
    4. Click "Browse", and navigate to the file `build-conventions/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
+   7. Optional: If you like to format code changes on save automatically, open
+      **Preferences > Tools > Actions on Save** and check "Reformat Code", making sure to
+      configure Java files.
 
 Alternative manual steps for IntelliJ.
 

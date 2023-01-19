@@ -81,6 +81,15 @@ public abstract class AbstractItemSetMapReducer<
     protected abstract MapContext map(Stream<Tuple<Field, List<Object>>> keyValues, MapContext mapContext);
 
     /**
+     * Definition of the mapper for filtered values.
+     *
+     * @param mapContext context object for mapping
+     */
+    protected MapContext mapFiltered(MapContext mapContext) {
+        return mapContext;
+    }
+
+    /**
      * Definition of code to execute(optional) after the mapper processed all input.
      *
      */

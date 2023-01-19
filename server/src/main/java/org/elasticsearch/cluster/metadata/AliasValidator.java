@@ -28,7 +28,7 @@ import java.io.InputStream;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
@@ -158,7 +158,7 @@ public class AliasValidator {
     }
 
     private static void validateAliasFilter(XContentParser parser, SearchExecutionContext searchExecutionContext) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, searchExecutionContext, true);
         queryBuilder.toQuery(searchExecutionContext);
     }

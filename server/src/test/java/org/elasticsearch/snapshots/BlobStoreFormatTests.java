@@ -29,6 +29,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -80,7 +81,8 @@ public class BlobStoreFormatTests extends ESTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(
             BLOB_CODEC,
             "%s",
-            (repoName, parser) -> BlobObj.fromXContent(parser)
+            (repoName, parser) -> BlobObj.fromXContent(parser),
+            Function.identity()
         );
 
         // Write blobs in different formats
@@ -105,7 +107,8 @@ public class BlobStoreFormatTests extends ESTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
             BLOB_CODEC,
             "%s",
-            (repo, parser) -> BlobObj.fromXContent(parser)
+            (repo, parser) -> BlobObj.fromXContent(parser),
+            Function.identity()
         );
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormat.write(blobObj, blobContainer, "blob-comp", true);
@@ -124,7 +127,8 @@ public class BlobStoreFormatTests extends ESTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
             BLOB_CODEC,
             "%s",
-            (repo, parser) -> BlobObj.fromXContent(parser)
+            (repo, parser) -> BlobObj.fromXContent(parser),
+            Function.identity()
         );
         checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean());
         assertEquals(checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry()).getText(), testString);

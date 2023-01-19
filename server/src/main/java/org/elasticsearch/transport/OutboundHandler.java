@@ -24,6 +24,8 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -100,14 +102,13 @@ final class OutboundHandler {
             assert false : "request [" + request + "] has been released already";
             throw new AlreadyClosedException("request [" + request + "] has been released already");
         }
-        ActionListener<Void> listener = ActionListener.wrap(() -> {
+        sendMessage(channel, message, () -> {
             try {
                 messageListener.onRequestSent(node, requestId, action, request, options);
             } finally {
                 request.decRef();
             }
         });
-        sendMessage(channel, message, listener);
     }
 
     /**
@@ -134,14 +135,13 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        ActionListener<Void> listener = ActionListener.wrap(() -> {
+        sendMessage(channel, message, () -> {
             try {
                 messageListener.onResponseSent(requestId, action, response);
             } finally {
                 response.decRef();
             }
         });
-        sendMessage(channel, message, listener);
     }
 
     /**
@@ -157,22 +157,35 @@ final class OutboundHandler {
         Version version = Version.min(this.version, nodeVersion);
         RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
-        sendMessage(channel, message, listener);
+        sendMessage(channel, message, () -> messageListener.onResponseSent(requestId, action, error));
     }
 
-    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
-        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, byteStreamOutput::close);
+    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, Releasable onAfter) throws IOException {
+        final RecyclerBytesStreamOutput byteStreamOutput;
+        boolean bufferSuccess = false;
+        try {
+            byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
+            bufferSuccess = true;
+        } finally {
+            if (bufferSuccess == false) {
+                Releasables.closeExpectNoException(onAfter);
+            }
+        }
+        final Releasable release = Releasables.wrap(byteStreamOutput, onAfter);
         final BytesReference message;
+        boolean serializeSuccess = false;
         try {
             message = networkMessage.serialize(byteStreamOutput);
+            serializeSuccess = true;
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
-            wrappedListener.onFailure(e);
             throw e;
+        } finally {
+            if (serializeSuccess == false) {
+                release.close();
+            }
         }
-        internalSend(channel, message, networkMessage, wrappedListener);
+        internalSend(channel, message, networkMessage, ActionListener.wrap(release::close));
     }
 
     private void internalSend(
@@ -230,8 +243,7 @@ final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
-            listener.onFailure(ex);
-            CloseableChannel.closeChannel(channel);
+            Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;
         }
     }

@@ -26,12 +26,16 @@ Defaults to +{client-auth-default}+.
 endif::client-auth-default[]
 endif::server[]
 
-ifdef::verifies[]
 +{ssl-prefix}.ssl.verification_mode+::
 (<<static-cluster-setting,Static>>)
-Controls the verification of certificates.
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+ifndef::verifies[]
+The SSL settings in `pass:a[{ssl-prefix}.ssl]` control a _server context_ for TLS, which
+defines the settings for the TLS connection. The use of `verification_mode` in
+a TLS _server_ is discouraged. 
 endif::verifies[]
+Defines how to verify the certificates presented by another party in the TLS 
+connection:
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 +{ssl-prefix}.ssl.cipher_suites+::
 (<<static-cluster-setting,Static>>)

@@ -94,8 +94,14 @@ public class XContentUtils {
         if (authKey == null) {
             return;
         }
+        Subject authenticationSubject;
+        try {
+            authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
+        } catch (Exception e) {
+            // The exception will have been logged by AuthenticationContextSerializer.decode() so don't log it again here.
+            return;
+        }
         builder.startObject("authorization");
-        Subject authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
         switch (authenticationSubject.getType()) {
             case USER -> builder.array(User.Fields.ROLES.getPreferredName(), authenticationSubject.getUser().roles());
             case API_KEY -> {
@@ -103,7 +109,7 @@ public class XContentUtils {
                 Map<String, Object> metadata = authenticationSubject.getMetadata();
                 builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
                 Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
-                if (name != null) {
+                if (name instanceof String) {
                     builder.field("name", name);
                 }
                 builder.endObject();

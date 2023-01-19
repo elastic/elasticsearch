@@ -47,7 +47,7 @@ public class XContentObjectTransformer<T extends ToXContentObject> {
     }
 
     public static XContentObjectTransformer<QueryBuilder> queryBuilderTransformer(NamedXContentRegistry registry) {
-        return new XContentObjectTransformer<>(registry, AbstractQueryBuilder::parseInnerQueryBuilder);
+        return new XContentObjectTransformer<>(registry, AbstractQueryBuilder::parseTopLevelQuery);
     }
 
     XContentObjectTransformer(NamedXContentRegistry registry, CheckedFunction<XContentParser, T, IOException> parserFunction) {

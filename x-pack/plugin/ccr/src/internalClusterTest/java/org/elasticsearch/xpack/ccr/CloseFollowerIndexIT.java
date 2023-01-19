@@ -76,7 +76,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         followRequest.setFollowerIndex("index2");
         followRequest.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         followRequest.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(1));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.ofBytes(1));
         followRequest.getParameters().setMaxOutstandingReadRequests(128);
         followRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
 

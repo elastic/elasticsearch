@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,74 +24,71 @@ import java.util.List;
  * Utility class used for fetching field values by reading field data
  */
 class FieldValueFetcher {
-    private final String name;
-    private final MappedFieldType fieldType;
-    private final DocValueFormat format;
-    private final IndexFieldData<?> fieldData;
 
-    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        this.name = name;
+    private final MappedFieldType fieldType;
+    private final IndexFieldData<?> fieldData;
+    private final AbstractRollupFieldProducer rollupFieldProducer;
+
+    protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.fieldType = fieldType;
-        this.format = fieldType.docValueFormat(null, null);
         this.fieldData = fieldData;
+        this.rollupFieldProducer = createRollupFieldProducer();
     }
 
     public String name() {
-        return name;
+        return fieldType().name();
     }
 
     public MappedFieldType fieldType() {
         return fieldType;
     }
 
-    public DocValueFormat format() {
-        return format;
-    }
-
-    public IndexFieldData<?> fieldData() {
-        return fieldData;
-    }
-
-    FormattedDocValues getLeaf(LeafReaderContext context) {
+    public FormattedDocValues getLeaf(LeafReaderContext context) {
+        DocValueFormat format = fieldType.docValueFormat(null, null);
         return fieldData.load(context).getFormattedValues(format);
     }
 
-    Object format(Object value) {
-        if (value instanceof Long l) {
-            return format.format(l);
-        } else if (value instanceof Double d) {
-            return format.format(d);
-        } else if (value instanceof BytesRef b) {
-            return format.format(b);
-        } else if (value instanceof String s) {
-            return s;
+    public AbstractRollupFieldProducer rollupFieldProducer() {
+        return rollupFieldProducer;
+    }
+
+    private AbstractRollupFieldProducer createRollupFieldProducer() {
+        if (fieldType.getMetricType() != null) {
+            return switch (fieldType.getMetricType()) {
+                case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
+                case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(name());
+            };
         } else {
-            throw new IllegalArgumentException("Invalid type: [" + value.getClass() + "]");
+            // If field is not a metric, we downsample it as a label
+            return new LabelFieldProducer.LabelLastValueFieldProducer(name());
         }
     }
 
     /**
-     * Retrieve field fetchers for a list of fields.
+     * Retrieve field value fetchers for a list of fields.
      */
-    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
-        List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
+    static List<FieldValueFetcher> create(SearchExecutionContext context, String[] fields) {
+        List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field: [" + field + "]");
+            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+
+            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+                // If the field is an aggregate_metric_double field, we should load all its subfields
+                // This is a rollup-of-rollup case
+                for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
+                    if (context.fieldExistsInIndex(metricSubField.name())) {
+                        IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
+                        fetchers.add(new AggregateMetricFieldValueFetcher(metricSubField, aggMetricFieldType, fieldData));
+                    }
+                }
+            } else {
+                if (context.fieldExistsInIndex(field)) {
+                    IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    fetchers.add(new FieldValueFetcher(fieldType, fieldData));
+                }
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
         }
         return Collections.unmodifiableList(fetchers);
     }
-
-    static List<FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
-        return build(context, metricFields);
-    }
-
-    static List<FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
-        return build(context, labelFields);
-    }
-
 }

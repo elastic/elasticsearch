@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -73,7 +72,6 @@ import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -116,7 +114,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         return emptyList();
     }
@@ -131,50 +129,35 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        List<RestHandler> handlers = new ArrayList<>(
-            Arrays.asList(
-                new RestRollupSearchAction(),
-                new RestPutRollupJobAction(),
-                new RestStartRollupJobAction(),
-                new RestStopRollupJobAction(),
-                new RestDeleteRollupJobAction(),
-                new RestGetRollupJobsAction(),
-                new RestGetRollupCapsAction(),
-                new RestGetRollupIndexCapsAction()
-            )
+        return Arrays.asList(
+            new RestRollupSearchAction(),
+            new RestPutRollupJobAction(),
+            new RestStartRollupJobAction(),
+            new RestStopRollupJobAction(),
+            new RestDeleteRollupJobAction(),
+            new RestGetRollupJobsAction(),
+            new RestGetRollupCapsAction(),
+            new RestGetRollupIndexCapsAction(),
+            new RestDownsampleAction() // TSDB Downsampling
         );
-
-        // TSDB Downsampling / Rollup
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            handlers.add(new RestDownsampleAction());
-        }
-
-        return handlers;
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<?, ?>> actions = new ArrayList<>(
-            Arrays.asList(
-                new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
-                new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
-                new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
-                new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
-                new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
-                new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
-                new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
-                new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
-                new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-                new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
-            )
+        return Arrays.asList(
+            new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
+            new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
+            new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
+            new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
+            new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
+            new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
+            new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
+            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
+            new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class),
+            new ActionHandler<>(DownsampleAction.INSTANCE, TransportRollupAction.class)
         );
-
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
-            actions.add(new ActionHandler<>(DownsampleAction.INSTANCE, TransportRollupAction.class));
-        }
-
-        return actions;
     }
 
     @Override

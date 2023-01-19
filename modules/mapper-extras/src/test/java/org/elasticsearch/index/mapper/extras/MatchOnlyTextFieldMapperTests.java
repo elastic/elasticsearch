@@ -208,7 +208,13 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("match_only_text doesn't support ignoreMalformed", ignoreMalformed);
         return new MatchOnlyTextSyntheticSourceSupport();
     }
 
@@ -239,6 +245,16 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "match_only_text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
     @Override

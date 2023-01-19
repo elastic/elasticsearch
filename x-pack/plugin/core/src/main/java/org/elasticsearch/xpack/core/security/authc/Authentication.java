@@ -913,7 +913,7 @@ public final class Authentication implements ToXContentObject {
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(nodeName);
         final Authentication authentication = new Authentication(
             new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
-            AuthenticationType.REMOTE_ACCESS
+            AuthenticationType.API_KEY
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -1003,8 +1003,7 @@ public final class Authentication implements ToXContentObject {
         API_KEY,
         TOKEN,
         ANONYMOUS,
-        INTERNAL,
-        REMOTE_ACCESS
+        INTERNAL
     }
 
     public static class AuthenticationSerializationHelper {

@@ -24,12 +24,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -38,8 +44,13 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
@@ -131,6 +142,67 @@ public class AuthenticationService {
             realms
         );
         remoteAccessAuthenticator.authenticate(context, authenticationListener);
+    }
+
+    public void authenticateRemoteAccessOther(
+        final String action,
+        final TransportRequest request,
+        final boolean allowAnonymous,
+        final ActionListener<Authentication> authenticationListener
+    ) {
+        final AuthenticationToken authenticationToken = remoteAccessAuthenticator.extractFromContext(threadContext);
+        final RemoteAccessAuthentication remoteAccessAuthentication;
+        try {
+            remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
+        } catch (IOException e) {
+            // TODO
+            authenticationListener.onFailure(new UncheckedIOException(e));
+            return;
+        }
+        // Once we've read the remote access headers, we should remove them. We want to maintain the invariant that we either have
+        // remote access headers or an authentication instance in the thread context but not both. Below, if authc succeeds, we will
+        // write authentication to the context; therefore, we should pre-emptively remove the remote access headers here
+        // TODO stash without restore instead?
+        threadContext.removeRemoteAccessHeaders();
+
+        final Authenticator.Context context = new Authenticator.Context(
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+            null,
+            allowAnonymous,
+            realms
+        );
+        context.addAuthenticationToken(authenticationToken);
+
+        // TODO assert no authentication in context
+
+        authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
+            // Stashing and *not* restoring deliberately
+            try (var ignored = threadContext.stashContext()) {
+                final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
+                final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList;
+                final User user = receivedAuthentication.getEffectiveSubject().getUser();
+                if (SystemUser.is(user)) {
+                    roleDescriptorsBytesList = RemoteAccessAuthentication.toRoleDescriptorsBytesList(
+                        new RoleDescriptorsIntersection(List.of(Set.of(RemoteAccessAuthenticator.CROSS_CLUSTER_SEARCH_ROLE)))
+                    );
+                } else if (User.isInternal(user)) {
+                    throw new IllegalArgumentException(
+                        "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+                    );
+                } else {
+                    roleDescriptorsBytesList = remoteAccessAuthentication.getRoleDescriptorsBytesList();
+                }
+                final Map<String, Object> authMetadata = new HashMap<>(authentication.getAuthenticatingSubject().getMetadata());
+                authMetadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, roleDescriptorsBytesList);
+                final Authentication successfulAuthentication = Authentication.newRemoteAccessAuthentication(
+                    receivedAuthentication,
+                    AuthenticationResult.success(authentication.getEffectiveSubject().getUser(), Map.copyOf(authMetadata)),
+                    remoteAccessAuthenticator.nodeName
+                );
+                new AuthenticationContextSerializer().writeToContext(successfulAuthentication, threadContext);
+            }
+        }, authenticationListener::onFailure));
     }
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +35,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class RemoteAccessAuthenticator {
 
-    private static final RoleDescriptor CROSS_CLUSTER_SEARCH_ROLE = new RoleDescriptor(
+    public static final RoleDescriptor CROSS_CLUSTER_SEARCH_ROLE = new RoleDescriptor(
         "_cross_cluster_search",
         new String[] { ClusterStateAction.NAME },
         null,
@@ -47,7 +49,7 @@ public class RemoteAccessAuthenticator {
     private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticator.class);
 
     private final ApiKeyService apiKeyService;
-    private final String nodeName;
+    public final String nodeName;
     private final AuthenticationContextSerializer authenticationSerializer;
 
     public RemoteAccessAuthenticator(ApiKeyService apiKeyService, String nodeName) {
@@ -78,6 +80,14 @@ public class RemoteAccessAuthenticator {
         } catch (IOException e) {
             listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null));
         }
+    }
+
+    AuthenticationToken extractFromContext(ThreadContext threadContext) {
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
+        if (apiKeyCredentials == null) {
+            throw new IllegalStateException("failed to extract credentials");
+        }
+        return apiKeyCredentials;
     }
 
     private void doAuthenticate(
@@ -133,5 +143,25 @@ public class RemoteAccessAuthenticator {
         }
         logger.trace("Established authentication [{}] for request [{}]", authentication, context.getRequest());
         listener.onResponse(authentication);
+    }
+
+    record RemoteAccessAuthenticationToken(AuthenticationToken authenticationToken, RemoteAccessAuthentication remoteAccessAuthentication)
+        implements
+            AuthenticationToken {
+
+        @Override
+        public String principal() {
+            return authenticationToken.principal();
+        }
+
+        @Override
+        public Object credentials() {
+            return authenticationToken.credentials();
+        }
+
+        @Override
+        public void clearCredentials() {
+            authenticationToken.clearCredentials();
+        }
     }
 }

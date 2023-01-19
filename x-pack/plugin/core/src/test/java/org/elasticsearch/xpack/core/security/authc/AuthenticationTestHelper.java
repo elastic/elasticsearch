@@ -397,11 +397,7 @@ public class AuthenticationTestHelper {
             } else {
                 assert candidateAuthenticationTypes.size() > 0 : "no candidate authentication types";
                 final Authentication authentication;
-                final AuthenticationType authenticationType = ESTestCase.randomValueOtherThan(
-                    // To keep test failure noise down
-                    AuthenticationType.REMOTE_ACCESS,
-                    () -> ESTestCase.randomFrom(candidateAuthenticationTypes)
-                );
+                final AuthenticationType authenticationType = ESTestCase.randomFrom(candidateAuthenticationTypes);
                 switch (authenticationType) {
                     case REALM -> {
                         if (user == null) {

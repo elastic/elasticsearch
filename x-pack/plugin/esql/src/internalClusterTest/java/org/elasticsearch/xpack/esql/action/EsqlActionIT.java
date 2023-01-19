@@ -862,7 +862,7 @@ public class EsqlActionIT extends ESIntegTestCase {
                 new ColumnInfo("x", "long"),
                 new ColumnInfo("y", "double"),
                 new ColumnInfo("z", "double"),
-                new ColumnInfo("time", "date")
+                new ColumnInfo("time", "long")
             )
         );
         List<List<Object>> values = results.values();

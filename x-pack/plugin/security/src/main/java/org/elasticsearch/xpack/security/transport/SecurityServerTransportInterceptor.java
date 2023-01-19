@@ -365,7 +365,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else if (User.isInternal(user)) {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
-                    throw new IllegalStateException(message);
+                    throw new IllegalArgumentException(message);
                 } else {
                     authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                         remoteClusterAlias,

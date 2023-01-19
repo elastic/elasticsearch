@@ -850,6 +850,36 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
+    public void testEvalWithMultipleExpressions() {
+        EsqlQueryResponse results = run(
+            "from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | project data, x, y, z, time | limit 2"
+        );
+        logger.info(results);
+        assertThat(
+            results.columns(),
+            contains(
+                new ColumnInfo("data", "long"),
+                new ColumnInfo("x", "long"),
+                new ColumnInfo("y", "double"),
+                new ColumnInfo("z", "double"),
+                new ColumnInfo("time", "date")
+            )
+        );
+        List<List<Object>> values = results.values();
+
+        assertEquals(5, values.get(0).size());
+        assertEquals(1L, values.get(0).get(0));
+        assertEquals(2L, values.get(0).get(1));
+        assertEquals(41D, values.get(0).get(2));
+        assertEquals(43D, values.get(0).get(3));
+
+        assertEquals(5, values.get(1).size());
+        assertEquals(2L, values.get(1).get(0));
+        assertEquals(3L, values.get(1).get(1));
+        assertEquals(44D, values.get(1).get(2));
+        assertEquals(47D, values.get(1).get(3));
+    }
+
     public void testProjectAfterTopN() {
         EsqlQueryResponse results = run("from test | sort time | limit 2 | project count");
         logger.info(results);

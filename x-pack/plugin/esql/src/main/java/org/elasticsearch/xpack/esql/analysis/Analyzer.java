@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
@@ -125,25 +126,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveProject(p, childrenOutput);
             }
 
-            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> {
-                if (ua.customMessage()) {
-                    return ua;
+            if (plan instanceof Eval p) {
+                return resolveEval(p, childrenOutput);
+            }
+
+            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput, lazyNames));
+        }
+
+        private Expression resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Holder<Set<String>> lazyNames) {
+            if (ua.customMessage()) {
+                return ua;
+            }
+            Expression resolved = ua;
+            var named = resolveAgainstList(ua, childrenOutput, lazyNames);
+            // if resolved, return it; otherwise keep it in place to be resolved later
+            if (named.size() == 1) {
+                resolved = named.get(0);
+                if (log.isTraceEnabled() && resolved.resolved()) {
+                    log.trace("Resolved {} to {}", ua, resolved);
                 }
-                Expression resolved = ua;
-                var named = resolveAgainstList(ua, childrenOutput, lazyNames);
-                // if resolved, return it; otherwise keep it in place to be resolved later
-                if (named.size() == 1) {
-                    resolved = named.get(0);
-                    if (log.isTraceEnabled() && resolved.resolved()) {
-                        log.trace("Resolved {} to {}", ua, resolved);
-                    }
-                } else {
-                    if (named.size() > 0) {
-                        resolved = ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
-                    }
+            } else {
+                if (named.size() > 0) {
+                    resolved = ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
                 }
-                return resolved;
-            });
+            }
+            return resolved;
+        }
+
+        private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+            final var lazyNames = new Holder<Set<String>>();
+            List<NamedExpression> newFields = new ArrayList<>();
+            boolean changed = false;
+            for (NamedExpression field : eval.fields()) {
+                NamedExpression result = (NamedExpression) field.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> resolveAttribute(ua, allResolvedInputs, lazyNames)
+                );
+
+                changed |= result != field;
+                newFields.add(result);
+
+                if (result.resolved()) {
+                    // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
+                    Attribute existing = allResolvedInputs.stream()
+                        .filter(attr -> attr.name().equals(result.name()))
+                        .findFirst()
+                        .orElse(null);
+                    if (existing != null) {
+                        allResolvedInputs.remove(existing);
+                    }
+                    allResolvedInputs.add(result.toAttribute());
+                }
+            }
+            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
         }
 
         private LogicalPlan resolveProject(ProjectReorderRenameRemove p, List<Attribute> childOutput) {

@@ -321,7 +321,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 return new Project(
                     projectWithEvalChild.source(),
                     projectWithEvalChild.child(),
-                    CollectionUtils.combine(projectWithEvalChild.projections(), fieldProjections)
+                    Eval.outputExpressions(fieldProjections, projectWithEvalChild.projections())
                 );
             }
 

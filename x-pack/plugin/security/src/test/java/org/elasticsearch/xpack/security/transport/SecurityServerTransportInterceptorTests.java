@@ -321,8 +321,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
-        assertEquals(Version.CURRENT, authRef.get().getEffectiveSubject().getTransportVersion());
-        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
+        assertEquals(TransportVersion.CURRENT, authRef.get().getEffectiveSubject().getTransportVersion());
+        assertEquals(TransportVersion.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
@@ -389,7 +389,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(authentication.getEffectiveSubject().getUser(), sendingUser.get());
         assertEquals(authentication.getEffectiveSubject().getUser(), securityContext.getUser());
         assertEquals(connectionVersion, authRef.get().getEffectiveSubject().getTransportVersion());
-        assertEquals(Version.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
+        assertEquals(TransportVersion.CURRENT, authentication.getEffectiveSubject().getTransportVersion());
     }
 
     public void testSetUserBasedOnActionOrigin() {

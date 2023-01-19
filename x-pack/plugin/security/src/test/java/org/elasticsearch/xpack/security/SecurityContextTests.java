@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -170,7 +169,7 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
             assertEquals(original.isRunAs(), authentication.isRunAs());
             assertEquals(original.getEffectiveSubject().getRealm(), authentication.getEffectiveSubject().getRealm());
-            assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getTransportVersion());
+            assertEquals(TransportVersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getTransportVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
             // Other request headers should be preserved

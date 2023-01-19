@@ -43,7 +43,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     static {
         FIELD_TYPE.setTokenized(false);
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        FIELD_TYPE.setStored(false);
+        FIELD_TYPE.setStored(true);
         FIELD_TYPE.setOmitNorms(true);
         FIELD_TYPE.freeze();
     }

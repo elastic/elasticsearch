@@ -2438,6 +2438,10 @@ public class InternalEngine extends Engine {
                 new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
+        if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+            // Rename RecoverySourcePruneMergePolicy? Or let it prune multiple stored fields?
+            mergePolicy = new RecoverySourcePruneMergePolicy(IdFieldMapper.NAME, softDeletesPolicy::getRetentionQuery, mergePolicy);
+        }
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("es.shuffle_forced_merge", Boolean.TRUE.toString()));
         if (shuffleForcedMerge) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices

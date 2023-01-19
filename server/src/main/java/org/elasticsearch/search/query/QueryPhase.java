@@ -81,7 +81,7 @@ public class QueryPhase {
 
         if (searchContext.aggregations() != null
             && searchContext.queryResult().searchTimedOut() == false
-            && searchContext.queryResult().terminatedEarly() == false) {
+            && (searchContext.queryResult().terminatedEarly() == null || searchContext.queryResult().terminatedEarly() == false)) {
             AggregationPhase.preProcess(searchContext);
             executeInternal(searchContext, true);
             AggregationPhase.execute(searchContext);

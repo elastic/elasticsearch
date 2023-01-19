@@ -24,9 +24,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -43,7 +43,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     static {
         FIELD_TYPE.setTokenized(false);
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        FIELD_TYPE.setStored(true);  // TODO reconstruct the id on fetch from tsid and timestamp
+        FIELD_TYPE.setStored(false);
         FIELD_TYPE.setOmitNorms(true);
         FIELD_TYPE.freeze();
     }
@@ -75,7 +75,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
+            return termsQuery(List.of(value), context);
         }
 
         @Override

@@ -29,7 +29,9 @@ endif::server[]
 +{ssl-prefix}.ssl.verification_mode+::
 (<<static-cluster-setting,Static>>)
 ifndef::verifies[]
-The SSL settings in `{ssl-prefix}.ssl` control a _server context_ for TLS. The use of `verification_mode` in a TLS _server_ is discouraged. 
+The SSL settings in `pass:a[{ssl-prefix}.ssl]` control a _server context_ for TLS, which
+defines the settings for the TLS connection. The use of `verification_mode` in
+a TLS _server_ is discouraged. 
 endif::verifies[]
 Defines how to verify the certificates presented by another party in the TLS 
 connection:

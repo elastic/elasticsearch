@@ -43,7 +43,7 @@ import java.util.stream.StreamSupport;
 @Experimental
 public class LuceneSourceOperator extends SourceOperator {
 
-    private static final int PAGE_SIZE = ByteSizeValue.ofKb(16).bytesAsInt();
+    public static final int PAGE_SIZE = ByteSizeValue.ofKb(16).bytesAsInt();
 
     @Nullable
     private final IndexReader indexReader;

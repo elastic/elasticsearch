@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -24,7 +26,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false) // ESQL is single node
 public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
-    private static final int SIZE = 5000;
+    private static final int SIZE = LuceneSourceOperator.PAGE_SIZE * 10;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -88,11 +89,11 @@ public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
         mapping.endObject();
         client().admin().indices().prepareCreate("test").setMapping(mapping.endObject()).get();
 
-        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        for (int i = 0; i < 5000; i++) {
-            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < SIZE; i++) {
+            bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
-        indexRandom(true, indexRequests);
+        bulk.get();
     }
 
     public static class TestRuntimeFieldPlugin extends Plugin implements ScriptPlugin {

@@ -121,6 +121,7 @@ public abstract class BlockDocValuesReader {
 
     private static class LongValuesReader extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
+        private int docID = -1;
 
         LongValuesReader(SortedNumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
@@ -146,13 +147,15 @@ public abstract class BlockDocValuesReader {
                     blockBuilder.appendNull();
                 }
                 lastDoc = doc;
+                this.docID = doc;
             }
             return blockBuilder.build();
         }
 
         @Override
         public int docID() {
-            return numericDocValues.docID();
+            // There is a .docID on on the numericDocValues but it is often not implemented.
+            return docID;
         }
     }
 
@@ -232,8 +235,8 @@ public abstract class BlockDocValuesReader {
     }
 
     private static class BytesValuesReader extends BlockDocValuesReader {
-        private int docID = -1;
         private final SortedBinaryDocValues binaryDV;
+        private int docID = -1;
 
         BytesValuesReader(SortedBinaryDocValues binaryDV) {
             this.binaryDV = binaryDV;

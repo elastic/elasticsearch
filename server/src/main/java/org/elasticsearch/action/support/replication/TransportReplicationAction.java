@@ -1140,8 +1140,10 @@ public abstract class TransportReplicationAction<
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
             if (Assertions.ENABLED) {
                 listener = listener.map(result -> {
-                    assert result.replicaRequest() == null || result.finalFailure == null
+                    assert (result.replicaRequest() == null) != (result.finalFailure == null)
                         : "a replica request [" + result.replicaRequest() + "] with a primary failure [" + result.finalFailure + "]";
+                    assert result.replicaRequest() == null || result.replicaRequest().getParentTask().equals(request.getParentTask())
+                        : "a replica request [" + result.replicaRequest() + "] with a different parent task from the primary request";
                     return result;
                 });
             }

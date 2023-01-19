@@ -1513,6 +1513,7 @@ This setting cannot be used with `ssl.truststore.password`.
 // tag::saml-ssl-verification-mode-tag[]
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::saml-ssl-verification-mode-tag[]
 

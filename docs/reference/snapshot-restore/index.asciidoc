@@ -208,6 +208,9 @@ contents.
 . When you have finished restoring the repository its contents are exactly as
 they were when you took the backup.
 
+If you no longer need any of the snapshots in a repository, unregister it from {es} before
+deleting its contents from the underlying storage.
+
 Additionally, snapshots may contain security-sensitive information, which you
 may wish to <<cluster-state-snapshots,store in a dedicated repository>>.
 

@@ -122,14 +122,13 @@ performance characteristics and local storage footprints:
 
 [[fully-mounted]]
 Fully mounted index::
-Loads a full copy of the snapshotted index's shards onto node-local storage
-within the cluster. {ilm-init} uses this option in the `hot` and `cold` phases.
+Fully caches the snapshotted index's shards in the {es} cluster. {ilm-init} uses this option in the `hot` and `cold` phases.
 +
 Search performance for a fully mounted index is normally
 comparable to a regular index, since there is minimal need to access the
 snapshot repository. While recovery is ongoing, search performance may be
 slower than with a regular index because a search may need some data that has
-not yet been retrieved into the local copy. If that happens, {es} will eagerly
+not yet been retrieved into the local cache. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
 recovery. On-disk data is preserved across restarts, such that the node does
 not need to re-download data that is already stored on the node after a restart.
@@ -250,7 +249,7 @@ compatible with {search-snaps} before using them.
 For resiliency, a regular index requires multiple redundant copies of each shard
 across multiple nodes. If a node fails, {es} uses the redundancy to rebuild any
 lost shard copies. A {search-snap} index doesn't require replicas. If a node
-containing a {search-snap} index fails, {es} can rebuild the lost shard copy
+containing a {search-snap} index fails, {es} can rebuild the lost shard cache
 from the snapshot repository.
 
 Without replicas, rarely-accessed {search-snap} indices require far fewer
@@ -303,20 +302,27 @@ snapshots of {search-snap} indices.
 
 [discrete]
 [[searchable-snapshots-reliability]]
-=== Underlying repository snapshots must be available and reliable
+=== Reliability of {search-snaps}
 
 The sole copy of the data in a {search-snap} index is the underlying snapshot,
-stored in the repository. A {search-snap} shard can fail if the underlying
-snapshot is lost or corrupt, e.g., when {es} attempts to recover the shard.
-The repository and the associated snapshot must be available and reliable,
-irrespective of the mount options of the {search-snap}. {es} does not allow
-to unregister a repository if there are any mounted searchable snapshots
-from it. If the repository fails or corrupts the contents of the snapshot
-then the data is lost. Although {es} may have made copies of the data onto
-local storage, these copies may be incomplete and cannot be used to recover
-any data after a repository failure. You must make sure that your repository
-is reliable and protects against corruption of your data while it is at rest
-in the repository.
+stored in the repository. For example:
+
+	* You cannot unregister a repository while any of the searchable snapshots it
+	contains are mounted in {es}. You also cannot delete a snapshot if any of its
+	indices are mounted as a searchable snapshot in the same cluster.
+
+	* If you mount indices from snapshots held in a repository to which a different
+	cluster has write access then you must make sure that the other cluster does
+	not delete these snapshots.
+
+	* If you delete a snapshot while it is mounted as a searchable snapshot then the
+	data is lost. Similarly, if the repository fails or corrupts the contents of
+	the snapshot then the data is lost.
+
+	* Although {es} may have cached the data onto local storage, these caches
+	may be incomplete and cannot be used to recover any data after a repository
+	failure. You must make sure that your repository is reliable and protects
+	against corruption of your data while it is at rest in the repository.
 
 The blob storage offered by all major public cloud providers typically offers
 very good protection against data loss or corruption. If you manage your own

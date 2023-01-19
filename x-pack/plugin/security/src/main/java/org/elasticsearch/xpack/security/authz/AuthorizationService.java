@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.DlsFlsFeatureTrackingIndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -130,6 +131,7 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
+    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -169,6 +171,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
     }
 
     public void checkPrivileges(
@@ -521,7 +524,7 @@ public class AuthorizationService {
         final Metadata metadata,
         final ActionListener<Void> listener
     ) {
-        final IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
+        final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();

@@ -222,7 +222,9 @@ public class SamlRealmTests extends SamlTestCase {
 
             // Even with a long refresh we should automatically retry metadata that fails
             final TimeValue defaultFreshTime = TimeValue.timeValueHours(24);
-            final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(20) : defaultFreshTime;
+            // OpenSAML (4.0) has a bug that can attempt to set negative duration timers if the refresh is too short.
+            // Don't set this too small or we may hit "java.lang.IllegalArgumentException: Negative delay."
+            final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(200) : defaultFreshTime;
 
             final Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + webServer.getPort(), builder -> {
                 if (defaultFreshTime != null) {

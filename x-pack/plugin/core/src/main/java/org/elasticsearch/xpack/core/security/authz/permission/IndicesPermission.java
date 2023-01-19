@@ -190,8 +190,9 @@ public final class IndicesPermission {
         * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
         * authorization tests of that other instance and this one.
         */
-        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other.biPredicate));
+        @Override
+        public final IsResourceAuthorizedPredicate and(BiPredicate<? super String, ? super IndexAbstraction> other) {
+            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other));
         }
 
         /**

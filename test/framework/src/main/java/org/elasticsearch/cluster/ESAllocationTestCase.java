@@ -54,6 +54,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS = new ClusterSettings(
@@ -112,8 +113,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
         return new DesiredBalanceShardsAllocator(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             null,

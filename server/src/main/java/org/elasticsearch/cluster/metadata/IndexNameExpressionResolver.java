@@ -615,12 +615,27 @@ public class IndexNameExpressionResolver {
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
+        return resolveExpressions(state, IndicesOptions.lenientExpandOpen(), false, expressions);
+    }
+
+    /**
+     * Resolve the expression to the set of indices, aliases, and, optionally, datastreams that the expression matches.
+     * If {@param preserveDataStreams} is {@code true}, datastreams that are covered by the wildcards from the
+     * {@param expressions} are returned as-is, without expanding them further to their respective backing indices.
+     */
+    public Set<String> resolveExpressions(
+        ClusterState state,
+        IndicesOptions indicesOptions,
+        boolean preserveDataStreams,
+        String... expressions
+    ) {
         Context context = new Context(
             state,
-            IndicesOptions.lenientExpandOpen(),
+            indicesOptions,
             true,
             false,
             true,
+            preserveDataStreams,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()

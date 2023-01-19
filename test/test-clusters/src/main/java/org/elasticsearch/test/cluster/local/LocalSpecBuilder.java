@@ -75,6 +75,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, Resource file);
 
     /**
+     * Sets the security setting keystore password.
+     */
+    T keystorePassword(String password);
+
+    /**
      * Adds a file to the node config directory
      */
     T configFile(String fileName, Resource configFile);
@@ -83,4 +88,9 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
      */
     T version(Version version);
+
+    /**
+     * Adds a system property to node JVM arguments.
+     */
+    T systemProperty(String property, String value);
 }

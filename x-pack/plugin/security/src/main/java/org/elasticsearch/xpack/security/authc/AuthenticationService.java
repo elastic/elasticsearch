@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,6 +81,17 @@ public class AuthenticationService {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
+    public static final RoleDescriptor CROSS_CLUSTER_SEARCH_ROLE = new RoleDescriptor(
+        "_cross_cluster_search",
+        new String[] { ClusterStateAction.NAME },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
 
     private final Realms realms;
     private final AuditTrailService auditTrailService;
@@ -86,7 +100,8 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final AuthenticatorChain authenticatorChain;
-    private final RemoteAccessAuthenticator remoteAccessAuthenticator;
+    private final ApiKeyService apiKeyService;
+    private final String nodeName;
 
     public AuthenticationService(
         Settings settings,
@@ -113,7 +128,7 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
 
-        final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
@@ -124,7 +139,7 @@ public class AuthenticationService {
             new ApiKeyAuthenticator(apiKeyService, nodeName),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
         );
-        this.remoteAccessAuthenticator = new RemoteAccessAuthenticator(apiKeyService, nodeName);
+        this.apiKeyService = apiKeyService;
     }
 
     public void authenticateRemoteAccess(
@@ -133,8 +148,12 @@ public class AuthenticationService {
         final boolean allowAnonymous,
         final ActionListener<Authentication> authenticationListener
     ) {
-        assert threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null : "no authentication expected in context";
-        final AuthenticationToken authenticationToken = remoteAccessAuthenticator.extractFromContext(threadContext);
+        if (false == (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null)) {
+            authenticationListener.onFailure(new IllegalArgumentException("authentication header not allowed"));
+            return;
+        }
+
+        final AuthenticationToken authenticationToken = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
         final RemoteAccessAuthentication remoteAccessAuthentication;
         try {
             remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
@@ -142,6 +161,7 @@ public class AuthenticationService {
             authenticationListener.onFailure(new UncheckedIOException(e));
             return;
         }
+
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
@@ -150,19 +170,25 @@ public class AuthenticationService {
             realms
         );
         context.addAuthenticationToken(authenticationToken);
-
-        threadContext.removeRemoteAccessHeaders();
         authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
-            final String auditId = AuditUtil.extractRequestId(threadContext);
-            // Stashing and *not* restoring deliberately
-            try (var ignored = threadContext.stashContext()) {
-                threadContext.putHeader(AuditUtil.AUDIT_REQUEST_ID, auditId);
+            final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                // drop authentication and remote access authentication headers
+                existingRequestHeaders.forEach((k, v) -> {
+                    if (false == Set.of(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+                        RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
+                    ).contains(k)) {
+                        threadContext.putHeader(k, v);
+                    }
+                });
                 final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
                 final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList;
                 final User user = receivedAuthentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
                     roleDescriptorsBytesList = RemoteAccessAuthentication.toRoleDescriptorsBytesList(
-                        new RoleDescriptorsIntersection(List.of(Set.of(RemoteAccessAuthenticator.CROSS_CLUSTER_SEARCH_ROLE)))
+                        new RoleDescriptorsIntersection(List.of(Set.of(CROSS_CLUSTER_SEARCH_ROLE)))
                     );
                 } else if (User.isInternal(user)) {
                     throw new IllegalArgumentException(
@@ -179,12 +205,20 @@ public class AuthenticationService {
                     Authentication.newRemoteAccessAuthentication(
                         AuthenticationResult.success(authentication.getEffectiveSubject().getUser(), Map.copyOf(authMetadata)),
                         receivedAuthentication,
-                        remoteAccessAuthenticator.nodeName
+                        nodeName
                     ),
                     authenticationListener
                 );
             }
         }, authenticationListener::onFailure));
+    }
+
+    private AuthenticationToken extractFromContext(ThreadContext threadContext) {
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
+        if (apiKeyCredentials == null) {
+            throw new IllegalStateException("failed to extract credentials");
+        }
+        return apiKeyCredentials;
     }
 
     /**

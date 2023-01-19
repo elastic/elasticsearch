@@ -304,7 +304,7 @@ public class ResolveIndexTests extends ESTestCase {
         assertThat(infe.getMessage(), containsString("no such index [missing]"));
     }
 
-    public void testAllowNoIndices() {
+    public void testAllowNoIndicesFalse() {
         String[] names = new String[] { "missing", "missing*" };
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, false, true, true);
         List<ResolvedIndex> indices = new ArrayList<>();

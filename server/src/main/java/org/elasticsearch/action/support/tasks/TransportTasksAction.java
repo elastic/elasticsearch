@@ -92,7 +92,7 @@ public abstract class TransportTasksAction<
     private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
-        processTasks(request, tasks::add, () -> nodeOperation(task, listener, request, tasks), listener::onFailure);
+        processTasks(request, tasks::add, ActionListener.wrap(noop -> nodeOperation(task, listener, request, tasks), listener::onFailure));
     }
 
     private void nodeOperation(Task task, ActionListener<NodeTasksResponse> listener, TasksRequest request, List<OperationTask> tasks) {
@@ -157,14 +157,9 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected void processTasks(
-        TasksRequest request,
-        Consumer<OperationTask> operation,
-        Runnable nodeOperation,
-        Consumer<Exception> onFailure
-    ) {
+    protected void processTasks(TasksRequest request, Consumer<OperationTask> operation, ActionListener<Void> nodeOperation) {
         processTasks(request, operation);
-        nodeOperation.run();
+        nodeOperation.onResponse(null);
     }
 
     @SuppressWarnings("unchecked")

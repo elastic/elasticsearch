@@ -84,7 +84,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected void processTasks(ListTasksRequest request, Consumer<Task> operation, Runnable nodeOperation, Consumer<Exception> onFailure) {
+    protected void processTasks(ListTasksRequest request, Consumer<Task> operation, ActionListener<Void> nodeOperation) {
         if (request.getWaitForCompletion()) {
             final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
             final Set<Task> removedTasks = Sets.newConcurrentHashSet();
@@ -111,7 +111,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             };
 
             final ActionListener<Void> listener = ActionListener.runBefore(
-                ActionListener.wrap(ignored -> nodeOperation.run(), onFailure),
+                nodeOperation,
                 () -> taskManager.removeRemovedTaskListener(removedTaskListener)
             );
 
@@ -145,7 +145,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 future.addListener(ActionListener.wrap(cancellable::cancel));
             }
         } else {
-            super.processTasks(request, operation, nodeOperation, onFailure);
+            super.processTasks(request, operation, nodeOperation);
         }
     }
 }

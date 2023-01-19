@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -21,7 +22,9 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorValues;
@@ -162,6 +165,34 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return f.iterator().hasNext() ? f : null;
     }
 
+    @Override
+    public TermVectors termVectors() throws IOException {
+        TermVectors termVectors = super.termVectors();
+        return new TermVectors() {
+            @Override
+            public Fields get(int doc) throws IOException {
+                Fields f = termVectors.get(doc);
+                if (f == null) {
+                    return null;
+                }
+                f = new FieldFilterFields(f);
+                // we need to check for emptyness, so we can return null:
+                return f.iterator().hasNext() ? f : null;
+            }
+        };
+    }
+
+    @Override
+    public StoredFields storedFields() throws IOException {
+        StoredFields storedFields = super.storedFields();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+            }
+        };
+    }
+
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
     @SuppressWarnings("unchecked")
     static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
@@ -287,6 +318,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
     }
 
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getByteVectorValues(field) : null;
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
+    }
+
     // we share core cache keys (for e.g. fielddata)
 
     @Override
@@ -310,8 +351,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-            reader.visitDocument(docID, new FieldSubsetStoredFieldVisitor(visitor));
+        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
         }
 
         @Override

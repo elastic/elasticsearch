@@ -645,40 +645,18 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             }
         }, 60, TimeUnit.SECONDS);
 
-        // Run retention every second
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
-        try (XContentBuilder builder = jsonBuilder()) {
-            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request r = new Request("PUT", "/_cluster/settings");
-            r.setJsonEntity(Strings.toString(builder));
-            Response updateSettingsResp = client().performRequest(r);
-            assertAcked(updateSettingsResp);
-        }
+        execute_retention(client());
 
-        try {
-            // Check that the snapshot created by the policy has been removed by retention
-            assertBusy(() -> {
-                try {
-                    Response response = client().performRequest(new Request("GET", "/_snapshot/" + repo + "/" + snapshotName));
-                    assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
-                } catch (ResponseException e) {
-                    assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
-                }
-                assertHistoryIsPresent(policyName, true, repo, DELETE_OPERATION);
-            }, 60, TimeUnit.SECONDS);
-
-        } finally {
-            // Unset retention
-            ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest();
-            unsetRequest.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
-            try (XContentBuilder builder = jsonBuilder()) {
-                unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                Request r = new Request("PUT", "/_cluster/settings");
-                r.setJsonEntity(Strings.toString(builder));
-                client().performRequest(r);
+        // Check that the snapshot created by the policy has been removed by retention
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repo + "/" + snapshotName));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
+            } catch (ResponseException e) {
+                assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
             }
-        }
+            assertHistoryIsPresent(policyName, true, repo, DELETE_OPERATION);
+        }, 60, TimeUnit.SECONDS);
     }
 
     public Map<String, Object> getLocation(String path) {
@@ -914,6 +892,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         document.endObject();
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
+        assertOK(client.performRequest(request));
+    }
+
+    private static void execute_retention(RestClient client) throws IOException {
+        final Request request = new Request("POST", "/_slm/_execute_retention");
         assertOK(client.performRequest(request));
     }
 

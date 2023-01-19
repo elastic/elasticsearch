@@ -195,6 +195,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     /**
      * Returns the highest Version that has this or a lesser TransportVersion.
      */
+    @Deprecated
     static Version findVersion(TransportVersion transportVersion) {
         return VERSION_IDS.descendingMap()
             .values()

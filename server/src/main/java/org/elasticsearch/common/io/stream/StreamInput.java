@@ -17,6 +17,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -90,6 +91,13 @@ public abstract class StreamInput extends InputStream {
      */
     public Version getVersion() {
         return this.version;
+    }
+
+    /**
+     * The transport version the data is serialized as.
+     */
+    public TransportVersion getTransportVersion() {
+        return this.version.transportVersion;
     }
 
     /**

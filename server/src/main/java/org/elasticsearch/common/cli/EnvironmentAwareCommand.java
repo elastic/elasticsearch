@@ -19,6 +19,8 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreLoader;
+import org.elasticsearch.common.settings.LocallyMountedSecrets;
+import org.elasticsearch.common.settings.LocallyMountedSecretsLoader;
 import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -156,7 +158,9 @@ public abstract class EnvironmentAwareCommand extends Command {
     public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
 
     public SecureSettingsLoader secureSettingsLoader(Environment env) {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
+        if (env.settings().getAsBoolean(LocallyMountedSecrets.ENABLED.getKey(), false)) {
+            return new LocallyMountedSecretsLoader();
+        }
         return new KeyStoreLoader();
     }
 }

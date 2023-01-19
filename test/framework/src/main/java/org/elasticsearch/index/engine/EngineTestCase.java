@@ -29,8 +29,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -1259,6 +1262,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
                 Bits liveDocs = reader.getLiveDocs();
+                Terms terms = reader.terms(IdFieldMapper.NAME);
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         if (primaryTermDocValues.advanceExact(i) == false) {
@@ -1268,7 +1272,22 @@ public abstract class EngineTestCase extends ESTestCase {
                         final long primaryTerm = primaryTermDocValues.longValue();
                         Document doc = reader.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
                         BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
-                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                        String id = null;
+                        if (binaryID != null) {
+                            id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                        } else {
+                            TermsEnum tenum = terms.iterator();
+                            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
+                                PostingsEnum penum = tenum.postings(null);
+                                for (int docId = penum.nextDoc(); docId != PostingsEnum.NO_MORE_DOCS; docId = penum.nextDoc()) {
+                                    if (docId == i) {
+                                        id = Uid.decodeId(Arrays.copyOfRange(term.bytes, term.offset, term.offset + term.length));
+                                        break;
+                                    }
+                                }
+                            }
+                            assert id != null;
+                        }
                         final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
                         if (seqNoDocValues.advanceExact(i) == false) {
                             throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");

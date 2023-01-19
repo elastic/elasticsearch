@@ -133,37 +133,15 @@ public class AuthenticationService {
         final boolean allowAnonymous,
         final ActionListener<Authentication> authenticationListener
     ) {
-        final Authenticator.Context context = new Authenticator.Context(
-            threadContext,
-            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
-            realms
-        );
-        remoteAccessAuthenticator.authenticate(context, authenticationListener);
-    }
-
-    public void authenticateRemoteAccessOther(
-        final String action,
-        final TransportRequest request,
-        final boolean allowAnonymous,
-        final ActionListener<Authentication> authenticationListener
-    ) {
+        assert threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null : "no authentication expected in context";
         final AuthenticationToken authenticationToken = remoteAccessAuthenticator.extractFromContext(threadContext);
         final RemoteAccessAuthentication remoteAccessAuthentication;
         try {
             remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
         } catch (IOException e) {
-            // TODO
             authenticationListener.onFailure(new UncheckedIOException(e));
             return;
         }
-        // Once we've read the remote access headers, we should remove them. We want to maintain the invariant that we either have
-        // remote access headers or an authentication instance in the thread context but not both. Below, if authc succeeds, we will
-        // write authentication to the context; therefore, we should pre-emptively remove the remote access headers here
-        // TODO stash without restore instead?
-        threadContext.removeRemoteAccessHeaders();
-
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
@@ -173,7 +151,11 @@ public class AuthenticationService {
         );
         context.addAuthenticationToken(authenticationToken);
 
-        // TODO assert no authentication in context
+        // Once we've read the remote access headers, we should remove them. We want to maintain the invariant that we either have
+        // remote access headers or an authentication instance in the thread context but not both. Below, if authc succeeds, we will
+        // write authentication to the context; therefore, we should pre-emptively remove the remote access headers here
+        // TODO stash without restore instead?
+        threadContext.removeRemoteAccessHeaders();
         authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
             final String auditId = AuditUtil.extractRequestId(threadContext);
             // Stashing and *not* restoring deliberately
@@ -195,13 +177,16 @@ public class AuthenticationService {
                 }
                 final Map<String, Object> authMetadata = new HashMap<>(authentication.getAuthenticatingSubject().getMetadata());
                 authMetadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, roleDescriptorsBytesList);
-                final Authentication successfulAuthentication = Authentication.newRemoteAccessAuthentication(
-                    receivedAuthentication,
-                    AuthenticationResult.success(authentication.getEffectiveSubject().getUser(), Map.copyOf(authMetadata)),
-                    remoteAccessAuthenticator.nodeName
+                authMetadata.put("_received_authentication", receivedAuthentication.encode());
+                authenticatorChain.finishAuthentication(
+                    context,
+                    Authentication.newRemoteAccessAuthentication(
+                        AuthenticationResult.success(authentication.getEffectiveSubject().getUser(), Map.copyOf(authMetadata)),
+                        receivedAuthentication,
+                        remoteAccessAuthenticator.nodeName
+                    ),
+                    authenticationListener
                 );
-                new AuthenticationContextSerializer().writeToContext(successfulAuthentication, threadContext);
-                authenticationListener.onResponse(successfulAuthentication);
             }
         }, authenticationListener::onFailure));
     }

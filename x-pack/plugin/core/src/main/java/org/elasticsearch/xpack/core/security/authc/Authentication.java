@@ -797,8 +797,8 @@ public final class Authentication implements ToXContentObject {
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
 
-        static RealmRef newRemoteAccessRealmRef(String nodeName) {
-            return new RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
+        static RealmRef newRemoteAccessRealmRef(String apiKeyId, String nodeName) {
+            return new RealmRef(REMOTE_ACCESS_REALM_NAME + "_" + apiKeyId, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
         }
     }
 
@@ -891,26 +891,24 @@ public final class Authentication implements ToXContentObject {
     }
 
     public static Authentication newRemoteAccessAuthentication(
-        Authentication receivedAuthentication,
         AuthenticationResult<User> authResult,
+        Authentication receivedAuthentication,
         String nodeName
     ) {
         assert authResult.isAuthenticated() : "API Key authn for remote access result must be successful";
-        final User apiKeyUser = authResult.getValue();
+        final User receivedUser = receivedAuthentication.getEffectiveSubject().getUser();
+        assert receivedUser.enabled();
         final User user = new User(
-            // Concatenation on its own doesn't work because of max length restriction on username; but the principal should be a
-            // combination of API key principal and the principal of the remote user
-            apiKeyUser.principal() + receivedAuthentication.getEffectiveSubject().getUser().principal(),
-            apiKeyUser.roles(),
-            // Will need to establish what we should use for fullName and email etc.; using values associated with the API key doesn't make
-            // sense
-            apiKeyUser.fullName(),
-            apiKeyUser.email(),
-            apiKeyUser.metadata(),
+            // Consider including API key ID as well
+            receivedUser.principal(),
+            new String[0],
+            receivedUser.fullName(),
+            receivedUser.email(),
+            receivedUser.metadata(),
             true
         );
-        assert user.roles().length == 0 : "The user associated to an remote access authentication must have no role";
-        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(nodeName);
+        final User apiKeyUser = authResult.getValue();
+        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(apiKeyUser.principal(), nodeName);
         final Authentication authentication = new Authentication(
             new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
             AuthenticationType.API_KEY

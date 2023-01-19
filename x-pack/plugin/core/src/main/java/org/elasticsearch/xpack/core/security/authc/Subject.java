@@ -74,7 +74,7 @@ public class Subject {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
         } else if (AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.REMOTE_ACCESS_REALM_NAME.equals(realm.getName()) : "remote access realm name mismatch";
+            assert realm.getName().startsWith(AuthenticationField.REMOTE_ACCESS_REALM_NAME) : "remote access realm name prefix mismatch";
             this.type = Type.REMOTE_ACCESS;
         } else {
             this.type = Type.USER;

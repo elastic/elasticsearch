@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
-import org.elasticsearch.xpack.esql.type.DataTypes;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -33,18 +33,19 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -111,19 +112,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = context.indexResolution().get();
-            boolean changed = false;
             // ignore all the unsupported data types fields
-            Map<String, EsField> newFields = new HashMap<>();
+            Map<String, EsField> newFields = new TreeMap<>();
             for (Entry<String, EsField> entry : esIndex.mapping().entrySet()) {
-                if (DataTypes.isUnsupported(entry.getValue().getDataType()) == false) {
+                if (EsqlDataTypes.isUnsupported(entry.getValue().getDataType()) == false) {
                     newFields.put(entry.getKey(), entry.getValue());
-                } else {
-                    changed = true;
                 }
             }
-            return changed == false
-                ? new EsRelation(plan.source(), context.indexResolution().get(), plan.frozen())
-                : new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields), plan.frozen());
+            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields), plan.frozen());
         }
     }
 
@@ -234,7 +230,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     for (var a : attrList) {
                         String nameCandidate = a.name();
                         // add only primitives (object types would only result in another error)
-                        if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
+                        if (EsqlDataTypes.isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
                             names.add(nameCandidate);
                         }
                     }
@@ -277,11 +273,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             return new Limit(
                 Source.EMPTY,
-                new Literal(
-                    Source.EMPTY,
-                    context.configuration().resultTruncationMaxSize(),
-                    org.elasticsearch.xpack.ql.type.DataTypes.INTEGER
-                ),
+                new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER),
                 logicalPlan
             );
         }

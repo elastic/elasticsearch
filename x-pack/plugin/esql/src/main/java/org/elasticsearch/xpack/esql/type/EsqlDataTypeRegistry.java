@@ -21,22 +21,22 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public Collection<DataType> dataTypes() {
-        return DataTypes.types();
+        return EsqlDataTypes.types();
     }
 
     @Override
     public DataType fromEs(String typeName) {
-        return DataTypes.fromEs(typeName);
+        return EsqlDataTypes.fromEs(typeName);
     }
 
     @Override
     public DataType fromJava(Object value) {
-        return DataTypes.fromJava(value);
+        return EsqlDataTypes.fromJava(value);
     }
 
     @Override
     public boolean isUnsupported(DataType type) {
-        return DataTypes.isUnsupported(type);
+        return EsqlDataTypes.isUnsupported(type);
     }
 
     @Override

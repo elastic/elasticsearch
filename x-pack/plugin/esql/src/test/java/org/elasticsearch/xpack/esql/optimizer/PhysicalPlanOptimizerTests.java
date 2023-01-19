@@ -258,7 +258,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("last_name", "salary", "_meta_field", "first_name"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("_meta_field", "first_name", "last_name", "salary"));
 
         var eval = as(extract.child(), EvalExec.class);
         eval = as(eval.child(), EvalExec.class);
@@ -279,7 +279,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("last_name", "salary", "_meta_field", "first_name"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("_meta_field", "first_name", "last_name", "salary"));
 
         var eval = as(extract.child(), EvalExec.class);
         eval = as(eval.child(), EvalExec.class);

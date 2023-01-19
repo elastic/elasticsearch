@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
-public final class DataTypes {
+public final class EsqlDataTypes {
 
     private static final Collection<DataType> TYPES = Arrays.asList(UNSUPPORTED, NULL, INTEGER, LONG, DOUBLE, FLOAT, KEYWORD)
         .stream()
@@ -42,7 +42,7 @@ public final class DataTypes {
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
-    private DataTypes() {}
+    private EsqlDataTypes() {}
 
     public static Collection<DataType> types() {
         return TYPES;

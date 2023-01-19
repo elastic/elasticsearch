@@ -202,34 +202,34 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *name
-            """, "last_name", "first_name");
+            """, "first_name", "last_name");
     }
 
     public void testProjectIncludeMultiStarPattern() {
         assertProjection("""
             from test
             | project *t*name
-            """, "last_name", "first_name");
+            """, "first_name", "last_name");
     }
 
     public void testProjectStar() {
         assertProjection("""
             from test
             | project *
-            """, "emp_no", "last_name", "salary", "_meta_field", "first_name");
+            """, "_meta_field", "emp_no", "first_name", "last_name", "salary");
     }
 
     public void testNoProjection() {
         assertProjection("""
             from test
-            """, "emp_no", "last_name", "salary", "_meta_field", "first_name");
+            """, "_meta_field", "emp_no", "first_name", "last_name", "salary");
     }
 
     public void testProjectOrder() {
         assertProjection("""
             from test
             | project first_name, *, last_name
-            """, "first_name", "emp_no", "salary", "_meta_field", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "salary", "last_name");
     }
 
     public void testProjectExcludeName() {
@@ -250,21 +250,21 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *, -*_name
-            """, "emp_no", "salary", "_meta_field");
+            """, "_meta_field", "emp_no", "salary");
     }
 
     public void testProjectExcludeNoStarPattern() {
         assertProjection("""
             from test
             | project -*_name
-            """, "emp_no", "salary", "_meta_field");
+            """, "_meta_field", "emp_no", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | project *name, *, emp_no
-            """, "last_name", "first_name", "salary", "_meta_field", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "salary", "emp_no");
     }
 
     public void testProjectExcludePatternAndKeepOthers() {
@@ -323,7 +323,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project -*ala*
-            """, "emp_no", "last_name", "_meta_field", "first_name");
+            """, "_meta_field", "emp_no", "first_name", "last_name");
     }
 
     public void testExcludeUnsupportedPattern() {

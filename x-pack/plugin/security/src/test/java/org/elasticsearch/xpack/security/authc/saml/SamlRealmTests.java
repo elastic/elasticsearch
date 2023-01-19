@@ -1002,8 +1002,8 @@ public class SamlRealmTests extends SamlTestCase {
     private Settings.Builder buildSettings(String idpMetadataPath) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
-        var builder = Settings.builder();
-        builder.put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
+        return Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
             .put(
                 REALM_SETTINGS_PREFIX + ".ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem")
@@ -1021,7 +1021,6 @@ public class SamlRealmTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH.getStringRep())
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings);
-        return builder;
     }
 
     private RealmConfig buildConfig(Settings realmSettings) {

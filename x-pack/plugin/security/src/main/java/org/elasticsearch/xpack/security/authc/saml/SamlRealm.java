@@ -1048,5 +1048,4 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
     }
-
 }

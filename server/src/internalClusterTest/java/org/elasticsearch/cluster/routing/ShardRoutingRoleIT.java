@@ -25,7 +25,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -37,6 +42,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -50,7 +56,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(ShardRoutingRoleIT.class);
 
-    public static class TestPlugin extends Plugin implements ClusterPlugin {
+    public static class TestPlugin extends Plugin implements ClusterPlugin, EnginePlugin {
 
         volatile int numIndexingCopies = 1;
 
@@ -83,6 +89,17 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             });
         }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+            // TODO revert this once replication/recovery ignores unpromotable shards
+            return Optional.of(config -> new NoOpEngine(config, new TranslogStats(0, 0, 0, 0, 0)));
+        }
+    }
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     @Override
@@ -356,7 +373,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    public void testSearchRouting() throws InterruptedException {
+    public void testSearchRouting() {
 
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);
@@ -371,7 +388,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             masterClusterService.addListener(routingTableWatcher);
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
-            indexRandom(true, INDEX_NAME, between(1, 100));
+            // TODO index some documents here once recovery/replication ignore unpromotable shards
             ensureGreen(INDEX_NAME);
 
             final var searchShardProfileKeys = new HashSet<String>();

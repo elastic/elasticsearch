@@ -109,12 +109,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            getSettingsRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                )
-            );
+            getSettingsRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
             Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
@@ -396,12 +391,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                       "doc_type": "foo"
                     }""");
                 if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
-                    indexRequest.setOptions(
-                        expectWarnings(
-                            "this request accesses system indices: [.security-7], but in a future major "
-                                + "version, direct access to system indices will be prevented by default"
-                        ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-                    );
+                    indexRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
                 } else {
                     indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
                 }
@@ -415,12 +405,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
-            searchRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            searchRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
             assertOK(client().performRequest(searchRequest));
 
             // write must not be allowed
@@ -429,12 +414,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 {
                   "doc_type": "foo"
                 }""");
-            indexRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            indexRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
             final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("is unauthorized"));
@@ -1000,5 +980,18 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
+    }
+
+    private RequestOptions.Builder systemIndexWarningHandlerOptions(String index) {
+        return RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(
+                w -> w.size() > 0
+                    && w.contains(
+                        "this request accesses system indices: ["
+                            + index
+                            + "], but in a future major "
+                            + "version, direct access to system indices will be prevented by default"
+                    ) == false
+            );
     }
 }

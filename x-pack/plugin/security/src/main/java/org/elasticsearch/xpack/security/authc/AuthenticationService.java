@@ -175,10 +175,11 @@ public class AuthenticationService {
         context.addAuthenticationToken(authenticationToken);
 
         // TODO assert no authentication in context
-
         authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
+            final String auditId = AuditUtil.extractRequestId(threadContext);
             // Stashing and *not* restoring deliberately
             try (var ignored = threadContext.stashContext()) {
+                threadContext.putHeader(AuditUtil.AUDIT_REQUEST_ID, auditId);
                 final Authentication receivedAuthentication = remoteAccessAuthentication.getAuthentication();
                 final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList;
                 final User user = receivedAuthentication.getEffectiveSubject().getUser();
@@ -201,6 +202,7 @@ public class AuthenticationService {
                     remoteAccessAuthenticator.nodeName
                 );
                 new AuthenticationContextSerializer().writeToContext(successfulAuthentication, threadContext);
+                authenticationListener.onResponse(successfulAuthentication);
             }
         }, authenticationListener::onFailure));
     }

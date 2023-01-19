@@ -136,7 +136,7 @@ final class ServerTransportFilter {
             // headers, so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication
             // strategy
             && false == TransportService.HANDSHAKE_ACTION_NAME.equals(securityAction)) {
-            authcService.authenticateRemoteAccess(securityAction, request, true, authorizationStep);
+            authcService.authenticateRemoteAccessOther(securityAction, request, true, authorizationStep);
         } else {
             authcService.authenticate(securityAction, request, true, authorizationStep);
         }

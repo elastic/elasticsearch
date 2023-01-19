@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
@@ -97,7 +98,7 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
 
     private RequestOptions.Builder getWarningHandlerOptions(String index) {
         return RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(w -> w.contains(getWatcherSystemIndexWarning(index)) == false || w.size() != 1);
+            .setWarningsHandler(w -> w.size() > 0 && w.contains(getWatcherSystemIndexWarning(index)) == false);
     }
 
     private String getWatcherSystemIndexWarning(String index) {

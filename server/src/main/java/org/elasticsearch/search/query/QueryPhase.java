@@ -73,17 +73,19 @@ public class QueryPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
-        // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
-        // request, preProcess is called on the DFS phase, this is why we pre-process them
-        // here to make sure it happens during the QUERY phase
-        AggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
-
+        boolean rescore = executeInternal(searchContext, false);
         if (rescore) { // only if we do a regular search
             RescorePhase.execute(searchContext);
         }
         SuggestPhase.execute(searchContext);
-        AggregationPhase.execute(searchContext);
+
+        if (searchContext.aggregations() != null
+            && searchContext.queryResult().searchTimedOut() == false
+            && searchContext.queryResult().terminatedEarly() == false) {
+            AggregationPhase.preProcess(searchContext);
+            executeInternal(searchContext, true);
+            AggregationPhase.execute(searchContext);
+        }
 
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
@@ -95,34 +97,40 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static boolean executeInternal(SearchContext searchContext, boolean aggs) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
         try {
-            queryResult.from(searchContext.from());
-            queryResult.size(searchContext.size());
             Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
-
             final ScrollContext scrollContext = searchContext.scrollContext();
-            if (scrollContext != null) {
-                if (scrollContext.totalHits == null) {
-                    // first round
-                    assert scrollContext.lastEmittedDoc == null;
-                    // there is not much that we can optimize here since we want to collect all
-                    // documents in order to get the total number of hits
 
-                } else {
-                    final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    if (canEarlyTerminate(reader, searchContext.sort())) {
-                        // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
-                        // skip to the desired doc
-                        if (after != null) {
-                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                                .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
-                                .build();
+            if (aggs == false) {
+                queryResult.from(searchContext.from());
+                queryResult.size(searchContext.size());
+
+                if (scrollContext != null) {
+                    if (scrollContext.totalHits == null) {
+                        // first round
+                        assert scrollContext.lastEmittedDoc == null;
+                        // there is not much that we can optimize here since we want to collect all
+                        // documents in order to get the total number of hits
+
+                    } else {
+                        final ScoreDoc after = scrollContext.lastEmittedDoc;
+                        if (canEarlyTerminate(reader, searchContext.sort())) {
+                            // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
+                            // skip to the desired doc
+                            if (after != null) {
+                                query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                                    .add(
+                                        new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after),
+                                        BooleanClause.Occur.FILTER
+                                    )
+                                    .build();
+                            }
                         }
                     }
                 }
@@ -131,19 +139,21 @@ public class QueryPhase {
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
             // whether the chain contains a collector that filters documents
             boolean hasFilterCollector = false;
-            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                // add terminate_after before the filter collectors
-                // it will only be applied on documents accepted by these filter collectors
-                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
-            }
-            if (searchContext.parsedPostFilter() != null) {
-                // add post filters before aggregations
-                // it will only be applied to top hits
-                collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
+            if (aggs == false) {
+                if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                    // add terminate_after before the filter collectors
+                    // it will only be applied on documents accepted by these filter collectors
+                    collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+                    // this collector can filter documents during the collection
+                    hasFilterCollector = true;
+                }
+                if (searchContext.parsedPostFilter() != null) {
+                    // add post filters before aggregations
+                    // it will only be applied to top hits
+                    collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
+                    // this collector can filter documents during the collection
+                    hasFilterCollector = true;
+                }
             }
             if (searchContext.queryCollectors().isEmpty() == false) {
                 // plug in additional collectors, like aggregations
@@ -176,16 +186,21 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
-                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof EWMATrackingEsThreadPoolExecutor
-                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
-                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                if (aggs == false) {
+                    boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                    ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                    assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                        || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                        : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                    if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
+                        queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                        queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                    }
+                    return shouldRescore;
+                } else {
+                    searchForAggregations(searchContext, searcher, query, collectors, timeoutSet);
+                    return false;
                 }
-                return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
@@ -239,6 +254,32 @@ public class QueryPhase {
             ctx.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
+    }
+
+    private static void searchForAggregations(
+        SearchContext searchContext,
+        ContextIndexSearcher searcher,
+        Query query,
+        LinkedList<QueryCollectorContext> collectors,
+        boolean timeoutSet
+    ) throws IOException {
+        final Collector queryCollector = QueryCollectorContext.createQueryCollector(collectors);
+        QuerySearchResult queryResult = searchContext.queryResult();
+        try {
+            searcher.search(query, queryCollector);
+        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+            queryResult.terminatedEarly(true);
+        } catch (TimeExceededException e) {
+            assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+            if (searchContext.request().allowPartialSearchResults() == false) {
+                // Can't rethrow TimeExceededException because not serializable
+                throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
+            }
+            queryResult.searchTimedOut(true);
+        }
+        if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
+            queryResult.terminatedEarly(false);
+        }
     }
 
     /**

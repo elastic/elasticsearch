@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +41,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
@@ -236,6 +238,28 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 equalTo((getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas)
             );
         });
+    }
+
+    public void testRefresh() throws Exception {
+        startIndexNode();
+        startSearchNodes(numShards * numReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build()
+        );
+        ensureGreen(indexName);
+        int docsToIndex = randomIntBetween(1, 100);
+        indexDocs(indexName, docsToIndex);
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
 }

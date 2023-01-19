@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.RefreshResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -49,6 +50,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -406,5 +408,10 @@ public class SearchEngine extends Engine {
     @Override
     public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
         return ShardLongFieldRange.UNKNOWN;
+    }
+
+    @Override
+    public void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
+        statelessReaderManager.addSegmentGenerationListener(minGeneration, consumer);
     }
 }

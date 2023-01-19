@@ -174,4 +174,12 @@ public final class RefCountingListener implements Releasable {
     public String toString() {
         return "refCounting[" + delegate + "]";
     }
+
+    /**
+     * @return {@code true} if at least one acquired listener has completed exceptionally, which means that the delegate listener will also
+     *         complete exceptionally once all acquired listeners are completed.
+     */
+    public boolean isFailing() {
+        return exceptionRef.get() != null;
+    }
 }

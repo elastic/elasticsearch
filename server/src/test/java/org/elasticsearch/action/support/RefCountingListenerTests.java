@@ -93,12 +93,14 @@ public class RefCountingListenerTests extends ESTestCase {
                         } else {
                             exceptionCount.incrementAndGet();
                             ref.onFailure(new ElasticsearchException("simulated"));
+                            assertTrue(refs.isFailing());
                         }
                     });
                 }
             }
 
             assertFalse(executed.get());
+            assertFalse(refs.isFailing());
         }
 
         assertNotEquals(async, executed.get());

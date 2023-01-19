@@ -14,7 +14,7 @@ import org.elasticsearch.compute.aggregation.AvgLongGroupingAggregatorTests;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.GroupingMaxLongAggregatorTests;
+import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -28,8 +28,9 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l % 5, l)));
+    protected SourceOperator simpleInput(int size) {
+        long max = randomLongBetween(1, Long.MAX_VALUE / size);
+        return new TupleBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % 5, randomLongBetween(-max, max))));
     }
 
     @Override
@@ -55,21 +56,21 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(int end, List<Page> results) {
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(3));
         assertThat(results.get(0).getPositionCount(), equalTo(5));
 
         AvgLongGroupingAggregatorTests avg = new AvgLongGroupingAggregatorTests();
-        GroupingMaxLongAggregatorTests max = new GroupingMaxLongAggregatorTests();
+        MaxLongGroupingAggregatorTests max = new MaxLongGroupingAggregatorTests();
 
         LongBlock groups = results.get(0).getBlock(0);
         Block avgs = results.get(0).getBlock(1);
         Block maxs = results.get(0).getBlock(2);
         for (int i = 0; i < 5; i++) {
-            int bucket = (int) groups.getLong(i);
-            avg.assertSimpleBucket(avgs, end, i, bucket);
-            max.assertSimpleBucket(maxs, end, i, bucket);
+            long group = groups.getLong(i);
+            avg.assertSimpleGroup(input, avgs, i, group);
+            max.assertSimpleGroup(input, maxs, i, group);
         }
     }
 

@@ -30,7 +30,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -50,6 +51,7 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -934,9 +936,17 @@ public class OperatorTests extends ESTestCase {
     }
 
     public static void runToCompletion(Executor executor, List<Driver> drivers) {
-        ListenableActionFuture<List<Driver.Result>> future = new ListenableActionFuture<>();
-        Driver.start(executor, drivers, future::onResponse);
-        RuntimeException e = Driver.Result.collectFailures(future.actionGet());
+        if (drivers.isEmpty()) {
+            return;
+        }
+        PlainActionFuture<List<Driver.Result>> listener = new PlainActionFuture<>();
+        new DriverRunner() {
+            @Override
+            protected void start(Driver driver, ActionListener<Void> done) {
+                Driver.start(executor, driver, done);
+            }
+        }.runToCompletion(drivers, listener);
+        RuntimeException e = Driver.Result.collectFailures(listener.actionGet());
         if (e != null) {
             throw e;
         }

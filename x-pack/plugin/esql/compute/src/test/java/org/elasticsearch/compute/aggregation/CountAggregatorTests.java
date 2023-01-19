@@ -9,10 +9,22 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
+
+import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountAggregatorTests extends AggregatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(int size) {
+        long max = randomLongBetween(1, Long.MAX_VALUE / size);
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+    }
+
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
         return AggregatorFunction.COUNT;
@@ -24,7 +36,8 @@ public class CountAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected void assertSimpleResult(int end, Block result) {
-        assertThat(((LongBlock) result).getLong(0), equalTo((long) end));
+    protected void assertSimpleOutput(List<Block> input, Block result) {
+        long count = input.stream().flatMapToInt(b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p))).count();
+        assertThat(((LongBlock) result).getLong(0), equalTo(count));
     }
 }

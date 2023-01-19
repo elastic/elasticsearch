@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -126,32 +127,100 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
      * Copy any limit/sort/topN in the local plan (before the exchange) after it so after gathering the data,
      * the limit still applies.
      */
-    private static class LocalToGlobalLimitAndTopNExec extends Rule<PhysicalPlan, PhysicalPlan> {
+    private static class LocalToGlobalLimitAndTopNExec extends OptimizerRule<ExchangeExec> {
 
-        public PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(UnaryExec.class, u -> {
-                PhysicalPlan pl = u;
-                if (u.child()instanceof ExchangeExec exchange) {
-                    var localLimit = findLocalLimitOrTopN(exchange);
-                    if (localLimit != null) {
-                        pl = localLimit.replaceChild(u);
-                    }
-                }
-                return pl;
-            });
+        private LocalToGlobalLimitAndTopNExec() {
+            super(OptimizerRules.TransformDirection.UP);
         }
 
-        private UnaryExec findLocalLimitOrTopN(UnaryExec localPlan) {
-            for (var plan = localPlan.child();;) {
-                if (plan instanceof LimitExec || plan instanceof TopNExec) {
-                    return (UnaryExec) plan;
+        @Override
+        protected PhysicalPlan rule(ExchangeExec exchange) {
+            if (exchange.getType() == ExchangeExec.Type.GATHER) {
+                return maybeAddGlobalLimitOrTopN(exchange);
+            }
+            return exchange;
+        }
+
+        /**
+         * This method copies any Limit/Sort/TopN in the local plan (before the exchange) after it,
+         * ensuring that all the inputs are available at that point
+         * eg. if between the exchange and the TopN there is a <code>project</code> that filters out
+         * some inputs needed by the topN (i.e. the sorting fields), this method also modifies
+         * the existing <code>project</code> to make these inputs available to the global TopN, and then adds
+         * another <code>project</code> at the end of the plan, to ensure that the original semantics
+         * are preserved.
+         *
+         * In detail:
+         * <ol>
+         *     <li>Traverse the plan down starting from the exchange, looking for the first Limit/Sort/TopN</li>
+         *     <li>If a Limit is found, copy it after the Exchange to make it global limit</li>
+         *     <li>If a TopN is found, copy it after the Exchange and ensure that it has all the inputs needed:
+         *         <ol>
+         *            <li>Starting from the TopN, traverse the plan backwards and check that all the nodes propagate
+         *            the inputs needed by the TopN</li>
+         *            <li>If a Project node filters out some of the inputs needed by the TopN,
+         *            replace it with another one that includes those inputs</li>
+         *            <li>Copy the TopN after the exchange, to make it global</li>
+         *            <li>If the outputs of the new global TopN are different from the outputs of the original Exchange,
+         *            add another Project that filters out the unneeded outputs and preserves the original semantics</li>
+         *         </ol>
+         *     </li>
+         * </ol>
+         * @param exchange
+         * @return
+         */
+        private PhysicalPlan maybeAddGlobalLimitOrTopN(ExchangeExec exchange) {
+            List<UnaryExec> visitedNodes = new ArrayList<>();
+            visitedNodes.add(exchange);
+            AttributeSet exchangeOutputSet = exchange.outputSet();
+            // step 1: traverse the plan and find Limit/TopN
+            for (var plan = exchange.child();;) {
+                if (plan instanceof LimitExec limit) {
+                    // Step 2: just add a global Limit
+                    return limit.replaceChild(exchange);
                 }
-                // possible to go deeper
+                if (plan instanceof TopNExec topN) {
+                    // Step 3: copy the TopN after the Exchange and ensure that it has all the inputs needed
+                    Set<Attribute> requiredAttributes = Expressions.references(topN.order()).combine(topN.inputSet());
+                    if (exchangeOutputSet.containsAll(requiredAttributes)) {
+                        return topN.replaceChild(exchange);
+                    }
+
+                    PhysicalPlan subPlan = topN;
+                    // Step 3.1: Traverse the plan backwards to check inputs available
+                    for (int i = visitedNodes.size() - 1; i >= 0; i--) {
+                        UnaryExec node = visitedNodes.get(i);
+                        if (node instanceof ProjectExec proj && node.outputSet().containsAll(requiredAttributes) == false) {
+                            // Step 3.2: a Project is filtering out some inputs needed by the global TopN,
+                            // replace it with another one that preserves these inputs
+                            List<NamedExpression> newProjections = new ArrayList<>(proj.projections());
+                            for (Attribute attr : requiredAttributes) {
+                                if (newProjections.contains(attr) == false) {
+                                    newProjections.add(attr);
+                                }
+                            }
+                            node = new ProjectExec(proj.source(), proj.child(), newProjections);
+                        }
+                        subPlan = node.replaceChild(subPlan);
+                    }
+
+                    // Step 3.3: add the global TopN right after the exchange
+                    topN = topN.replaceChild(subPlan);
+                    if (exchangeOutputSet.containsAll(topN.output())) {
+                        return topN;
+                    } else {
+                        // Step 3.4: the output propagation is leaking at the end of the plan,
+                        // add one more Project to preserve the original query semantics
+                        return new ProjectExec(topN.source(), topN, new ArrayList<>(exchangeOutputSet));
+                    }
+                }
                 if (plan instanceof ProjectExec || plan instanceof EvalExec) {
+                    visitedNodes.add((UnaryExec) plan);
+                    // go deeper with step 1
                     plan = ((UnaryExec) plan).child();
                 } else {
-                    // no limit specified
-                    return null;
+                    // no limit specified, return the original plan
+                    return exchange;
                 }
             }
         }

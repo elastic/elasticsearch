@@ -8,6 +8,9 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -15,10 +18,13 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -37,6 +43,9 @@ public class ValuesSourceReaderOperator implements Operator {
     private int lastSegment = -1;
 
     private Page lastPage;
+
+    private final Map<String, Integer> readersBuilt = new TreeMap<>();
+    private int pagesProcessed;
 
     boolean finished;
 
@@ -111,8 +120,10 @@ public class ValuesSourceReaderOperator implements Operator {
                     lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), leafReaderContext);
                     lastShard = shard;
                     lastSegment = segment;
+                    readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);
                 }
                 Block block = lastReader.readValues(docs);
+                pagesProcessed++;
                 lastPage = page.appendBlock(block);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -123,5 +134,66 @@ public class ValuesSourceReaderOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        return "ValuesSourceReaderOperator";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(this);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "values_source_reader",
+            Status::new
+        );
+
+        private final Map<String, Integer> readersBuilt;
+        private final int pagesProcessed;
+
+        private Status(ValuesSourceReaderOperator operator) {
+            readersBuilt = new TreeMap<>(operator.readersBuilt);
+            pagesProcessed = operator.pagesProcessed;
+        }
+
+        private Status(StreamInput in) throws IOException {
+            readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
+            pagesProcessed = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(readersBuilt, StreamOutput::writeString, StreamOutput::writeVInt);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public Map<String, Integer> readersBuilt() {
+            return readersBuilt;
+        }
+
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("readers_built");
+            for (Map.Entry<String, Integer> e : readersBuilt.entrySet()) {
+                builder.field(e.getKey(), e.getValue());
+            }
+            builder.endObject();
+            builder.field("pages_processed", pagesProcessed);
+            return builder.endObject();
+        }
     }
 }

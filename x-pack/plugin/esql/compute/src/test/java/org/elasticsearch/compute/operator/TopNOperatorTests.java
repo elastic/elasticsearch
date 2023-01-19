@@ -22,6 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.operator.TopNOperator.compareFirstPositionsOfBlocks;
 import static org.elasticsearch.core.Tuple.tuple;
@@ -44,8 +47,31 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(int end, List<Page> results) {
-        // we have basic and random tests
+    protected String expectedToStringOfSimple() {
+        return "TopNOperator(count = 0/4, sortOrder = SortOrder[channel=0, asc=true, nullsFirst=false])";
+    }
+
+    @Override
+    protected SourceOperator simpleInput(int size) {
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> ESTestCase.randomLong()));
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        long[] topN = input.stream()
+            .flatMapToLong(
+                page -> IntStream.range(0, page.getPositionCount())
+                    .filter(p -> false == page.getBlock(0).isNull(p))
+                    .mapToLong(p -> ((LongBlock) page.getBlock(0)).getLong(p))
+            )
+            .sorted()
+            .limit(4)
+            .toArray();
+
+        assertThat(results, hasSize(4));
+        results.stream().forEach(page -> assertThat(page.getPositionCount(), equalTo(1)));
+        results.stream().forEach(page -> assertThat(page.getBlockCount(), equalTo(1)));
+        assertThat(results.stream().mapToLong(page -> ((LongBlock) page.getBlock(0)).getLong(0)).toArray(), equalTo(topN));
     }
 
     @Override
@@ -115,8 +141,8 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareBytesRef() {
-        Block b1 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
-        Block b2 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
+        Block b1 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
+        Block b2 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
         assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b1, b1));
         assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b2, b2));
 
@@ -129,7 +155,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testCompareWithIncompatibleTypes() {
         Block i1 = IntBlock.newBlockBuilder(1).appendInt(randomInt()).build();
         Block l1 = LongBlock.newBlockBuilder(1).appendLong(randomLong()).build();
-        Block b1 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
+        Block b1 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
         IllegalStateException error = expectThrows(
             IllegalStateException.class,
             () -> TopNOperator.compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), randomFrom(i1, l1), b1)
@@ -194,5 +220,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
         assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
         return outputValues;
+    }
+
+    public void testTopNManyDescriptionAndToString() {
+        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+            10,
+            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true))
+        );
+        String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
+            .stream()
+            .collect(Collectors.joining(", "));
+        assertThat(factory.describe(), equalTo("TopNOperator(count = 10, sortOrders = [" + sorts + "])"));
+        try (Operator operator = factory.get()) {
+            assertThat(operator.toString(), equalTo("TopNOperator(count = 0/10, sortOrders = [" + sorts + "])"));
+        }
     }
 }

@@ -108,7 +108,7 @@ public abstract class StoredFieldLoader {
     private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> sequentialReader(LeafReaderContext ctx) {
         LeafReader leafReader = ctx.reader();
         if (leafReader instanceof SequentialStoredFieldsLeafReader lf) {
-            return lf.getSequentialStoredFieldsReader()::visitDocument;
+            return lf.getSequentialStoredFieldsReader()::document;
         }
         return leafReader::document;
     }

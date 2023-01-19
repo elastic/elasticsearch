@@ -16,13 +16,21 @@ import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumLongAggregatorTests extends AggregatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(int size) {
+        long max = randomLongBetween(1, Long.MAX_VALUE / size);
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+    }
+
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
         return AggregatorFunction.SUM_LONGS;
@@ -34,8 +42,13 @@ public class SumLongAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected void assertSimpleResult(int end, Block result) {
-        assertThat(((LongBlock) result).getLong(0), equalTo(LongStream.range(0, end).sum()));
+    protected void assertSimpleOutput(List<Block> input, Block result) {
+        long sum = input.stream()
+            .flatMapToLong(
+                b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p)).mapToLong(p -> ((LongBlock) b).getLong(p))
+            )
+            .sum();
+        assertThat(((LongBlock) result).getLong(0), equalTo(sum));
     }
 
     public void testOverflowFails() {

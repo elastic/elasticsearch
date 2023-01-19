@@ -8,9 +8,16 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Sink operator implementation that pushes data to an {@link ExchangeSink}
@@ -21,6 +28,8 @@ public class ExchangeSinkOperator extends SinkOperator {
     private final ExchangeSink sink;
 
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
+
+    private int pagesAccepted;
 
     public record ExchangeSinkOperatorFactory(Exchange ex) implements SinkOperatorFactory {
         @Override
@@ -66,11 +75,61 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     @Override
     public void addInput(Page page) {
+        pagesAccepted++;
         sink.addPage(page);
     }
 
     @Override
     public void close() {
         finish();
+    }
+
+    @Override
+    public String toString() {
+        return "ExchangeSinkOperator";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(this);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "exchange_sink",
+            Status::new
+        );
+
+        private final int pagesAccepted;
+
+        private Status(ExchangeSinkOperator operator) {
+            pagesAccepted = operator.pagesAccepted;
+        }
+
+        private Status(StreamInput in) throws IOException {
+            pagesAccepted = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(pagesAccepted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public int pagesAccepted() {
+            return pagesAccepted;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_accepted", pagesAccepted);
+            return builder.endObject();
+        }
     }
 }

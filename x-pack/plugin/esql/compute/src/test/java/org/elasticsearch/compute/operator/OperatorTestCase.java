@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -17,89 +17,134 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Base tests for all operators.
+ */
 public abstract class OperatorTestCase extends ESTestCase {
-
-    protected SourceOperator simpleInput(int end) {
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, end));
-    }
-
+    /**
+     * The operator configured a "simple" or basic way, used for smoke testing
+     * descriptions and {@link BigArrays} and scatter/gather.
+     */
     protected abstract Operator.OperatorFactory simple(BigArrays bigArrays);
 
+    /**
+     * Valid input to be sent to {@link #simple};
+     */
+    protected abstract SourceOperator simpleInput(int size);
+
+    /**
+     * The description of the operator produced by {@link #simple}.
+     */
     protected abstract String expectedDescriptionOfSimple();
 
-    protected abstract void assertSimpleOutput(int end, List<Page> results);
+    /**
+     * The {@link #toString} of the operator produced by {@link #simple}.
+     * This {@linkplain #toString} is used by the status reporting and
+     * generally useful debug information.
+     */
+    protected String expectedToStringOfSimple() {
+        assumeFalse("not yet implemented", true);
+        return null;
+    }
+
+    /**
+     * Assert that output from {@link #simple} is correct for the
+     * given input.
+     */
+    protected abstract void assertSimpleOutput(List<Page> input, List<Page> results);
 
     /**
      * A {@link ByteSizeValue} that is so small any input to the operator
-     * will cause it to circuit break.
+     * will cause it to circuit break. If the operator can't break then
+     * throw an {@link AssumptionViolatedException}.
      */
     protected abstract ByteSizeValue smallEnoughToCircuitBreak();
 
-    public final void testSimple() {
-        assertSimple(nonBreakingBigArrays());
+    /**
+     * Test a small input set against {@link #simple}. Smaller input sets
+     * are more likely to discover accidental behavior for clumped inputs.
+     */
+    public final void testSimpleSmallInput() {
+        assertSimple(nonBreakingBigArrays(), between(10, 100));
     }
 
-    public final void testCircuitBreaking() {
-        Exception e = expectThrows(
-            CircuitBreakingException.class,
-            () -> assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak()))
-        );
+    /**
+     * Test a larger input set against {@link #simple}.
+     */
+    public final void testSimpleLargeInput() {
+        assertSimple(nonBreakingBigArrays(), between(1_000, 10_000));
+    }
+
+    /**
+     * Run {@link #simple} with a circuit breaker configured by
+     * {@link #smallEnoughToCircuitBreak} and assert that it breaks
+     * in a sane way.
+     */
+    public final void testSimpleCircuitBreaking() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak());
+        Exception e = expectThrows(CircuitBreakingException.class, () -> assertSimple(bigArrays, between(1_000, 10_000)));
         assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
     }
 
-    public final void testWithCranky() {
+    /**
+     * Run {@link #simple} with the {@link CrankyCircuitBreakerService}
+     * which fails randomly. This will catch errors caused by not
+     * properly cleaning up things like {@link BigArray}s, particularly
+     * in ctors.
+     */
+    public final void testSimpleWithCranky() {
         CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
         try {
-            assertSimple(bigArrays);
+            assertSimple(bigArrays, between(1_000, 10_000));
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
     }
 
+    /**
+     * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
+     */
     public final void testSimpleDescription() {
         assertThat(simple(nonBreakingBigArrays()).describe(), equalTo(expectedDescriptionOfSimple()));
     }
 
+    /**
+     * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
+     */
+    public final void testSimpleToString() {
+        try (Operator operator = simple(nonBreakingBigArrays()).get()) {
+            assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
+        }
+    }
+
+    /**
+     * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
+     */
     protected final BigArrays nonBreakingBigArrays() {
         return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
     }
 
-    protected final List<Page> oneDriverPerPage(SourceOperator source, Supplier<List<Operator>> operators) {
-        List<Page> result = new ArrayList<>();
-        try {
-            while (source.isFinished() == false) {
-                Page in = source.getOutput();
-                if (in == null) {
-                    continue;
-                }
-                try (
-                    Driver d = new Driver(
-                        new CannedSourceOperator(Iterators.single(in)),
-                        operators.get(),
-                        new PageConsumerOperator(result::add),
-                        () -> {}
-                    )
-                ) {
-                    d.run();
-                }
-            }
-        } finally {
-            source.close();
-        }
-        return result;
+    /**
+     * Run the {@code operators} once per page in the {@code input}.
+     */
+    protected final List<Page> oneDriverPerPage(List<Page> input, Supplier<List<Operator>> operators) {
+        return oneDriverPerPageList(input.stream().map(List::of).iterator(), operators);
     }
 
+    /**
+     * Run the {@code operators} once to entry in the {@code source}.
+     */
     protected final List<Page> oneDriverPerPageList(Iterator<List<Page>> source, Supplier<List<Operator>> operators) {
         List<Page> result = new ArrayList<>();
         while (source.hasNext()) {
@@ -118,13 +163,13 @@ public abstract class OperatorTestCase extends ESTestCase {
         return result;
     }
 
-    private void assertSimple(BigArrays bigArrays) {
-        int end = between(1_000, 100_000);
+    private void assertSimple(BigArrays bigArrays, int size) {
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
         List<Page> results = new ArrayList<>();
 
         try (
             Driver d = new Driver(
-                simpleInput(end),
+                new CannedSourceOperator(input.iterator()),
                 List.of(simple(bigArrays.withCircuitBreaking()).get()),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -132,6 +177,6 @@ public abstract class OperatorTestCase extends ESTestCase {
         ) {
             d.run();
         }
-        assertSimpleOutput(end, results);
+        assertSimpleOutput(input, results);
     }
 }

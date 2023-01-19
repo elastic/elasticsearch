@@ -425,22 +425,22 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
-        if (eval.fields().size() != 1) {
-            throw new UnsupportedOperationException();
+
+        for (NamedExpression namedExpression : eval.fields()) {
+            ExpressionEvaluator evaluator;
+            if (namedExpression instanceof Alias alias) {
+                evaluator = EvalMapper.toEvaluator(alias.child(), source.layout);
+            } else {
+                throw new UnsupportedOperationException();
+            }
+            Layout.Builder layout = source.layout.builder();
+            layout.appendChannel(namedExpression.toAttribute().id());
+            source = source.with(
+                new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
+                layout.build()
+            );
         }
-        NamedExpression namedExpression = eval.fields().get(0);
-        ExpressionEvaluator evaluator;
-        if (namedExpression instanceof Alias alias) {
-            evaluator = EvalMapper.toEvaluator(alias.child(), source.layout);
-        } else {
-            throw new UnsupportedOperationException();
-        }
-        Layout.Builder layout = source.layout.builder();
-        layout.appendChannel(namedExpression.toAttribute().id());
-        return source.with(
-            new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
-            layout.build()
-        );
+        return source;
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
@@ -648,7 +648,7 @@ public class LocalExecutionPlanner {
                 physicalOperation.operators(operators);
                 sink = physicalOperation.sink();
                 success = true;
-                return new Driver(source, operators, sink, () -> {});
+                return new Driver(physicalOperation::describe, source, operators, sink, () -> {});
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink);

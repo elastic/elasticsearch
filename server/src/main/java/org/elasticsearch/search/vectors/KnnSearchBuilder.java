@@ -44,6 +44,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
         @SuppressWarnings("unchecked")
+        // TODO optimize parsing for when BYTE values are provided
         List<Float> vector = (List<Float>) args[1];
         float[] vectorArray = new float[vector.size()];
         for (int i = 0; i < vector.size(); i++) {

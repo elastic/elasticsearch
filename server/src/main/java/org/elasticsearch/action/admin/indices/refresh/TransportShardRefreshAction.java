@@ -15,10 +15,12 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -30,7 +32,7 @@ import java.io.IOException;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
     BasicReplicationRequest,
-    BasicReplicationRequest,
+    ReplicaShardRefreshRequest,
     ReplicationResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
@@ -38,6 +40,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String NAME = RefreshAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
     public static final String SOURCE_API = "api";
+
+    private final Settings settings;
 
     @Inject
     public TransportShardRefreshAction(
@@ -59,9 +63,10 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             shardStateAction,
             actionFilters,
             BasicReplicationRequest::new,
-            BasicReplicationRequest::new,
+            ReplicaShardRefreshRequest::new,
             ThreadPool.Names.REFRESH
         );
+        this.settings = settings;
     }
 
     @Override
@@ -73,21 +78,31 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     protected void shardOperationOnPrimary(
         BasicReplicationRequest shardRequest,
         IndexShard primary,
-        ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
+        ActionListener<PrimaryResult<ReplicaShardRefreshRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            primary.refresh(SOURCE_API);
+            var refreshResult = primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+            var shardRefreshRequest = new ReplicaShardRefreshRequest(
+                primary.shardId(),
+                shardRequest.getParentTask(),
+                refreshResult.generation()
+            );
+            return new PrimaryResult<>(shardRefreshRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            replica.refresh(SOURCE_API);
-            logger.trace("{} refresh request executed on replica", replica.shardId());
-            return new ReplicaResult();
-        });
+    protected void shardOperationOnReplica(ReplicaShardRefreshRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        if (DiscoveryNode.isStateless(settings) && replica.routingEntry().isPromotableToPrimary() == false) {
+            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
+            replica.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> new ReplicaResult()));
+        } else {
+            ActionListener.completeWith(listener, () -> {
+                replica.refresh(SOURCE_API);
+                logger.trace("{} refresh request executed on replica", replica.shardId());
+                return new ReplicaResult();
+            });
+        }
     }
 }

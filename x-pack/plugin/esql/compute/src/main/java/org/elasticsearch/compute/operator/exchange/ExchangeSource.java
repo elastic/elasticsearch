@@ -172,6 +172,10 @@ public class ExchangeSource {
         }
     }
 
+    int bufferSize() {
+        return buffer.size();
+    }
+
     record PageReference(Page page, Runnable onRelease) {
 
     }

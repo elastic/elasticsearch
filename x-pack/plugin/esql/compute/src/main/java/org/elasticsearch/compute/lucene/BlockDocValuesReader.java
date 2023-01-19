@@ -63,9 +63,17 @@ public abstract class BlockDocValuesReader {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {
                 final SortedNumericDoubleValues doubleValues = numericVS.doubleValues(leafReaderContext);
+                final NumericDoubleValues singleton = FieldData.unwrapSingleton(doubleValues);
+                if (singleton != null) {
+                    return new DoubleSingletonValuesReader(singleton);
+                }
                 return new DoubleValuesReader(doubleValues);
             } else {
                 final SortedNumericDocValues longValues = numericVS.longValues(leafReaderContext);
+                final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
+                if (singleton != null) {
+                    return new LongSingletonValuesReader(singleton);
+                }
                 return new LongValuesReader(longValues);
             }
         }
@@ -77,11 +85,11 @@ public abstract class BlockDocValuesReader {
         throw new IllegalArgumentException("Field type [" + valuesSourceType.typeName() + "] is not supported");
     }
 
-    private static class LongValuesReader extends BlockDocValuesReader {
+    private static class LongSingletonValuesReader extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
-        LongValuesReader(SortedNumericDocValues numericDocValues) {
-            this.numericDocValues = DocValues.unwrapSingleton(numericDocValues);
+        LongSingletonValuesReader(NumericDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
         }
 
         @Override
@@ -109,14 +117,64 @@ public abstract class BlockDocValuesReader {
         public int docID() {
             return numericDocValues.docID();
         }
+
+        @Override
+        public String toString() {
+            return "LongSingletonValuesReader";
+        }
     }
 
-    private static class DoubleValuesReader extends BlockDocValuesReader {
+    private static class LongValuesReader extends BlockDocValuesReader {
+        private final SortedNumericDocValues numericDocValues;
+        private int docID = -1;
+
+        LongValuesReader(SortedNumericDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = LongBlock.newBlockBuilder(positionCount);
+            int lastDoc = -1;
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (lastDoc >= doc) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                if (numericDocValues.advanceExact(doc)) {
+                    if (numericDocValues.docValueCount() != 1) {
+                        throw new UnsupportedOperationException("only single valued fields supported for now");
+                    }
+                    blockBuilder.appendLong(numericDocValues.nextValue());
+                } else {
+                    blockBuilder.appendNull();
+                }
+                lastDoc = doc;
+                this.docID = doc;
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public int docID() {
+            // There is a .docID on on the numericDocValues but it is often not implemented.
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "LongValuesReader";
+        }
+    }
+
+    private static class DoubleSingletonValuesReader extends BlockDocValuesReader {
         private final NumericDoubleValues numericDocValues;
         private int docID = -1;
 
-        DoubleValuesReader(SortedNumericDoubleValues numericDocValues) {
-            this.numericDocValues = FieldData.unwrapSingleton(numericDocValues);
+        DoubleSingletonValuesReader(NumericDoubleValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
         }
 
         @Override
@@ -145,11 +203,60 @@ public abstract class BlockDocValuesReader {
         public int docID() {
             return docID;
         }
+
+        @Override
+        public String toString() {
+            return "DoubleSingletonValuesReader";
+        }
+    }
+
+    private static class DoubleValuesReader extends BlockDocValuesReader {
+        private final SortedNumericDoubleValues numericDocValues;
+        private int docID = -1;
+
+        DoubleValuesReader(SortedNumericDoubleValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
+            int lastDoc = -1;
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (lastDoc >= doc) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                if (numericDocValues.advanceExact(doc)) {
+                    if (numericDocValues.docValueCount() != 1) {
+                        throw new UnsupportedOperationException("only single valued fields supported for now");
+                    }
+                    blockBuilder.appendDouble(numericDocValues.nextValue());
+                } else {
+                    blockBuilder.appendNull();
+                }
+                lastDoc = doc;
+                this.docID = doc;
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "DoubleValuesReader";
+        }
     }
 
     private static class BytesValuesReader extends BlockDocValuesReader {
-        private int docID = -1;
         private final SortedBinaryDocValues binaryDV;
+        private int docID = -1;
 
         BytesValuesReader(SortedBinaryDocValues binaryDV) {
             this.binaryDV = binaryDV;
@@ -158,7 +265,7 @@ public abstract class BlockDocValuesReader {
         @Override
         public Block readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(positionCount);
+            var blockBuilder = BytesRefBlock.newBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);
@@ -186,6 +293,11 @@ public abstract class BlockDocValuesReader {
         @Override
         public int docID() {
             return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "BytesValuesReader";
         }
     }
 }

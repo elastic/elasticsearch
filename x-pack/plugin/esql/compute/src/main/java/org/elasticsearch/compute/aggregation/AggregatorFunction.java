@@ -44,6 +44,20 @@ public interface AggregatorFunction {
     Factory MAX_DOUBLES = new Factory("max", "doubles", MaxDoubleAggregatorFunction::create);
     Factory MAX_LONGS = new Factory("max", "longs", MaxLongAggregatorFunction::create);
 
+    Factory MEDIAN_DOUBLES = new Factory("median", "doubles", MedianDoubleAggregatorFunction::create);
+    Factory MEDIAN_LONGS = new Factory("median", "longs", MedianLongAggregatorFunction::create);
+
+    Factory MEDIAN_ABSOLUTE_DEVIATION_DOUBLES = new Factory(
+        "median_absolute_deviation",
+        "doubles",
+        MedianAbsoluteDeviationDoubleAggregatorFunction::create
+    );
+    Factory MEDIAN_ABSOLUTE_DEVIATION_LONGS = new Factory(
+        "median_absolute_deviation",
+        "longs",
+        MedianAbsoluteDeviationLongAggregatorFunction::create
+    );
+
     Factory MIN_DOUBLES = new Factory("min", "doubles", MinDoubleAggregatorFunction::create);
     Factory MIN_LONGS = new Factory("min", "longs", MinLongAggregatorFunction::create);
 

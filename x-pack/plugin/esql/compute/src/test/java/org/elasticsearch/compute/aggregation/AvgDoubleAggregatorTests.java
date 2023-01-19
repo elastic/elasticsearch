@@ -11,15 +11,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class AvgDoubleAggregatorTests extends AggregatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, end).asDoubleStream());
+    protected SourceOperator simpleInput(int size) {
+        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override
@@ -33,8 +36,15 @@ public class AvgDoubleAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected void assertSimpleResult(int end, Block result) {
-        double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum() / end;
-        assertThat(((DoubleBlock) result).getDouble(0), equalTo(expected));
+    protected void assertSimpleOutput(List<Block> input, Block result) {
+        double avg = input.stream()
+            .flatMapToDouble(
+                b -> IntStream.range(0, b.getTotalValueCount())
+                    .filter(p -> false == b.isNull(p))
+                    .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
+            )
+            .average()
+            .getAsDouble();
+        assertThat(((DoubleBlock) result).getDouble(0), closeTo(avg, .0001));
     }
 }

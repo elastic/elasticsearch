@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Eval extends UnaryPlan {
@@ -37,15 +36,37 @@ public class Eval extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        Set<String> fieldNames = fields.stream().map(NamedExpression::name).collect(Collectors.toSet());
-        List<Attribute> childOutput = child().output();
-        List<Attribute> output = new ArrayList<>(childOutput.size() + fields.size());
-        for (Attribute childAttr : childOutput) {
+        return output(fields, child().output());
+    }
+
+    /**
+     * Calculates the actual output of the eval given the eval fields plus other inputs that are emitted as outputs
+     * @param fields the eval fields
+     * @param childOutput the eval input that has to be propagated as output
+     * @return
+     */
+    public static List<Attribute> output(List<? extends NamedExpression> fields, List<? extends NamedExpression> childOutput) {
+        return outputExpressions(fields, childOutput).stream().map(NamedExpression::toAttribute).collect(Collectors.toList());
+    }
+
+    public static List<NamedExpression> outputExpressions(
+        List<? extends NamedExpression> fields,
+        List<? extends NamedExpression> childOutput
+    ) {
+        List<String> fieldNames = Expressions.names(fields);
+        List<NamedExpression> output = new ArrayList<>(childOutput.size() + fields.size());
+        for (NamedExpression childAttr : childOutput) {
             if (fieldNames.contains(childAttr.name()) == false) {
                 output.add(childAttr);
             }
         }
-        output.addAll(Expressions.asAttributes(fields));
+        // do not add duplicate fields multiple times, only last one matters as output
+        for (int i = 0; i < fields.size(); i++) {
+            NamedExpression field = fields.get(i);
+            if (fieldNames.lastIndexOf(field.name()) == i) {
+                output.add(field);
+            }
+        }
         return output;
     }
 

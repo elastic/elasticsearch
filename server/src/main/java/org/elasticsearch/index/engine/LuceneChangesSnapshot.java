@@ -338,7 +338,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             assert singleConsumer : "Sequential access optimization must not be enabled for multiple consumers";
             assert parallelArray.useSequentialStoredFieldsReader;
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
-            storedFieldsReader.visitDocument(segmentDocID, fields);
+            storedFieldsReader.document(segmentDocID, fields);
         } else {
             leaf.reader().document(segmentDocID, fields);
         }

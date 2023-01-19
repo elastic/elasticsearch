@@ -16,12 +16,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -112,5 +116,10 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareObject(EsqlQueryRequest::pragmas, (p, c) -> Settings.builder().loadFromMap(p.map()).build(), PRAGMA_FIELD);
         return parser;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

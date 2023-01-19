@@ -418,14 +418,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) {
+    public RefreshResult refresh(String source) {
         // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
+        return RefreshResult.NO_REFRESH;
     }
 
     @Override
-    public boolean maybeRefresh(String source) throws EngineException {
-        return false;
+    public RefreshResult maybeRefresh(String source) throws EngineException {
+        return RefreshResult.NO_REFRESH;
     }
 
     @Override

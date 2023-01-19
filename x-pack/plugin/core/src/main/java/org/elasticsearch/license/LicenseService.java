@@ -520,17 +520,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
             final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
-            if (logger.isDebugEnabled()) {
-                logger.debug("previous [{}]", prevLicensesMetadata);
-                logger.debug("current [{}]", currentLicensesMetadata);
-            }
             // notify all interested plugins
             if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || prevLicensesMetadata == null) {
                 if (currentLicensesMetadata != null) {
+                    logger.debug("state recovered: previous license [{}]", prevLicensesMetadata);
+                    logger.debug("state recovered: current license [{}]", currentLicensesMetadata);
                     onUpdate(currentLicensesMetadata);
+                } else {
+                    logger.trace("state recovered: no current license");
                 }
             } else if (prevLicensesMetadata.equals(currentLicensesMetadata) == false) {
+                logger.debug("previous [{}]", prevLicensesMetadata);
+                logger.debug("current [{}]", currentLicensesMetadata);
                 onUpdate(currentLicensesMetadata);
+            } else {
+                logger.trace("license unchanged [{}]", currentLicensesMetadata);
             }
 
             License currentLicense = null;

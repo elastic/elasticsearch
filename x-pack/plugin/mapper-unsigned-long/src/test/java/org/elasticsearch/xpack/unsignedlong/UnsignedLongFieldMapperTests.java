@@ -9,13 +9,17 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -27,6 +31,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -327,6 +332,19 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
         );
+    }
+
+    public void testTimeSeriesIndexDefault() throws Exception {
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.values());
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", randomMetricType.toString());
+        }));
+        var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(randomMetricType));
+        assertThat(ft.isIndexed(), is(false));
     }
 
     @Override

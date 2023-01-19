@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -48,6 +49,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -633,12 +635,33 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort nullsum
             | limit 1
             """));
-        var topN = as(optimized, TopNExec.class);
+        var topProject = as(optimized, ProjectExec.class);
+        var topN = as(topProject.child(), TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var topNLocal = as(extract.child(), TopNExec.class);
         var eval = as(topNLocal.child(), EvalExec.class);
+    }
+
+    public void testProjectAfterTopN() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | sort emp_no
+            | project first_name
+            | limit 2
+            """));
+        var topProject = as(optimized, ProjectExec.class);
+        assertEquals(1, topProject.projections().size());
+        assertEquals("first_name", topProject.projections().get(0).name());
+        var topN = as(topProject.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        List<String> projectionNames = project.projections().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertTrue(projectionNames.containsAll(List.of("first_name", "emp_no")));
+        var extract = as(project.child(), FieldExtractExec.class);
+        var topNLocal = as(extract.child(), TopNExec.class);
+        var fieldExtract = as(topNLocal.child(), FieldExtractExec.class);
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

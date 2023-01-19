@@ -254,13 +254,9 @@ public class BroadcastReplicationTests extends ESTestCase {
                 null,
                 actionFilters,
                 indexNameExpressionResolver,
-                null
+                null,
+                ThreadPool.Names.SAME
             );
-        }
-
-        @Override
-        protected ReplicationResponse newShardResponse() {
-            return new ReplicationResponse();
         }
 
         @Override

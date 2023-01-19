@@ -18,11 +18,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class AggregationOperatorTests extends ForkingOperatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(int size) {
+        long max = randomLongBetween(1, Long.MAX_VALUE / size);
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+    }
+
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
         return new AggregationOperator.AggregationOperatorFactory(
@@ -40,7 +47,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected void assertSimpleOutput(int end, List<Page> results) {
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(2));
         assertThat(results.get(0).getPositionCount(), equalTo(1));
@@ -50,8 +57,8 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
         Block avgs = results.get(0).getBlock(0);
         Block maxs = results.get(0).getBlock(1);
-        avg.assertSimpleResult(end, avgs);
-        max.assertSimpleResult(end, maxs);
+        avg.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), avgs);
+        max.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), maxs);
     }
 
     @Override

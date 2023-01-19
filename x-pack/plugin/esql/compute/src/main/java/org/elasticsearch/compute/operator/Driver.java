@@ -11,13 +11,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -26,7 +26,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,13 +40,38 @@ import java.util.stream.Collectors;
  * {@link org.elasticsearch.compute}
  */
 @Experimental
-public class Driver implements Runnable, Releasable {
+public class Driver implements Runnable, Releasable, Describable {
+    public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMillis(200);
 
+    private final Supplier<String> description;
     private final List<Operator> activeOperators;
     private final Releasable releasable;
 
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
+    private final AtomicReference<DriverStatus> status = new AtomicReference<>(new DriverStatus(DriverStatus.Status.QUEUED, List.of()));
+
+    /**
+     * Creates a new driver with a chain of operators.
+     * @param source source operator
+     * @param intermediateOperators  the chain of operators to execute
+     * @param sink sink operator
+     * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
+     */
+    public Driver(
+        Supplier<String> description,
+        SourceOperator source,
+        List<Operator> intermediateOperators,
+        SinkOperator sink,
+        Releasable releasable
+    ) {
+        this.description = description;
+        this.activeOperators = new ArrayList<>();
+        this.activeOperators.add(source);
+        this.activeOperators.addAll(intermediateOperators);
+        this.activeOperators.add(sink);
+        this.releasable = releasable;
+    }
 
     /**
      * Creates a new driver with a chain of operators.
@@ -56,11 +81,7 @@ public class Driver implements Runnable, Releasable {
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
     public Driver(SourceOperator source, List<Operator> intermediateOperators, SinkOperator sink, Releasable releasable) {
-        this.activeOperators = new ArrayList<>();
-        activeOperators.add(source);
-        activeOperators.addAll(intermediateOperators);
-        activeOperators.add(sink);
-        this.releasable = releasable;
+        this(() -> null, source, intermediateOperators, sink, releasable);
     }
 
     /**
@@ -100,7 +121,10 @@ public class Driver implements Runnable, Releasable {
             }
         }
         if (isFinished()) {
+            status.set(new DriverStatus(DriverStatus.Status.DONE, activeOperators));  // Report status for the tasks API
             releasable.close();
+        } else {
+            status.set(new DriverStatus(DriverStatus.Status.RUNNING, activeOperators));  // Report status for the tasks API
         }
         return Operator.NOT_BLOCKED;
     }
@@ -175,49 +199,21 @@ public class Driver implements Runnable, Releasable {
         return Operator.NOT_BLOCKED;
     }
 
-    public static void start(Executor executor, List<Driver> drivers, Consumer<List<Result>> listener) {
-        if (drivers.isEmpty()) {
-            listener.accept(List.of());
-            return;
+    public void cancel() {
+        if (cancelled.compareAndSet(false, true)) {
+            synchronized (this) {
+                ListenableActionFuture<Void> fut = this.blocked.get();
+                if (fut != null) {
+                    fut.onFailure(new TaskCancelledException("cancelled"));
+                }
+            }
         }
-        TimeValue maxTime = TimeValue.timeValueMillis(200);
+    }
+
+    public static void start(Executor executor, Driver driver, ActionListener<Void> listener) {
         int maxIterations = 10000;
-        CountDown counter = new CountDown(drivers.size());
-        AtomicArray<Result> results = new AtomicArray<>(drivers.size());
-
-        for (int d = 0; d < drivers.size(); d++) {
-            int index = d;
-            schedule(maxTime, maxIterations, executor, drivers.get(d), new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    results.setOnce(index, Result.success());
-                    if (counter.countDown()) {
-                        done();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    drivers.stream().forEach(d -> {
-                        synchronized (d) {
-                            d.cancelled.set(true);
-                            ListenableActionFuture<Void> fut = d.blocked.get();
-                            if (fut != null) {
-                                fut.onFailure(new CancellationException());
-                            }
-                        }
-                    });
-                    results.set(index, Result.failure(e));
-                    if (counter.countDown()) {
-                        done();
-                    }
-                }
-
-                private void done() {
-                    listener.accept(results.asList());
-                }
-            });
-        }
+        driver.status.set(new DriverStatus(DriverStatus.Status.STARTING, driver.activeOperators));  // Report status for the tasks API
+        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 
     public static class Result {
@@ -236,11 +232,11 @@ public class Driver implements Runnable, Releasable {
             return result;
         }
 
-        static Result success() {
+        public static Result success() {
             return new Result(null);
         }
 
-        static Result failure(Exception e) {
+        public static Result failure(Exception e) {
             return new Result(e);
         }
 
@@ -305,5 +301,14 @@ public class Driver implements Runnable, Releasable {
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "[activeOperators=" + activeOperators + "]";
+    }
+
+    @Override
+    public String describe() {
+        return description.get();
+    }
+
+    public DriverStatus status() {
+        return status.get();
     }
 }

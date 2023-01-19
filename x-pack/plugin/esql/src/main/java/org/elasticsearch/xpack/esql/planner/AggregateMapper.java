@@ -13,6 +13,8 @@ import org.elasticsearch.compute.aggregation.GroupingCountAggregator;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -41,6 +43,16 @@ class AggregateMapper {
         if (aggregateFunction instanceof Sum) {
             return aggregateFunction.field().dataType().isRational() ? AggregatorFunction.SUM_DOUBLES : AggregatorFunction.SUM_LONGS;
         }
+        if (aggregateFunction instanceof Median) {
+            return aggregateFunction.field().dataType().isRational() ? AggregatorFunction.MEDIAN_DOUBLES : AggregatorFunction.MEDIAN_LONGS;
+        }
+        if (aggregateFunction instanceof MedianAbsoluteDeviation) {
+            if (aggregateFunction.field().dataType().isRational()) {
+                return AggregatorFunction.MEDIAN_ABSOLUTE_DEVIATION_DOUBLES;
+            } else {
+                return AggregatorFunction.MEDIAN_ABSOLUTE_DEVIATION_LONGS;
+            }
+        }
         throw new UnsupportedOperationException("No provider available for aggregate function=" + aggregateFunction);
     }
 
@@ -64,6 +76,14 @@ class AggregateMapper {
             aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.SUM_DOUBLES
                 : GroupingAggregatorFunction.SUM_LONGS;
+        } else if (aggregateFunction instanceof Median) {
+            aggregatorFunc = aggregateFunction.field().dataType().isRational()
+                ? GroupingAggregatorFunction.MEDIAN_DOUBLES
+                : GroupingAggregatorFunction.MEDIAN_LONGS;
+        } else if (aggregateFunction instanceof MedianAbsoluteDeviation) {
+            aggregatorFunc = aggregateFunction.field().dataType().isRational()
+                ? GroupingAggregatorFunction.MEDIAN_ABSOLUTE_DEVIATION_DOUBLES
+                : GroupingAggregatorFunction.MEDIAN_ABSOLUTE_DEVIATION_LONGS;
         } else {
             throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
         }

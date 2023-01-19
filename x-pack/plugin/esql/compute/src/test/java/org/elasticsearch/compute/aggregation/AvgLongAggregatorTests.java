@@ -9,16 +9,25 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class AvgLongAggregatorTests extends AggregatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(int size) {
+        long max = randomLongBetween(1, Long.MAX_VALUE / size);
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+    }
+
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
         return AggregatorFunction.AVG_LONGS;
@@ -30,9 +39,14 @@ public class AvgLongAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    public void assertSimpleResult(int end, Block result) {
-        double expected = LongStream.range(0, end).mapToDouble(Double::valueOf).sum() / end;
-        assertThat(((DoubleBlock) result).getDouble(0), equalTo(expected));
+    public void assertSimpleOutput(List<Block> input, Block result) {
+        long sum = input.stream()
+            .flatMapToLong(
+                b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p)).mapToLong(p -> ((LongBlock) b).getLong(p))
+            )
+            .sum();
+        long count = input.stream().flatMapToInt(b -> IntStream.range(0, b.getPositionCount()).filter(p -> false == b.isNull(p))).count();
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo(((double) sum) / count));
     }
 
     public void testOverflowFails() {

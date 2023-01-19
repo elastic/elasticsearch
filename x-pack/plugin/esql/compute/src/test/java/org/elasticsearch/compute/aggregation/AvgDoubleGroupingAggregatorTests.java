@@ -9,19 +9,22 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
-import java.util.function.Supplier;
+import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class AvgDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new LongDoubleTupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l % 5, (double) l)));
+    protected SourceOperator simpleInput(int size) {
+        return new LongDoubleTupleBlockSourceOperator(
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
+        );
     }
 
     @Override
@@ -35,9 +38,15 @@ public class AvgDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase
     }
 
     @Override
-    public void assertSimpleBucket(Block result, int end, int position, int bucket) {
-        Supplier<LongStream> seq = () -> LongStream.range(0, end).filter(l -> l % 5 == bucket);
-        double expected = seq.get().mapToDouble(Double::valueOf).sum() / seq.get().count();
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(expected));
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+        double[] sum = new double[] { 0 };
+        long[] count = new long[] { 0 };
+        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
+            if (groups.getLong(groupOffset) == group) {
+                sum[0] += ((DoubleBlock) values).getDouble(valueOffset);
+                count[0]++;
+            }
+        });
+        assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum[0] / count[0], 0.001));
     }
 }

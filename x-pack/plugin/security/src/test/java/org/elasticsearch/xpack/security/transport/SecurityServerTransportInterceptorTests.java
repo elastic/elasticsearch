@@ -785,7 +785,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteAccessHeaders = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_7_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteAccessHeaders.minimumCompatibilityVersion(),
+            versionBeforeRemoteAccessHeaders.calculateMinimumCompatVersion(),
             versionBeforeRemoteAccessHeaders
         );
         when(connection.getTransportVersion()).thenReturn(version);

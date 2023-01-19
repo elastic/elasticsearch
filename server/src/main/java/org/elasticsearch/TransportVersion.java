@@ -246,7 +246,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
      */
     @Deprecated
     public TransportVersion minimumCompatibilityVersion() {
-        // assert this.equals(CURRENT) :"Should be CURRENT, but was: "+this ;
+        assert this.equals(CURRENT) : "Should be CURRENT, but was: "+this ;
         return MINIMUM_COMPATIBLE;
     }
 

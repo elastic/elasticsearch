@@ -83,6 +83,9 @@ public class IndexAbstractionResolver {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
+                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
+                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
+                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     finalIndices.add(indexAbstraction);
                 }
             }

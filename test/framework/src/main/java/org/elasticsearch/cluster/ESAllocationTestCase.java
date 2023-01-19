@@ -218,13 +218,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static AllocationDeciders yesAllocationDeciders() {
         return new AllocationDeciders(
-            Arrays.asList(
-                new TestAllocateDecision(Decision.YES),
-                new SameShardAllocationDecider(
-                    Settings.EMPTY,
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                )
-            )
+            Arrays.asList(new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(createBuiltInClusterSettings()))
         );
     }
 
@@ -234,13 +228,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static AllocationDeciders throttleAllocationDeciders() {
         return new AllocationDeciders(
-            Arrays.asList(
-                new TestAllocateDecision(Decision.THROTTLE),
-                new SameShardAllocationDecider(
-                    Settings.EMPTY,
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                )
-            )
+            Arrays.asList(new TestAllocateDecision(Decision.THROTTLE), new SameShardAllocationDecider(createBuiltInClusterSettings()))
         );
     }
 

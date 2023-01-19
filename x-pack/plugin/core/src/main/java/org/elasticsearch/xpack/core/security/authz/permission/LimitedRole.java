@@ -124,9 +124,13 @@ public final class LimitedRole implements Role {
      */
     @Override
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        Predicate<IndexAbstraction> predicate = baseRole.indices().allowedIndicesMatcher(action);
-        predicate = predicate.and(limitedByRole.indices().allowedIndicesMatcher(action));
-        return predicate;
+        // TODO properly generalize this to nested LimitedRole instances
+        final Predicate<IndexAbstraction> predicate = limitedByRole.indices().allowedIndicesMatcher(action);
+        if (baseRole instanceof SimpleRole) {
+            return predicate.and(baseRole.indices().allowedIndicesMatcher(action));
+        } else {
+            return baseRole.allowedIndicesMatcher(action).and(predicate);
+        }
     }
 
     @Override
@@ -168,6 +172,7 @@ public final class LimitedRole implements Role {
         Set<String> checkForPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
+        // TODO generalize this to nested LimitedRole instances
         boolean baseRoleCheck = baseRole.indices()
             .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, resourcePrivilegesMapBuilder);
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
@@ -231,6 +236,7 @@ public final class LimitedRole implements Role {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
+        // TODO generalize this to nested LimitedRole instances (lower priority)
         boolean baseRoleCheck = baseRole.application()
             .checkResourcePrivileges(
                 applicationName,

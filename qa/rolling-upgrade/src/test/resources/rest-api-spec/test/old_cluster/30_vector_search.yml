@@ -38,6 +38,10 @@
           - '{"index": {"_id": "missing_vector"}}'
           - '{}'
   - do:
+      indices.forcemerge:
+        index: test-float-index
+        max_num_segments: 1
+  - do:
       search:
         index: test-float-index
         body:
@@ -134,6 +138,10 @@
           - '{"knn": [3, 1, 1]}'
           - '{"index": {"_id": "missing_vector"}}'
           - '{}'
+  - do:
+      indices.forcemerge:
+        index: test-byte-index
+        max_num_segments: 1
   - do:
       search:
         index: test-byte-index

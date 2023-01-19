@@ -461,7 +461,7 @@ public class IndicesPermissionTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(1, 3);
         List<IndexMetadata> backingIndices = new ArrayList<>();
         for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
-            backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber)));
+            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber)));
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
@@ -526,7 +526,7 @@ public class IndicesPermissionTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(1, 3);
         List<IndexMetadata> backingIndices = new ArrayList<>();
         for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
-            backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName("test_write2", backingIndexNumber)));
+            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName("test_write2", backingIndexNumber)));
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             "test_write2",
@@ -727,16 +727,16 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testResourceAuthorizedPredicateAnd() {
         IndicesPermission.IsResourceAuthorizedPredicate predicate1 = new IndicesPermission.IsResourceAuthorizedPredicate(
-            StringMatcher.of("other", "a"),
-            StringMatcher.of("b", "x")
+            StringMatcher.of("c", "a"),
+            StringMatcher.of("b", "d")
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
-            StringMatcher.of("other", "b"),
-            StringMatcher.of("a", "x")
+            StringMatcher.of("c", "b"),
+            StringMatcher.of("a", "d")
         );
         Metadata.Builder mb = Metadata.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple("a", 1)),
+                List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),
                 List.of(),
                 Instant.now().toEpochMilli(),
                 builder().build(),
@@ -744,8 +744,27 @@ public class IndicesPermissionTests extends ESTestCase {
             ).getMetadata()
         );
         IndexAbstraction.DataStream dataStreamA = new IndexAbstraction.DataStream(mb.dataStream("a"));
-        IndexAbstraction concreteIndexA = new IndexAbstraction.ConcreteIndex(
-            IndexMetadata.builder("a")
+        IndexAbstraction.DataStream dataStreamB = new IndexAbstraction.DataStream(mb.dataStream("b"));
+        IndexAbstraction.DataStream dataStreamC = new IndexAbstraction.DataStream(mb.dataStream("c"));
+        IndexAbstraction.DataStream dataStreamD = new IndexAbstraction.DataStream(mb.dataStream("d"));
+        IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
+        IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
+        IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
+        IndexAbstraction concreteIndexD = concreteIndexAbstraction("d");
+        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
+        assertThat(predicate.test(dataStreamA), is(false));
+        assertThat(predicate.test(dataStreamB), is(false));
+        assertThat(predicate.test(dataStreamC), is(true));
+        assertThat(predicate.test(dataStreamD), is(false));
+        assertThat(predicate.test(concreteIndexA), is(true));
+        assertThat(predicate.test(concreteIndexB), is(true));
+        assertThat(predicate.test(concreteIndexC), is(true));
+        assertThat(predicate.test(concreteIndexD), is(true));
+    }
+
+    private static IndexAbstraction concreteIndexAbstraction(String name) {
+        return new IndexAbstraction.ConcreteIndex(
+            IndexMetadata.builder(name)
                 .settings(
                     Settings.builder()
                         .put(SETTING_NUMBER_OF_SHARDS, 1)
@@ -754,12 +773,9 @@ public class IndicesPermissionTests extends ESTestCase {
                 )
                 .build()
         );
-        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
-        assertThat(predicate.test(dataStreamA), is(false));
-        assertThat(predicate.test(concreteIndexA), is(true));
     }
 
-    private static IndexMetadata createIndexMetadata(String name) {
+    private static IndexMetadata createBackingIndexMetadata(String name) {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.hidden", true);

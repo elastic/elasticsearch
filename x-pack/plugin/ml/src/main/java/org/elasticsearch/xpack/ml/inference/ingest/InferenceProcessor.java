@@ -355,7 +355,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedVersion(),
+                        config.getMinimalSupportedNodeVersion(),
                         minNodeVersion
                     )
                 );

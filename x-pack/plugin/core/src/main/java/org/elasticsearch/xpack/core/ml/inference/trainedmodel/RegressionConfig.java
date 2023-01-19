@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -20,7 +20,7 @@ import java.util.Objects;
 public class RegressionConfig implements LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig {
 
     public static final ParseField NAME = new ParseField("regression");
-    private static final TransportVersion MIN_SUPPORTED_VERSION = TransportVersion.V_7_6_0;
+    private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
     public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
@@ -134,8 +134,8 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return requestingImportance() ? TransportVersion.V_7_7_0 : MIN_SUPPORTED_VERSION;
+    public Version getMinimalSupportedNodeVersion() {
+        return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }
 
     public static Builder builder() {

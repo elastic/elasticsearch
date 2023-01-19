@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
@@ -1294,6 +1295,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     settings,
                     new BatchedRerouteService(clusterService, allocationService::reroute),
                     clusterService,
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
                     threadPool
                 );
 

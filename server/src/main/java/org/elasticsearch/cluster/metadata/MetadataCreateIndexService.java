@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -504,7 +505,13 @@ public class MetadataCreateIndexService {
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
 
-            ClusterState updated = clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, metadataTransformer);
+            ClusterState updated = clusterStateCreateIndex(
+                currentState,
+                request.blocks(),
+                indexMetadata,
+                metadataTransformer,
+                allocationService.getShardRoutingRoleStrategy()
+            );
             if (request.performReroute()) {
                 updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
             }
@@ -1219,7 +1226,8 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         Set<ClusterBlock> clusterBlocks,
         IndexMetadata indexMetadata,
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         final Metadata newMetadata;
         if (metadataTransformer != null) {
@@ -1236,7 +1244,7 @@ public class MetadataCreateIndexService {
 
         ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, updatedState.routingTable())
             .addAsNew(updatedState.metadata().index(indexName));
         return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
     }

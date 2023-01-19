@@ -12,10 +12,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -23,7 +25,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
 
-    public void testVersionComparison() throws Exception {
+    public void testVersionComparison() {
         TransportVersion V_7_2_0 = TransportVersion.V_7_2_0;
         TransportVersion V_8_0_0 = TransportVersion.V_8_0_0;
         assertThat(V_7_2_0.before(V_8_0_0), is(true));
@@ -49,6 +51,33 @@ public class TransportVersionTests extends ESTestCase {
 
     private static String padNumber(String number) {
         return number.length() == 1 ? "0" + number : number;
+    }
+
+    public static class CorrectFakeVersion {
+        public static final TransportVersion V1 = new TransportVersion(1, "1");
+        public static final TransportVersion V2 = new TransportVersion(2, "2");
+        public static final TransportVersion V3 = new TransportVersion(3, "3");
+    }
+
+    public static class DuplicatedIdFakeVersion {
+        public static final TransportVersion V1 = new TransportVersion(1, "1");
+        public static final TransportVersion V2 = new TransportVersion(2, "2");
+        public static final TransportVersion V3 = new TransportVersion(2, "3");
+    }
+
+    public static class DuplicatedStringIdFakeVersion {
+        public static final TransportVersion V1 = new TransportVersion(1, "1");
+        public static final TransportVersion V2 = new TransportVersion(2, "2");
+        public static final TransportVersion V3 = new TransportVersion(3, "2");
+    }
+
+    public void testStaticTransportVersionChecks() {
+        assertThat(
+            TransportVersion.getAllVersionIds(CorrectFakeVersion.class),
+            equalTo(Map.of(1, CorrectFakeVersion.V1, 2, CorrectFakeVersion.V2, 3, CorrectFakeVersion.V3))
+        );
+        expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class));
     }
 
     public void testDefinedConstants() throws IllegalAccessException {

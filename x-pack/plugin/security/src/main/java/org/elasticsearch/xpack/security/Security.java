@@ -263,6 +263,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestIn
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
@@ -868,7 +869,8 @@ public class Security extends Plugin
                     new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
+                    new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState())
                 )
             );
         }

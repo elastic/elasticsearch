@@ -155,14 +155,12 @@ public class TransportVersion implements Comparable<TransportVersion> {
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
-    private static final NavigableMap<Integer, TransportVersion> VERSION_IDS;
-
-    static {
+    static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
         Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
-        for (Field declaredField : TransportVersion.class.getFields()) {
+        for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
                 if (ignore.contains(fieldName)) {
@@ -182,13 +180,19 @@ public class TransportVersion implements Comparable<TransportVersion> {
                             + " and "
                             + sameUniqueId
                             + " have the same unique id. Each TransportVersion should have a different unique id";
-
                 } catch (IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 }
             }
         }
-        VERSION_IDS = Collections.unmodifiableNavigableMap(builder);
+
+        return Collections.unmodifiableNavigableMap(builder);
+    }
+
+    private static final NavigableMap<Integer, TransportVersion> VERSION_IDS;
+
+    static {
+        VERSION_IDS = getAllVersionIds(TransportVersion.class);
     }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
@@ -220,6 +224,13 @@ public class TransportVersion implements Comparable<TransportVersion> {
      */
     public static TransportVersion max(TransportVersion version1, TransportVersion version2) {
         return version1.id > version2.id ? version1 : version2;
+    }
+
+    /**
+     * returns a sorted collection of declared transport version constants
+     */
+    public static Collection<TransportVersion> getAllVersions() {
+        return VERSION_IDS.values();
     }
 
     public final int id;
@@ -277,13 +288,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
     @Override
     public int compareTo(TransportVersion other) {
         return Integer.compare(this.id, other.id);
-    }
-
-    /**
-     * returns a sorted collection of declared transport version constants
-     */
-    public static Collection<TransportVersion> getAllVersions() {
-        return VERSION_IDS.values();
     }
 
     @Override

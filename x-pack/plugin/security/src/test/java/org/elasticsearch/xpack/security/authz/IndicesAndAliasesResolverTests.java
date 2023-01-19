@@ -2183,6 +2183,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
         DataStream dataStream = metadata.dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
+        // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
+        assertThat(authorizedIndices.check(indexName), is(true));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
@@ -2243,7 +2245,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
         DataStream dataStream = metadata.dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
-        // request pattern is subset of the authorized pattern
+        // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
         assertThat(authorizedIndices.check(indexName), is(true));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));

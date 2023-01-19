@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -55,6 +57,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
     TransportNodesListGatewayStartedShards.NodeRequest,
     TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+
+    private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);

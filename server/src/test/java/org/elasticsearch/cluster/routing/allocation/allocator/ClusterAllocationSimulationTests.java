@@ -63,6 +63,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_RO
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
@@ -473,10 +474,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
     ) {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createBuiltInClusterSettings(),
             new BalancedShardsAllocator(
-                Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 TEST_WRITE_LOAD_FORECASTER
             ),

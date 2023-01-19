@@ -52,13 +52,11 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -176,16 +174,6 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
                             Lucene.cleanLuceneIndex(store.directory());
                             // TODO Download files from object store here and only create an empty store if no blobs are downloaded
                             store.createEmpty();
-                            // not required but avoid annoying warnings in logs
-                            final String translogUUID = Translog.createEmptyTranslog(
-                                indexShard.shardPath().resolveTranslog(),
-                                indexShard.shardId(),
-                                SequenceNumbers.NO_OPS_PERFORMED,
-                                indexShard.getPendingPrimaryTerm(),
-                                "_na_",
-                                null
-                            );
-                            store.associateIndexWithNewTranslog(translogUUID);
                         } catch (IOException e) {
                             throw new UncheckedIOException("Failed to create empty Lucene index", e);
                         } finally {

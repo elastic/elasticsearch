@@ -135,8 +135,8 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareBytesRef() {
-        Block b1 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
-        Block b2 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
+        Block b1 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("bye")).build();
+        Block b2 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
         assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b1, b1));
         assertEquals(0, compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), b2, b2));
 
@@ -149,7 +149,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testCompareWithIncompatibleTypes() {
         Block i1 = IntBlock.newBlockBuilder(1).appendInt(randomInt()).build();
         Block l1 = LongBlock.newBlockBuilder(1).appendLong(randomLong()).build();
-        Block b1 = BytesRefBlock.newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
+        Block b1 = BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("hello")).build();
         IllegalStateException error = expectThrows(
             IllegalStateException.class,
             () -> TopNOperator.compareFirstPositionsOfBlocks(randomBoolean(), randomBoolean(), randomFrom(i1, l1), b1)

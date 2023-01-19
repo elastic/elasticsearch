@@ -242,7 +242,7 @@ public abstract class BlockDocValuesReader {
         @Override
         public Block readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(positionCount);
+            var blockBuilder = BytesRefBlock.newBlockBuilder(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);

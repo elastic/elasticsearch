@@ -67,7 +67,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testSmallSingleValueDenseGrowthBytesRef() {
         final BytesRef NULL_VALUE = new BytesRef();
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(initialSize);
+            var blockBuilder = BytesRefBlock.newBlockBuilder(initialSize);
             IntStream.range(0, 10).mapToObj(i -> NULL_VALUE).forEach(blockBuilder::appendBytesRef);
             assertSingleValueDenseBlock(blockBuilder.build());
         }
@@ -274,7 +274,7 @@ public class BasicBlockTests extends ESTestCase {
         BytesRefBlock block;
         if (randomBoolean()) {
             final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(builderEstimateSize);
+            var blockBuilder = BytesRefBlock.newBlockBuilder(builderEstimateSize);
             Arrays.stream(values).map(obj -> randomBoolean() ? obj : BytesRef.deepCopyOf(obj)).forEach(blockBuilder::appendBytesRef);
             block = blockBuilder.build();
         } else {
@@ -296,7 +296,7 @@ public class BasicBlockTests extends ESTestCase {
         if (positionCount > 1) {
             assertNullValues(
                 positionCount,
-                size -> BytesRefBlock.newBytesRefBlockBuilder(size),
+                size -> BytesRefBlock.newBlockBuilder(size),
                 (bb, value) -> bb.appendBytesRef(value),
                 position -> values[position],
                 BytesRefBlock.Builder::build,
@@ -311,7 +311,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testBytesRefBlockBuilderWithNulls() {
         int positionCount = randomIntBetween(0, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(builderEstimateSize);
+        var blockBuilder = BytesRefBlock.newBlockBuilder(builderEstimateSize);
         BytesRef[] values = new BytesRef[positionCount];
         for (int i = 0; i < positionCount; i++) {
             if (randomBoolean()) {
@@ -354,7 +354,7 @@ public class BasicBlockTests extends ESTestCase {
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
             BytesRefBlock block;
             if (randomBoolean()) {
-                block = BytesRefBlock.newConstantBytesRefBlockWith(value, positionCount);
+                block = BytesRefBlock.newConstantBlockWith(value, positionCount);
             } else {
                 block = new ConstantBytesRefVector(value, positionCount).asBlock();
             }

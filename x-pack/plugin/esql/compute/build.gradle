@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.string-templates'
 
 dependencies {
   compileOnly project(':server')
@@ -12,6 +13,12 @@ tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
 }
 
+tasks.named('checkstyleMain').configure {
+  source = "src/main/java"
+}
+
+spotlessJava.dependsOn stringTemplates
+
 spotless {
   java {
     /*
@@ -19,4 +26,210 @@ spotless {
      */
     targetExclude 'src/main/generated/**/*.java'
   }
+}
+
+tasks.named('stringTemplates').configure {
+  var intProperties      = ["Type" : "Int",      "type" : "int",      "TYPE" : "INT",       "int" : "true", "BytesRef" : ""]
+  var longProperties     = ["Type" : "Long",     "type" : "long",     "TYPE" : "LONG",      "int" : "",     "BytesRef" : ""]
+  var doubleProperties   = ["Type" : "Double",   "type" : "double",   "TYPE" : "DOUBLE",    "int" : "",     "BytesRef" : ""]
+  var bytesRefProperties = ["Type" : "BytesRef", "type" : "BytesRef", "TYPE" : "BYTES_REF", "int" : "",     "BytesRef" : "true"]
+  // primitive vectors
+  File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  vectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntVector.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  vectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongVector.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  vectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleVector.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  vectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefVector.java"
+  }
+  // array vector implementations
+  File arrayVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-ArrayVector.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  arrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntArrayVector.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  arrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongArrayVector.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  arrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleArrayVector.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  arrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefArrayVector.java"
+  }
+  //  filter vectors
+  File filterVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterVector.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  filterVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterIntVector.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  filterVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterLongVector.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  filterVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleVector.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  filterVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterBytesRefVector.java"
+  }
+  // constant vectors
+  File constantVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-ConstantVector.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  constantVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/ConstantIntVector.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  constantVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/ConstantLongVector.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  constantVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/ConstantDoubleVector.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  constantVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/ConstantBytesRefVector.java"
+  }
+  // primitive blocks
+  File blockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Block.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  blockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  blockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  blockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleBlock.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  blockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefBlock.java"
+  }
+  // array blocks
+  File arrayBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-ArrayBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  arrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntArrayBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  arrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongArrayBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  arrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleArrayBlock.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  arrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefArrayBlock.java"
+  }
+  // filter blocks
+  File filterBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  filterBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterIntBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  filterBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterLongBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  filterBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleBlock.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  filterBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterBytesRefBlock.java"
+  }
+  // vector blocks
+  File vectorBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  vectorBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntVectorBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  vectorBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongVectorBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  vectorBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleVectorBlock.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  vectorBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefVectorBlock.java"
+  }
+  // block builders
+  File blockBuildersInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-BlockBuilder.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  blockBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntBlockBuilder.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  blockBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongBlockBuilder.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  blockBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleBlockBuilder.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  blockBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefBlockBuilder.java"
+  }
+
 }

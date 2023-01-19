@@ -226,7 +226,7 @@ public class OrdinalsGroupingOperator implements Operator {
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
             // Use NON_RECYCLING_INSTANCE as we don't have a lifecycle for pages/block yet
             // keys = new BytesRefArray(1, BigArrays.NON_RECYCLING_INSTANCE);
-            var blockBuilder = BytesRefBlock.newBytesRefBlockBuilder(1);
+            var blockBuilder = BytesRefBlock.newBlockBuilder(1);
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
                 if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {

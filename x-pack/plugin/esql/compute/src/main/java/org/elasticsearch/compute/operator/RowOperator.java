@@ -65,7 +65,7 @@ public class RowOperator extends SourceOperator {
             } else if (object instanceof Double doubleVal) {
                 blocks[i] = DoubleBlock.newConstantBlockWith(doubleVal, 1);
             } else if (object instanceof String stringVal) {
-                blocks[i] = BytesRefBlock.newConstantBytesRefBlockWith(new BytesRef(stringVal), 1);
+                blocks[i] = BytesRefBlock.newConstantBlockWith(new BytesRef(stringVal), 1);
             } else if (object == null) {
                 blocks[i] = Block.constantNullBlock(1);
             } else {

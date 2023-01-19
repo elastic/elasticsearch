@@ -44,10 +44,10 @@ public class BlockBuilderTests extends ESTestCase {
 
     public void testAllNullsBytesRef() {
         for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
-            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(0), numEntries);
-            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(100), numEntries);
-            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(1000), numEntries);
-            testAllNullsImpl(BytesRefBlock.newBytesRefBlockBuilder(randomIntBetween(0, 100)), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBlockBuilder(0), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBlockBuilder(100), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBlockBuilder(1000), numEntries);
+            testAllNullsImpl(BytesRefBlock.newBlockBuilder(randomIntBetween(0, 100)), numEntries);
         }
     }
 

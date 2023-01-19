@@ -48,7 +48,7 @@ public class BlockHashTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testBasicBytesRefHash() {
-        var builder = BytesRefBlock.newBytesRefBlockBuilder(8);
+        var builder = BytesRefBlock.newBlockBuilder(8);
         builder.appendBytesRef(new BytesRef("item-2"));
         builder.appendBytesRef(new BytesRef("item-1"));
         builder.appendBytesRef(new BytesRef("item-4"));

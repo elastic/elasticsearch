@@ -382,13 +382,12 @@ public class ClusterModule extends AbstractModule {
         WriteLoadForecaster writeLoadForecaster
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster));
+        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
-                settings,
                 clusterSettings,
-                new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster),
+                new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,
                 reconciler

@@ -586,12 +586,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
         final String missingRepoName = "missing";
-        createRepository(missingRepoName, "fs");
 
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(1, 10));
         snapshotNames.sort(String::compareTo);
-
-        deleteRepository(missingRepoName);
 
         final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName)
             .setSort(GetSnapshotsRequest.SortBy.NAME)

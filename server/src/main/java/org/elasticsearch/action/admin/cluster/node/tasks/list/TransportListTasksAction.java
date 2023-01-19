@@ -138,9 +138,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.MANAGEMENT, allMatchedTasksRemovedListener, false)
                 );
                 var cancellable = threadPool.schedule(
-                    () -> future.onFailure(
-                        new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")
-                    ),
+                    () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
                     requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                     ThreadPool.Names.SAME
                 );

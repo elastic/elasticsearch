@@ -7,6 +7,7 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -22,11 +23,14 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -217,7 +221,17 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -246,6 +260,16 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         @Override
         public Fields getTermVectors(int docId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TermVectors termVectors() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
             throw new UnsupportedOperationException();
         }
 

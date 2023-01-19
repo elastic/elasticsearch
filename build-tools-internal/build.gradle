@@ -336,6 +336,10 @@ tasks.register("bootstrapPerformanceTests", Copy) {
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
 }
 
+tasks.named("jar") {
+  exclude("classpath.index")
+}
+
 def resolveMainWrapperVersion() {
   new URL("https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }

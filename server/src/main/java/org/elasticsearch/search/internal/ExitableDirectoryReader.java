@@ -173,7 +173,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private final QueryCancellation queryCancellation;
 
-        private ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
+        ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
             super(terms);
             this.queryCancellation = queryCancellation;
         }
@@ -186,6 +186,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public TermsEnum iterator() throws IOException {
             return new ExitableTermsEnum(in.iterator(), queryCancellation);
+        }
+
+        @Override
+        public BytesRef getMin() throws IOException {
+            return in.getMin();
+        }
+
+        @Override
+        public BytesRef getMax() throws IOException {
+            return in.getMax();
         }
     }
 

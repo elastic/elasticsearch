@@ -1,5 +1,0 @@
-pr: 90822
-summary: Fix handling empty key case in the terms aggregation
-area: Mapping
-type: bug
-issues: []

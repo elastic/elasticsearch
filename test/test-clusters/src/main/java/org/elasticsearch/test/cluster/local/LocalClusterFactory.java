@@ -75,7 +75,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         private final LocalNodeSpec spec;
         private final Path workingDir;
         private final Path distributionDir;
-        private final Path snapshotsDir;
+        private final Path repoDir;
         private final Path dataDir;
         private final Path logsDir;
         private final Path configDir;
@@ -89,7 +89,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.spec = spec;
             this.workingDir = baseWorkingDir.resolve(spec.getCluster().getName()).resolve(spec.getName());
             this.distributionDir = workingDir.resolve("distro"); // location of es distribution files, typically hard-linked
-            this.snapshotsDir = workingDir.resolve("repo");
+            this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
             this.configDir = workingDir.resolve("config");
@@ -204,7 +204,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     IOUtils.deleteWithRetry(distributionDir);
                     IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
-                Files.createDirectories(snapshotsDir);
+                Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
                 Files.createDirectories(logsDir);
                 Files.createDirectories(tempDir);
@@ -226,14 +226,16 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
             try {
                 // Write settings to elasticsearch.yml
-                Map<String, String> pathSettings = new HashMap<>();
-                pathSettings.put("path.repo", workingDir.resolve("repo").toString());
-                pathSettings.put("path.data", workingDir.resolve("data").toString());
-                pathSettings.put("path.logs", workingDir.resolve("logs").toString());
+                Map<String, String> finalSettings = new HashMap<>();
+                finalSettings.put("path.repo", repoDir.toString());
+                finalSettings.put("path.data", dataDir.toString());
+                finalSettings.put("path.logs", logsDir.toString());
+                finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(
                     configFile,
-                    Stream.concat(spec.resolveSettings().entrySet().stream(), pathSettings.entrySet().stream())
+                    finalSettings.entrySet()
+                        .stream()
                         .map(entry -> entry.getKey() + ": " + entry.getValue())
                         .collect(Collectors.joining("\n")),
                     StandardOpenOption.TRUNCATE_EXISTING,

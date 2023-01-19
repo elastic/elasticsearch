@@ -26,6 +26,11 @@
       ]
     },
     "params":{
+      "from":{
+        "type":"string",
+        "required":false,
+        "description":"Restricts the set of transformed entities to those changed after this time"
+      },
       "timeout":{
         "type":"time",
         "required":false,

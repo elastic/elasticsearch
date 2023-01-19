@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
@@ -155,7 +156,8 @@ public class ClusterStateChanges {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
@@ -397,7 +399,7 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason");
+    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(

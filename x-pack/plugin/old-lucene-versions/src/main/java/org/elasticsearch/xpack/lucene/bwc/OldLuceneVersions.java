@@ -18,9 +18,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
@@ -99,7 +101,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
         if (DiscoveryNode.isMasterNode(environment.settings())) {
@@ -191,7 +193,17 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             // clean older segments file
             Lucene.pruneUnreferencedFiles(segmentInfos.getSegmentsFileName(), indexShard.store().directory());
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException(
+                Strings.format(
+                    """
+                        Elasticsearch version [{}] has limited support for indices created in version [{}] but this index could not be \
+                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
+                    Version.CURRENT,
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
+                    ReferenceDocs.ARCHIVE_INDICES
+                ),
+                e
+            );
         } finally {
             indexShard.store().decRef();
         }

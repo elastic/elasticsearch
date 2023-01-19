@@ -90,11 +90,11 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         void onKnnVectorsUsed(String field);
     }
 
-    public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
+    static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
 
         private final FieldUsageNotifier notifier;
 
-        public FieldUsageTrackingLeafReader(LeafReader in, FieldUsageNotifier notifier) {
+        FieldUsageTrackingLeafReader(LeafReader in, FieldUsageNotifier notifier) {
             super(in);
             this.notifier = notifier;
         }
@@ -248,7 +248,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
         }
 
-        private class FieldUsageTrackingTerms extends FilterTerms {
+        class FieldUsageTrackingTerms extends FilterTerms {
 
             private final String field;
 
@@ -285,6 +285,16 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long getSumDocFreq() throws IOException {
                 return in.getSumDocFreq();
+            }
+
+            @Override
+            public BytesRef getMin() throws IOException {
+                return in.getMin();
+            }
+
+            @Override
+            public BytesRef getMax() throws IOException {
+                return in.getMax();
             }
         }
 

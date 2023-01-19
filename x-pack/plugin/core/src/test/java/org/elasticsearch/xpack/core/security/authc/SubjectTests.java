@@ -169,7 +169,7 @@ public class SubjectTests extends ESTestCase {
         );
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
-//        roleReferenceIntersection.buildRole();
+        // roleReferenceIntersection.buildRole();
     }
 
     public void testGetRoleReferencesForApiKeyBwc() {

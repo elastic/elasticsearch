@@ -141,7 +141,7 @@ public final class VersionsAndSeqNoResolver {
         long prevMaxTimestamp = Long.MAX_VALUE;
         for (final LeafReaderContext leaf : leaves) {
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            assert prevMaxTimestamp > lookup.maxTimestamp;
+            assert prevMaxTimestamp >= lookup.maxTimestamp;
             if (timestamp < lookup.minTimestamp) {
                 continue;
             }

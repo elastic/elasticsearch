@@ -10,6 +10,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.compute.ann;
+    requires org.elasticsearch.xcontent;
     requires t.digest;
 
     exports org.elasticsearch.compute;

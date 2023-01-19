@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
  */
 @Experimental
 public class Driver implements Runnable, Releasable, Describable {
+    public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMillis(200);
 
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
@@ -48,6 +49,7 @@ public class Driver implements Runnable, Releasable, Describable {
 
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
+    private final AtomicReference<DriverStatus> status = new AtomicReference<>(new DriverStatus(DriverStatus.Status.QUEUED, List.of()));
 
     /**
      * Creates a new driver with a chain of operators.
@@ -65,9 +67,9 @@ public class Driver implements Runnable, Releasable, Describable {
     ) {
         this.description = description;
         this.activeOperators = new ArrayList<>();
-        activeOperators.add(source);
-        activeOperators.addAll(intermediateOperators);
-        activeOperators.add(sink);
+        this.activeOperators.add(source);
+        this.activeOperators.addAll(intermediateOperators);
+        this.activeOperators.add(sink);
         this.releasable = releasable;
     }
 
@@ -119,7 +121,10 @@ public class Driver implements Runnable, Releasable, Describable {
             }
         }
         if (isFinished()) {
+            status.set(new DriverStatus(DriverStatus.Status.DONE, activeOperators));  // Report status for the tasks API
             releasable.close();
+        } else {
+            status.set(new DriverStatus(DriverStatus.Status.RUNNING, activeOperators));  // Report status for the tasks API
         }
         return Operator.NOT_BLOCKED;
     }
@@ -206,9 +211,9 @@ public class Driver implements Runnable, Releasable, Describable {
     }
 
     public static void start(Executor executor, Driver driver, ActionListener<Void> listener) {
-        TimeValue maxTime = TimeValue.timeValueMillis(200);
         int maxIterations = 10000;
-        schedule(maxTime, maxIterations, executor, driver, listener);
+        driver.status.set(new DriverStatus(DriverStatus.Status.STARTING, driver.activeOperators));  // Report status for the tasks API
+        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 
     public static class Result {
@@ -301,5 +306,9 @@ public class Driver implements Runnable, Releasable, Describable {
     @Override
     public String describe() {
         return description.get();
+    }
+
+    public DriverStatus status() {
+        return status.get();
     }
 }

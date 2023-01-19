@@ -8,10 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Operator is low-level building block that consumes, transforms and produces data.
@@ -60,6 +62,13 @@ public interface Operator extends Releasable {
     void close();
 
     /**
+     * The status of the operator.
+     */
+    default Status status() {
+        return null;
+    }
+
+    /**
      * An operator can be blocked on some action (e.g. waiting for some resources to become available).
      * If so, it returns a future that completes when the operator becomes unblocked.
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
@@ -84,4 +93,6 @@ public interface Operator extends Releasable {
         /** Creates a new intermediate operator. */
         Operator get();
     }
+
+    interface Status extends ToXContentObject, NamedWriteable {}
 }

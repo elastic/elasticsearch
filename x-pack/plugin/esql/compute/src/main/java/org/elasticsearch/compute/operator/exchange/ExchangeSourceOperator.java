@@ -8,9 +8,16 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
@@ -20,6 +27,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     private final ExchangeSource source;
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
+    private int pagesEmitted;
 
     public record ExchangeSourceOperatorFactory(Exchange exchange) implements SourceOperatorFactory {
 
@@ -40,6 +48,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public Page getOutput() {
+        pagesEmitted++;
         return source.removePage();
     }
 
@@ -67,5 +76,63 @@ public class ExchangeSourceOperator extends SourceOperator {
     @Override
     public void close() {
         source.close();
+    }
+
+    @Override
+    public String toString() {
+        return "ExchangeSourceOperator";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(this);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "exchange_source",
+            Status::new
+        );
+
+        private final int pagesWaiting;
+        private final int pagesEmitted;
+
+        private Status(ExchangeSourceOperator operator) {
+            pagesWaiting = operator.source.bufferSize();
+            pagesEmitted = operator.pagesEmitted;
+        }
+
+        private Status(StreamInput in) throws IOException {
+            pagesWaiting = in.readVInt();
+            pagesEmitted = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(pagesWaiting);
+            out.writeVInt(pagesEmitted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public int pagesWaiting() {
+            return pagesWaiting;
+        }
+
+        public int pagesEmitted() {
+            return pagesEmitted;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_waiting", pagesWaiting);
+            builder.field("pages_emitted", pagesEmitted);
+            return builder.endObject();
+        }
     }
 }

@@ -117,6 +117,11 @@ public abstract class BlockDocValuesReader {
         public int docID() {
             return numericDocValues.docID();
         }
+
+        @Override
+        public String toString() {
+            return "LongSingletonValuesReader";
+        }
     }
 
     private static class LongValuesReader extends BlockDocValuesReader {
@@ -157,6 +162,11 @@ public abstract class BlockDocValuesReader {
             // There is a .docID on on the numericDocValues but it is often not implemented.
             return docID;
         }
+
+        @Override
+        public String toString() {
+            return "LongValuesReader";
+        }
     }
 
     private static class DoubleSingletonValuesReader extends BlockDocValuesReader {
@@ -192,6 +202,11 @@ public abstract class BlockDocValuesReader {
         @Override
         public int docID() {
             return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "DoubleSingletonValuesReader";
         }
     }
 
@@ -231,6 +246,11 @@ public abstract class BlockDocValuesReader {
         @Override
         public int docID() {
             return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "DoubleValuesReader";
         }
     }
 
@@ -273,6 +293,11 @@ public abstract class BlockDocValuesReader {
         @Override
         public int docID() {
             return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "BytesValuesReader";
         }
     }
 }

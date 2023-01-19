@@ -104,5 +104,10 @@ public class EsqlComputeEngineAction extends ActionType<ActionResponse.Empty> {
         public String getDescription() {
             return driver.describe();
         }
+
+        @Override
+        public Status getStatus() {
+            return driver.status();
+        }
     }
 }

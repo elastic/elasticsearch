@@ -17,13 +17,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,6 +70,7 @@ public class LuceneSourceOperator extends SourceOperator {
     private IntBlock.Builder currentBlockBuilder;
 
     private int currentScorerPos;
+    private int pagesEmitted;
 
     public static class LuceneSourceOperatorFactory implements SourceOperatorFactory {
 
@@ -338,6 +344,7 @@ public class LuceneSourceOperator extends SourceOperator {
             throw new UncheckedIOException(e);
         }
 
+        pagesEmitted++;
         return page;
     }
 
@@ -382,5 +389,82 @@ public class LuceneSourceOperator extends SourceOperator {
         sb.append("shardId=").append(shardId);
         sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new Status(this);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "lucene_source",
+            Status::new
+        );
+
+        private final int currentLeaf;
+        private final int totalLeaves;
+        private final int pagesEmitted;
+        private final int leafPosition;
+        private final int leafSize;
+
+        private Status(LuceneSourceOperator operator) {
+            currentLeaf = operator.currentLeaf;
+            totalLeaves = operator.leaves.size();
+            leafPosition = operator.currentScorerPos;
+            PartialLeafReaderContext ctx = operator.currentLeafReaderContext;
+            leafSize = ctx == null ? 0 : ctx.maxDoc - ctx.minDoc;
+            pagesEmitted = operator.pagesEmitted;
+        }
+
+        private Status(StreamInput in) throws IOException {
+            currentLeaf = in.readVInt();
+            totalLeaves = in.readVInt();
+            leafPosition = in.readVInt();
+            leafSize = in.readVInt();
+            pagesEmitted = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(currentLeaf);
+            out.writeVInt(totalLeaves);
+            out.writeVInt(leafPosition);
+            out.writeVInt(leafSize);
+            out.writeVInt(pagesEmitted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public int currentLeaf() {
+            return currentLeaf;
+        }
+
+        public int totalLeaves() {
+            return totalLeaves;
+        }
+
+        public int leafSize() {
+            return leafSize;
+        }
+
+        public int leafPosition() {
+            return leafPosition;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("current_leaf", currentLeaf);
+            builder.field("total_leaves", totalLeaves);
+            builder.field("leaf_position", leafPosition);
+            builder.field("leaf_size", leafSize);
+            builder.field("pages_emitted", pagesEmitted);
+            return builder.endObject();
+        }
     }
 }

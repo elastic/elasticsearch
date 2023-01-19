@@ -151,10 +151,6 @@ public class AuthenticationService {
         );
         context.addAuthenticationToken(authenticationToken);
 
-        // Once we've read the remote access headers, we should remove them. We want to maintain the invariant that we either have
-        // remote access headers or an authentication instance in the thread context but not both. Below, if authc succeeds, we will
-        // write authentication to the context; therefore, we should pre-emptively remove the remote access headers here
-        // TODO stash without restore instead?
         threadContext.removeRemoteAccessHeaders();
         authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
             final String auditId = AuditUtil.extractRequestId(threadContext);
@@ -177,7 +173,7 @@ public class AuthenticationService {
                 }
                 final Map<String, Object> authMetadata = new HashMap<>(authentication.getAuthenticatingSubject().getMetadata());
                 authMetadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, roleDescriptorsBytesList);
-                authMetadata.put("_received_authentication", receivedAuthentication.encode());
+                // will also store receivedAuthentication in auth metadata
                 authenticatorChain.finishAuthentication(
                     context,
                     Authentication.newRemoteAccessAuthentication(

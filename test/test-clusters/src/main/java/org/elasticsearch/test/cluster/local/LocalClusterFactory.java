@@ -109,7 +109,6 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
                 initializeWorkingDirectory(currentVersion != null);
-                initializeWorkingDirectory();
                 copyExtraJarFiles();
                 installPlugins();
                 if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
@@ -370,6 +369,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     file.writeTo(path);
 
                     ProcessUtils.exec(
+                        spec.getKeystorePassword(),
                         workingDir,
                         OS.conditional(
                             c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))

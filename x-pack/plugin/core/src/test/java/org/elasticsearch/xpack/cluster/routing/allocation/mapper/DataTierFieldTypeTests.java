@@ -20,7 +20,8 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,14 +89,14 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testFetchValue() throws IOException {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        SourceLookup lookup = new SourceLookup(new SourceLookup.NullSourceProvider());
+        Source source = Source.empty(XContentType.JSON);
 
         List<Object> ignoredValues = new ArrayList<>();
         ValueFetcher valueFetcher = ft.valueFetcher(createContext(), null);
-        assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup, -1, ignoredValues));
+        assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(source, -1, ignoredValues));
 
         ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
-        assertTrue(emptyValueFetcher.fetchValues(lookup, -1, ignoredValues).isEmpty());
+        assertTrue(emptyValueFetcher.fetchValues(source, -1, ignoredValues).isEmpty());
     }
 
     private SearchExecutionContext createContext() {

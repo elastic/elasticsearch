@@ -427,8 +427,10 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 ctx
             ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit((Boolean) foo);
                     }
                 }
@@ -441,8 +443,10 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 ctx
             ) {
                 @Override
+                @SuppressWarnings("unchecked")
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
                         emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
                     }
                 }

@@ -1097,7 +1097,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
-            if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
+            if (changeCollector != null) {
                 QueryBuilder filter = changeCollector.buildFilterQuery(lastCheckpoint, nextCheckpoint);
                 if (filter != null) {
                     filteredQuery.filter(filter);
@@ -1154,6 +1154,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private RunState determineRunStateAtStart() {
+        if (context.from() != null) {
+            return RunState.IDENTIFY_CHANGES;
+        }
+
         // either 1st run or not a continuous transform
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             return RunState.APPLY_RESULTS;

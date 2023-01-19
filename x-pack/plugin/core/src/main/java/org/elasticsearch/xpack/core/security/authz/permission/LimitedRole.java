@@ -124,13 +124,8 @@ public final class LimitedRole implements Role {
      */
     @Override
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        // TODO properly generalize this to nested LimitedRole instances
-        final Predicate<IndexAbstraction> predicate = limitedByRole.indices().allowedIndicesMatcher(action);
-        if (baseRole instanceof SimpleRole) {
-            return predicate.and(baseRole.indices().allowedIndicesMatcher(action));
-        } else {
-            return baseRole.allowedIndicesMatcher(action).and(predicate);
-        }
+        // TODO validate and test this works properly
+        return baseRole.allowedIndicesMatcher(action).and(limitedByRole.allowedIndicesMatcher(action));
     }
 
     @Override

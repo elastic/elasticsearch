@@ -1065,7 +1065,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("alias2");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        // explicit names are not erased from the request if `ignoreUnavailable` is `false`
+        // explicit names, regardless of whether they are missing or unauthorized,
+        // are not erased from the request if `ignoreUnavailable` is `false`
         assertThat(indices, containsInAnyOrder("alias2", "missing"));
         assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));

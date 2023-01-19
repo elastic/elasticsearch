@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -43,6 +44,11 @@ public class TopNOperatorTests extends OperatorTestCase {
     @Override
     protected String expectedDescriptionOfSimple() {
         return "TopNOperator(count = 4, sortOrders = [SortOrder[channel=0, asc=true, nullsFirst=false]])";
+    }
+
+    @Override
+    protected String expectedToStringOfSimple() {
+        return "TopNOperator(count = 0/4, sortOrder = SortOrder[channel=0, asc=true, nullsFirst=false])";
     }
 
     @Override
@@ -214,5 +220,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
         assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
         return outputValues;
+    }
+
+    public void testTopNManyDescriptionAndToString() {
+        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+            10,
+            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true))
+        );
+        String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
+            .stream()
+            .collect(Collectors.joining(", "));
+        assertThat(factory.describe(), equalTo("TopNOperator(count = 10, sortOrders = [" + sorts + "])"));
+        try (Operator operator = factory.get()) {
+            assertThat(operator.toString(), equalTo("TopNOperator(count = 0/10, sortOrders = [" + sorts + "])"));
+        }
     }
 }

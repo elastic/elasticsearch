@@ -47,6 +47,16 @@ public abstract class OperatorTestCase extends ESTestCase {
     protected abstract String expectedDescriptionOfSimple();
 
     /**
+     * The {@link #toString} of the operator produced by {@link #simple}.
+     * This {@linkplain #toString} is used by the status reporting and
+     * generally useful debug information.
+     */
+    protected String expectedToStringOfSimple() {
+        assumeFalse("not yet implemented", true);
+        return null;
+    }
+
+    /**
      * Assert that output from {@link #simple} is correct for the
      * given input.
      */
@@ -107,6 +117,15 @@ public abstract class OperatorTestCase extends ESTestCase {
      */
     public final void testSimpleDescription() {
         assertThat(simple(nonBreakingBigArrays()).describe(), equalTo(expectedDescriptionOfSimple()));
+    }
+
+    /**
+     * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
+     */
+    public final void testSimpleToString() {
+        try (Operator operator = simple(nonBreakingBigArrays()).get()) {
+            assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
+        }
     }
 
     /**

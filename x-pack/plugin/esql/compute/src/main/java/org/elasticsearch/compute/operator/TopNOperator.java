@@ -25,7 +25,7 @@ import java.util.List;
 @Experimental
 public class TopNOperator implements Operator {
 
-    protected final PriorityQueue<Page> inputQueue;
+    private final PriorityQueue<Page> inputQueue;
     private Iterator<Page> output;
 
     public record SortOrder(int channel, boolean asc, boolean nullsFirst) {}
@@ -57,12 +57,22 @@ public class TopNOperator implements Operator {
                         b.getBlock(order.channel)
                     ) < 0;
                 }
+
+                @Override
+                public String toString() {
+                    return "count = " + size() + "/" + topCount + ", sortOrder = " + order;
+                }
             };
         } else {
             this.inputQueue = new PriorityQueue<>(topCount) {
                 @Override
                 protected boolean lessThan(Page a, Page b) {
                     return TopNOperator.compareTo(sortOrders, a, b) < 0;
+                }
+
+                @Override
+                public String toString() {
+                    return "count = " + size() + "/" + topCount + ", sortOrders = " + sortOrders;
                 }
             };
         }
@@ -153,5 +163,10 @@ public class TopNOperator implements Operator {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public String toString() {
+        return "TopNOperator(" + inputQueue + ")";
     }
 }

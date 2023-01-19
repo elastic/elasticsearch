@@ -109,13 +109,11 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     }
                 }
             };
-
-            final ActionListener<Void> listener = ActionListener.runBefore(
+            taskManager.addRemovedTaskListener(removedTaskListener);
+            final ActionListener<Void> allMatchedTasksRemovedListener = ActionListener.runBefore(
                 nodeOperation,
                 () -> taskManager.removeRemovedTaskListener(removedTaskListener)
             );
-
-            taskManager.addRemovedTaskListener(removedTaskListener);
             try {
                 processTasks(request, task -> {
                     if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
@@ -126,19 +124,23 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     operation.accept(task);
                 });
             } catch (Exception e) {
-                listener.onFailure(e);
+                allMatchedTasksRemovedListener.onFailure(e);
                 return;
             }
-
             removalRefs.decRef();
             collectionComplete.set(true);
 
             if (future.isDone()) {
-                listener.onResponse(null);
+                // No tasks to wait, we can run nodeOperation in the management pool
+                allMatchedTasksRemovedListener.onResponse(null);
             } else {
-                future.addListener(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.MANAGEMENT, listener, false));
+                future.addListener(
+                    new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.MANAGEMENT, allMatchedTasksRemovedListener, false)
+                );
                 var cancellable = threadPool.schedule(
-                    () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
+                    () -> future.onFailure(
+                        new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")
+                    ),
                     requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                     ThreadPool.Names.SAME
                 );

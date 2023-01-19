@@ -19,11 +19,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportVersionUtils {
-    private static final List<TransportVersion> ALL_VERSIONS;
-
-    static {
-        ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
-    }
+    private static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
@@ -87,7 +83,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
     public static TransportVersion randomCompatibleVersion(Random random, TransportVersion version) {
-        final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
         return compatible.get(random.nextInt(compatible.size()));
     }
 }

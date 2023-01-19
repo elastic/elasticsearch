@@ -76,7 +76,7 @@ public class SpatialPluginTests extends ESTestCase {
         )) {
             checkLicenseRequired(GeoShapeValuesSourceType.instance(), registryKey, (agg) -> {
                 try {
-                    agg.build(null, null, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null);
+                    agg.build(null, AggregatorFactories.EMPTY, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null);
                 } catch (IOException e) {
                     fail("Unexpected exception: " + e.getMessage());
                 }

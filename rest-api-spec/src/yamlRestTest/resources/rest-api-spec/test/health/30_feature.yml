@@ -5,7 +5,7 @@
       reason: "the API path changed in 8.7"
 
   - do:
-      health:
+      health_report:
         feature: master_is_stable
 
   - is_true: cluster_name
@@ -15,7 +15,7 @@
   - is_true: indicators.master_is_stable.details.recent_masters
 
   - do:
-      health:
+      health_report:
         feature: master_is_stable
         verbose: false
 

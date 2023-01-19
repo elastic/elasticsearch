@@ -1015,7 +1015,7 @@ public class TextFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-                fieldDataContext.lookupSupplier().get().source(),
+                fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );
         }

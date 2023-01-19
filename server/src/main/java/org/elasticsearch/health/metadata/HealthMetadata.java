@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -94,6 +95,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public int hashCode() {
         return Objects.hash(diskMetadata);
+    }
+
+    @Override
+    public String toString() {
+        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + '}';
     }
 
     /**

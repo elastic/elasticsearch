@@ -499,6 +499,82 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_42", 2.0);
     }
 
+    public void testContinuousPivotFrom() throws Exception {
+        String indexName = "continuous_reviews_from";
+        createReviewsIndex(indexName);
+        String transformId = "continuous_pivot_from";
+        String transformIndex = "pivot_reviews_continuous_from";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id",
+                      "missing_bucket": true
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", indexName, transformIndex);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        final StringBuilder bulk = new StringBuilder();
+        bulk.append(Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
+            """, indexName, 666, 777, 7, 888, "\"2017-01-20\""));
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        Map<String, Object> bulkResponse = entityAsMap(client().performRequest(bulkRequest));
+        assertThat(bulkResponse.get("errors"), equalTo(Boolean.FALSE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null, "2017-01-23", 1L);
+        assertTrue(indexExists(transformIndex));
+
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", getAsMap(transformIndex + "/_stats")));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        stopTransform(transformId, false);
+        deleteIndex(indexName);
+    }
+
     public void testHistogramPivot() throws Exception {
         String transformId = "simple_histogram_pivot";
         String transformIndex = "pivot_reviews_via_histogram";

@@ -133,7 +133,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             nodeAndShard.shardId,
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "fake")
+            new UnassignedInfo(REINITIALIZED, "fake"),
+            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
         ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 

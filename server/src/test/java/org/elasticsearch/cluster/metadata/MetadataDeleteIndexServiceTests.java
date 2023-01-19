@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpda
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -144,7 +145,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .build();
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(idxMetadata, false))
-            .routingTable(RoutingTable.builder().addAsNew(idxMetadata).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(idxMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
             .build();
 
@@ -232,7 +233,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .build();
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false))
-            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
             .build();
     }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.support.nodes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,6 +43,8 @@ public abstract class TransportNodesAction<
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
     NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;

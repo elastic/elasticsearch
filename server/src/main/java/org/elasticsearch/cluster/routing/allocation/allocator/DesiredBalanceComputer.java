@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +36,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
@@ -65,20 +63,10 @@ public class DesiredBalanceComputer {
 
     private TimeValue progressLogInterval;
 
-    public DesiredBalanceComputer(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        ShardsAllocator delegateAllocator
-    ) {
+    public DesiredBalanceComputer(ClusterSettings clusterSettings, ThreadPool threadPool, ShardsAllocator delegateAllocator) {
         this.threadPool = threadPool;
         this.delegateAllocator = delegateAllocator;
-        watchSetting(settings, clusterSettings, PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
-    }
-
-    private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
-        consumer.accept(setting.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(setting, consumer);
+        clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
     }
 
     public DesiredBalance compute(

@@ -52,8 +52,8 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public TransportVersion getTransportVersion() {
-        return channel.getTransportVersion();
+    public TransportVersion getVersion() {
+        return channel.getVersion();
     }
 
     public TransportChannel getChannel() {

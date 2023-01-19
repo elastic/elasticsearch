@@ -10,6 +10,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -163,5 +164,24 @@ public class StepListenerTests extends ESTestCase {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class, combined::result);
             assertThat(exception.getMessage(), containsString("simulated"));
         }
+    }
+
+    public void testAddedListenersReleasedOnCompletion() {
+        final StepListener<Void> step = new StepListener<>();
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+
+        for (int i = between(1, 3); i > 0; i--) {
+            step.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        }
+        reachabilityChecker.checkReachable();
+        if (randomBoolean()) {
+            step.onResponse(null);
+        } else {
+            step.onFailure(new ElasticsearchException("simulated"));
+        }
+        reachabilityChecker.ensureUnreachable();
+
+        step.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        reachabilityChecker.ensureUnreachable();
     }
 }

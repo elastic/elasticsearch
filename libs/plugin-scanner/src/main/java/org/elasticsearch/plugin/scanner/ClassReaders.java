@@ -40,13 +40,12 @@ public class ClassReaders {
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static List<ClassReader> ofDirWithJars(String path) {
-        if (path == null) {
+    public static List<ClassReader> ofDirWithJars(Path dir) {
+        if (dir == null) {
             return Collections.emptyList();
         }
-        Path dir = Paths.get(path);
-        try {
-            return ofPaths(Files.list(dir));
+        try (var stream = Files.list(dir)) {
+            return ofPaths(stream);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

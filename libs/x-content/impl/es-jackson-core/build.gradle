@@ -21,11 +21,22 @@ dependencies {
   }
 }
 
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "src/main/java/com/fasterxml/jackson/core/filter/FilteringParserDelegate.java"
+    }
+  }
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
 shadowJar {
+  exclude { element ->
+    element.file == null && element.path.endsWith("FilteringParserDelegate.class")
+  }
   manifest {
     attributes 'Multi-Release' : 'true'
   }

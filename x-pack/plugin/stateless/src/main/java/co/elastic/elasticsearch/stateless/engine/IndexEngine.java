@@ -17,9 +17,11 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.RefreshResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -80,5 +82,13 @@ public class IndexEngine extends InternalEngine {
     // visible for testing
     long getLastFlushNanos() {
         return lastFlushNanos.get();
+    }
+
+    @Override
+    public RefreshResult refresh(String source) throws EngineException {
+        if (source.equals(TransportShardRefreshAction.SOURCE_API)) {
+            flush(true, true);
+        }
+        return super.refresh(source);
     }
 }

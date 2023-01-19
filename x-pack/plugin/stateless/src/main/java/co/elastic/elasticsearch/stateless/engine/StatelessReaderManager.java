@@ -1,3 +1,20 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
@@ -29,9 +46,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 // TODO: Add unit level tests for the commit download process
@@ -45,6 +65,8 @@ public class StatelessReaderManager implements Closeable {
     private final ThreadPool threadPool;
     private final LongSupplier globalCheckpointSupplier;
     private volatile CurrentState currentState;
+    // TODO: ensure we release the listeners when the search shard is relocated.
+    private List<SegmentGenerationListener> segmentGenerationListeners = new ArrayList<>();
 
     public StatelessReaderManager(
         ObjectStoreService objectStoreService,
@@ -107,6 +129,7 @@ public class StatelessReaderManager implements Closeable {
         }
 
         currentState = new CurrentState(newLastCommittedSegmentInfos, newSeqNoStats, newIndexCommit, readerManager, newSafeCommitInfo);
+        callSegmentGenerationListeners(newIndexCommit.getGeneration());
     }
 
     public void onNewCommit(
@@ -236,6 +259,34 @@ public class StatelessReaderManager implements Closeable {
         IOUtils.close(currentState.readerManager());
         currentState = null;
     }
+
+    public synchronized void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
+        long currentGen = currentState.newIndexCommit().getGeneration();
+        if (currentGen >= minGeneration) {
+            consumer.accept(currentGen);
+        } else {
+            segmentGenerationListeners.add(new SegmentGenerationListener(minGeneration, consumer));
+        }
+    }
+
+    private void callSegmentGenerationListeners(long currentGen) {
+        assert Thread.holdsLock(this);
+        List<SegmentGenerationListener> pendingListeners = new ArrayList<>();
+        List<SegmentGenerationListener> listenersToCall = new ArrayList<>();
+        for (SegmentGenerationListener listener : segmentGenerationListeners) {
+            if (listener.minGeneration() <= currentGen) {
+                listenersToCall.add(listener);
+            } else {
+                pendingListeners.add(listener);
+            }
+        }
+        segmentGenerationListeners = pendingListeners;
+        for (SegmentGenerationListener listener : listenersToCall) {
+            listener.consumer().accept(currentGen);
+        }
+    }
+
+    private record SegmentGenerationListener(long minGeneration, LongConsumer consumer) {}
 
     private record NewCommit(long primaryTerm, long generation, Map<String, StoreFileMetadata> commitFiles, ActionListener<Void> listener)
         implements

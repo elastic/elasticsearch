@@ -22,6 +22,8 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -78,13 +80,16 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
 
     @Override
     protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
+        SortedSet<Long> seenGroups = new TreeSet<>();
+        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> { seenGroups.add(groups.getLong(groupOffset)); });
+
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(2));
-        assertThat(results.get(0).getPositionCount(), equalTo(5));
+        assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
 
         LongBlock groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < seenGroups.size(); i++) {
             long group = groups.getLong(i);
             assertSimpleGroup(input, result, i, group);
         }

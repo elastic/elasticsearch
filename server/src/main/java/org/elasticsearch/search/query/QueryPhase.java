@@ -79,9 +79,7 @@ public class QueryPhase {
         }
         SuggestPhase.execute(searchContext);
 
-        if (searchContext.aggregations() != null
-            && searchContext.queryResult().searchTimedOut() == false
-            && (searchContext.queryResult().terminatedEarly() == null || searchContext.queryResult().terminatedEarly() == false)) {
+        if (searchContext.aggregations() != null) {
             AggregationPhase.preProcess(searchContext);
             executeInternal(searchContext, true);
             AggregationPhase.execute(searchContext);
@@ -139,21 +137,19 @@ public class QueryPhase {
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
             // whether the chain contains a collector that filters documents
             boolean hasFilterCollector = false;
-            if (aggs == false) {
-                if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                    // add terminate_after before the filter collectors
-                    // it will only be applied on documents accepted by these filter collectors
-                    collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
-                    // this collector can filter documents during the collection
-                    hasFilterCollector = true;
-                }
-                if (searchContext.parsedPostFilter() != null) {
-                    // add post filters before aggregations
-                    // it will only be applied to top hits
-                    collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
-                    // this collector can filter documents during the collection
-                    hasFilterCollector = true;
-                }
+            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                // add terminate_after before the filter collectors
+                // it will only be applied on documents accepted by these filter collectors
+                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+                // this collector can filter documents during the collection
+                hasFilterCollector = true;
+            }
+            if (searchContext.parsedPostFilter() != null) {
+                // add post filters before aggregations
+                // it will only be applied to top hits
+                collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
+                // this collector can filter documents during the collection
+                hasFilterCollector = true;
             }
             if (searchContext.queryCollectors().isEmpty() == false) {
                 // plug in additional collectors, like aggregations

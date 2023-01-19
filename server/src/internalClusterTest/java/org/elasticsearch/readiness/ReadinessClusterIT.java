@@ -7,9 +7,12 @@
  */
 package org.elasticsearch.readiness;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -240,7 +243,6 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93036")
     public void testNotReadyOnBadFileSettings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
@@ -258,6 +260,10 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         );
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
+
+        // we need this after we setup the listener above, in case the node started and processed
+        // settings before we set our listener to cluster state changes.
+        causeClusterStateUpdate();
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
@@ -319,5 +325,27 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
         ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
         tcpReadinessProbeTrue(s);
+    }
+
+    private void causeClusterStateUpdate() {
+        PlainActionFuture.get(
+            fut -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e;
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        fut.onResponse(null);
+                    }
+                })
+        );
     }
 }

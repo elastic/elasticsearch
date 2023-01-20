@@ -248,6 +248,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93088")
     public void testKnnVectors() throws Exception {
         try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());

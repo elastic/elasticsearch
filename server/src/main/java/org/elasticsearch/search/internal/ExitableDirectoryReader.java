@@ -9,6 +9,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -124,6 +125,45 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
             return reader;
+        }
+
+        @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            ByteVectorValues vectorValues = in.getByteVectorValues(field);
+            if (vectorValues == null) {
+                return null;
+            }
+            return queryCancellation.isEnabled() ? new ExitableByteVectorValues(queryCancellation, vectorValues) : vectorValues;
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            if (queryCancellation.isEnabled() == false) {
+                return in.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+            }
+            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
+            // match all docs to allow timeout checking.
+            final Bits updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
+            Bits timeoutCheckingAcceptDocs = new Bits() {
+                private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+                private int calls;
+
+                @Override
+                public boolean get(int index) {
+                    if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                        queryCancellation.checkCancelled();
+                    }
+
+                    return updatedAcceptDocs.get(index);
+                }
+
+                @Override
+                public int length() {
+                    return updatedAcceptDocs.length();
+                }
+            };
+
+            return in.searchNearestVectors(field, target, k, timeoutCheckingAcceptDocs, visitedLimit);
         }
 
         @Override
@@ -430,6 +470,57 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         public void grow(int count) {
             queryCancellation.checkCancelled();
             in.grow(count);
+        }
+    }
+
+    private static class ExitableByteVectorValues extends ByteVectorValues {
+        private int calls;
+        private final QueryCancellation queryCancellation;
+        private final ByteVectorValues in;
+
+        private ExitableByteVectorValues(QueryCancellation queryCancellation, ByteVectorValues in) {
+            this.queryCancellation = queryCancellation;
+            this.in = in;
+        }
+
+        @Override
+        public int dimension() {
+            return in.dimension();
+        }
+
+        @Override
+        public int size() {
+            return in.size();
+        }
+
+        @Override
+        public BytesRef vectorValue() throws IOException {
+            return in.vectorValue();
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            final int nextDoc = in.nextDoc();
+            checkAndThrowWithSampling();
+            return nextDoc;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            final int advance = in.advance(target);
+            checkAndThrowWithSampling();
+            return advance;
+        }
+
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                this.queryCancellation.checkCancelled();
+            }
         }
     }
 

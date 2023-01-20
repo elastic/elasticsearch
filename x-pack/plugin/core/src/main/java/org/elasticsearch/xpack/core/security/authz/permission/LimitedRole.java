@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -21,7 +22,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
@@ -123,8 +123,7 @@ public final class LimitedRole implements Role {
      * action on.
      */
     @Override
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        // TODO validate and test this works properly
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
         return baseRole.allowedIndicesMatcher(action).and(limitedByRole.allowedIndicesMatcher(action));
     }
 
@@ -167,7 +166,6 @@ public final class LimitedRole implements Role {
         Set<String> checkForPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        // TODO generalize this to nested LimitedRole instances
         boolean baseRoleCheck = baseRole.indices()
             .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, resourcePrivilegesMapBuilder);
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
@@ -231,7 +229,6 @@ public final class LimitedRole implements Role {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        // TODO generalize this to nested LimitedRole instances (lower priority)
         boolean baseRoleCheck = baseRole.application()
             .checkResourcePrivileges(
                 applicationName,

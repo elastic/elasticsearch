@@ -192,7 +192,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, PBKDF2_DEFAULT_COST, PBKDF2_PREFIX);
         }
 
     },
@@ -205,7 +205,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, 1000, PBKDF2_PREFIX);
         }
 
     },
@@ -218,7 +218,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, 10000, PBKDF2_PREFIX);
         }
 
     },
@@ -231,7 +231,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, 50000, PBKDF2_PREFIX);
         }
 
     },
@@ -244,7 +244,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, 100000, PBKDF2_PREFIX);
         }
 
     },
@@ -257,7 +257,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, 500000, PBKDF2_PREFIX);
         }
 
     },
@@ -270,7 +270,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash, PBKDF2_PREFIX);
+            return verifyPbkdf2Hash(data, hash, 1000000, PBKDF2_PREFIX);
         }
 
     },
@@ -283,7 +283,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_DEFAULT_COST, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -296,7 +296,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 1000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -309,7 +309,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 10000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -322,7 +322,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 50000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -335,7 +335,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 100000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -348,7 +348,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 500000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -361,7 +361,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 1000000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -640,16 +640,17 @@ public enum Hasher {
      *
      * @param data the clear text password to hash and verify
      * @param hash the stored hash against to verify password
+     * @param iterations the number of iterations for PBKDF2 function
      * @param prefix the PBKDF2 hash prefix
      * @return {@code true} if password data matches given hash after hashing it, otherwise {@code false}
      */
-    private static boolean verifyPbkdf2Hash(SecureString data, char[] hash, String prefix) {
+    private static boolean verifyPbkdf2Hash(final SecureString data, final char[] hash, final int iterations, final String prefix) {
         if (CharArrays.charsBeginsWith(prefix, hash) == false) {
             return false;
         }
 
         int separator1 = -1, separator2 = -1;
-        for (int i = 0; i < hash.length; i++) {
+        for (int i = prefix.length() + String.valueOf(iterations).length(); i < hash.length; i++) {
             if (hash[i] == '$') {
                 separator1 = i;
                 break;
@@ -673,8 +674,6 @@ public enum Hasher {
         try {
             hashChars = Arrays.copyOfRange(hash, separator2 + 1, hash.length);
             saltChars = Arrays.copyOfRange(hash, separator1 + 1, separator2);
-
-            final int iterations = Integer.parseInt(new String(hash, prefix.length(), separator1 - prefix.length()));
             // Convert from base64 (n * 3/4) to the nearest multiple of 16 bytes (/16 * 16) to bits (*8)
             // (n * 3/4) / 16 * 16 * 8 ==> n * 3 / 64 * 128
             final int keySize = (hashChars.length * 3) / 64 * 128;

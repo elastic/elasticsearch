@@ -1,6 +1,0 @@
-pr: 92784
-summary: Update the version of asm used by plugin scanner
-area: Infra/Plugins
-type: bug
-issues:
- - 92782

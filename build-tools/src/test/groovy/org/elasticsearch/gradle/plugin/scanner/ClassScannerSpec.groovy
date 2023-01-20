@@ -31,11 +31,11 @@ class ClassScannerSpec extends Specification {
             return null
         }
         )
-        Stream<ClassReader> classReaderStream = ofClassPath()
-        logger.log(System.Logger.Level.INFO, "classReaderStream size "+ofClassPath().collect(Collectors.toList()).size())
+        List<ClassReader> classReaders = ofClassPath()
+        logger.log(System.Logger.Level.INFO, "classReaderStream size "+classReaders.size())
 
         when:
-        reader.visit(classReaderStream);
+        reader.visit(classReaders);
         Map<String, String> extensibleClasses = reader.getFoundClasses()
 
         then:
@@ -58,13 +58,13 @@ class ClassScannerSpec extends Specification {
         );
     }
 
-    static Stream<ClassReader> ofClassPath() throws IOException {
+    static List<ClassReader> ofClassPath() throws IOException {
         String classpath = System.getProperty("java.class.path");
         logger.log(System.Logger.Level.INFO, "classpath "+classpath);
         return ofClassPath(classpath);
     }
 
-    static Stream<ClassReader> ofClassPath(String classpath) {
+    static List<ClassReader> ofClassPath(String classpath) {
         if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
             def classpathSeparator = System.getProperty("path.separator")
             logger.log(System.Logger.Level.INFO, "classpathSeparator "+classpathSeparator);
@@ -72,7 +72,7 @@ class ClassScannerSpec extends Specification {
             String[] pathelements = classpath.split(classpathSeparator);
             return ClassReaders.ofPaths(Arrays.stream(pathelements).map(Paths::get));
         }
-        return Stream.empty();
+        return Collections.emptyList();
     }
 
 }

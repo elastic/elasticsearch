@@ -94,10 +94,10 @@ class NamedComponentScannerSpec extends Specification {
         StableApiJarMocks.createExtensibleApiJar(dirWithJar);//for instance analysis api
 
 
-        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar)
 
         when:
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
+        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);
 
         then:
         assertThat(
@@ -165,10 +165,10 @@ class NamedComponentScannerSpec extends Specification {
         StableApiJarMocks.createPluginApiJar(dirWithJar)
         StableApiJarMocks.createExtensibleApiJar(dirWithJar);//for instance analysis api
 
-        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar)
 
         when:
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
+        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);
 
         then:
         assertThat(

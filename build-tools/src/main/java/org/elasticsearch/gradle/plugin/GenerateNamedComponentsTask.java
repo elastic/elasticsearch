@@ -34,7 +34,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -78,7 +77,7 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
         public void execute() {
             Set<File> classpathFiles = getParameters().getClasspath().getFiles();
 
-            List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles.stream().map(File::toPath)).collect(Collectors.toList());
+            List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles.stream().map(File::toPath));
 
             NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
             Map<String, Map<String, String>> namedComponentsMap = namedComponentScanner.scanForNamedClasses(classReaders);
@@ -94,7 +93,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-
         }
     }
 

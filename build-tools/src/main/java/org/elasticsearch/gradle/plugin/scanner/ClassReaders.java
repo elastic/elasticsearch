@@ -13,12 +13,14 @@ import org.objectweb.asm.ClassReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.jar.JarFile;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipFile;
 
 /**
  * A utility class containing methods to create streams of ASM's ClassReader
@@ -32,67 +34,53 @@ public class ClassReaders {
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
-    public static Stream<ClassReader> ofDirWithJars(String path) {
-        if (path == null) {
-            return Stream.empty();
+    public static List<ClassReader> ofDirWithJars(Path dir) {
+        if (dir == null) {
+            return Collections.emptyList();
         }
-        Path dir = Paths.get(path);
-        try {
-            return ofPaths(Files.list(dir));
+        try (var stream = Files.list(dir)) {
+            return ofPaths(stream);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    /**
-     * This method must be used within a try-with-resources statement or similar
-     * control structure.
-     */
-    public static Stream<ClassReader> ofPaths(Stream<Path> list) {
+    public static List<ClassReader> ofPaths(Stream<Path> list) {
         return list.filter(Files::exists).flatMap(p -> {
             if (p.toString().endsWith(".jar")) {
-                return classesInJar(p);
+                return classesInJar(p).stream();
             } else {
-                return classesInPath(p);
+                return classesInPath(p).stream();
             }
-        });
+        }).toList();
     }
 
-    private static Stream<ClassReader> classesInJar(Path jar) {
-        try {
-            JarFile jf = new JarFile(jar.toFile(), true, ZipFile.OPEN_READ, Runtime.version());
+    private static List<ClassReader> classesInJar(Path jar) {
+        try (FileSystem jarFs = FileSystems.newFileSystem(jar)) {
+            Path root = jarFs.getPath("/");
+            return classesInPath(root);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
-            Stream<ClassReader> classReaderStream = jf.versionedStream()
-                .filter(e -> e.getName().endsWith(".class") && e.getName().equals(MODULE_INFO) == false)
-                .map(e -> {
-                    try (InputStream is = jf.getInputStream(e)) {
+    private static List<ClassReader> classesInPath(Path root) {
+        try (Stream<Path> stream = Files.walk(root)) {
+            return stream.filter(p -> p.toString().endsWith(".class"))
+                .filter(p -> p.toString().endsWith(MODULE_INFO) == false)
+                .filter(p -> p.toString().startsWith("/META-INF") == false)// skip multi-release files
+                .map(p -> {
+                    try (InputStream is = Files.newInputStream(p)) {
                         byte[] classBytes = is.readAllBytes();
                         return new ClassReader(classBytes);
                     } catch (IOException ex) {
                         throw new UncheckedIOException(ex);
                     }
-                });
-            return classReaderStream;
+                })
+                .collect(Collectors.toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private static Stream<ClassReader> classesInPath(Path root) {
-        try {
-            Stream<Path> stream = Files.walk(root);
-            return stream.filter(p -> p.toString().endsWith(".class"))
-                .filter(p -> p.toString().endsWith("module-info.class") == false)
-                .map(p -> {
-                    try (InputStream is = Files.newInputStream(p)) {
-                        byte[] classBytes = is.readAllBytes();
-                        return new ClassReader(classBytes);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
 }

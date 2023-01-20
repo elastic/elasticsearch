@@ -50,10 +50,9 @@ class ClassReadersSpec extends Specification {
 
 
         then:
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(jar))) {
+        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar))
 
-            assertThat(classReaderStream.collect(Collectors.toList()), Matchers.empty());
-        }
+        assertThat(classReaders, Matchers.empty());
     }
 
 
@@ -80,10 +79,9 @@ class ClassReadersSpec extends Specification {
 
 
         then:
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(jar))) {
-            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-            assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
-        }
+        List<ClassReader> classReaders = ClassReaders.ofPaths(Stream.of(jar))
+        List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList())
+        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"))
     }
 
 
@@ -141,11 +139,9 @@ class ClassReadersSpec extends Specification {
 
 
         then:
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(tmp, jar, jar2))) {
-
-            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-            assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
-        }
+        List<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(tmp, jar, jar2))
+        List<String> collect = classReaderStream.stream().map(cr -> cr.getClassName()).collect(Collectors.toList())
+        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"))
     }
 
     def "classes from multiple jars in a dir are returned"() {
@@ -188,9 +184,8 @@ class ClassReadersSpec extends Specification {
         );
 
         then:
-        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
-            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-            assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
-        }
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar)
+        List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList())
+        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"))
     }
 }

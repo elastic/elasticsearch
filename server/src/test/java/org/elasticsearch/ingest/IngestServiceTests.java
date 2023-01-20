@@ -1715,18 +1715,50 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
+        // feed a document with no timestamp through four scenarios
+        Map<String, Object> doc1 = Map.of("foo", "bar");
+
+        // neither a request nor a final pipeline
+        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_none").setFinalPipeline("_none").source(doc1);
+        // just a request pipeline
+        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_none").source(doc1);
+        // just a final pipeline
+        IndexRequest indexRequest3 = new IndexRequest("idx").setPipeline("_none").setFinalPipeline("_id2").source(doc1);
+        // both a request and a final pipeline
+        IndexRequest indexRequest4 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id2").source(doc1);
+
+        // feed a document with a timestamp through four scenarios
+        Map<String, Object> doc2 = Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10);
+
+        // neither a request nor a final pipeline
+        IndexRequest indexRequest5 = new IndexRequest("idx").setPipeline("_none").setFinalPipeline("_none").source(doc2);
+        // just a request pipeline
+        IndexRequest indexRequest6 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_none").source(doc2);
+        // just a final pipeline
+        IndexRequest indexRequest7 = new IndexRequest("idx").setPipeline("_none").setFinalPipeline("_id2").source(doc2);
+        // both a request and a final pipeline
+        IndexRequest indexRequest8 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id2").source(doc2);
+
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_id1")
-            .setFinalPipeline("_id1")
-            .source(Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10));
-        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id1").source(Map.of("foo", "bar"));
         bulkRequest.add(indexRequest1);
         bulkRequest.add(indexRequest2);
+        bulkRequest.add(indexRequest3);
+        bulkRequest.add(indexRequest4);
+        bulkRequest.add(indexRequest5);
+        bulkRequest.add(indexRequest6);
+        bulkRequest.add(indexRequest7);
+        bulkRequest.add(indexRequest8);
+        ingestService.executeBulkRequest(8, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
 
-        ingestService.executeBulkRequest(2, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
-
-        assertThat(indexRequest1.getRawTimestamp(), equalTo(10));
+        assertThat(indexRequest1.getRawTimestamp(), nullValue());
         assertThat(indexRequest2.getRawTimestamp(), nullValue());
+        assertThat(indexRequest3.getRawTimestamp(), equalTo(100));
+        assertThat(indexRequest4.getRawTimestamp(), equalTo(100));
+        assertThat(indexRequest5.getRawTimestamp(), nullValue());
+        assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
+        assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
+        // see https://github.com/elastic/elasticsearch/issues/93118 -- this should be 100, but it's actually 10
+        // assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {

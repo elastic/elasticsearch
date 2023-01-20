@@ -131,7 +131,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     }
 
     /**
-     * Returns true if there is a least one failed response.
+     * Returns true if there is at least one failed response.
      */
     public boolean isFailed() {
         return failures.isEmpty() == false;

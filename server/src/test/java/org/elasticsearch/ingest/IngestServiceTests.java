@@ -1683,7 +1683,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(reference.get(), is(instanceOf(byte[].class)));
     }
 
-    public void testPostIngest() {
+    public void testSetsRawTimestamp() {
         IngestService ingestService = createWithProcessors(
             Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor())
         );

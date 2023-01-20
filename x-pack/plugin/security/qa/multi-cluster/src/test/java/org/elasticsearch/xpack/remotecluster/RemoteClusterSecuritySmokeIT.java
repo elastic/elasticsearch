@@ -61,7 +61,18 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             var createApiKeyRequest = new Request("POST", "/_security/api_key");
             createApiKeyRequest.setJsonEntity("""
                 {
-                  "name": "k1"
+                  "name": "remote_access_key",
+                  "role_descriptors": {
+                    "role": {
+                      "cluster": ["cluster:monitor/state"],
+                      "index": [
+                        {
+                          "names": ["*idx"],
+                          "privileges": ["read", "read_cross_cluster"]
+                        }
+                      ]
+                    }
+                  }
                 }""");
             var createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
             assertOK(createApiKeyResponse);
@@ -69,6 +80,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             var encodedApiKey = (String) apiKeyMap.get("encoded");
 
             Request indexDocRequest = new Request("POST", "/test_idx/_doc");
+            // Store API key credential so that QC can fetch and use it for authentication
             indexDocRequest.setJsonEntity("{\"key\": \"" + encodedApiKey + "\"}");
             Response response = adminClient().performRequest(indexDocRequest);
             assertOK(response);

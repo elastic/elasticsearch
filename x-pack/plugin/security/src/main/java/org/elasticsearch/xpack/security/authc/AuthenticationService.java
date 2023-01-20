@@ -213,14 +213,6 @@ public class AuthenticationService {
         }, authenticationListener::onFailure));
     }
 
-    private AuthenticationToken extractFromContext(ThreadContext threadContext) {
-        final ApiKeyService.ApiKeyCredentials apiKeyCredentials = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
-        if (apiKeyCredentials == null) {
-            throw new IllegalStateException("failed to extract credentials");
-        }
-        return apiKeyCredentials;
-    }
-
     /**
      * Authenticates the user that is associated with the given request. If the user was authenticated successfully (i.e.
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns

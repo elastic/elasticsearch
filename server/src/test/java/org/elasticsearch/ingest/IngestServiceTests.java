@@ -1389,6 +1389,83 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testIngestAndPipelineStats() throws Exception {
+        final Processor processor = mock(Processor.class);
+        final Processor processorFailure = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock");
+        when(processor.getTag()).thenReturn("mockTag");
+        when(processor.isAsync()).thenReturn(true);
+
+        // avoid returning null and dropping the document
+        doAnswer(args -> {
+            @SuppressWarnings("unchecked")
+            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+            return null;
+        }).when(processor).execute(any(IngestDocument.class), any());
+
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+
+        {
+            // all zeroes since nothing has executed
+            final IngestStats ingestStats = ingestService.stats();
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(0));
+            assertStats(ingestStats.getTotalStats(), 0, 0, 0);
+        }
+
+        // put some pipelines, and now there are pipeline and processor stats, too
+        PutPipelineRequest putRequest1 = new PutPipelineRequest(
+            "_id1",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        PutPipelineRequest putRequest2 = new PutPipelineRequest(
+            "_id2",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(putRequest2, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        {
+            final IngestStats ingestStats = ingestService.stats();
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(2));
+
+            // total
+            assertStats(ingestStats.getTotalStats(), 0, 0, 0);
+            // pipeline
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 0, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 0, 0, 0);
+            // processor
+            assertProcessorStats(0, ingestStats, "_id1", 0, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id2", 0, 0, 0);
+        }
+
+        // put a single document through ingest processing
+        final IndexRequest indexRequest = new IndexRequest("_index");
+        indexRequest.setPipeline("_id1").setFinalPipeline("_id2");
+        indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+
+        {
+            final IngestStats ingestStats = ingestService.stats();
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(2));
+
+            // total
+            // see https://github.com/elastic/elasticsearch/issues/92843 -- this should be 1, but it's actually 2
+            // assertStats(ingestStats.getTotalStats(), 1, 0, 0);
+            // pipeline
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 1, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 1, 0, 0);
+            // processor
+            assertProcessorStats(0, ingestStats, "_id1", 1, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id2", 1, 0, 0);
+        }
+    }
+
     public void testStats() throws Exception {
         final Processor processor = mock(Processor.class);
         final Processor processorFailure = mock(Processor.class);

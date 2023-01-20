@@ -46,8 +46,6 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -153,15 +151,6 @@ public class AuthenticationService {
             return;
         }
 
-        final AuthenticationToken authenticationToken = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
-        final RemoteAccessAuthentication remoteAccessAuthentication;
-        try {
-            remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
-        } catch (IOException e) {
-            authenticationListener.onFailure(new UncheckedIOException(e));
-            return;
-        }
-
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
@@ -169,8 +158,10 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
+        final AuthenticationToken authenticationToken = apiKeyService.getCredentialsFromRemoteAccessHeader(threadContext);
         context.addAuthenticationToken(authenticationToken);
         authenticatorChain.authenticateAsync(context, ActionListener.wrap(authentication -> {
+            final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
             final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 // drop authentication and remote access authentication headers

@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -75,23 +74,30 @@ public class SearchEngine extends Engine {
     public SearchEngine(EngineConfig config, ObjectStoreService objectStoreService) {
         super(config);
         assert config.isRecoveringAsPrimary() == false;
-        final Store store = engineConfig.getStore();
         store.incRef();
         try {
-            statelessReaderManager = new StatelessReaderManager(
-                objectStoreService,
-                config.getShardId(),
-                store,
-                config.getThreadPool(),
-                config.getGlobalCheckpointSupplier()
-            );
-            statelessReaderManager.reloadReaderManager();
-            var localCheckpoint = statelessReaderManager.getSeqNoStats().getLocalCheckpoint();
-            this.lastSeqNo.set(Math.max(localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong()));
-        } catch (IOException e) {
+            StatelessReaderManager readerManager = null;
+            boolean success = false;
+            try {
+                readerManager = new StatelessReaderManager(
+                    objectStoreService,
+                    config.getShardId(),
+                    store,
+                    config.getThreadPool(),
+                    config.getGlobalCheckpointSupplier()
+                );
+                readerManager.reloadReaderManager();
+                var localCheckpoint = readerManager.getSeqNoStats().getLocalCheckpoint();
+                this.lastSeqNo.set(Math.max(localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong()));
+                this.statelessReaderManager = readerManager;
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(readerManager, store::decRef);
+                }
+            }
+        } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
-        } finally {
-            store.decRef();
         }
     }
 
@@ -108,9 +114,7 @@ public class SearchEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                synchronized ((this)) {
-                    IOUtils.close(statelessReaderManager);
-                }
+                IOUtils.close(statelessReaderManager, store::decRef);
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);
             } finally {

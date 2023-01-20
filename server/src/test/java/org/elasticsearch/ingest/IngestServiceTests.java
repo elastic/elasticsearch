@@ -1685,24 +1685,41 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testSetsRawTimestamp() {
         IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor())
+            Map.of(
+                "mock",
+                (factories, tag, description, config) -> mockCompoundProcessor(),
+                "set",
+                (factories, tag, description, config) -> new FakeProcessor(
+                    "set",
+                    tag,
+                    description,
+                    // just always set the timestamp field to 100
+                    (ingestDocument) -> ingestDocument.setFieldValue(TimestampField.FIXED_TIMESTAMP_FIELD, 100)
+                )
+            )
         );
 
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
+        PutPipelineRequest putRequest1 = new PutPipelineRequest(
+            "_id1",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        PutPipelineRequest putRequest2 = new PutPipelineRequest(
+            "_id2",
+            new BytesArray("{\"processors\": [{\"set\" : {}}]}"),
             XContentType.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_id")
-            .setFinalPipeline("_id")
+        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_id1")
+            .setFinalPipeline("_id1")
             .source(Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10));
-        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id").setFinalPipeline("_id").source(Map.of("foo", "bar"));
+        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id1").source(Map.of("foo", "bar"));
         bulkRequest.add(indexRequest1);
         bulkRequest.add(indexRequest2);
 

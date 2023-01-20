@@ -93,7 +93,11 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
     public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
         if (resolvedHasher.equals(configuredHasher) == false && resolvedHasher == Hasher.NOOP) {
-            throw new IllegalArgumentException("Provided password hash is either using unsupported format or it is a clear text");
+            throw new IllegalArgumentException(
+                "The provided password hash could not be resolved to a known hash algorithm. "
+                    + "If attempting to use a plain text hash then 'clear_text' must be explicitly configured "
+                    + "as hashing algorithm to allow plain text hashes."
+            );
         }
         if (request.passwordHash() != null) {
             throw validationException("password_hash has already been set");

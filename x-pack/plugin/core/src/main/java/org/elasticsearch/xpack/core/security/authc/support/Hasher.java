@@ -621,15 +621,28 @@ public enum Hasher {
             }
         }
         if (separator == -1) {
-            throw new IllegalArgumentException("unknown hash format");
+            throw new IllegalArgumentException("The number of iterations could not be determined from the provided PBKDF2 hash.");
         }
         try {
             return Integer.parseInt(new String(hash, prefix.length(), separator - prefix.length()));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("hash must include a valid iteration number", e);
+            throw new IllegalArgumentException("The number of iterations could not be determined from the provided PBKDF2 hash.", e);
         }
     }
 
+    /**
+     * Hashes the given clear text password {@code data} and compares it against the given {@code hash}.
+     *
+     * <p>
+     * <b>Note:</b> When verifying the password hashes we dynamically determine the key and salt lengths for user provided hashes,
+     * but for hashes we create we always use the get method to create hashes with fixed key {@link #PBKDF2_KEY_LENGTH}
+     * and fixed salt lengths.
+     *
+     * @param data the clear text password to hash and verify
+     * @param hash the stored hash against to verify password
+     * @param prefix the PBKDF2 hash prefix
+     * @return {@code true} if password data matches given hash after hashing it, otherwise {@code false}
+     */
     private static boolean verifyPbkdf2Hash(SecureString data, char[] hash, String prefix) {
         if (CharArrays.charsBeginsWith(prefix, hash) == false) {
             return false;

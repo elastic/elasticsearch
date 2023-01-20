@@ -27,6 +27,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public float[] getVector() {
+        // TODO it would be really nice if we didn't transform the `byte[]` arrays to `float[]`
         if (floatDocVector == null) {
             floatDocVector = new float[docVector.length];
 

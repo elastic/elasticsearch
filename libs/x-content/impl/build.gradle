@@ -15,7 +15,7 @@ String jacksonVersion = "2.14.1"
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+  implementation project(path: ':libs:x-content:impl:es-jackson-core', configuration: 'shadow')
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"

@@ -25,12 +25,8 @@ import java.util.stream.Stream;
 
 public class ClassReadersTests extends ESTestCase {
 
-    private Path tmpDir() throws IOException {
-        return createTempDir();
-    }
-
     public void testModuleInfoIsNotReturnedAsAClassFromJar() throws IOException {
-        final Path tmp = tmpDir();
+        final Path tmp = createTempDir(getTestName());
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("api.jar");
@@ -46,7 +42,7 @@ public class ClassReadersTests extends ESTestCase {
     }
 
     public void testTwoClassesInAStreamFromJar() throws IOException {
-        final Path tmp = tmpDir();
+        final Path tmp = createTempDir(getTestName());
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("api.jar");
@@ -67,7 +63,7 @@ public class ClassReadersTests extends ESTestCase {
     }
 
     public void testStreamOfJarsAndIndividualClasses() throws IOException {
-        final Path tmp = tmpDir();
+        final Path tmp = createTempDir(getTestName());
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
 
@@ -104,7 +100,7 @@ public class ClassReadersTests extends ESTestCase {
     }
 
     public void testMultipleJarsInADir() throws IOException {
-        final Path tmp = tmpDir();
+        final Path tmp = createTempDir(getTestName());
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
 
@@ -126,7 +122,7 @@ public class ClassReadersTests extends ESTestCase {
             public class D {}
             """)));
 
-        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar.toString());
+        List<ClassReader> classReaders = ClassReaders.ofDirWithJars(dirWithJar);
         List<String> collect = classReaders.stream().map(cr -> cr.getClassName()).collect(Collectors.toList());
         org.hamcrest.MatcherAssert.assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
     }

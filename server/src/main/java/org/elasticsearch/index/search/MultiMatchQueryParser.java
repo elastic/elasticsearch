@@ -196,10 +196,10 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         }
 
         @Override
-        protected Query newSynonymQuery(TermAndBoost[] terms) {
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].term.bytes();
+                values[i] = terms[i].term;
             }
             return blendTerms(context, values, tieBreaker, lenient, blendedFields);
         }

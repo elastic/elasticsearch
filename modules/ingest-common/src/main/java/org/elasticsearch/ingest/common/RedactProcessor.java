@@ -12,12 +12,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokCaptureExtracter;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.joni.Matcher;
+import org.joni.Option;
+import org.joni.Region;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -107,6 +112,114 @@ public class RedactProcessor extends AbstractProcessor {
             }
         }
         return fieldValue;
+    }
+
+    static String inplaceRedact(String fieldValue, List<Grok> groks) {
+        byte[] utf8Bytes = fieldValue.getBytes(StandardCharsets.UTF_8);
+
+        for (var grok : groks) {
+            assert grok.captureConfig().size() == 1;
+
+            int offset = 0;
+            int length = utf8Bytes.length;
+
+            AccumulatingMatchExtractor extractor = new AccumulatingMatchExtractor(grok.captureConfig().get(0).name());
+            while (grok.match(utf8Bytes, offset, length, extractor)) {
+                offset = extractor.getNextOffset();
+                length = utf8Bytes.length - offset;
+                var m = new String(utf8Bytes, offset, length, StandardCharsets.UTF_8);
+                System.out.println(m);
+            }
+
+            return extractor.redactMatches(utf8Bytes);
+        }
+
+        return fieldValue;
+    }
+
+    static String extractAll(String fieldValue, Grok grok) {
+        byte[] utf8Bytes = fieldValue.getBytes(StandardCharsets.UTF_8);
+
+        AccumulatingMatchExtractor extractor = new AccumulatingMatchExtractor(grok.captureConfig().get(0).name());
+        matchRepeat(grok, utf8Bytes, extractor);
+        return extractor.redactMatches(utf8Bytes);
+    }
+
+    static void matchRepeat(Grok grok, byte[] utf8Bytes, AccumulatingMatchExtractor extracter) {
+        Matcher matcher = grok.getCompiledExpression().matcher(utf8Bytes, 0, utf8Bytes.length);
+        int result;
+        int offset = 0;
+        int length = utf8Bytes.length;
+
+        while (true) {
+            result = matcher.search(offset, length, Option.DEFAULT);
+
+            if (result == Matcher.FAILED) {
+                break;
+            }
+            extracter.extract(utf8Bytes, offset, matcher.getEagerRegion());
+
+            offset = extracter.getNextOffset();
+            length = utf8Bytes.length - offset;
+            var m = new String(utf8Bytes, offset, length, StandardCharsets.UTF_8);
+            System.out.println(m);
+        }
+    }
+
+    private static class AccumulatingMatchExtractor implements GrokCaptureExtracter {
+
+        private static class ReplacementPositions {
+            int start;
+            int end;
+
+            ReplacementPositions(int start, int end) {
+                this.start = start;
+                this.end = end;
+            }
+        }
+
+        private final byte[] replacementText;
+        private final List<ReplacementPositions> repPos;
+
+        AccumulatingMatchExtractor(String className) {
+            this.replacementText = ('<' + className + '>').getBytes(StandardCharsets.UTF_8);
+            repPos = new ArrayList<>();
+        }
+
+        @Override
+        public void extract(byte[] utf8Bytes, int offset, Region region) {
+            int number = 0;
+            int matchOffset = region.beg[number];
+            int matchEnd = region.end[number];
+            repPos.add(new ReplacementPositions(matchOffset, matchEnd));
+        }
+
+        int  getNextOffset() {
+            return repPos.get(repPos.size() - 1).end;
+        }
+
+        String redactMatches(byte[] utf8Bytes) {
+            byte[] redact = new byte[utf8Bytes.length];
+
+            int readOffset = 0;
+            int writeOffset = 0;
+            for (var rep : repPos) {
+                int numBytesToWrite = rep.start - readOffset;
+                System.arraycopy(utf8Bytes, readOffset, redact, writeOffset, numBytesToWrite);
+                readOffset = rep.end;
+
+                writeOffset = writeOffset + numBytesToWrite;
+                System.arraycopy(replacementText, 0, redact, writeOffset, replacementText.length);
+                writeOffset = writeOffset + replacementText.length;
+            }
+
+            int numBytesToWrite = utf8Bytes.length - readOffset;
+            System.arraycopy(utf8Bytes, readOffset, redact, writeOffset, numBytesToWrite);
+            writeOffset = writeOffset + numBytesToWrite;
+
+            return new String(redact, 0, writeOffset, StandardCharsets.UTF_8);
+        }
+
     }
 
     public static final class Factory implements Processor.Factory {

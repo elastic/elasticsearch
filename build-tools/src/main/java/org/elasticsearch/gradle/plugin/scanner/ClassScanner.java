@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.scanner;
+package org.elasticsearch.gradle.plugin.scanner;
 
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
@@ -15,10 +15,10 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 public class ClassScanner {
     private final Map<String, String> foundClasses;
@@ -32,8 +32,10 @@ public class ClassScanner {
         );
     }
 
-    public void visit(List<ClassReader> classReaders) {
-        classReaders.forEach(classReader -> classReader.accept(annotatedHierarchyVisitor, ClassReader.SKIP_CODE));
+    public void visit(Stream<ClassReader> classReaderStream) {
+        try (classReaderStream) {
+            classReaderStream.forEach(classReader -> classReader.accept(annotatedHierarchyVisitor, ClassReader.SKIP_CODE));
+        }
         addExtensibleDescendants(annotatedHierarchyVisitor.getClassHierarchy());
     }
 

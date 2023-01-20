@@ -145,33 +145,6 @@ public class SubjectTests extends ESTestCase {
         }
     }
 
-    public void testGetRoleReferencesForRemoteAccess() {
-        Map<String, Object> authMetadata = new HashMap<>();
-        final String apiKeyId = randomAlphaOfLength(12);
-        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
-        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
-        final BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
-        final BytesReference limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
-
-        final boolean emptyRoleBytes = false;
-
-        authMetadata.put(
-            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-            emptyRoleBytes ? randomFrom(Arrays.asList(null, new BytesArray("{}"))) : roleBytes
-        );
-        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-
-        final Subject subject = new Subject(
-            new User("joe"),
-            new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            Version.CURRENT,
-            authMetadata
-        );
-
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
-        // roleReferenceIntersection.buildRole();
-    }
-
     public void testGetRoleReferencesForApiKeyBwc() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);

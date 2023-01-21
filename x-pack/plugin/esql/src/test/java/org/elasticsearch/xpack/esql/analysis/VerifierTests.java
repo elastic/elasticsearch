@@ -77,21 +77,21 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
-            "1:19: expected an aggregate function or group but got [length(gender)] of type [Length]",
-            error("from test | stats length(gender), count(1) by gender")
+            "1:19: expected an aggregate function or group but got [length(first_name)] of type [Length]",
+            error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
             "1:19: aggregate function's parameters must be an attribute or literal; found [emp_no / 2] of type [Div]",
             error("from test | stats x = avg(emp_no / 2) by emp_no")
         );
         assertEquals(
-            "1:19: Unknown function [count]\nline 1:25: argument of [avg(gender)] must be [numeric], "
-                + "found value [gender] type [keyword]",
-            error("from test | stats count(avg(gender)) by gender")
+            "1:19: Unknown function [count]\nline 1:25: argument of [avg(first_name)] must be [numeric], "
+                + "found value [first_name] type [keyword]",
+            error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [length(gender)] of type [Length]",
-            error("from test | stats count(length(gender)) by gender")
+            "1:19: aggregate function's parameters must be an attribute or literal; found [length(first_name)] of type [Length]",
+            error("from test | stats count(length(first_name)) by first_name")
         );
         assertEquals(
             "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",

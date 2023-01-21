@@ -216,14 +216,20 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *
-            """, "emp_no", "first_name", "gender", "languages", "last_name", "salary", "_meta_field");
+            """, "_meta_field", "emp_no", "first_name", "last_name", "salary");
+    }
+
+    public void testNoProjection() {
+        assertProjection("""
+            from test
+            """, "_meta_field", "emp_no", "first_name", "last_name", "salary");
     }
 
     public void testProjectOrder() {
         assertProjection("""
             from test
             | project first_name, *, last_name
-            """, "first_name", "emp_no", "gender", "languages", "salary", "_meta_field", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "salary", "last_name");
     }
 
     public void testProjectExcludeName() {
@@ -244,21 +250,21 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *, -*_name
-            """, "emp_no", "gender", "languages", "salary", "_meta_field");
+            """, "_meta_field", "emp_no", "salary");
     }
 
     public void testProjectExcludeNoStarPattern() {
         assertProjection("""
             from test
             | project -*_name
-            """, "emp_no", "gender", "languages", "salary", "_meta_field");
+            """, "_meta_field", "emp_no", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | project *name, *, emp_no
-            """, "first_name", "last_name", "gender", "languages", "salary", "_meta_field", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "salary", "emp_no");
     }
 
     public void testProjectExcludePatternAndKeepOthers() {
@@ -288,28 +294,64 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | project unsupported
-            """, "Cannot use field [unsupported] with unsupported type");
+            """, "Unknown column [unsupported]");
     }
 
     public void testIncludeUnsupportedFieldPattern() {
-        verifyUnsupported("""
+        var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | project un*
-            """, "Cannot use field [unsupported] with unsupported type");
+            """));
+        assertThat(e.getMessage(), containsString("No match found for [un*]"));
     }
 
     public void testExcludeUnsupportedFieldExplicit() {
         verifyUnsupported("""
             from test
             | project -unsupported
-            """, "Cannot use field [unsupported] with unsupported type");
+            """, "Unknown column [unsupported]");
+    }
+
+    public void testExcludeMultipleUnsupportedFieldsExplicitly() {
+        verifyUnsupported("""
+            from test
+            | project -languages, -gender
+            """, "Unknown column [languages]");
+    }
+
+    public void testExcludePatternUnsupportedFields() {
+        assertProjection("""
+            from test
+            | project -*ala*
+            """, "_meta_field", "emp_no", "first_name", "last_name");
     }
 
     public void testExcludeUnsupportedPattern() {
         verifyUnsupported("""
             from test
             | project -un*
-            """, "Cannot use field [unsupported] with unsupported type");
+            """, "No match found for [un*]");
+    }
+
+    public void testUnsupportedFieldUsedExplicitly() {
+        verifyUnsupported("""
+            from test
+            | project foo_type
+            """, "Unknown column [foo_type]");
+    }
+
+    public void testUnsupportedDottedFieldUsedExplicitly() {
+        verifyUnsupported("""
+            from test
+            | project some.string
+            """, "Unknown column [some.string]");
+    }
+
+    public void testUnsupportedFieldUsedExplicitly2() {
+        verifyUnsupported("""
+            from test
+            | project keyword, point
+            """, "Unknown column [point]");
     }
 
     public void testCantFilterAfterProjectedAway() {
@@ -324,7 +366,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testProjectAggGroupsRefs() {
         assertProjection("""
             from test
-            | stats c = count(languages) by last_name
+            | stats c = count(salary) by last_name
             | eval d = c + 1
             | project d, last_name
             """, "d", "last_name");

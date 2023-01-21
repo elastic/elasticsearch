@@ -132,7 +132,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
-            Sets.difference(mapping.keySet(), Set.of("emp_no")),
+            Sets.difference(mapping.keySet(), Set.of("emp_no", "gender", "languages")), // gender and languages have unsupported field types
             Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
         );
         assertEquals(Set.of("emp_no"), Sets.newHashSet(Expressions.names(extract.attributesToExtract())));
@@ -156,7 +156,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
-            Sets.difference(mapping.keySet(), Set.of("emp_no")),
+            Sets.difference(mapping.keySet(), Set.of("emp_no", "gender", "languages")),// gender and languages have unsupported field types
             Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
         );
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
@@ -168,7 +168,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | where round(emp_no) > 10
-            | eval c = languages
+            | eval c = salary
             | stats x = avg(c)
             """);
 
@@ -180,7 +180,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(aggregate.child(), EvalExec.class);
 
         var extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("salary"));
 
         var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
@@ -220,7 +220,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testExtractorForField() {
         var plan = physicalPlan("""
             from test
-            | sort languages
+            | sort last_name
             | limit 10
             | where round(emp_no) > 10
             | eval c = first_name
@@ -245,7 +245,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var topN = as(extract.child(), TopNExec.class);
         extract = as(topN.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("last_name"));
     }
 
     public void testExtractorMultiEvalWithDifferentNames() {
@@ -260,10 +260,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(
-            Expressions.names(extract.attributesToExtract()),
-            contains("first_name", "gender", "languages", "last_name", "salary", "_meta_field")
-        );
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("_meta_field", "first_name", "last_name", "salary"));
 
         var eval = as(extract.child(), EvalExec.class);
         eval = as(eval.child(), EvalExec.class);
@@ -284,10 +281,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(
-            Expressions.names(extract.attributesToExtract()),
-            contains("first_name", "gender", "languages", "last_name", "salary", "_meta_field")
-        );
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("_meta_field", "first_name", "last_name", "salary"));
 
         var eval = as(extract.child(), EvalExec.class);
         eval = as(eval.child(), EvalExec.class);
@@ -315,7 +309,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testDoNotExtractGroupingFields() {
         var plan = physicalPlan("""
             from test
-            | stats x = avg(salary) by gender
+            | stats x = avg(salary) by first_name
             """);
 
         var optimized = optimizedPlan(plan);
@@ -336,7 +330,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testExtractGroupingFieldsIfAggd() {
         var plan = physicalPlan("""
             from test
-            | stats x = count(gender) by gender
+            | stats x = count(first_name) by first_name
             """);
 
         var optimized = optimizedPlan(plan);
@@ -348,7 +342,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggregate.groupings(), hasSize(1));
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("gender")));
+        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("first_name")));
 
         var source = source(extract.child());
         assertNotNull(source);
@@ -357,8 +351,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testExtractGroupingFieldsIfAggdWithEval() {
         var plan = physicalPlan("""
             from test
-            | eval g = gender
-            | stats x = count(gender) by gender
+            | eval g = first_name
+            | stats x = count(first_name) by first_name
             """);
 
         var optimized = optimizedPlan(plan);
@@ -372,7 +366,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(aggregate.child(), EvalExec.class);
         assertThat(Expressions.names(eval.fields()), equalTo(List.of("g")));
         var extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("gender")));
+        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("first_name")));
 
         var source = source(extract.child());
         assertNotNull(source);
@@ -426,7 +420,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | where emp_no + 1 > 0
-            | where languages < 10
+            | where salary < 10
             """);
 
         var optimized = optimizedPlan(plan);
@@ -448,7 +442,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
         assertTrue(mustClauses.get(1) instanceof RangeQueryBuilder);
         assertThat(mustClauses.get(1).toString(), containsString("""
-                "languages" : {
+                "salary" : {
                   "lt" : 10,
             """));
     }
@@ -457,7 +451,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | where round(emp_no) + 1 > 0
-            | where languages < 10
+            | where salary < 10
             """);
 
         var optimized = optimizedPlan(plan);
@@ -481,7 +475,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testNoPushDownNonFoldableInComparisonFilter() {
         var plan = physicalPlan("""
             from test
-            | where emp_no > languages
+            | where emp_no > salary
             """);
 
         var optimized = optimizedPlan(plan);
@@ -494,8 +488,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = source(extract.child());
 
-        assertThat(Expressions.names(filter.condition().collect(x -> x instanceof FieldAttribute)), contains("emp_no", "languages"));
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no", "languages"));
+        assertThat(Expressions.names(filter.condition().collect(x -> x instanceof FieldAttribute)), contains("emp_no", "salary"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no", "salary"));
         assertNull(source.query());
     }
 
@@ -523,7 +517,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testCombineUserAndPhysicalFilters() {
         var plan = physicalPlan("""
             from test
-            | where languages < 10
+            | where salary < 10
             """);
         var userFilter = new RangeQueryBuilder("emp_no").gt(-1);
         plan = plan.transformUp(EsQueryExec.class, node -> new EsQueryExec(node.source(), node.index(), userFilter));
@@ -547,7 +541,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
         assertTrue(mustClauses.get(1) instanceof RangeQueryBuilder);
         assertThat(mustClauses.get(1).toString(), containsString("""
-                "languages" : {
+                "salary" : {
                   "lt" : 10,
             """));
     }
@@ -555,7 +549,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushBinaryLogicFilters() {
         var plan = physicalPlan("""
             from test
-            | where emp_no + 1 > 0 or languages < 10
+            | where emp_no + 1 > 0 or salary < 10
             """);
 
         var optimized = optimizedPlan(plan);
@@ -577,7 +571,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
         assertTrue(shouldClauses.get(1) instanceof RangeQueryBuilder);
         assertThat(shouldClauses.get(1).toString(), containsString("""
-                "languages" : {
+                "salary" : {
                   "lt" : 10,
             """));
     }
@@ -585,7 +579,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testPushMultipleBinaryLogicFilters() {
         var plan = physicalPlan("""
             from test
-            | where emp_no + 1 > 0 or languages < 10
+            | where emp_no + 1 > 0 or salary < 10
             | where salary <= 10000 or salary >= 50000
             """);
 
@@ -607,7 +601,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "emp_no" : {
                         "gt" : -1"""));
         assertThat(mustClauses.get(0).toString(), containsString("""
-            "languages" : {
+            "salary" : {
                         "lt" : 10"""));
 
         assertTrue(mustClauses.get(1) instanceof BoolQueryBuilder);

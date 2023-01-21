@@ -347,7 +347,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | limit 3
-            | where emp_no < 3 or languages > 9""");
+            | where emp_no < 3 or salary > 9""");
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -456,7 +456,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | where emp_no > 10
-            | stats x = avg(languages) by gender""");
+            | stats x = avg(salary) by first_name""");
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
@@ -469,7 +469,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | limit 100
-            | stats x = avg(languages) by gender""");
+            | stats x = avg(salary) by first_name""");
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
@@ -482,15 +482,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | sort languages""");
+            | sort salary""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(
-            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
-            contains("languages", "emp_no")
-        );
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(orderBy.child(), EsRelation.class);
     }
 
@@ -498,7 +495,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | eval x = languages + 1
+            | eval x = salary + 1
             | sort x""");
 
         var project = as(plan, Project.class);
@@ -513,7 +510,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | eval x = languages + 1, y = languages + 2
+            | eval x = salary + 1, y = salary + 2
             | sort x""");
 
         var project = as(plan, Project.class);
@@ -529,16 +526,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project languages, emp_no
-            | sort languages""");
+            | project salary, emp_no
+            | sort salary""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(
-            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
-            contains("languages", "emp_no")
-        );
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(orderBy.child(), EsRelation.class);
     }
 
@@ -546,17 +540,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project languages, en = emp_no
+            | project salary, en = emp_no
             | eval e = en * 2
-            | sort languages""");
+            | sort salary""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(
-            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
-            contains("languages", "emp_no")
-        );
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(orderBy.child(), Eval.class);
     }
 
@@ -564,16 +555,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project l = languages, emp_no
+            | project l = salary, emp_no
             | sort l""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(
-            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
-            contains("languages", "emp_no")
-        );
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(orderBy.child(), EsRelation.class);
     }
 
@@ -582,15 +570,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort emp_no
             | where emp_no > 10
-            | sort languages""");
+            | sort salary""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(
-            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
-            contains("languages", "emp_no")
-        );
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         var filter = as(orderBy.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
@@ -598,7 +583,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | sort languages
+            | sort salary
             | eval x = emp_no / 2
             | where x > 20
             | sort x
@@ -615,44 +600,44 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineMultipleOrderByAndLimits() {
         // expected plan:
         // from test
-        // | sort languages, emp_no
+        // | sort salary, emp_no
         // | limit 100
-        // | where languages > 1
-        // | sort emp_no, salary
+        // | where salary > 1
+        // | sort emp_no, first_name
         // | limit 10000
-        // | project l = languages, emp_no, salary
+        // | project l = salary, emp_no, first_name
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project l = languages, emp_no, salary
+            | project l = salary, emp_no, first_name
             | sort l
             | limit 100
-            | sort salary
+            | sort first_name
             | where l > 1
             | sort emp_no""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("emp_no", "salary"));
+        assertThat(
+            orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
+            contains("emp_no", "first_name")
+        );
         var filter = as(orderBy.child(), Filter.class);
         var limit2 = as(filter.child(), Limit.class);
         var orderBy2 = as(limit2.child(), OrderBy.class);
-        assertThat(
-            orderBy2.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(),
-            contains("languages", "emp_no")
-        );
+        assertThat(orderBy2.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(orderBy2.child(), EsRelation.class);
     }
 
     public void testPruneRedundantSortClauses() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | sort languages nulls last, emp_no desc nulls first
-            | where languages > 2
+            | sort salary nulls last, emp_no desc nulls first
+            | where salary > 2
             | eval e = emp_no * 2
-            | project languages, emp_no, e
-            | sort e, emp_no, languages desc, emp_no desc""");
+            | project salary, emp_no, e
+            | sort e, emp_no, salary desc, emp_no desc""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -674,7 +659,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute(EMPTY, "languages", mapping.get("languages")),
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
                 )

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -40,7 +43,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -106,7 +112,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
 
-            return new EsRelation(plan.source(), context.indexResolution().get(), plan.frozen());
+            EsIndex esIndex = context.indexResolution().get();
+            // ignore all the unsupported data types fields
+            Map<String, EsField> newFields = new TreeMap<>();
+            for (Entry<String, EsField> entry : esIndex.mapping().entrySet()) {
+                if (EsqlDataTypes.isUnsupported(entry.getValue().getDataType()) == false) {
+                    newFields.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields), plan.frozen());
         }
     }
 
@@ -252,7 +266,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     for (var a : attrList) {
                         String nameCandidate = a.name();
                         // add only primitives (object types would only result in another error)
-                        if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
+                        if (EsqlDataTypes.isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
                             names.add(nameCandidate);
                         }
                     }

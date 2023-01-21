@@ -39,8 +39,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -79,7 +79,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     private Collection<Object> createComponents(Client client, ClusterService clusterService) {
         return Arrays.asList(
-            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE, Set::of))
+            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of))
         );
     }
 

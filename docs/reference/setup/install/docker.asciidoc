@@ -412,18 +412,17 @@ do not properly process the /etc/sysctl.conf file.
 To manually set it every time you reboot, you must run the following commands in a command prompt
 or PowerShell window every time you restart Docker:
 
-[source]
+[source,sh]
 --------------------------------------------
 wsl -d docker-desktop -u root
 sysctl -w vm.max_map_count=262144
-exit
 --------------------------------------------
 
 If you are on these versions of WSL and you do not want to have to run those commands every
 time you restart Docker, you can globally change every WSL distribution with this setting
 by modifying your %USERPROFILE%\.wslconfig as follows:
 
-[source]
+[source,text]
 --------------------------------------------
 [wsl2]
 kernelCommandLine = "sysctl.vm.max_map_count=262144"
@@ -435,14 +434,14 @@ If you are on Windows 11, or Windows 10 version 22H2 and have installed the Micr
 version of WSL, you can modify the /etc/sysctl.conf within the "docker-desktop" WSL
 distribution, perhaps with commands like this:
 
-[source]
+[source,sh]
 --------------------------------------------
 wsl -d docker-desktop -u root
 vi /etc/sysctl.conf
 --------------------------------------------
 
 and appending a line which reads:
-[source]
+[source,text]
 --------------------------------------------
 vm.max_map_count = 262144
 --------------------------------------------

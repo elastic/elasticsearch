@@ -457,7 +457,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
     }
 
-    public void testSerializationNullBytes() throws Exception {
+    public void testSerializationNewlyCreated() throws Exception {
         final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
         wrapper.setString("string_setting", "string_value".toCharArray());
 
@@ -473,7 +473,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertFalse(wrapper.hasPassword());
     }
 
-    public void testSerializationWithBytes() throws Exception {
+    public void testSerializationWhenLoadedFromFile() throws Exception {
         final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
         wrapper.setString("string_setting", "string_value".toCharArray());
 

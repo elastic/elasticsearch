@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
@@ -382,6 +383,7 @@ public interface ActionListener<Response> {
     final class RunAfterActionListener<T> extends Delegating<T, T> {
 
         private final Runnable runAfter;
+        private boolean executed; // used when assertions are enabled
 
         protected RunAfterActionListener(ActionListener<T> delegate, Runnable runAfter) {
             super(delegate);
@@ -393,6 +395,7 @@ public interface ActionListener<Response> {
             try {
                 delegate.onResponse(response);
             } finally {
+                assert assertNotExecuted();
                 runAfter.run();
             }
         }
@@ -402,8 +405,17 @@ public interface ActionListener<Response> {
             try {
                 super.onFailure(e);
             } finally {
+                assert assertNotExecuted();
                 runAfter.run();
             }
+        }
+
+        private boolean assertNotExecuted() {
+            if (Assertions.ENABLED) {
+                assert executed == false : "listener already executed";
+                executed = true;
+            }
+            return true;
         }
 
         @Override
@@ -425,6 +437,7 @@ public interface ActionListener<Response> {
     final class RunBeforeActionListener<T> extends Delegating<T, T> {
 
         private final CheckedRunnable<?> runBefore;
+        private boolean executed; // used when assertions are enabled
 
         protected RunBeforeActionListener(ActionListener<T> delegate, CheckedRunnable<?> runBefore) {
             super(delegate);
@@ -433,6 +446,7 @@ public interface ActionListener<Response> {
 
         @Override
         public void onResponse(T response) {
+            assert assertNotExecuted();
             try {
                 runBefore.run();
             } catch (Exception ex) {
@@ -444,12 +458,21 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
+            assert assertNotExecuted();
             try {
                 runBefore.run();
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
             super.onFailure(e);
+        }
+
+        private boolean assertNotExecuted() {
+            if (Assertions.ENABLED) {
+                assert executed == false : "listener already executed";
+                executed = true;
+            }
+            return true;
         }
 
         @Override

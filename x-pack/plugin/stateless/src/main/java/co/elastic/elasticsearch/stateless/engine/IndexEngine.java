@@ -50,6 +50,7 @@ public class IndexEngine extends InternalEngine {
 
     public IndexEngine(EngineConfig engineConfig) {
         super(engineConfig);
+        assert engineConfig.isPromotableToPrimary();
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());

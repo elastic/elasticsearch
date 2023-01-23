@@ -1483,7 +1483,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
 
         TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result = future.get();
-        BulkShardResponse response = result.finalResponseIfSuccessful;
+        BulkShardResponse response = result.replicationResponse;
         assertThat(response, notNullValue());
         assertThat(response.getResponses(), arrayWithSize(3));
         assertThat(response.getResponses()[0].getFailureMessage(), containsString("unauthorized for user [" + user.principal() + "]"));

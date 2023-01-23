@@ -221,6 +221,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     }).delegateResponse((l, e) -> {
                         if (isMultiRepoRequest && e instanceof ElasticsearchException elasticsearchException) {
                             failures.put(repoName, elasticsearchException);
+                            l.onResponse(SnapshotsInRepo.EMPTY);
                         } else {
                             l.onFailure(e);
                         }
@@ -871,5 +872,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     }
 
-    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {}
+    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
+        private static final SnapshotsInRepo EMPTY = new SnapshotsInRepo(List.of(), 0, 0);
+    }
 }

@@ -100,7 +100,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         indexDoc(
             "profiling-stackframes",
             "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
-            Map.of("Stackframe.function.name", "_raw_spin_unlock_irqrestore")
+            Map.of("Stackframe.function.name", List.of("_raw_spin_unlock_irqrestore", "inlined_frame_1", "inlined_frame_0"))
         );
         indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
 

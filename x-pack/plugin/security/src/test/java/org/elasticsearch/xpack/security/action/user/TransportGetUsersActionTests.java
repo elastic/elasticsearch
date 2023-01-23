@@ -50,7 +50,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -142,14 +141,23 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final boolean withProfileUid = randomBoolean();
         request.setWithProfileUid(withProfileUid);
 
-        final GetUsersResponse response = PlainActionFuture.get(
-            future -> action.doExecute(mock(Task.class), request, future),
-            10,
-            TimeUnit.SECONDS
-        );
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
+            @Override
+            public void onResponse(GetUsersResponse response) {
+                responseRef.set(response);
+            }
 
-        assertThat(response, is(notNullValue()));
-        final User[] users = response.users();
+            @Override
+            public void onFailure(Exception e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(throwableRef.get(), is(nullValue()));
+        assertThat(responseRef.get(), is(notNullValue()));
+        final User[] users = responseRef.get().users();
         if (anonymousEnabled) {
             assertThat("expected array with anonymous but got: " + Arrays.toString(users), users, arrayContaining(anonymousUser));
         } else {
@@ -157,7 +165,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         }
         if (withProfileUid) {
             assertThat(
-                response.getProfileUidLookup(),
+                responseRef.get().getProfileUidLookup(),
                 equalTo(
                     Arrays.stream(users)
                         .filter(user -> hasAnonymousProfile)
@@ -165,7 +173,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 )
             );
         } else {
-            assertThat(response.getProfileUidLookup(), nullValue());
+            assertThat(responseRef.get().getProfileUidLookup(), nullValue());
         }
         verifyNoMoreInteractions(usersStore);
     }
@@ -220,18 +228,28 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final boolean withProfileUid = randomBoolean();
         request.setWithProfileUid(withProfileUid);
 
-        final GetUsersResponse response = PlainActionFuture.get(
-            future -> action.doExecute(mock(Task.class), request, future),
-            10,
-            TimeUnit.SECONDS
-        );
-        assertThat(response, is(notNullValue()));
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
+            @Override
+            public void onResponse(GetUsersResponse response) {
+                responseRef.set(response);
+            }
 
-        User[] users = response.users();
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Request failed", e);
+                throwableRef.set(e);
+            }
+        });
 
+        User[] users = responseRef.get().users();
+
+        assertThat(throwableRef.get(), is(nullValue()));
+        assertThat(responseRef.get(), is(notNullValue()));
         assertThat(users, arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
         if (withProfileUid) {
-            assertThat(response.getProfileUidLookup(), equalTo(reservedUsers.stream().filter(user -> {
+            assertThat(responseRef.get().getProfileUidLookup(), equalTo(reservedUsers.stream().filter(user -> {
                 if (user instanceof AnonymousUser) {
                     return hasAnonymousProfile;
                 } else {
@@ -239,7 +257,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 }
             }).collect(Collectors.toUnmodifiableMap(User::principal, user -> "u_profile_" + user.principal()))));
         } else {
-            assertThat(response.getProfileUidLookup(), nullValue());
+            assertThat(responseRef.get().getProfileUidLookup(), nullValue());
         }
     }
 

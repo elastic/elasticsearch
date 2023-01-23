@@ -443,26 +443,24 @@ public class AuthenticationTestHelper {
                         }
                         // User associated to API key authentication has empty roles
                         user = stripRoles(user);
-                        prepareApiKeyMetadata();
+                        // TODO randomize?
                         final boolean remoteAccess = metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
                         if (remoteAccess) {
-                            try {
-                                // TODO
-                                final Authentication authenticationFromRemoteCluster = AuthenticationContextSerializer.decode(
+                            prepareRemoteAccessMetadata();
+                            authentication = Authentication.newRemoteAccessAuthentication(
+                                AuthenticationResult.success(user, metadata),
+                                AuthenticationContextSerializer.uncheckedDecode(
                                     (String) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-                                );
-                                authentication = Authentication.newRemoteAccessAuthentication(
-                                    AuthenticationResult.success(user, metadata),
-                                    authenticationFromRemoteCluster,
-                                    ESTestCase.randomAlphaOfLengthBetween(3, 8)
-                                );
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        } else authentication = Authentication.newApiKeyAuthentication(
-                            AuthenticationResult.success(user, metadata),
-                            ESTestCase.randomAlphaOfLengthBetween(3, 8)
-                        );
+                                ),
+                                ESTestCase.randomAlphaOfLengthBetween(3, 8)
+                            );
+                        } else {
+                            prepareApiKeyMetadata();
+                            authentication = Authentication.newApiKeyAuthentication(
+                                AuthenticationResult.success(user, metadata),
+                                ESTestCase.randomAlphaOfLengthBetween(3, 8)
+                            );
+                        }
                     }
                     case TOKEN -> {
                         if (isServiceAccount != null && isServiceAccount) {
@@ -610,6 +608,18 @@ public class AuthenticationTestHelper {
                         metadata.put(AuthenticationField.API_KEY_METADATA_KEY, metadataBytes);
                     }
                 }
+            }
+        }
+
+        private void prepareRemoteAccessMetadata() {
+            prepareApiKeyMetadata(); // TODO skip?
+            if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)) {
+                metadata.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster().uncheckedEncode());
+            }
+            if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS)) {
+                // TODO randomly include another set of role descriptors, once we have querying-cluster-side API key support
+                metadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS, List.of(new BytesArray("""
+                    {"x":{"indices":[{"names":["index1"],"privileges":["read","read_cross_cluster"]}]}}""")));
             }
         }
 

@@ -469,6 +469,14 @@ public final class Authentication implements ToXContentObject {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
 
+    public String uncheckedEncode() {
+        try {
+            return encode();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public void writeTo(StreamOutput out) throws IOException {
         if (isRunAs()) {
             final User outerUser = effectiveSubject.getUser();

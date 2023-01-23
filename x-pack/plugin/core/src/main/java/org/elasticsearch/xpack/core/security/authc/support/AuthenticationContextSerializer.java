@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Base64;
 
 /**
@@ -70,6 +71,14 @@ public class AuthenticationContextSerializer {
         } catch (IOException | RuntimeException e) {
             logger.warn("Failed to decode authentication [" + header + "]", e);
             throw e;
+        }
+    }
+
+    public static Authentication uncheckedDecode(String header) {
+        try {
+            return decode(header);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

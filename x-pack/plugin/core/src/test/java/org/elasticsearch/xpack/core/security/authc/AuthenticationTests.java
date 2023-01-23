@@ -226,6 +226,30 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
+    public void testIsRemoteAccess() {
+        final boolean isRemoteAccess = randomBoolean();
+        final Authentication authentication;
+        if (isRemoteAccess) {
+            authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        } else {
+            authentication = randomValueOtherThanMany(
+                authc -> AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
+                () -> AuthenticationTestHelper.builder().build()
+            );
+        }
+
+        if (isRemoteAccess) {
+            assertThat(authentication.isRemoteAccess(), is(true));
+            assertThat(authentication.isAuthenticatedAsRemoteAccess(), is(true));
+            // Also validate that this does not clash with API keys
+            assertThat(authentication.isApiKey(), is(false));
+            assertThat(authentication.isAuthenticatedAsApiKey(), is(false));
+        } else {
+            assertThat(authentication.isRemoteAccess(), is(false));
+            assertThat(authentication.isAuthenticatedAsRemoteAccess(), is(false));
+        }
+    }
+
     public void testNonRealmAuthenticationsNoDomain() {
         final String apiKeyId = randomAlphaOfLengthBetween(10, 20);
         Authentication apiAuthentication = randomApiKeyAuthentication(randomUser(), apiKeyId);

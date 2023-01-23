@@ -191,6 +191,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         assertThat(state, sameInstance(lastState));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93142")
     public void testStoragePreventsMove() {
         // this test moves shards to warm nodes and then checks that the reactive decider can calculate the storage necessary to move them
         // back to hot nodes.

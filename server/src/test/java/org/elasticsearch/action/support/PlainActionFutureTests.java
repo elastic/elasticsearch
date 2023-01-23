@@ -14,20 +14,19 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class AdapterActionFutureTests extends ESTestCase {
+public class PlainActionFutureTests extends ESTestCase {
 
     public void testInterruption() throws Exception {
-        final AdapterActionFuture<String, Integer> adapter = new AdapterActionFuture<String, Integer>() {
+        final PlainActionFuture<Object> adapter = new PlainActionFuture<>() {
             @Override
-            protected String convert(final Integer listenerResponse) {
-                return Objects.toString(listenerResponse);
+            public void onResponse(Object value) {
+                throw new AssertionError("should not be called");
             }
         };
 
@@ -83,11 +82,10 @@ public class AdapterActionFutureTests extends ESTestCase {
     }
 
     private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException, Class<? extends Exception> getException) {
-        final AdapterActionFuture<Void, Void> adapter = new AdapterActionFuture<Void, Void>() {
+        final PlainActionFuture<Void> adapter = new PlainActionFuture<>() {
             @Override
-            protected Void convert(Void listenerResponse) {
-                fail();
-                return null;
+            public void onResponse(Void value) {
+                throw new AssertionError("should not be called");
             }
         };
 

@@ -14,6 +14,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
@@ -73,6 +74,6 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
         final SharedBlobCacheService<CacheKey> sharedBlobCacheService = this.frozenCacheServiceSupplier.get();
         assert sharedBlobCacheService != null : "frozen cache service not initialized";
-        sharedBlobCacheService.forceEvict(SearchableSnapshotIndexEventListener.forceEvictPredicate(shardId, indexSettings.getSettings()));
+        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
     }
 }

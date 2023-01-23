@@ -48,6 +48,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -125,6 +126,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -279,6 +281,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }
         return (BlobStoreRepository) repository;
+    }
+
+    public static Predicate<CacheKey> forceEvictPredicate(ShardId shardId, Settings indexSettings) {
+        final String snapshotUUID = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings);
+        final String snapshotIndexName = SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings);
+        return k -> shardId.equals(k.shardId()) && snapshotIndexName.equals(k.snapshotIndexName()) && snapshotUUID.equals(k.snapshotUUID());
     }
 
     @Override

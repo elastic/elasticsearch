@@ -23,11 +23,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
-
-import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
@@ -107,17 +106,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                         );
                     }
                     if (sharedBlobCacheService != null) {
-                        sharedBlobCacheService.forceEvict(forceEvictPredicate(shardId, indexSettings.getSettings()));
+                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
                     }
                 }
             }
         }
-    }
-
-    public static Predicate<CacheKey> forceEvictPredicate(ShardId shardId, Settings indexSettings) {
-        final String snapshotUUID = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings);
-        final String snapshotIndexName = SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings);
-        return k -> shardId.equals(k.shardId()) && snapshotIndexName.equals(k.snapshotIndexName()) && snapshotUUID.equals(k.snapshotUUID());
     }
 
     private static boolean shouldEvictCacheFiles(IndexRemovalReason reason) {

@@ -59,6 +59,7 @@ import java.util.function.BiFunction;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
@@ -128,7 +129,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(Settings settings) {
-        this(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
+        this(createBuiltInClusterSettings(settings), WriteLoadForecaster.DEFAULT);
     }
 
     public BalancedShardsAllocator(ClusterSettings clusterSettings) {

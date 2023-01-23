@@ -133,72 +133,75 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             });
             if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
-                listenableCacheEntry.addListener(
-                    new ThreadedActionListener<>(
-                        logger,
-                        threadPool,
-                        ThreadPool.Names.GENERIC,
-                        ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(cachedResult -> {
-                            final boolean credsMatch = cachedResult.verify(token.credentials());
-                            if (cachedResult.authenticationResult.isAuthenticated()) {
-                                if (credsMatch) {
-                                    // cached credential hash matches the credential hash for this forestalled request
-                                    handleCachedAuthentication(cachedResult.user, ActionListener.wrap(authResult -> {
-                                        if (authResult.isAuthenticated()) {
-                                            logger.debug(
-                                                "realm [{}] authenticated user [{}], with roles [{}] (cached)",
-                                                name(),
-                                                token.principal(),
-                                                authResult.getValue().roles()
-                                            );
-                                        } else {
-                                            logger.debug(
-                                                "realm [{}] authenticated user [{}] from cache, but then failed [{}]",
-                                                name(),
-                                                token.principal(),
-                                                authResult.getMessage()
-                                            );
-                                        }
-                                        listener.onResponse(authResult);
-                                    }, listener::onFailure));
-                                } else {
-                                    logger.trace(
-                                        "realm [{}], provided credentials for user [{}] do not match (known good) cached credentials,"
-                                            + " invalidating cache and retrying",
+                final ActionListener<CachedResult> cacheEntryListener = ActionListener.wrap(cachedResult -> {
+                    final boolean credsMatch = cachedResult.verify(token.credentials());
+                    if (cachedResult.authenticationResult.isAuthenticated()) {
+                        if (credsMatch) {
+                            // cached credential hash matches the credential hash for this forestalled request
+                            handleCachedAuthentication(cachedResult.user, ActionListener.wrap(authResult -> {
+                                if (authResult.isAuthenticated()) {
+                                    logger.debug(
+                                        "realm [{}] authenticated user [{}], with roles [{}] (cached)",
                                         name(),
-                                        token.principal()
+                                        token.principal(),
+                                        authResult.getValue().roles()
                                     );
-                                    // its credential hash does not match the
-                                    // hash of the credential for this forestalled request.
-                                    // clear cache and try to reach the authentication source again because password
-                                    // might have changed there and the local cached hash got stale
-                                    cache.invalidate(token.principal(), listenableCacheEntry);
-                                    authenticateWithCache(token, listener);
+                                } else {
+                                    logger.debug(
+                                        "realm [{}] authenticated user [{}] from cache, but then failed [{}]",
+                                        name(),
+                                        token.principal(),
+                                        authResult.getMessage()
+                                    );
                                 }
-                            } else if (credsMatch) {
-                                // not authenticated but instead of hammering reuse the result. a new
-                                // request will trigger a retried auth
-                                logger.trace(
-                                    "realm [{}], provided credentials for user [{}] are invalid (cached result) status:[{}] message:[{}]",
-                                    name(),
-                                    token.principal(),
-                                    cachedResult.authenticationResult.getStatus(),
-                                    cachedResult.authenticationResult.getMessage()
-                                );
-                                listener.onResponse(cachedResult.authenticationResult);
-                            } else {
-                                logger.trace(
-                                    "realm [{}], provided credentials for user [{}] do not match (possibly invalid) cached credentials,"
-                                        + " invalidating cache and retrying",
-                                    name(),
-                                    token.principal()
-                                );
-                                cache.invalidate(token.principal(), listenableCacheEntry);
-                                authenticateWithCache(token, listener);
-                            }
-                        }, listener::onFailure), threadPool.getThreadContext()),
-                        false
-                    )
+                                listener.onResponse(authResult);
+                            }, listener::onFailure));
+                        } else {
+                            logger.trace(
+                                "realm [{}], provided credentials for user [{}] do not match (known good) cached credentials,"
+                                    + " invalidating cache and retrying",
+                                name(),
+                                token.principal()
+                            );
+                            // its credential hash does not match the
+                            // hash of the credential for this forestalled request.
+                            // clear cache and try to reach the authentication source again because password
+                            // might have changed there and the local cached hash got stale
+                            cache.invalidate(token.principal(), listenableCacheEntry);
+                            authenticateWithCache(token, listener);
+                        }
+                    } else if (credsMatch) {
+                        // not authenticated but instead of hammering reuse the result. a new
+                        // request will trigger a retried auth
+                        logger.trace(
+                            "realm [{}], provided credentials for user [{}] are invalid (cached result) status:[{}] message:[{}]",
+                            name(),
+                            token.principal(),
+                            cachedResult.authenticationResult.getStatus(),
+                            cachedResult.authenticationResult.getMessage()
+                        );
+                        listener.onResponse(cachedResult.authenticationResult);
+                    } else {
+                        logger.trace(
+                            "realm [{}], provided credentials for user [{}] do not match (possibly invalid) cached credentials,"
+                                + " invalidating cache and retrying",
+                            name(),
+                            token.principal()
+                        );
+                        cache.invalidate(token.principal(), listenableCacheEntry);
+                        authenticateWithCache(token, listener);
+                    }
+                }, listener::onFailure);
+                listenableCacheEntry.addListener(
+                    listenableCacheEntry.isDone()
+                        ? cacheEntryListener
+                        : new ThreadedActionListener<>(
+                            logger,
+                            threadPool,
+                            ThreadPool.Names.GENERIC,
+                            ContextPreservingActionListener.wrapPreservingContext(cacheEntryListener, threadPool.getThreadContext()),
+                            false
+                        )
                 );
             } else {
                 logger.trace(
@@ -307,14 +310,23 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     listenableCacheEntry.onFailure(e);
                 }));
             }
+            final ActionListener<CachedResult> cacheEntryListener = ActionListener.wrap(cachedResult -> {
+                if (cachedResult.user != null) {
+                    listener.onResponse(cachedResult.user);
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure);
             listenableCacheEntry.addListener(
-                new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, ActionListener.wrap(cachedResult -> {
-                    if (cachedResult.user != null) {
-                        listener.onResponse(cachedResult.user);
-                    } else {
-                        listener.onResponse(null);
-                    }
-                }, listener::onFailure), false)
+                listenableCacheEntry.isDone()
+                    ? cacheEntryListener
+                    : new ThreadedActionListener<>(
+                        logger,
+                        threadPool,
+                        ThreadPool.Names.GENERIC,
+                        ContextPreservingActionListener.wrapPreservingContext(cacheEntryListener, threadPool.getThreadContext()),
+                        false
+                    )
             );
         } catch (final ExecutionException e) {
             listener.onFailure(e);

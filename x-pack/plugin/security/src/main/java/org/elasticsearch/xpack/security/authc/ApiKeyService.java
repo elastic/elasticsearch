@@ -881,28 +881,31 @@ public class ApiKeyService {
                 }
 
                 if (valueAlreadyInCache.get()) {
+                    final ActionListener<CachedApiKeyHashResult> cacheEntryListener = ActionListener.wrap(result -> {
+                        if (result.success) {
+                            if (result.verify(credentials.getKey())) {
+                                // move on
+                                validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                            } else {
+                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            }
+                        } else if (result.verify(credentials.getKey())) { // same key, pass the same result
+                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        } else {
+                            apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
+                        }
+                    }, listener::onFailure);
                     listenableCacheEntry.addListener(
-                        new ThreadedActionListener<>(
-                            logger,
-                            threadPool,
-                            ThreadPool.Names.GENERIC,
-                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(result -> {
-                                if (result.success) {
-                                    if (result.verify(credentials.getKey())) {
-                                        // move on
-                                        validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                                    } else {
-                                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                                    }
-                                } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                                } else {
-                                    apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                                    validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
-                                }
-                            }, listener::onFailure), threadPool.getThreadContext()),
-                            false
-                        )
+                        listenableCacheEntry.isDone()
+                            ? cacheEntryListener
+                            : new ThreadedActionListener<>(
+                                logger,
+                                threadPool,
+                                ThreadPool.Names.GENERIC,
+                                ContextPreservingActionListener.wrapPreservingContext(cacheEntryListener, threadPool.getThreadContext()),
+                                false
+                            )
                     );
                 } else {
                     verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {

@@ -97,24 +97,27 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 return new ListenableFuture<>();
             });
             if (valueAlreadyInCache.get()) {
+                final ActionListener<CachedResult> cacheEntryListener = ActionListener.wrap(result -> {
+                    if (result.success) {
+                        listener.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
+                    } else if (result.verify(token)) {
+                        // same wrong token
+                        listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
+                    } else {
+                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
+                        authenticateWithCache(token, listener);
+                    }
+                }, listener::onFailure);
                 listenableCacheEntry.addListener(
-                    new ThreadedActionListener<>(
-                        logger,
-                        threadPool,
-                        ThreadPool.Names.GENERIC,
-                        ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(result -> {
-                            if (result.success) {
-                                listener.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
-                            } else if (result.verify(token)) {
-                                // same wrong token
-                                listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
-                            } else {
-                                cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
-                                authenticateWithCache(token, listener);
-                            }
-                        }, listener::onFailure), threadPool.getThreadContext()),
-                        false
-                    )
+                    listenableCacheEntry.isDone()
+                        ? cacheEntryListener
+                        : new ThreadedActionListener<>(
+                            logger,
+                            threadPool,
+                            ThreadPool.Names.GENERIC,
+                            ContextPreservingActionListener.wrapPreservingContext(cacheEntryListener, threadPool.getThreadContext()),
+                            false
+                        )
                 );
             } else {
                 doAuthenticate(token, ActionListener.wrap(storeAuthenticationResult -> {

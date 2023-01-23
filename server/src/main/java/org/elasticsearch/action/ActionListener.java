@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
@@ -411,10 +410,8 @@ public interface ActionListener<Response> {
         }
 
         private boolean assertNotExecuted() {
-            if (Assertions.ENABLED) {
-                assert executed == false : "listener already executed";
-                executed = true;
-            }
+            assert executed == false : "listener already executed";
+            executed = true;
             return true;
         }
 
@@ -468,10 +465,8 @@ public interface ActionListener<Response> {
         }
 
         private boolean assertNotExecuted() {
-            if (Assertions.ENABLED) {
-                assert executed == false : "listener already executed";
-                executed = true;
-            }
+            assert executed == false : "listener already executed";
+            executed = true;
             return true;
         }
 

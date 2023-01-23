@@ -89,7 +89,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
-        return createAllocationService(settings, EMPTY_CLUSTER_SETTINGS);
+        return createAllocationService(settings, createBuiltInClusterSettings(settings));
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
@@ -113,7 +113,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
         return new DesiredBalanceShardsAllocator(
-            createBuiltInClusterSettings(),
+            createBuiltInClusterSettings(settings),
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             null,
@@ -141,34 +141,35 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         };
     }
 
-    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
-        return new MockAllocationService(
-            randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(settings),
-            clusterInfoService,
+    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
+        return createAllocationService(
+            settings,
+            gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
-    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
-        return createAllocationService(settings, gatewayAllocator, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), clusterInfoService, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
-        return createAllocationService(settings, new TestGatewayAllocator(), snapshotsInfoService);
+        return createAllocationService(settings, new TestGatewayAllocator(), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
     }
 
     public static MockAllocationService createAllocationService(
         Settings settings,
         GatewayAllocator gatewayAllocator,
+        ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
+        var clusterSettings = createBuiltInClusterSettings(settings);
         return new MockAllocationService(
-            randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS),
+            randomAllocationDeciders(settings, clusterSettings),
             gatewayAllocator,
-            new BalancedShardsAllocator(settings),
-            EmptyClusterInfoService.INSTANCE,
+            new BalancedShardsAllocator(clusterSettings, WriteLoadForecaster.DEFAULT),
+            clusterInfoService,
             snapshotsInfoService
         );
     }
@@ -217,13 +218,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static AllocationDeciders yesAllocationDeciders() {
         return new AllocationDeciders(
-            Arrays.asList(
-                new TestAllocateDecision(Decision.YES),
-                new SameShardAllocationDecider(
-                    Settings.EMPTY,
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                )
-            )
+            Arrays.asList(new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(createBuiltInClusterSettings()))
         );
     }
 
@@ -233,13 +228,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static AllocationDeciders throttleAllocationDeciders() {
         return new AllocationDeciders(
-            Arrays.asList(
-                new TestAllocateDecision(Decision.THROTTLE),
-                new SameShardAllocationDecider(
-                    Settings.EMPTY,
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                )
-            )
+            Arrays.asList(new TestAllocateDecision(Decision.THROTTLE), new SameShardAllocationDecider(createBuiltInClusterSettings()))
         );
     }
 
@@ -352,6 +341,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
+        private final GatewayAllocator gatewayAllocator;
+
         public MockAllocationService(
             AllocationDeciders allocationDeciders,
             GatewayAllocator gatewayAllocator,
@@ -367,6 +358,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 snapshotsInfoService,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
+            this.gatewayAllocator = gatewayAllocator;
         }
 
         public void setNanoTimeOverride(long nanoTime) {
@@ -376,6 +368,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         protected long currentNanoTime() {
             return nanoTimeOverride == -1L ? super.currentNanoTime() : nanoTimeOverride;
+        }
+
+        public GatewayAllocator getGatewayAllocator() {
+            return gatewayAllocator;
         }
     }
 

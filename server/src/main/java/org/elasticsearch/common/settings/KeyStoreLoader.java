@@ -21,6 +21,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -31,8 +32,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     private Path keystoreBackupPath = null;
 
     @Override
-    public SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
-        throws Exception {
+    public LoadedSecrets load(Environment environment, Terminal terminal) throws Exception {
         // See if we have a keystore already present
         KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile());
         // If there's no keystore or the keystore has no password, set an empty password
@@ -40,11 +40,12 @@ public class KeyStoreLoader implements SecureSettingsLoader {
             ? new SecureString(new char[0])
             : new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
 
-        environment = autoConfigure.apply(password);
-        secureSettings = KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
-        password.close();
+        return new LoadedSecrets(secureSettings, Optional.of(password));
+    }
 
-        return secureSettings;
+    @Override
+    public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
+        return KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
     }
 
     @Override

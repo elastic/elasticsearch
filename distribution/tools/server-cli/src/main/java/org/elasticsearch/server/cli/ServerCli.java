@@ -23,7 +23,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -32,7 +31,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -66,7 +64,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     @Override
-    public void execute(Terminal terminal, OptionSet options, Environment origEnv, ProcessInfo processInfo) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
@@ -75,18 +73,21 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
-        validateConfig(options, origEnv);
+        validateConfig(options, env);
 
-        AtomicReference<Environment> env = new AtomicReference<>(origEnv);
+        var secureSettingsLoader = env.secureSettingsLoader();
 
-        try (var secrets = SecureSettingsLoader.fromEnvironment(env.get()).load(env.get(), terminal, (p) -> {
-            env.set(autoConfigureSecurity(terminal, options, processInfo, env.get(), p.clone()));
-            return env.get();
-        })) {
+        try (
+            var loadedSecrets = secureSettingsLoader.load(env, terminal);
+            var password = (loadedSecrets.password().isPresent()) ? loadedSecrets.password().get() : new SecureString(new char[0]);
+        ) {
+            env = autoConfigureSecurity(terminal, options, processInfo, env, password);
+            SecureSettings secrets = secureSettingsLoader.bootstrap(env, password);
+
             // install/remove plugins from elasticsearch-plugins.yml
-            syncPlugins(terminal, env.get(), processInfo);
+            syncPlugins(terminal, env, processInfo);
 
-            ServerArgs args = createArgs(options, env.get(), secrets, processInfo);
+            ServerArgs args = createArgs(options, env, secrets, processInfo);
             this.server = startServer(terminal, processInfo, args);
         }
 
@@ -147,7 +148,7 @@ class ServerCli extends EnvironmentAwareCommand {
         OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
 
         boolean changed = true;
-        try (var autoConfigTerminal = new PasswordTerminal(terminal, optionalPassword)) {
+        try (var autoConfigTerminal = new PasswordTerminal(terminal, optionalPassword.clone())) {
             autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
         } catch (UserException e) {
             boolean okCode = switch (e.exitCode) {

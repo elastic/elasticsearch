@@ -158,7 +158,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-        execute(secureSettingsLoader(env), terminal, options, env, processInfo);
+        execute(env.secureSettingsLoader(), terminal, options, env, processInfo);
     }
 
     private void execute(SecureSettingsLoader secretsLoader, Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo)

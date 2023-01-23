@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -48,6 +49,8 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -322,7 +325,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testSecureSettingsLoaders() throws Exception {
-        // TODO: Change this to be using the Environment when we have an actual different implementation of SecureSettings
         this.mockSecureSettingsLoader = true;
         Command command = newCommand();
         command.main(
@@ -456,6 +458,20 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
+                Environment env = spy(super.createEnv(options, processInfo));
+
+                doAnswer(i -> {
+                    if (mockSecureSettingsLoader) {
+                        return new MockSecureSettingsLoader();
+                    }
+                    return i.callRealMethod();
+                }).when(env).secureSettingsLoader();
+
+                return env;
+            }
+
+            @Override
             protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
@@ -468,12 +484,13 @@ public class ServerCliTests extends CommandTestCase {
 
     class MockSecureSettingsLoader implements SecureSettingsLoader {
         @Override
-        public SecureSettings load(
-            Environment environment,
-            Terminal terminal,
-            AutoConfigureFunction<SecureString, Environment> autoConfigure
-        ) {
+        public LoadedSecrets load(Environment environment, Terminal terminal) {
             terminal.println("Mock secure settings loader loaded");
+            return new LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
+        }
+
+        @Override
+        public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             return KeyStoreWrapper.create();
         }
 

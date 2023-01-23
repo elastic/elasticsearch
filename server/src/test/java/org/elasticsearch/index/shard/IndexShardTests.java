@@ -2905,6 +2905,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93168")
     public void testShardActiveDuringInternalRecovery() throws IOException {
         boolean isPrimary = randomBoolean();
         IndexShard shard = newStartedShard(isPrimary);
@@ -2925,7 +2926,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         // Recovery state should be propagated to the engine
-        assertEquals(isPrimary, shard.getEngine().config().isRecoveringAsPrimary());
+        assertEquals(isPrimary, shard.getEngine().config().isPromotableToPrimary());
         closeShards(shard);
     }
 
@@ -4533,7 +4534,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isRecoveringAsPrimary()
+                config.isPromotableToPrimary()
             );
             return new InternalEngine(configWithWarmer);
         });

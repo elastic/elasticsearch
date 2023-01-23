@@ -1663,6 +1663,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
             }
+            // TODO handle remote access authentication
             return this;
         }
 

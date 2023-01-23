@@ -369,6 +369,10 @@ public final class Authentication implements ToXContentObject {
         return authenticatingSubject.getType() == Subject.Type.API_KEY;
     }
 
+    public boolean isAuthenticatedAsRemoteAccess() {
+        return authenticatingSubject.getType() == Subject.Type.REMOTE_ACCESS;
+    }
+
     // TODO: this is not entirely accurate if anonymous user can create a token
     private boolean isAuthenticatedAnonymously() {
         return AuthenticationType.ANONYMOUS.equals(getAuthenticationType());
@@ -393,6 +397,10 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
+    public boolean isRemoteAccess() {
+        return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
+    }
+
     /**
      * Whether the authentication can run-as another user
      */
@@ -404,6 +412,10 @@ public final class Authentication implements ToXContentObject {
 
         // We may allow service account to run-as in the future, but for now no service account requires it
         if (isServiceAccount()) {
+            return false;
+        }
+
+        if (isRemoteAccess()) {
             return false;
         }
 
@@ -604,6 +616,7 @@ public final class Authentication implements ToXContentObject {
                 builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
             }
         }
+        // TODO isRemoteAccess()
     }
 
     private void assertInternalConsistency() {
@@ -629,9 +642,18 @@ public final class Authentication implements ToXContentObject {
             || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
+        assert (false == isAuthenticatedAsRemoteAccess())
+            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "Remote access authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        assert (false == isAuthenticatedAsRemoteAccess())
+            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY) != null)
+            : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
+                + "and the value must be non-null.";
+
         // Assert domain assignment
         if (isAssignedToDomain()) {
             assert false == isApiKey();
+            assert false == isRemoteAccess();
             assert false == isServiceAccount();
             assert false == isAuthenticatedAnonymously();
             assert false == isAuthenticatedInternally();
@@ -891,27 +913,30 @@ public final class Authentication implements ToXContentObject {
     }
 
     public static Authentication newRemoteAccessAuthentication(
-        AuthenticationResult<User> authResult,
-        Authentication receivedAuthentication,
+        AuthenticationResult<User> remoteAccessApiKeyAuthcResult,
+        Authentication authenticationFromRemoteCluster,
         String nodeName
     ) {
-        assert authResult.isAuthenticated() : "Remote access authn result must be successful";
-        assert authResult.getValue().roles().length == 0 : "The user associated with a remote access authentication must have no role";
-        final User receivedUser = receivedAuthentication.getEffectiveSubject().getUser();
-        assert receivedUser.enabled();
-        final User user = new User(
-            // Consider including API key ID as well
-            receivedUser.principal(),
-            new String[0],
-            receivedUser.fullName(),
-            receivedUser.email(),
-            receivedUser.metadata(),
-            receivedUser.enabled()
+        assert remoteAccessApiKeyAuthcResult.isAuthenticated() : "Remote access authentication result must be successful";
+
+        final User remoteAccessApiKeyUser = remoteAccessApiKeyAuthcResult.getValue();
+        assert remoteAccessApiKeyUser.roles().length == 0
+            : "The user associated with a remote access API key authentication must have no role";
+
+        final User userFromRemoteCluster = authenticationFromRemoteCluster.getEffectiveSubject().getUser();
+        assert userFromRemoteCluster.enabled() : "The user received from a remote cluster must be enabled";
+
+        final User combinedUser = new User(
+            userFromRemoteCluster.principal(),
+            null,
+            userFromRemoteCluster.fullName(),
+            userFromRemoteCluster.email(),
+            userFromRemoteCluster.metadata(),
+            userFromRemoteCluster.enabled()
         );
-        final User apiKeyUser = authResult.getValue();
-        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(apiKeyUser.principal(), nodeName);
+        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(remoteAccessApiKeyUser.principal(), nodeName);
         final Authentication authentication = new Authentication(
-            new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
+            new Subject(combinedUser, authenticatedBy, Version.CURRENT, remoteAccessApiKeyAuthcResult.getMetadata()),
             AuthenticationType.API_KEY
         );
         assert false == authentication.isAssignedToDomain();

@@ -115,6 +115,7 @@ public class XContentUtils {
                 builder.endObject();
             }
             case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
+            // TODO handle REMOTE_ACCESS
         }
         builder.endObject();
     }

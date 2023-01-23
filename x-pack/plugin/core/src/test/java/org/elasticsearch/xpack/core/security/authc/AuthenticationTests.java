@@ -243,6 +243,9 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
+        Authentication remoteAccessAuthentication = randomRemoteAccessAuthentication();
+        assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
+        assertThat(remoteAccessAuthentication.getDomain(), nullValue());
     }
 
     public void testRealmAuthenticationIsAssignedToDomain() {
@@ -617,6 +620,10 @@ public class AuthenticationTests extends ESTestCase {
 
     public static Authentication randomAnonymousAuthentication() {
         return AuthenticationTestHelper.builder().anonymous().build();
+    }
+
+    public static Authentication randomRemoteAccessAuthentication() {
+        return AuthenticationTestHelper.builder().remoteAccess().build(false);
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

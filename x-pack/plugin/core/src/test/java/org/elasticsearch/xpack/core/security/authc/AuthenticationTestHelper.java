@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -68,7 +69,8 @@ public class AuthenticationTestHelper {
         AuthenticationField.ANONYMOUS_REALM_TYPE,
         AuthenticationField.ATTACH_REALM_TYPE,
         AuthenticationField.FALLBACK_REALM_TYPE,
-        ServiceAccountSettings.REALM_TYPE
+        ServiceAccountSettings.REALM_TYPE,
+        AuthenticationField.REMOTE_ACCESS_REALM_TYPE
     );
 
     private static final Set<User> INTERNAL_USERS = Set.of(
@@ -335,6 +337,27 @@ public class AuthenticationTestHelper {
             }
         }
 
+        public AuthenticationTestBuilder remoteAccess() {
+            return remoteAccess(ESTestCase.randomAlphaOfLength(20), authenticationFromRemoteCluster());
+        }
+
+        public AuthenticationTestBuilder remoteAccess(String remoteAccessApiKeyId, Authentication authenticationFromRemoteCluster) {
+            assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
+            resetShortcutRelatedVariables();
+            realmRef = null;
+            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.API_KEY);
+            metadata.put(AuthenticationField.API_KEY_ID_KEY, Objects.requireNonNull(remoteAccessApiKeyId));
+            try {
+                metadata.put(
+                    AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                    Objects.requireNonNull(authenticationFromRemoteCluster.encode())
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return this;
+        }
+
         public AuthenticationTestBuilder realmRef(Authentication.RealmRef realmRef) {
             assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "use dedicate methods for synthetic realms";
             resetShortcutRelatedVariables();
@@ -421,7 +444,22 @@ public class AuthenticationTestHelper {
                         // User associated to API key authentication has empty roles
                         user = stripRoles(user);
                         prepareApiKeyMetadata();
-                        authentication = Authentication.newApiKeyAuthentication(
+                        final boolean remoteAccess = metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                        if (remoteAccess) {
+                            try {
+                                // TODO
+                                final Authentication authenticationFromRemoteCluster = AuthenticationContextSerializer.decode(
+                                    (String) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+                                );
+                                authentication = Authentication.newRemoteAccessAuthentication(
+                                    AuthenticationResult.success(user, metadata),
+                                    authenticationFromRemoteCluster,
+                                    ESTestCase.randomAlphaOfLengthBetween(3, 8)
+                                );
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        } else authentication = Authentication.newApiKeyAuthentication(
                             AuthenticationResult.success(user, metadata),
                             ESTestCase.randomAlphaOfLengthBetween(3, 8)
                         );
@@ -590,6 +628,10 @@ public class AuthenticationTestHelper {
         private void resetShortcutRelatedVariables() {
             isServiceAccount = null;
             isRealmUnderDomain = null;
+        }
+
+        private Authentication authenticationFromRemoteCluster() {
+            return ESTestCase.randomFrom(realm(), internal(SystemUser.INSTANCE)).build();
         }
     }
 }

@@ -48,6 +48,13 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     }
 
     @Override
+    public SecureSettings load(Environment environment, char[] password) throws Exception {
+        KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile());
+        secureSettings.decrypt(password);
+        return secureSettings;
+    }
+
+    @Override
     public AutoConfigureResult autoConfigure(
         Environment env,
         Terminal terminal,

@@ -23,6 +23,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -78,7 +79,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         AtomicReference<Environment> env = new AtomicReference<>(origEnv);
 
-        try (var secrets = secureSettingsLoader(env.get()).load(env.get(), terminal, (p) -> {
+        try (var secrets = SecureSettingsLoader.fromEnvironment(env.get()).load(env.get(), terminal, (p) -> {
             env.set(autoConfigureSecurity(terminal, options, processInfo, env.get(), p.clone()));
             return env.get();
         })) {

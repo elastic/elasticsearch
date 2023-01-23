@@ -22,6 +22,7 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.LocallyMountedSecrets;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.SecureString;
@@ -324,7 +325,11 @@ public class ServerCliTests extends CommandTestCase {
         // TODO: Change this to be using the Environment when we have an actual different implementation of SecureSettings
         this.mockSecureSettingsLoader = true;
         Command command = newCommand();
-        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.main(
+            new String[] {"-E" + LocallyMountedSecrets.ENABLED.getKey() + "=true"},
+            terminal,
+            new ProcessInfo(sysprops, envVars, esHomeDir)
+        );
         command.close();
         assertThat(terminal.getOutput(), Matchers.containsString("Mock secure settings loader loaded"));
     }
@@ -458,14 +463,6 @@ public class ServerCliTests extends CommandTestCase {
                 mockServer.reset();
                 return mockServer;
             }
-
-            @Override
-            public SecureSettingsLoader secureSettingsLoader(Environment env) {
-                if (mockSecureSettingsLoader) {
-                    return new MockSecureSettingsLoader();
-                }
-                return super.secureSettingsLoader(env);
-            }
         };
     }
 
@@ -476,6 +473,12 @@ public class ServerCliTests extends CommandTestCase {
             Terminal terminal,
             AutoConfigureFunction<SecureString, Environment> autoConfigure
         ) {
+            terminal.println("Mock secure settings loader loaded");
+            return KeyStoreWrapper.create();
+        }
+
+        @Override
+        public SecureSettings load(Environment environment, char[] password) {
             terminal.println("Mock secure settings loader loaded");
             return KeyStoreWrapper.create();
         }

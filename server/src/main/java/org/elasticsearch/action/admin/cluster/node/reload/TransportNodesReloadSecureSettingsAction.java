@@ -20,7 +20,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginsService;
@@ -113,23 +114,24 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     ) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
+        try (SecureSettings secrets = SecureSettingsLoader.fromEnvironment(environment).load(
+            environment,
+            request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]
+        )) {
             // reread keystore from config file
-            if (keystore == null) {
+            if (secrets == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(
                     clusterService.localNode(),
-                    new IllegalStateException("Keystore is missing")
+                    new IllegalStateException("Secure settings not present")
                 );
             }
-            // decrypt the keystore using the password from the request
-            keystore.decrypt(request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]);
-            // add the keystore to the original node settings object
-            final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
+            // add the new secure settings to the original node settings object
+            final Settings settingsWithSecrets = Settings.builder().put(environment.settings(), false).setSecureSettings(secrets).build();
             final List<Exception> exceptions = new ArrayList<>();
-            // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
+            // broadcast the new settings object (with the open secrets) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).stream().forEach(p -> {
                 try {
-                    p.reload(settingsWithKeystore);
+                    p.reload(settingsWithSecrets);
                 } catch (final Exception e) {
                     logger.warn(() -> "Reload failed for plugin [" + p.getClass().getSimpleName() + "]", e);
                     exceptions.add(e);

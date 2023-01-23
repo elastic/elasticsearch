@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.time.ZonedDateTime;
@@ -21,6 +22,8 @@ import java.util.function.Consumer;
 public interface SecureSettingsLoader {
     SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
         throws Exception;
+
+    SecureSettings load(Environment environment, @Nullable char[] password) throws Exception;
 
     default AutoConfigureResult autoConfigure(
         Environment env,
@@ -71,4 +74,11 @@ public interface SecureSettingsLoader {
         AutoConfigureReponse<Environment> onSuccess,
         AutoConfigureReponse<Environment> onFailure
     ) {}
+
+    static SecureSettingsLoader fromEnvironment(Environment env) {
+        if (env.settings().getAsBoolean(LocallyMountedSecrets.ENABLED.getKey(), false)) {
+            return new LocallyMountedSecretsLoader();
+        }
+        return new KeyStoreLoader();
+    }
 }

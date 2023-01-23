@@ -23,6 +23,11 @@ public class LocallyMountedSecretsLoader implements SecureSettingsLoader {
     }
 
     @Override
+    public SecureSettings load(Environment environment, char[] password) throws Exception {
+        return new LocallyMountedSecrets(environment);
+    }
+
+    @Override
     public String validate(Environment environment) {
         if (Files.exists(environment.configFile()) == false) {
             throw new IllegalStateException("config directory must exist for locally mounted secrets");

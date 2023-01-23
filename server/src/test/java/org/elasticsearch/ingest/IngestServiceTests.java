@@ -1391,7 +1391,6 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testIngestAndPipelineStats() throws Exception {
         final Processor processor = mock(Processor.class);
-        final Processor processorFailure = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         when(processor.getTag()).thenReturn("mockTag");
         when(processor.isAsync()).thenReturn(true);

@@ -685,7 +685,6 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexed) {
                     document.add(new DoublePoint(name, d));
                 }
-
                 if (stored) {
                     document.add(new StoredField(name, d));
                 }
@@ -1163,7 +1162,6 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexed) {
                     document.add(new LongPoint(name, l));
                 }
-
                 if (stored) {
                     document.add(new StoredField(name, l));
                 }

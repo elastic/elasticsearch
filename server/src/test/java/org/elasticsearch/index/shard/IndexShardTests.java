@@ -2905,6 +2905,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93168")
     public void testShardActiveDuringInternalRecovery() throws IOException {
         boolean isPrimary = randomBoolean();
         IndexShard shard = newStartedShard(isPrimary);

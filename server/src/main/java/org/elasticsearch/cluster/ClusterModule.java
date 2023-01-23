@@ -343,19 +343,19 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ResizeAllocationDecider());
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
         addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider());
-        addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new EnableAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
         addAllocationDecider(deciders, new NodeReplacementAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new SameShardAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new ThrottlingAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new ShardsLimitAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
 
         clusterPlugins.stream()

@@ -227,9 +227,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -310,9 +310,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings)
+            new ThrottlingAllocationDecider(clusterSettings)
         );
 
         final var stateWithInitializingPrimaries = startInitializingShardsAndReroute(allocationService, clusterState);
@@ -400,9 +400,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -508,7 +508,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         );
 
@@ -601,7 +601,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             () -> clusterInfo,
             () -> snapshotShardSizeInfo,
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         );
 
@@ -639,7 +639,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new AllocationDecider() {
                 @Override
@@ -698,7 +698,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new AllocationDecider() {
                 @Override
@@ -756,9 +756,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -834,9 +834,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = new AtomicReference<>(desiredBalance(clusterState, (shardId, nodeId) -> true));
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance.get()),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new FilterAllocationDecider(settings, clusterSettings),
             new NodeShutdownAllocationDecider(),
             new NodeReplacementAllocationDecider(),
@@ -955,9 +955,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         );
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance.get()),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {

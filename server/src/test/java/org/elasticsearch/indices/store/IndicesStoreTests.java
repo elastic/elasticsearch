@@ -42,22 +42,23 @@ public class IndicesStoreTests extends ESTestCase {
         localNode = new DiscoveryNode("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     }
 
-    public void testShardCanBeDeletedNoShardRouting() {
-        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
-        assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
-    }
-
     public void testShardCanBeDeletedNoShardStarted() {
         final var numShardCopies = randomInt(3);
         final var shardId = new ShardId("test", "_na_", 0);
         final var routingTable = new IndexShardRoutingTable.Builder(shardId);
         final var unStartedShard = randomInt(numShardCopies);
+        boolean activePrimary = false;
         for (int j = 0; j <= numShardCopies; j++) {
             ShardRoutingState state;
             if (j == unStartedShard) {
                 state = randomFrom(NOT_STARTED_STATES);
             } else {
                 state = randomFrom(ShardRoutingState.values());
+            }
+            if (j == 0) {
+                activePrimary = state == ShardRoutingState.STARTED || state == ShardRoutingState.RELOCATING;
+            } else if (activePrimary == false) {
+                state = ShardRoutingState.UNASSIGNED;
             }
             UnassignedInfo unassignedInfo = null;
             if (state == ShardRoutingState.UNASSIGNED) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -275,6 +277,14 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             }
             assertTrue("should have found hit for string 'my words'", found);
         }
+    }
+
+    public void testSearchWithMissingModel() throws IOException {
+        String modelId = "missing-model";
+        String indexName = modelId + "-index";
+
+        var e = expectThrows(ResponseException.class, () -> semanticSearch(indexName, "the machine is leaking", modelId, "embedding"));
+        assertThat(e.getMessage(), containsString("Could not find trained model [missing-model]"));
     }
 
     private void createVectorSearchIndex(String indexName) throws IOException {

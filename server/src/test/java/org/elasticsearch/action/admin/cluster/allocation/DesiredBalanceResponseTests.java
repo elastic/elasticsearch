@@ -7,7 +7,9 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -25,6 +27,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
+
 public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
 
     @Override
@@ -34,10 +39,10 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected DesiredBalanceResponse createTestInstance() {
-        return new DesiredBalanceResponse(randomStats(), randomRoutingTable());
+        return new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable());
     }
 
-    private DesiredBalanceStats randomStats() {
+    private DesiredBalanceStats randomDesiredBalanceStats() {
         return new DesiredBalanceStats(
             randomNonNegativeLong(),
             randomBoolean(),
@@ -47,6 +52,29 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
+        );
+    }
+
+    private ClusterBalanceStats randomClusterBalanceStats() {
+        return new ClusterBalanceStats(
+            randomBoolean()
+                ? Map.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(), randomTierBalanceStats())
+                : randomSubsetOf(
+                    List.of(
+                        DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
+                    )
+                ).stream().map(DiscoveryNodeRole::roleName).collect(toMap(identity(), ignore -> randomTierBalanceStats()))
+        );
+    }
+
+    private ClusterBalanceStats.TierBalanceStats randomTierBalanceStats() {
+        return new ClusterBalanceStats.TierBalanceStats(
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble())
         );
     }
 
@@ -92,25 +120,40 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) throws IOException {
-        return switch (randomInt(2)) {
+        return switch (randomInt(3)) {
             case 0 -> new DesiredBalanceResponse(
+                randomValueOtherThan(instance.getStats(), this::randomDesiredBalanceStats),
+                instance.getClusterBalanceStats(),
+                instance.getRoutingTable()
+            );
+            case 1 -> new DesiredBalanceResponse(
                 instance.getStats(),
+                randomValueOtherThan(instance.getClusterBalanceStats(), this::randomClusterBalanceStats),
+                instance.getRoutingTable()
+            );
+            case 2 -> new DesiredBalanceResponse(
+                instance.getStats(),
+                instance.getClusterBalanceStats(),
                 randomValueOtherThan(instance.getRoutingTable(), this::randomRoutingTable)
             );
-            case 1 -> new DesiredBalanceResponse(randomStats(), instance.getRoutingTable());
             default -> randomValueOtherThan(instance, this::createTestInstance);
         };
     }
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
-        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
+        DesiredBalanceResponse response = new DesiredBalanceResponse(
+            randomDesiredBalanceStats(),
+            randomClusterBalanceStats(),
+            randomRoutingTable()
+        );
 
         Map<String, Object> json = createParser(
             ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
-        assertEquals(Set.of("stats", "routing_table"), json.keySet());
+        assertEquals(Set.of("stats", "cluster_balance_stats", "routing_table"), json.keySet());
 
+        // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
         assertEquals(stats.get("computation_active"), response.getStats().computationActive());
         assertEquals(stats.get("computation_submitted"), response.getStats().computationSubmitted());
@@ -121,6 +164,39 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         assertEquals(stats.get("computation_time_in_millis"), response.getStats().cumulativeComputationTime());
         assertEquals(stats.get("reconciliation_time_in_millis"), response.getStats().cumulativeReconciliationTime());
 
+        // cluster balance stats
+        Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
+        assertEquals(clusterBalanceStats.keySet(), response.getClusterBalanceStats().tiers().keySet());
+        for (var entry : response.getClusterBalanceStats().tiers().entrySet()) {
+            Map<String, Object> tierStats = (Map<String, Object>) clusterBalanceStats.get(entry.getKey());
+            assertEquals(Set.of("shard_count", "total_write_load", "total_shard_size"), tierStats.keySet());
+
+            Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
+            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), shardCountStats.keySet());
+            assertEquals(shardCountStats.get("total"), entry.getValue().shardCount().total());
+            assertEquals(shardCountStats.get("average"), entry.getValue().shardCount().average());
+            assertEquals(shardCountStats.get("min"), entry.getValue().shardCount().min());
+            assertEquals(shardCountStats.get("max"), entry.getValue().shardCount().max());
+            assertEquals(shardCountStats.get("std_dev"), entry.getValue().shardCount().stdDev());
+
+            Map<String, Object> totalWriteLoadStats = (Map<String, Object>) tierStats.get("total_write_load");
+            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalWriteLoadStats.keySet());
+            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().totalWriteLoad().total());
+            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().totalWriteLoad().average());
+            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().totalWriteLoad().min());
+            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().totalWriteLoad().max());
+            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().totalWriteLoad().stdDev());
+
+            Map<String, Object> totalShardStats = (Map<String, Object>) tierStats.get("total_shard_size");
+            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalShardStats.keySet());
+            assertEquals(totalShardStats.get("total"), entry.getValue().totalShardSize().total());
+            assertEquals(totalShardStats.get("average"), entry.getValue().totalShardSize().average());
+            assertEquals(totalShardStats.get("min"), entry.getValue().totalShardSize().min());
+            assertEquals(totalShardStats.get("max"), entry.getValue().totalShardSize().max());
+            assertEquals(totalShardStats.get("std_dev"), entry.getValue().totalShardSize().stdDev());
+        }
+
+        // routing table
         Map<String, Object> jsonRoutingTable = (Map<String, Object>) json.get("routing_table");
         assertEquals(jsonRoutingTable.keySet(), response.getRoutingTable().keySet());
         for (var indexEntry : response.getRoutingTable().entrySet()) {
@@ -161,7 +237,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(
-            new DesiredBalanceResponse(randomStats(), randomRoutingTable()),
+            new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable()),
             response -> response.getRoutingTable().size() + 2
         );
     }

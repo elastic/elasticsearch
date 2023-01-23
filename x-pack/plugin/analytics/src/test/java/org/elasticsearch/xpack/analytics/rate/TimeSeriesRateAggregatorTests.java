@@ -136,7 +136,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap(),
             null,
             false,
-            TimeSeriesParams.MetricType.counter
+            TimeSeriesParams.MetricType.COUNTER
         );
     }
 

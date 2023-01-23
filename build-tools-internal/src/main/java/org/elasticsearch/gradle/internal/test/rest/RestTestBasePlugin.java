@@ -107,7 +107,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
         });
 
-        project.getTasks().withType(StandaloneRestIntegTestTask.class, task -> {
+        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(task -> {
             SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = task.getExtensions()
                 .getByType(SystemPropertyCommandLineArgumentProvider.class);
 

@@ -26,6 +26,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesNodeRequest> {
 
     @Override
@@ -202,5 +204,31 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             }
             default -> throw new IllegalStateException("The test should only allow 7 parameters mutated");
         }
+    }
+
+    public void testDescription() {
+        FieldCapabilitiesNodeRequest r1 = new FieldCapabilitiesNodeRequest(
+            List.of(new ShardId("index-1", "n/a", 0), new ShardId("index-2", "n/a", 3)),
+            new String[] { "field-1", "field-2" },
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Map.of()
+        );
+        assertThat(r1.getDescription(), equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[]"));
+
+        FieldCapabilitiesNodeRequest r2 = new FieldCapabilitiesNodeRequest(
+            List.of(new ShardId("index-1", "n/a", 0)),
+            new String[] { "*" },
+            new String[] { "-nested", "-metadata" },
+            Strings.EMPTY_ARRAY,
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Map.of()
+        );
+        assertThat(r2.getDescription(), equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[]"));
     }
 }

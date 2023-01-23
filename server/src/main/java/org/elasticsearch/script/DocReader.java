@@ -10,8 +10,10 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.Field;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -36,4 +38,7 @@ public interface DocReader {
 
     /** Old-style doc['field'] access */
     Map<String, ScriptDocValues<?>> doc();
+
+    /** Helper for source access */
+    Supplier<Source> source();
 }

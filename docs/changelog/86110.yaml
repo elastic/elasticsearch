@@ -1,6 +1,0 @@
-pr: 86110
-summary: Add LimitedOffsetsEnum to Limited offset token
-area: Search
-type: enhancement
-issues:
- - 86109

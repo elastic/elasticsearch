@@ -22,7 +22,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -685,43 +685,46 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             @Override
             protected void doRun() {
                 final Thread originalThread = Thread.currentThread();
-                final ActionListener<Void> onFinished = new CountDownActionListener(
-                    numberOfActionRequests,
-                    () -> onCompletion.accept(originalThread, null)
-                );
+                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                    int i = 0;
+                    for (DocWriteRequest<?> actionRequest : actionRequests) {
+                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+                        if (indexRequest == null) {
+                            i++;
+                            continue;
+                        }
 
-                int i = 0;
-                for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                    if (indexRequest == null) {
-                        onFinished.onResponse(null);
+                        final String pipelineId = indexRequest.getPipeline();
+                        indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                        final String finalPipelineId = indexRequest.getFinalPipeline();
+                        indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+                        boolean hasFinalPipeline = true;
+                        final List<String> pipelines;
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
+                            && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                            pipelines = List.of(pipelineId, finalPipelineId);
+                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
+                            pipelines = List.of(pipelineId);
+                            hasFinalPipeline = false;
+                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                            pipelines = List.of(finalPipelineId);
+                        } else {
+                            i++;
+                            continue;
+                        }
+
+                        executePipelines(
+                            i,
+                            pipelines.iterator(),
+                            hasFinalPipeline,
+                            indexRequest,
+                            onDropped,
+                            onFailure,
+                            refs.acquireListener()
+                        );
+
                         i++;
-                        continue;
                     }
-
-                    final String pipelineId = indexRequest.getPipeline();
-                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                    final String finalPipelineId = indexRequest.getFinalPipeline();
-                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-                    boolean hasFinalPipeline = true;
-                    final List<String> pipelines;
-                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(pipelineId, finalPipelineId);
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        pipelines = List.of(pipelineId);
-                        hasFinalPipeline = false;
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(finalPipelineId);
-                    } else {
-                        onFinished.onResponse(null);
-                        i++;
-                        continue;
-                    }
-
-                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, onFinished);
-
-                    i++;
                 }
             }
         });
@@ -941,10 +944,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
-        // cache timestamp from ingest source map
-        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
-            indexRequest.setRawTimestamp(rawTimestamp);
+        if (indexRequest.getRawTimestamp() == null) {
+            // cache the @timestamp from the ingest document's source map if there is one
+            Object rawTimestamp = ingestDocument.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            if (rawTimestamp != null) {
+                indexRequest.setRawTimestamp(rawTimestamp);
+            }
         }
     }
 

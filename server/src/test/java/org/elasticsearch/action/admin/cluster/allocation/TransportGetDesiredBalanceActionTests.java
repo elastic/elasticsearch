@@ -215,6 +215,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         verify(listener).onResponse(desiredBalanceResponseCaptor.capture());
         DesiredBalanceResponse desiredBalanceResponse = desiredBalanceResponseCaptor.getValue();
         assertEquals(desiredBalanceStats, desiredBalanceResponse.getStats());
+        assertNotNull(desiredBalanceResponse.getClusterBalanceStats());
         assertEquals(indexShards.keySet(), desiredBalanceResponse.getRoutingTable().keySet());
         for (var e : desiredBalanceResponse.getRoutingTable().entrySet()) {
             String index = e.getKey();

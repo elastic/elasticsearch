@@ -13,6 +13,8 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -253,6 +255,13 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Creates a listener which releases the given resource on completion (whether success or failure)
+     */
+    static <Response> ActionListener<Response> releasing(Releasable releasable) {
+        return wrap(runnableFromReleasable(releasable));
+    }
+
+    /**
      * Creates a listener that listens for a response (or failure) and executes the
      * corresponding runnable when the response (or failure) is received.
      *
@@ -362,9 +371,18 @@ public interface ActionListener<Response> {
         return new RunAfterActionListener<>(delegate, runAfter);
     }
 
+    /**
+     * Wraps a given listener and returns a new listener which releases the provided {@code releaseAfter}
+     * resource when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
+     */
+    static <Response> ActionListener<Response> releaseAfter(ActionListener<Response> delegate, Releasable releaseAfter) {
+        return new RunAfterActionListener<>(delegate, runnableFromReleasable(releaseAfter));
+    }
+
     final class RunAfterActionListener<T> extends Delegating<T, T> {
 
         private final Runnable runAfter;
+        private boolean executed; // used when assertions are enabled
 
         protected RunAfterActionListener(ActionListener<T> delegate, Runnable runAfter) {
             super(delegate);
@@ -376,6 +394,7 @@ public interface ActionListener<Response> {
             try {
                 delegate.onResponse(response);
             } finally {
+                assert assertNotExecuted();
                 runAfter.run();
             }
         }
@@ -385,8 +404,15 @@ public interface ActionListener<Response> {
             try {
                 super.onFailure(e);
             } finally {
+                assert assertNotExecuted();
                 runAfter.run();
             }
+        }
+
+        private boolean assertNotExecuted() {
+            assert executed == false : "listener already executed";
+            executed = true;
+            return true;
         }
 
         @Override
@@ -408,6 +434,7 @@ public interface ActionListener<Response> {
     final class RunBeforeActionListener<T> extends Delegating<T, T> {
 
         private final CheckedRunnable<?> runBefore;
+        private boolean executed; // used when assertions are enabled
 
         protected RunBeforeActionListener(ActionListener<T> delegate, CheckedRunnable<?> runBefore) {
             super(delegate);
@@ -416,6 +443,7 @@ public interface ActionListener<Response> {
 
         @Override
         public void onResponse(T response) {
+            assert assertNotExecuted();
             try {
                 runBefore.run();
             } catch (Exception ex) {
@@ -427,12 +455,19 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
+            assert assertNotExecuted();
             try {
                 runBefore.run();
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
             super.onFailure(e);
+        }
+
+        private boolean assertNotExecuted() {
+            assert executed == false : "listener already executed";
+            executed = true;
+            return true;
         }
 
         @Override
@@ -466,7 +501,7 @@ public interface ActionListener<Response> {
 
             @Override
             public String toString() {
-                return "notifyOnce[" + delegate + "]";
+                return "notifyOnce[" + delegateRef.get() + "]";
             }
         };
     }
@@ -497,5 +532,19 @@ public interface ActionListener<Response> {
             assert false : ex;
             throw ex;
         }
+    }
+
+    private static Runnable runnableFromReleasable(Releasable releasable) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Releasables.closeExpectNoException(releasable);
+            }
+
+            @Override
+            public String toString() {
+                return "release[" + releasable + "]";
+            }
+        };
     }
 }

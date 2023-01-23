@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.file;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -71,6 +72,7 @@ public class FileRealmTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(globalSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.executor(any())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testAuthenticate() throws Exception {

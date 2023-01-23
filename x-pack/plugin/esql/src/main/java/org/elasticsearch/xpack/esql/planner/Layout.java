@@ -65,7 +65,7 @@ public class Layout {
 
     @Override
     public String toString() {
-        return "BlockLayout{" + "layout=" + layout + ", lastChannel=" + numberOfChannels + '}';
+        return "BlockLayout{" + "layout=" + layout + ", numberOfChannels=" + numberOfChannels + '}';
     }
 
     /**

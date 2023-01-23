@@ -224,7 +224,16 @@ public class LocalExecutionPlanner {
                 throw new UnsupportedOperationException("just one group, for now");
             }
             Attribute grpAttrib = groups.iterator().next();
-            layout.appendChannel(grpAttrib.id());
+            Set<NameId> grpAttribIds = new HashSet<>(List.of(grpAttrib.id()));
+            // since the aggregate node can define aliases of the grouping column, there might be additional ids for the grouping column
+            // e.g. in `... | stats c = count(a) by b | project c, bb = b`, the alias `bb = b` will be inlined in the resulting aggregation
+            // node.
+            for (NamedExpression agg : aggregate.aggregates()) {
+                if (agg instanceof Alias a && a.child()instanceof Attribute attr && attr.id() == grpAttrib.id()) {
+                    grpAttribIds.add(a.id());
+                }
+            }
+            layout.appendChannel(grpAttribIds);
 
             final Supplier<BlockHash> blockHash;
             if (grpAttrib.dataType() == DataTypes.KEYWORD) {
@@ -256,39 +265,38 @@ public class LocalExecutionPlanner {
                     aggregatorFactories.add(
                         new GroupingAggregatorFactory(context.bigArrays, aggFactory, aggMode, source.layout.getChannel(sourceAttr.id()))
                     );
-
-                } else if (aggregate.groupings().contains(ne) == false) {
+                } else if (grpAttribIds.contains(ne.id()) == false && aggregate.groupings().contains(ne) == false) {
                     var u = ne instanceof Alias ? ((Alias) ne).child() : ne;
                     throw new UnsupportedOperationException(
                         "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
                     );
                 }
             }
-            if (aggregatorFactories.isEmpty() == false) {
-                var attrSource = grpAttrib;
 
-                final Integer inputChannel = source.layout.getChannel(attrSource.id());
+            var attrSource = grpAttrib;
 
-                if (inputChannel == null) {
-                    var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
-                    var luceneDocRef = new LuceneDocRef(
-                        source.layout.getChannel(sourceAttributes.get(0).id()),
-                        source.layout.getChannel(sourceAttributes.get(1).id()),
-                        source.layout.getChannel(sourceAttributes.get(2).id())
-                    );
-                    // The grouping-by values are ready, let's group on them directly.
-                    // Costin: why are they ready and not already exposed in the layout?
-                    operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-                        ValueSources.sources(context.searchContexts, attrSource.name()),
-                        luceneDocRef,
-                        aggregatorFactories,
-                        BigArrays.NON_RECYCLING_INSTANCE
-                    );
-                } else {
-                    operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHash);
-                }
+            final Integer inputChannel = source.layout.getChannel(attrSource.id());
+
+            if (inputChannel == null) {
+                var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
+                var luceneDocRef = new LuceneDocRef(
+                    source.layout.getChannel(sourceAttributes.get(0).id()),
+                    source.layout.getChannel(sourceAttributes.get(1).id()),
+                    source.layout.getChannel(sourceAttributes.get(2).id())
+                );
+                // The grouping-by values are ready, let's group on them directly.
+                // Costin: why are they ready and not already exposed in the layout?
+                operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
+                    ValueSources.sources(context.searchContexts, attrSource.name()),
+                    luceneDocRef,
+                    aggregatorFactories,
+                    BigArrays.NON_RECYCLING_INSTANCE
+                );
+            } else {
+                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHash);
             }
         }
+
         if (operatorFactory != null) {
             return source.with(operatorFactory, layout.build());
         }
@@ -349,11 +357,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();
-        if (output.size() != source.layout.numberOfIds()) {
-            throw new IllegalStateException(
-                "expected layout:" + output + ": " + output.stream().map(NamedExpression::id).toList() + ", source.layout:" + source.layout
-            );
-        }
+
         // align the page layout with the operator output
         // extraction order - the list ordinal is the same as the column one
         // while the value represents the position in the original page

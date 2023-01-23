@@ -45,6 +45,7 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -488,6 +489,54 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(1, results.values().size());
         assertEquals(2, results.values().get(0).size());
         assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
+    }
+
+    public void testFromStatsProjectGroup() {
+        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | project data");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
+        assertThat(results.values(), containsInAnyOrder(List.of(1L), List.of(2L)));
+    }
+
+    public void testFromStatsProjectGroupWithAlias() {
+        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | project d = data, d2 = data");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("d", "d2"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long", "long"));
+        assertThat(results.values(), containsInAnyOrder(List.of(1L, 1L), List.of(2L, 2L)));
+    }
+
+    public void testFromStatsProjectAgg() {
+        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | project a");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+        assertThat(results.values(), containsInAnyOrder(List.of(42d), List.of(44d)));
+    }
+
+    public void testFromStatsProjectAggWithAlias() {
+        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | project b = a");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("b"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+        assertThat(results.values(), containsInAnyOrder(List.of(42d), List.of(44d)));
+    }
+
+    public void testFromProjectStatsGroupByAlias() {
+        EsqlQueryResponse results = run("from test | project d = data, count | stats avg(count) by d");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(count)", "d"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
+        assertThat(results.values(), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
+    }
+
+    public void testFromProjectStatsAggregateAlias() {
+        EsqlQueryResponse results = run("from test | project c = count, data | stats avg(c) by data");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(c)", "data"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
+        assertThat(results.values(), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
     }
 
     public void testFromEvalStats() {

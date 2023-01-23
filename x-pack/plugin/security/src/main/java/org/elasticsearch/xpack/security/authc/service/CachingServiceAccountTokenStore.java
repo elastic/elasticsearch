@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -95,17 +97,25 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 return new ListenableFuture<>();
             });
             if (valueAlreadyInCache.get()) {
-                listenableCacheEntry.addListener(ActionListener.wrap(result -> {
-                    if (result.success) {
-                        listener.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
-                    } else if (result.verify(token)) {
-                        // same wrong token
-                        listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
-                    } else {
-                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
-                        authenticateWithCache(token, listener);
-                    }
-                }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+                listenableCacheEntry.addListener(
+                    new ThreadedActionListener<>(
+                        logger,
+                        threadPool,
+                        ThreadPool.Names.GENERIC,
+                        ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(result -> {
+                            if (result.success) {
+                                listener.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
+                            } else if (result.verify(token)) {
+                                // same wrong token
+                                listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
+                            } else {
+                                cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
+                                authenticateWithCache(token, listener);
+                            }
+                        }, listener::onFailure), threadPool.getThreadContext()),
+                        false
+                    )
+                );
             } else {
                 doAuthenticate(token, ActionListener.wrap(storeAuthenticationResult -> {
                     if (false == storeAuthenticationResult.isSuccess()) {

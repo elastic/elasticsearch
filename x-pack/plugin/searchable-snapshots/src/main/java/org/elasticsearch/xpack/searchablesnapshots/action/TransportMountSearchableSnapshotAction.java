@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,6 +72,8 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 public class TransportMountSearchableSnapshotAction extends TransportMasterNodeAction<
     MountSearchableSnapshotRequest,
     RestoreSnapshotResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMountSearchableSnapshotAction.class);
 
     private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(DataTier.TIER_PREFERENCE_SETTING);
 
@@ -181,102 +186,104 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
 
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.addListener(ActionListener.wrap(repoData -> {
-            final Map<String, IndexId> indexIds = repoData.getIndices();
-            if (indexIds.containsKey(indexName) == false) {
-                throw new IndexNotFoundException("index [" + indexName + "] not found in repository [" + repoName + "]");
-            }
-            final IndexId indexId = indexIds.get(indexName);
-
-            final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds()
-                .stream()
-                .filter(s -> snapName.equals(s.getName()))
-                .findFirst();
-            if (matchingSnapshotId.isEmpty()) {
-                throw new ElasticsearchException("snapshot [" + snapName + "] not found in repository [" + repoName + "]");
-            }
-            final SnapshotId snapshotId = matchingSnapshotId.get();
-
-            final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
-            if (indexMetadata.isSearchableSnapshot()) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index "
-                            + "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
-                        indexName,
-                        repoName,
-                        repository.getMetadata().uuid(),
-                        snapName,
-                        SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(indexMetadata.getSettings()),
-                        SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexMetadata.getSettings()),
-                        SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexMetadata.getSettings()),
-                        SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())
-                    )
-                );
-            }
-
-            final Set<String> ignoreIndexSettings = new LinkedHashSet<>(Arrays.asList(request.ignoreIndexSettings()));
-            ignoreIndexSettings.add(IndexMetadata.SETTING_DATA_PATH);
-            for (final String indexSettingKey : indexMetadata.getSettings().keySet()) {
-                if (indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX)
-                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX)
-                    || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX)) {
-                    ignoreIndexSettings.add(indexSettingKey);
+        repositoryDataListener.addListener(
+            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, ActionListener.wrap(repoData -> {
+                final Map<String, IndexId> indexIds = repoData.getIndices();
+                if (indexIds.containsKey(indexName) == false) {
+                    throw new IndexNotFoundException("index [" + indexName + "] not found in repository [" + repoName + "]");
                 }
-            }
+                final IndexId indexId = indexIds.get(indexName);
 
-            final Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
-                .put(DataTier.TIER_PREFERENCE, request.storage().defaultDataTiersPreference())
-                .put(request.indexSettings())
-                .put(
-                    buildIndexSettings(
-                        repoData.getUuid(),
-                        request.repositoryName(),
-                        snapshotId,
-                        indexId,
-                        request.storage(),
-                        state.nodes().getMinNodeVersion()
+                final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds()
+                    .stream()
+                    .filter(s -> snapName.equals(s.getName()))
+                    .findFirst();
+                if (matchingSnapshotId.isEmpty()) {
+                    throw new ElasticsearchException("snapshot [" + snapName + "] not found in repository [" + repoName + "]");
+                }
+                final SnapshotId snapshotId = matchingSnapshotId.get();
+
+                final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
+                if (indexMetadata.isSearchableSnapshot()) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index "
+                                + "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
+                            indexName,
+                            repoName,
+                            repository.getMetadata().uuid(),
+                            snapName,
+                            SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(indexMetadata.getSettings()),
+                            SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexMetadata.getSettings()),
+                            SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexMetadata.getSettings()),
+                            SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())
+                        )
+                    );
+                }
+
+                final Set<String> ignoreIndexSettings = new LinkedHashSet<>(Arrays.asList(request.ignoreIndexSettings()));
+                ignoreIndexSettings.add(IndexMetadata.SETTING_DATA_PATH);
+                for (final String indexSettingKey : indexMetadata.getSettings().keySet()) {
+                    if (indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX)
+                        || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX)
+                        || indexSettingKey.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX)) {
+                        ignoreIndexSettings.add(indexSettingKey);
+                    }
+                }
+
+                final Settings indexSettings = Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
+                    .put(DataTier.TIER_PREFERENCE, request.storage().defaultDataTiersPreference())
+                    .put(request.indexSettings())
+                    .put(
+                        buildIndexSettings(
+                            repoData.getUuid(),
+                            request.repositoryName(),
+                            snapshotId,
+                            indexId,
+                            request.storage(),
+                            state.nodes().getMinNodeVersion()
+                        )
                     )
-                )
-                .build();
+                    .build();
 
-            // todo: restore archives bad settings, for now we verify just the data tiers, since we know their dependencies are available
-            // in settings
-            for (Setting<String> dataTierAllocationSetting : DATA_TIER_ALLOCATION_SETTINGS) {
-                dataTierAllocationSetting.get(indexSettings);
-            }
+                // TODO: restore archives bad settings, for now we verify just the data tiers since we know their dependencies are available
+                // in settings
+                for (Setting<String> dataTierAllocationSetting : DATA_TIER_ALLOCATION_SETTINGS) {
+                    dataTierAllocationSetting.get(indexSettings);
+                }
 
-            client.admin()
-                .cluster()
-                .restoreSnapshot(
-                    new RestoreSnapshotRequest(repoName, snapName)
-                        // Restore the single index specified
-                        .indices(indexName)
-                        // Always rename it to the desired mounted index name
-                        .renamePattern(".+")
-                        .renameReplacement(mountedIndexName)
-                        // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                        .indexSettings(indexSettings)
-                        // Pass through ignored index settings
-                        .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
-                        // Don't include global state
-                        .includeGlobalState(false)
-                        // Don't include aliases
-                        .includeAliases(false)
-                        // Pass through the wait-for-completion flag
-                        .waitForCompletion(request.waitForCompletion())
-                        // Pass through the master-node timeout
-                        .masterNodeTimeout(request.masterNodeTimeout())
-                        // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
-                        .snapshotUuid(snapshotId.getUUID())
-                        // Log snapshot restore at the DEBUG log level
-                        .quiet(true),
-                    listener
-                );
-        }, listener::onFailure), threadPool.executor(ThreadPool.Names.SNAPSHOT_META), null);
+                client.admin()
+                    .cluster()
+                    .restoreSnapshot(
+                        new RestoreSnapshotRequest(repoName, snapName)
+                            // Restore the single index specified
+                            .indices(indexName)
+                            // Always rename it to the desired mounted index name
+                            .renamePattern(".+")
+                            .renameReplacement(mountedIndexName)
+                            // Pass through index settings, adding the index-level settings required to use searchable snapshots
+                            .indexSettings(indexSettings)
+                            // Pass through ignored index settings
+                            .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
+                            // Don't include global state
+                            .includeGlobalState(false)
+                            // Don't include aliases
+                            .includeAliases(false)
+                            // Pass through the wait-for-completion flag
+                            .waitForCompletion(request.waitForCompletion())
+                            // Pass through the master-node timeout
+                            .masterNodeTimeout(request.masterNodeTimeout())
+                            // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
+                            .snapshotUuid(snapshotId.getUUID())
+                            // Log snapshot restore at the DEBUG log level
+                            .quiet(true),
+                        listener
+                    );
+            }, listener::onFailure), false)
+        );
     }
 }

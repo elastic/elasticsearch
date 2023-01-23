@@ -10,6 +10,8 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
@@ -26,10 +28,10 @@ import static org.hamcrest.Matchers.is;
 public class ListenableFutureTests extends ESTestCase {
 
     private ExecutorService executorService;
-    private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     @After
-    public void stopExecutorService() throws InterruptedException {
+    public void stopExecutorService() {
         if (executorService != null) {
             terminate(executorService);
         }
@@ -40,7 +42,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            future.addListener(ActionListener.wrap(notifications::incrementAndGet));
         }
 
         future.onResponse("");
@@ -57,7 +59,7 @@ public class ListenableFutureTests extends ESTestCase {
             future.addListener(ActionListener.wrap(s -> fail("this should never be called"), e -> {
                 assertEquals(exception, e);
                 notifications.incrementAndGet();
-            }), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            }));
         }
 
         future.onFailure(exception);
@@ -98,17 +100,24 @@ public class ListenableFutureTests extends ESTestCase {
                         logger.info("future received response");
                     } else {
                         logger.info("adding listener {}", threadNum);
-                        future.addListener(ActionListener.wrap(s -> {
-                            logger.info("listener {} received value {}", threadNum, s);
-                            assertEquals("", s);
-                            assertThat(threadContext.getTransient("key"), is(threadNum));
-                            numResponses.incrementAndGet();
-                            listenersLatch.countDown();
-                        }, e -> {
-                            logger.error(() -> "listener " + threadNum + " caught unexpected exception", e);
-                            numExceptions.incrementAndGet();
-                            listenersLatch.countDown();
-                        }), executorService, threadContext);
+                        future.addListener(
+                            new ThreadedActionListener<>(
+                                logger,
+                                executorService,
+                                ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(s -> {
+                                    logger.info("listener {} received value {}", threadNum, s);
+                                    assertEquals("", s);
+                                    assertThat(threadContext.getTransient("key"), is(threadNum));
+                                    numResponses.incrementAndGet();
+                                    listenersLatch.countDown();
+                                }, e -> {
+                                    logger.error(() -> "listener " + threadNum + " caught unexpected exception", e);
+                                    numExceptions.incrementAndGet();
+                                    listenersLatch.countDown();
+                                }), threadContext),
+                                false
+                            )
+                        );
                         logger.info("listener {} added", threadNum);
                     }
                     barrier.await();

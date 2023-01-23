@@ -31,6 +31,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -880,21 +881,29 @@ public class ApiKeyService {
                 }
 
                 if (valueAlreadyInCache.get()) {
-                    listenableCacheEntry.addListener(ActionListener.wrap(result -> {
-                        if (result.success) {
-                            if (result.verify(credentials.getKey())) {
-                                // move on
-                                validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                            } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                            }
-                        } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                        } else {
-                            apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
-                        }
-                    }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+                    listenableCacheEntry.addListener(
+                        new ThreadedActionListener<>(
+                            logger,
+                            threadPool,
+                            ThreadPool.Names.GENERIC,
+                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(result -> {
+                                if (result.success) {
+                                    if (result.verify(credentials.getKey())) {
+                                        // move on
+                                        validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                                    } else {
+                                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                    }
+                                } else if (result.verify(credentials.getKey())) { // same key, pass the same result
+                                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                } else {
+                                    apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                                    validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
+                                }
+                            }, listener::onFailure), threadPool.getThreadContext()),
+                            false
+                        )
+                    );
                 } else {
                     verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));

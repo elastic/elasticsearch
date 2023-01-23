@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -1874,7 +1873,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }
-            }, EsExecutors.DIRECT_EXECUTOR_SERVICE, transportService.getThreadPool().getThreadContext());
+            });
         }
 
         private void cancelTimeoutHandlers() {

@@ -14,14 +14,15 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ExecutorService;
+
 /**
  * An action listener that wraps another action listener and threading its execution.
  */
 public final class ThreadedActionListener<Response> extends ActionListener.Delegating<Response, Response> {
 
     private final Logger logger;
-    private final ThreadPool threadPool;
-    private final String executor;
+    private final ExecutorService executor;
     private final boolean forceExecution;
 
     public ThreadedActionListener(
@@ -31,16 +32,19 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
         ActionListener<Response> listener,
         boolean forceExecution
     ) {
+        this(logger, threadPool.executor(executor), listener, forceExecution);
+    }
+
+    public ThreadedActionListener(Logger logger, ExecutorService executor, ActionListener<Response> listener, boolean forceExecution) {
         super(listener);
         this.logger = logger;
-        this.threadPool = threadPool;
         this.executor = executor;
         this.forceExecution = forceExecution;
     }
 
     @Override
     public void onResponse(final Response response) {
-        threadPool.executor(executor).execute(new ActionRunnable<>(delegate) {
+        executor.execute(new ActionRunnable<>(delegate) {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
@@ -60,7 +64,7 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
 
     @Override
     public void onFailure(final Exception e) {
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        executor.execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;

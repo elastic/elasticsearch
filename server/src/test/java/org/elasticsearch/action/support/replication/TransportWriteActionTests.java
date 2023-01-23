@@ -234,10 +234,10 @@ public class TransportWriteActionTests extends ESTestCase {
             expectThrows(
                 RuntimeException.class,
                 () -> PlainActionFuture.get(
-                    (PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> fut) -> new TestAction(
+                    (PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future) -> new TestAction(
                         true,
                         randomBoolean()
-                    ).dispatchedShardOperationOnPrimary(new TestRequest(), indexShard, fut),
+                    ).dispatchedShardOperationOnPrimary(new TestRequest(), indexShard, future),
                     0,
                     TimeUnit.SECONDS
                 )

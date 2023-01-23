@@ -86,11 +86,4 @@ public interface SecureSettingsLoader {
         AutoConfigureResponse<Environment> onSuccess,
         AutoConfigureResponse<Environment> onFailure
     ) {}
-
-    static SecureSettingsLoader fromEnvironment(Environment env) {
-        if (env.settings().getAsBoolean(LocallyMountedSecrets.ENABLED.getKey(), false)) {
-            return new LocallyMountedSecretsLoader();
-        }
-        return new KeyStoreLoader();
-    }
 }

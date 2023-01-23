@@ -114,7 +114,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     ) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
-        try (SecureSettings secrets = SecureSettingsLoader.fromEnvironment(environment).load(
+        try (SecureSettings secrets = environment.secureSettingsLoader().load(
             environment,
             request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]
         )) {

@@ -28,7 +28,7 @@ import java.util.Objects;
 public final class LatLng {
 
     /** Minimum Angular resolution. */
-    public static final double MINIMUM_ANGULAR_RESOLUTION = Math.PI * 1.0e-12; // taken from lucene's spatial3d
+    private static final double MINIMUM_ANGULAR_RESOLUTION = Math.PI * 1.0e-12; // taken from lucene's spatial3d
 
     /**
      * pi / 2.0
@@ -115,10 +115,10 @@ public final class LatLng {
      */
     private static double constrainLng(double lng) {
         while (lng > Math.PI) {
-            lng = lng - (2 * Math.PI);
+            lng = lng - Constants.M_2PI;
         }
         while (lng < -Math.PI) {
-            lng = lng + (2 * Math.PI);
+            lng = lng + Constants.M_2PI;
         }
         return lng;
     }
@@ -141,7 +141,7 @@ public final class LatLng {
         assert latLng1.lat >= latLng2.lat;
         final double az = latLng1.geoAzimuthRads(latLng2.lat, latLng2.lon);
         // the great circle contains the maximum latitude only if the azimuth is between -90 and 90 degrees.
-        if (Math.abs(az) < Math.PI / 2) {
+        if (Math.abs(az) < M_PI_2) {
             return FastMath.acos(Math.abs(FastMath.sin(az) * FastMath.cos(latLng1.lat)));
         }
         return latLng1.lat;
@@ -165,7 +165,7 @@ public final class LatLng {
         // we compute the min latitude using Clairaut's formula (https://streckenflug.at/download/formeln.pdf)
         final double az = latLng1.geoAzimuthRads(latLng2.lat, latLng2.lon);
         // the great circle contains the minimum latitude only if the azimuth is not between -90 and 90 degrees.
-        if (Math.abs(az) > Math.PI / 2) {
+        if (Math.abs(az) > M_PI_2) {
             // note the sign
             return -FastMath.acos(Math.abs(FastMath.sin(az) * FastMath.cos(latLng1.lat)));
         }

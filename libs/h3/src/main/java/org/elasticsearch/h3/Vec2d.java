@@ -29,11 +29,6 @@ import java.util.Objects;
  */
 final class Vec2d {
 
-    /**
-     * 2.0 * PI
-     */
-    private static final double M_2PI = 6.28318530717958647692528676655900576839433;
-
     /** sin(60') */
     private static final double M_SIN60 = Constants.M_SQRT3_2;
 
@@ -305,9 +300,9 @@ final class Vec2d {
      */
     static double posAngleRads(double rads) {
         if (rads < 0.0) {
-            return rads + M_2PI;
-        } else if (rads >= M_2PI) {
-            return rads - M_2PI;
+            return rads + Constants.M_2PI;
+        } else if (rads >= Constants.M_2PI) {
+            return rads - Constants.M_2PI;
         } else {
             return rads;
         }

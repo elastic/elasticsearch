@@ -91,6 +91,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
@@ -647,7 +648,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final CacheService cacheService = defaultCacheService();
                 releasables.add(cacheService);
                 cacheService.start();
-                final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
+                final SharedBlobCacheService<CacheKey> sharedBlobCacheService = defaultFrozenCacheService();
                 releasables.add(sharedBlobCacheService);
 
                 try (
@@ -752,7 +753,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
-            final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = defaultFrozenCacheService();
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,

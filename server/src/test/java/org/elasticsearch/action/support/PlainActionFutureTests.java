@@ -20,12 +20,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class AdapterActionFutureTests extends ESTestCase {
+public class PlainActionFutureTests extends ESTestCase {
 
     public void testInterruption() throws Exception {
-        final AdapterActionFuture<Object> adapter = new AdapterActionFuture<>() {
+        final PlainActionFuture<Object> adapter = new PlainActionFuture<>() {
             @Override
-            protected boolean set(Object value) {
+            public void onResponse(Object value) {
                 throw new AssertionError("should not be called");
             }
         };
@@ -82,9 +82,9 @@ public class AdapterActionFutureTests extends ESTestCase {
     }
 
     private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException, Class<? extends Exception> getException) {
-        final AdapterActionFuture<Void> adapter = new AdapterActionFuture<>() {
+        final PlainActionFuture<Void> adapter = new PlainActionFuture<>() {
             @Override
-            protected boolean set(Void value) {
+            public void onResponse(Void value) {
                 throw new AssertionError("should not be called");
             }
         };

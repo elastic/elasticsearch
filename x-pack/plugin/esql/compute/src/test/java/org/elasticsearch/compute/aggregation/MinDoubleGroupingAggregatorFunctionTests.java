@@ -19,7 +19,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MinDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase {
+public class MinDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(int end) {
         return new LongDoubleTupleBlockSourceOperator(

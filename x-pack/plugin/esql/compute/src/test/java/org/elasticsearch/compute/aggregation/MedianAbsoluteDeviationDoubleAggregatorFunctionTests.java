@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MedianAbsoluteDeviationDoubleAggregatorTests extends AggregatorTestCase {
+public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     protected SourceOperator simpleInput(int end) {

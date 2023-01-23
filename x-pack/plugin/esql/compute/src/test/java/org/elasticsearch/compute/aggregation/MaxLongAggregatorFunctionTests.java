@@ -18,7 +18,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MaxLongAggregatorTests extends AggregatorTestCase {
+public class MaxLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);

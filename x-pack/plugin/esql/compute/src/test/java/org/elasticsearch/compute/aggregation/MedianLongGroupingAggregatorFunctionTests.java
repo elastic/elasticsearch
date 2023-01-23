@@ -11,8 +11,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -23,40 +23,40 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class MedianDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase {
+public class MedianLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
     protected SourceOperator simpleInput(int end) {
-        double[][] samples = new double[][] {
-            { 1.2, 1.25, 2.0, 2.0, 4.3, 6.0, 9.0 },
-            { 0.1, 1.5, 2.0, 3.0, 4.0, 7.5, 100.0 },
-            { 0.2, 1.5, 2.0, 2.5 },
-            { 0.5, 3.0, 3.0, 3.0, 4.3 },
-            { 0.25, 1.5, 3.0 } };
-        List<Tuple<Long, Double>> values = new ArrayList<>();
+        long[][] samples = new long[][] {
+            { 12, 20, 20, 43, 60, 90, 125 },
+            { 1, 15, 20, 30, 40, 75, 1000 },
+            { 2, 20, 25, 175 },
+            { 5, 30, 30, 30, 43 },
+            { 7, 15, 30 } };
+        List<Tuple<Long, Long>> values = new ArrayList<>();
         for (int i = 0; i < samples.length; i++) {
-            for (double v : samples[i]) {
+            for (long v : samples[i]) {
                 values.add(Tuple.tuple((long) i, v));
             }
         }
         Randomness.shuffle(values);
-        return new LongDoubleTupleBlockSourceOperator(values);
+        return new TupleBlockSourceOperator(values);
     }
 
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.MEDIAN_DOUBLES;
+        return GroupingAggregatorFunction.MEDIAN_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "median of doubles";
+        return "median of longs";
     }
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
         int bucket = Math.toIntExact(group);
-        double[] expectedValues = new double[] { 2.0, 3.0, 1.75, 3.0, 1.5 };
+        double[] expectedValues = new double[] { 43.0, 30, 22.5, 30, 15 };
         assertThat(bucket, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(4)));
         assertThat(((DoubleBlock) result).getDouble(position), equalTo(expectedValues[bucket]));
     }

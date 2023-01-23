@@ -51,10 +51,7 @@ public abstract class OperatorTestCase extends ESTestCase {
      * This {@linkplain #toString} is used by the status reporting and
      * generally useful debug information.
      */
-    protected String expectedToStringOfSimple() {
-        assumeFalse("not yet implemented", true);
-        return null;
-    }
+    protected abstract String expectedToStringOfSimple();
 
     /**
      * Assert that output from {@link #simple} is correct for the

@@ -17,10 +17,9 @@ import org.elasticsearch.core.Tuple;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
-public class MaxDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase {
-
+public class SumDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(int end) {
         return new LongDoubleTupleBlockSourceOperator(
@@ -30,22 +29,22 @@ public class MaxDoubleGroupingAggregatorTests extends GroupingAggregatorTestCase
 
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.MAX_DOUBLES;
+        return GroupingAggregatorFunction.SUM_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "max of doubles";
+        return "sum of doubles";
     }
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double[] max = new double[] { Double.NEGATIVE_INFINITY };
+        double[] sum = new double[] { 0 };
         forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
             if (groups.getLong(groupOffset) == group) {
-                max[0] = Math.max(max[0], ((DoubleBlock) values).getDouble(valueOffset));
+                sum[0] += ((DoubleBlock) values).getDouble(valueOffset);
             }
         });
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(max[0]));
+        assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum[0], 0.001));
     }
 }

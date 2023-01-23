@@ -51,7 +51,7 @@ public interface GroupingAggregatorFunction extends Releasable {
     Factory AVG_DOUBLES = new Factory("avg", "doubles", AvgDoubleGroupingAggregatorFunction::create);
     Factory AVG_LONGS = new Factory("avg", "longs", AvgLongGroupingAggregatorFunction::create);
 
-    Factory COUNT = new Factory("count", null, GroupingCountAggregator::create);
+    Factory COUNT = new Factory("count", null, CountGroupingAggregatorFunction::create);
 
     Factory MIN_DOUBLES = new Factory("min", "doubles", MinDoubleGroupingAggregatorFunction::create);
     Factory MIN_LONGS = new Factory("min", "longs", MinLongGroupingAggregatorFunction::create);

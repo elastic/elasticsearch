@@ -87,4 +87,9 @@ public class ProjectOperator implements Operator {
 
     @Override
     public void close() {}
+
+    @Override
+    public String toString() {
+        return "ProjectOperator(mask = " + bs + ')';
+    }
 }

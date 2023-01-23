@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -20,37 +19,30 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CountGroupingAggregatorTests extends GroupingAggregatorTestCase {
+public class MaxLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
-        return GroupingAggregatorFunction.COUNT;
+        return GroupingAggregatorFunction.MAX_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "count";
+        return "max of longs";
     }
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        if (randomBoolean()) {
-            return new TupleBlockSourceOperator(
-                LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong()))
-            );
-        }
-        return new LongDoubleTupleBlockSourceOperator(
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
-        );
+        return new TupleBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong())));
     }
 
     @Override
-    protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long[] count = new long[] { 0 };
+    public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
+        long[] max = new long[] { Long.MIN_VALUE };
         forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
             if (groups.getLong(groupOffset) == group) {
-                count[0]++;
+                max[0] = Math.max(max[0], ((LongBlock) values).getLong(valueOffset));
             }
         });
-        assertThat(((LongBlock) result).getLong(position), equalTo(count[0]));
+        assertThat(((LongBlock) result).getLong(position), equalTo(max[0]));
     }
 }

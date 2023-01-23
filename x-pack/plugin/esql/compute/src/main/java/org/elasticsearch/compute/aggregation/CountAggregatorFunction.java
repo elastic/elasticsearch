@@ -14,16 +14,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
-public class CountRowsAggregator implements AggregatorFunction {
+public class CountAggregatorFunction implements AggregatorFunction {
 
     private final LongState state;
     private final int channel;
 
-    public static CountRowsAggregator create(int inputChannel) {
-        return new CountRowsAggregator(inputChannel, new LongState());
+    public static CountAggregatorFunction create(int inputChannel) {
+        return new CountAggregatorFunction(inputChannel, new LongState());
     }
 
-    private CountRowsAggregator(int channel, LongState state) {
+    private CountAggregatorFunction(int channel, LongState state) {
         this.channel = channel;
         this.state = state;
     }

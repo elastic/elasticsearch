@@ -131,8 +131,7 @@ public class AggregationOperator implements Operator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("aggregators=").append(aggregators).append(", ");
-        sb.append("]");
+        sb.append("aggregators=").append(aggregators).append("]");
         return sb.toString();
     }
 }

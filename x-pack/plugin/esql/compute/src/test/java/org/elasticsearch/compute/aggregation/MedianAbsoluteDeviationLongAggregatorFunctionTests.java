@@ -18,27 +18,27 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MedianLongAggregatorTests extends AggregatorTestCase {
+public class MedianAbsoluteDeviationLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     protected SourceOperator simpleInput(int end) {
-        List<Long> values = Arrays.asList(12L, 20L, 20L, 43L, 60L, 90L, 125L);
+        List<Long> values = Arrays.asList(12L, 125L, 20L, 20L, 43L, 60L, 90L);
         Randomness.shuffle(values);
         return new SequenceLongBlockSourceOperator(values);
     }
 
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.MEDIAN_LONGS;
+        return AggregatorFunction.MEDIAN_ABSOLUTE_DEVIATION_LONGS;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "median of longs";
+        return "median_absolute_deviation of longs";
     }
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        assertThat(((DoubleBlock) result).getDouble(0), equalTo(43.0));
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo(23.0));
     }
 }

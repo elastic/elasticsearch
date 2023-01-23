@@ -10,11 +10,11 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.AvgLongGroupingAggregatorTests;
+import org.elasticsearch.compute.aggregation.AvgLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorTests;
+import org.elasticsearch.compute.aggregation.MaxLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -56,13 +56,20 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
+    protected String expectedToStringOfSimple() {
+        return "HashAggregationOperator[groupByChannel=0, aggregators=["
+            + "GroupingAggregator[aggregatorFunction=AvgLongGroupingAggregatorFunction[channel=1], mode=SINGLE], "
+            + "GroupingAggregator[aggregatorFunction=MaxLongGroupingAggregatorFunction[channel=1], mode=SINGLE]]]";
+    }
+
+    @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(3));
         assertThat(results.get(0).getPositionCount(), equalTo(5));
 
-        AvgLongGroupingAggregatorTests avg = new AvgLongGroupingAggregatorTests();
-        MaxLongGroupingAggregatorTests max = new MaxLongGroupingAggregatorTests();
+        AvgLongGroupingAggregatorFunctionTests avg = new AvgLongGroupingAggregatorFunctionTests();
+        MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();
 
         LongBlock groups = results.get(0).getBlock(0);
         Block avgs = results.get(0).getBlock(1);

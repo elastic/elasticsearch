@@ -81,6 +81,11 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
+    protected String expectedToStringOfSimple() {
+        return expectedDescriptionOfSimple();
+    }
+
+    @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         long expected = input.stream().mapToInt(Page::getPositionCount).sum();
         int total = 0;

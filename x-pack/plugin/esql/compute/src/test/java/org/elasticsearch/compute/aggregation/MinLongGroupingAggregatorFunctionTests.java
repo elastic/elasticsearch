@@ -19,7 +19,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MinLongGroupingAggregatorTests extends GroupingAggregatorTestCase {
+public class MinLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected GroupingAggregatorFunction.Factory aggregatorFunction() {
         return GroupingAggregatorFunction.MIN_LONGS;

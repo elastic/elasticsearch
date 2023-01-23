@@ -18,16 +18,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
 @Experimental
-public class GroupingCountAggregator implements GroupingAggregatorFunction {
+public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     private final LongArrayState state;
     private final int channel;
 
-    static GroupingCountAggregator create(BigArrays bigArrays, int inputChannel) {
-        return new GroupingCountAggregator(inputChannel, new LongArrayState(bigArrays, 0));
+    static CountGroupingAggregatorFunction create(BigArrays bigArrays, int inputChannel) {
+        return new CountGroupingAggregatorFunction(inputChannel, new LongArrayState(bigArrays, 0));
     }
 
-    private GroupingCountAggregator(int channel, LongArrayState state) {
+    private CountGroupingAggregatorFunction(int channel, LongArrayState state) {
         this.channel = channel;
         this.state = state;
     }
@@ -88,7 +88,7 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
         if (input.getClass() != getClass()) {
             throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
         }
-        final LongArrayState inState = ((GroupingCountAggregator) input).state;
+        final LongArrayState inState = ((CountGroupingAggregatorFunction) input).state;
         state.increment(inState.get(position), groupId);
     }
 

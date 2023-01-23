@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
+import org.elasticsearch.compute.aggregation.CountGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.GroupingCountAggregator;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -67,7 +67,7 @@ class AggregateMapper {
         } else if (aggregateFunction instanceof Max) {
             aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.MAX_DOUBLES
-                : GroupingCountAggregator.MAX_LONGS;
+                : CountGroupingAggregatorFunction.MAX_LONGS;
         } else if (aggregateFunction instanceof Min) {
             aggregatorFunc = aggregateFunction.field().dataType().isRational()
                 ? GroupingAggregatorFunction.MIN_DOUBLES

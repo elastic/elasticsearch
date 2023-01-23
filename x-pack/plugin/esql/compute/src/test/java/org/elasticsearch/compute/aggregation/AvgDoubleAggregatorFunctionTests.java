@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
-public class MinDoubleAggregatorTests extends AggregatorTestCase {
+public class AvgDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(int size) {
         return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
@@ -27,24 +27,24 @@ public class MinDoubleAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.MIN_DOUBLES;
+        return AggregatorFunction.AVG_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "min of doubles";
+        return "avg of doubles";
     }
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        double min = input.stream()
+        double avg = input.stream()
             .flatMapToDouble(
                 b -> IntStream.range(0, b.getTotalValueCount())
                     .filter(p -> false == b.isNull(p))
                     .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
             )
-            .min()
+            .average()
             .getAsDouble();
-        assertThat(((DoubleBlock) result).getDouble(0), equalTo(min));
+        assertThat(((DoubleBlock) result).getDouble(0), closeTo(avg, .0001));
     }
 }

@@ -28,7 +28,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase {
+public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
     protected abstract GroupingAggregatorFunction.Factory aggregatorFunction();
 
     protected abstract String expectedDescriptionOfAggregator();
@@ -76,6 +76,14 @@ public abstract class GroupingAggregatorTestCase extends ForkingOperatorTestCase
     @Override
     protected final String expectedDescriptionOfSimple() {
         return "HashAggregationOperator(mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + ")";
+    }
+
+    @Override
+    protected final String expectedToStringOfSimple() {
+        String type = getClass().getSimpleName().replace("Tests", "");
+        return "HashAggregationOperator[groupByChannel=0, aggregators=[GroupingAggregator[aggregatorFunction="
+            + type
+            + "[channel=1], mode=SINGLE]]]";
     }
 
     @Override

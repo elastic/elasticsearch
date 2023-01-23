@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
-public class AvgDoubleAggregatorTests extends AggregatorTestCase {
+public class MaxDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(int size) {
         return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
@@ -27,24 +27,24 @@ public class AvgDoubleAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregatorFunction.Factory aggregatorFunction() {
-        return AggregatorFunction.AVG_DOUBLES;
+        return AggregatorFunction.MAX_DOUBLES;
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "avg of doubles";
+        return "max of doubles";
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        double avg = input.stream()
+    public void assertSimpleOutput(List<Block> input, Block result) {
+        double max = input.stream()
             .flatMapToDouble(
                 b -> IntStream.range(0, b.getTotalValueCount())
                     .filter(p -> false == b.isNull(p))
                     .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
             )
-            .average()
+            .max()
             .getAsDouble();
-        assertThat(((DoubleBlock) result).getDouble(0), closeTo(avg, .0001));
+        assertThat(((DoubleBlock) result).getDouble(0), equalTo(max));
     }
 }

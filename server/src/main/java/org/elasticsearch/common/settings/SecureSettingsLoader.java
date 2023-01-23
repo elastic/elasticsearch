@@ -12,6 +12,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
 import java.time.ZonedDateTime;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -19,8 +20,29 @@ import java.util.function.Consumer;
  * secrets stores.
  */
 public interface SecureSettingsLoader {
-    SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
-        throws Exception;
+    /**
+     * Loads an existing SecureSettings implementation
+     */
+    LoadedSecrets load(Environment environment, Terminal terminal) throws Exception;
+
+    /**
+     * Loads an existing SecureSettings implementation, creates one if it doesn't exist
+     */
+    SecureSettings bootstrap(Environment environment, SecureString password) throws Exception;
+
+    /**
+     * A load result for loading a SecureSettings implementation from a SecureSettingsLoader
+     * @param secrets the loaded secure settings
+     * @param password an optional password if the implementation required one
+     */
+    record LoadedSecrets(SecureSettings secrets, Optional<SecureString> password) implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            if (password.isPresent()) {
+                password.get().close();
+            }
+        }
+    }
 
     default AutoConfigureResult autoConfigure(
         Environment env,
@@ -39,21 +61,11 @@ public interface SecureSettingsLoader {
     String validate(Environment environment);
 
     /**
-     * Functional interface for implementing an autoconfigure call-back from secrets loader implementations
-     * @param <T> argument
-     * @param <R> return type
-     */
-    @FunctionalInterface
-    interface AutoConfigureFunction<T, R> {
-        R apply(T t) throws Exception;
-    }
-
-    /**
      * Functional interface for implementing autoconfigure call-backs during autoconfigure, e.g. onSuccess and onFailure.
      * @param <T> argument
      */
     @FunctionalInterface
-    interface AutoConfigureReponse<T> {
+    interface AutoConfigureResponse<T> {
         void apply(T t) throws Exception;
     }
 
@@ -68,7 +80,7 @@ public interface SecureSettingsLoader {
      */
     record AutoConfigureResult(
         Exception autoConfigureError,
-        AutoConfigureReponse<Environment> onSuccess,
-        AutoConfigureReponse<Environment> onFailure
+        AutoConfigureResponse<Environment> onSuccess,
+        AutoConfigureResponse<Environment> onFailure
     ) {}
 }

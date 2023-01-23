@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -471,12 +472,13 @@ public class ServerCliTests extends CommandTestCase {
 
     class MockSecureSettingsLoader implements SecureSettingsLoader {
         @Override
-        public SecureSettings load(
-            Environment environment,
-            Terminal terminal,
-            AutoConfigureFunction<SecureString, Environment> autoConfigure
-        ) {
+        public LoadedSecrets load(Environment environment, Terminal terminal) {
             terminal.println("Mock secure settings loader loaded");
+            return new LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
+        }
+
+        @Override
+        public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             return KeyStoreWrapper.create();
         }
 

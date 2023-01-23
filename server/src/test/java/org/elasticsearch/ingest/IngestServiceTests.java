@@ -56,6 +56,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1403,7 +1404,24 @@ public class IngestServiceTests extends ESTestCase {
             return null;
         }).when(processor).execute(any(IngestDocument.class), any());
 
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+        // mock up an ingest service for returning a pipeline, this is used by the pipeline processor
+        final Pipeline[] pipelineToReturn = new Pipeline[1];
+        final IngestService pipelineIngestService = mock(IngestService.class);
+        when(pipelineIngestService.getPipeline(anyString())).thenAnswer(inv -> pipelineToReturn[0]);
+
+        IngestService ingestService = createWithProcessors(
+            Map.of(
+                "pipeline",
+                (factories, tag, description, config) -> new PipelineProcessor(tag, description, (params) -> new TemplateScript(params) {
+                    @Override
+                    public String execute() {
+                        return "_id3";
+                    } // this pipeline processor will always execute the '_id3' processor
+                }, false, pipelineIngestService),
+                "mock",
+                (factories, tag, description, config) -> processor
+            )
+        );
 
         {
             // all zeroes since nothing has executed
@@ -1418,8 +1436,14 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
             XContentType.JSON
         );
+        // n.b. this 'pipeline' processor will always run the '_id3' pipeline, see the mocking/plumbing above and below
         PutPipelineRequest putRequest2 = new PutPipelineRequest(
             "_id2",
+            new BytesArray("{\"processors\": [{\"pipeline\" : {}}]}"),
+            XContentType.JSON
+        );
+        PutPipelineRequest putRequest3 = new PutPipelineRequest(
+            "_id3",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
             XContentType.JSON
         );
@@ -1427,20 +1451,26 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = executePut(putRequest1, clusterState);
         clusterState = executePut(putRequest2, clusterState);
+        clusterState = executePut(putRequest3, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        // hook up the mock ingest service to return pipeline3 when asked by the pipeline processor
+        pipelineToReturn[0] = ingestService.getPipeline("_id3");
 
         {
             final IngestStats ingestStats = ingestService.stats();
-            assertThat(ingestStats.getPipelineStats().size(), equalTo(2));
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
 
             // total
             assertStats(ingestStats.getTotalStats(), 0, 0, 0);
             // pipeline
             assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 0, 0, 0);
             assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 0, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id3", 0, 0, 0);
             // processor
             assertProcessorStats(0, ingestStats, "_id1", 0, 0, 0);
             assertProcessorStats(0, ingestStats, "_id2", 0, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id3", 0, 0, 0);
         }
 
         // put a single document through ingest processing
@@ -1451,7 +1481,7 @@ public class IngestServiceTests extends ESTestCase {
 
         {
             final IngestStats ingestStats = ingestService.stats();
-            assertThat(ingestStats.getPipelineStats().size(), equalTo(2));
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
 
             // total
             // see https://github.com/elastic/elasticsearch/issues/92843 -- this should be 1, but it's actually 2
@@ -1459,9 +1489,11 @@ public class IngestServiceTests extends ESTestCase {
             // pipeline
             assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 1, 0, 0);
             assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 1, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id3", 1, 0, 0);
             // processor
             assertProcessorStats(0, ingestStats, "_id1", 1, 0, 0);
             assertProcessorStats(0, ingestStats, "_id2", 1, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id3", 1, 0, 0);
         }
     }
 

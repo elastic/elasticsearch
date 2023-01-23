@@ -161,6 +161,6 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
     );
 
     private static SameShardAllocationDecider createSameShardAllocationDecider(Settings settings) {
-        return new SameShardAllocationDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return new SameShardAllocationDecider(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 }

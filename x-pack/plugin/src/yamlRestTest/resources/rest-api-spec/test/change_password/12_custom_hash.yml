@@ -63,13 +63,13 @@ teardown:
       cluster.health: {}
   - match: { timed_out: false }
 
-  # change password to PBKDF2 with 8 bytes salt and 128 bits key lengths
+  # change password to PBKDF2 with 24 bytes salt and 128 bits key lengths
   - do:
       security.change_password:
         username: "pre_hashed_user2"
         body:  >
           {
-            "password_hash" : "{PBKDF2}10000$1v0C1l5iSn0=$lPJcWRh+eOF/8ti+NOgUTQ=="
+            "password_hash" : "{PBKDF2}10000$1C7Dlwg/5awqxgi+f6czbBAi/kQxKiDA$3AhIGtGiwYbFBIAosoT3LA=="
           }
 
   # login with new credentials

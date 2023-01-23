@@ -112,6 +112,15 @@ final class CoordIJK {
     }
 
     /**
+     * Find the center point in spherical coordinates of a hex on a particular icosahedral face.
+     */
+    public LatLng ijkToGeo(int face, int res, boolean substrate) {
+        final int i = Math.subtractExact(this.i, this.k);
+        final int j = Math.subtractExact(this.j, this.k);
+        return Vec2d.hex2dToGeo(i - 0.5 * j, j * Constants.M_SQRT3_2, face, res, substrate);
+    }
+
+    /**
      * Add ijk coordinates.
      *
      * @param i the i coordinate

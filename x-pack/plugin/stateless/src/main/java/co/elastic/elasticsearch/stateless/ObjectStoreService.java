@@ -28,6 +28,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -613,10 +615,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void doRun() throws Exception {
+        protected void doRun() {
             logger.trace("{} downloading commit [{}] with [{}] new files", shardId, generation, files.size());
 
-            final ActionListener<Collection<Result>> finalListener = ActionListener.wrap(results -> {
+            final AtomicLong successCount = new AtomicLong();
+            final AtomicLong successSize = new AtomicLong();
+            final ActionListener<Void> finalListener = ActionListener.wrap(ignored -> {
                 final long end = threadPool.relativeTimeInNanos();
                 logger.debug(
                     () -> format(
@@ -624,8 +628,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         shardId,
                         generation,
                         TimeValue.nsecToMSec(end - timeInNanos),
-                        results.size(),
-                        results.stream().mapToLong(Result::length).reduce(Math::addExact).getAsLong()
+                        successCount.get(),
+                        successSize.get()
                     )
                 );
                 listener.onResponse(null);
@@ -633,24 +637,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 logger.error(() -> format("%s failed to download files of commit [%s] to object store", shardId, generation), e);
                 listener.onFailure(e);
             });
-            if (files.isEmpty()) {
-                finalListener.onResponse(null);
-                return;
-            }
 
-            var groupedListener = new GroupedActionListener<>(files.size(), finalListener);
-            try {
-
+            try (var listeners = new RefCountingListener(finalListener)) {
                 final BlobContainer blobContainer = getBlobContainer(shardId, primaryTerm);
-
                 files.entrySet()
                     .forEach(
                         file -> downloadTaskRunner.enqueueTask(
-                            new FileDownloadTask(shardId, generation, timeInNanos, file, multiFileWriter, blobContainer, groupedListener)
+                            new FileDownloadTask(
+                                shardId,
+                                generation,
+                                timeInNanos,
+                                file,
+                                multiFileWriter,
+                                blobContainer,
+                                listeners.acquire(r -> {
+                                    successCount.incrementAndGet();
+                                    successSize.addAndGet(r.length());
+                                })
+                            )
                         )
                     );
-            } catch (Exception e) {
-                finalListener.onFailure(e);
             }
         }
     }
@@ -687,7 +693,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() throws Exception {
-
             try (InputStream inputStream = blobContainer.readBlob(objectStoreFileName)) {
                 int readBufferSizeInBytes = getObjectStore().getReadBufferSizeInBytes();
                 blobContainer.readBlobPreferredLength();
@@ -705,12 +710,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     )
                 );
                 listener.onResponse(new Result(objectStoreFileName, fileMetadata.length(), after - before));
-            } catch (Exception e) {
-                listener.onFailure(e);
             }
         }
 
+        record Result(String name, long length, long elapsedInMillis) {}
     }
 
-    record Result(String name, long length, long elapsedInMillis) {}
 }

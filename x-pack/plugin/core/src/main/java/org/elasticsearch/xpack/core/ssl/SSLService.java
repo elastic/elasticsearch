@@ -594,7 +594,7 @@ public class SSLService {
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             sslSettingsMap.put(
-                XPackSettings.REMOTE_CLUSTER_SSL_PREFIX, // TODO: we need auto-config client auth like getHttpTransportSSLSettings
+                XPackSettings.REMOTE_CLUSTER_SSL_PREFIX,
                 settings.getByPrefix(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX)
             );
         }
@@ -616,7 +616,7 @@ public class SSLService {
             }
         });
 
-        for (String context : List.of("xpack.security.transport.ssl", "xpack.security.http.ssl")) { // TODO: validate for remote access
+        for (String context : List.of("xpack.security.transport.ssl", "xpack.security.http.ssl")) {
             validateServerConfiguration(context);
         }
 

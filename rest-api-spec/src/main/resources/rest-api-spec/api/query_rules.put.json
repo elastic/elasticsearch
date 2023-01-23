@@ -1,0 +1,34 @@
+{
+  "query_rules.put":{
+    "documentation":{
+      "url":"TODO",
+      "description":"Allows to add a query rules set to the cluster"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_query_rules/{rulesetId}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "rulesetId":{
+              "type":"string",
+              "description":"A unique rule set id"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The rule set itself",
+      "required":true
+    }
+  }
+}

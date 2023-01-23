@@ -7,18 +7,116 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.search.action.QueryRulesPutAction;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.QUERY_RULES_MANAGEMENT_ORIGIN;
 
-public class SearchBusinessRules extends Plugin implements SearchPlugin {
+public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionPlugin, SystemIndexPlugin {
+
+    public static final String QUERY_RULES_CONCRETE_INDEX_NAME = ".query_rules";
+    public static final String QUERY_RULES_INDEX_NAME_PATTERN = QUERY_RULES_CONCRETE_INDEX_NAME + "*";
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return Collections.singletonList(new ActionHandler<>(QueryRulesPutAction.INSTANCE, TransportQueryRulesPutAction.class));
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return Collections.singletonList(new RestQueryRulesPutAction());
+    }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(PinnedQueryBuilder.NAME, PinnedQueryBuilder::new, PinnedQueryBuilder::fromXContent));
     }
 
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(QUERY_RULES_INDEX_NAME_PATTERN)
+                .setPrimaryIndex(QUERY_RULES_CONCRETE_INDEX_NAME)
+                .setDescription("Contains query rules for expansion of the rules query")
+                .setMappings(getIndexMappings())
+                .setSettings(getIndexSettings())
+                .setVersionMetaKey("query-rules-version")
+                .setOrigin(QUERY_RULES_MANAGEMENT_ORIGIN)
+                .build()
+        );
+    }
+
+    private Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            // TODO check replication requirements
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .build();
+    }
+
+    private XContentBuilder getIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+            {
+                builder.startObject();
+                {
+                    builder.field("enabled", "false");
+                }
+                {
+                    builder.startObject("_meta");
+                    builder.field("query-rules-version", Version.CURRENT);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + QUERY_RULES_CONCRETE_INDEX_NAME + " index mappings", e);
+        }
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "query_rules_management";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Enables the storage and management of business query rules";
+    }
 }

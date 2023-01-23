@@ -12,6 +12,7 @@ import java.util.Set;
 public class Constants {
 
     public static final Set<String> NON_OPERATOR_ACTIONS = Set.of(
+        // TODO not sure if we need to add new actions here too
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
         "cluster:admin/autoscaling/get_autoscaling_policy",

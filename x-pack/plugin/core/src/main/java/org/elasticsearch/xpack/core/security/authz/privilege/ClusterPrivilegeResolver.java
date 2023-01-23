@@ -113,6 +113,8 @@ public class ClusterPrivilegeResolver {
     );
     private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Set.of("cluster:admin/ingest/pipeline/*");
     private static final Set<String> READ_PIPELINE_PATTERN = Set.of(GetPipelineAction.NAME, SimulatePipelineAction.NAME);
+
+    private static final Set<String> QUERY_RULES_PATTERN = Set.of("cluster:admin/query_rules/*");
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Set.of("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*");
     private static final Set<String> MANAGE_CCR_PATTERN = Set.of(
         "cluster:admin/xpack/ccr/*",
@@ -181,6 +183,8 @@ public class ClusterPrivilegeResolver {
         MANAGE_INGEST_PIPELINE_PATTERN
     );
     public static final NamedClusterPrivilege READ_PIPELINE = new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
+
+    public static final NamedClusterPrivilege QUERY_RULES = new ActionClusterPrivilege("query_rules", QUERY_RULES_PATTERN);
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client", TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege(
         "manage_security",
@@ -293,7 +297,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_OWN_API_KEY,
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
-            CANCEL_TASK
+            CANCEL_TASK,
+            QUERY_RULES
         )
     );
 

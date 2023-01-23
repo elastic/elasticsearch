@@ -158,6 +158,7 @@ import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.QueryRulesPutAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
@@ -411,7 +412,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             TermsEnumAction.INSTANCE,
             // TSDB Downsampling
             RollupIndexerAction.INSTANCE,
-            org.elasticsearch.xpack.core.downsample.DownsampleAction.INSTANCE
+            org.elasticsearch.xpack.core.downsample.DownsampleAction.INSTANCE,
+            // Quey Rules
+            QueryRulesPutAction.INSTANCE
         );
     }
 

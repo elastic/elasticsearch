@@ -1,0 +1,12 @@
+---
+"Test put query rules":
+
+  - do:
+      query_rules.put:
+        rulesetId: my-rules-id
+        body:
+          mapping:
+            user: "string"
+
+  - match: { acknowledged: true }
+  - match: { rules_id: my-rules-id }

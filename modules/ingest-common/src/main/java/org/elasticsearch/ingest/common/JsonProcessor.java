@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -32,12 +33,14 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public final class JsonProcessor extends AbstractProcessor {
 
     public static final String TYPE = "json";
+    private static final String STRICT_JSON_PARSING_PARAMETER = "strict_json_parsing";
 
     private final String field;
     private final String targetField;
     private final boolean addToRoot;
     private final ConflictStrategy addToRootConflictStrategy;
     private final boolean allowDuplicateKeys;
+    private final boolean strictJsonParsing;
 
     JsonProcessor(
         String tag,
@@ -46,7 +49,8 @@ public final class JsonProcessor extends AbstractProcessor {
         String targetField,
         boolean addToRoot,
         ConflictStrategy addToRootConflictStrategy,
-        boolean allowDuplicateKeys
+        boolean allowDuplicateKeys,
+        boolean strictJsonParsing
     ) {
         super(tag, description);
         this.field = field;
@@ -54,6 +58,7 @@ public final class JsonProcessor extends AbstractProcessor {
         this.addToRoot = addToRoot;
         this.addToRootConflictStrategy = addToRootConflictStrategy;
         this.allowDuplicateKeys = allowDuplicateKeys;
+        this.strictJsonParsing = strictJsonParsing;
     }
 
     public String getField() {
@@ -72,7 +77,7 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRootConflictStrategy;
     }
 
-    public static Object apply(Object fieldValue, boolean allowDuplicateKeys) {
+    public static Object apply(Object fieldValue, boolean allowDuplicateKeys, boolean strictJsonParsing) {
         BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (
             InputStream stream = bytesRef.streamInput();
@@ -96,14 +101,36 @@ public final class JsonProcessor extends AbstractProcessor {
             } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                 throw new IllegalArgumentException("cannot read binary value");
             }
+            if (strictJsonParsing) {
+                // The next token ought to be null. Otherwise we've received garbage and need to alert the user
+                String errorMessage = Strings.format(
+                    "The input %s is not valid JSON and the %s parameter is true",
+                    fieldValue,
+                    STRICT_JSON_PARSING_PARAMETER
+                );
+                try {
+                    token = parser.nextToken();
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(errorMessage, e);
+                }
+                if (token != null) {
+                    throw new IllegalArgumentException(errorMessage);
+                }
+            }
             return value;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
     }
 
-    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys, ConflictStrategy conflictStrategy) {
-        Object value = apply(ctx.get(fieldName), allowDuplicateKeys);
+    public static void apply(
+        Map<String, Object> ctx,
+        String fieldName,
+        boolean allowDuplicateKeys,
+        ConflictStrategy conflictStrategy,
+        boolean strictJsonParsing
+    ) {
+        Object value = apply(ctx.get(fieldName), allowDuplicateKeys, strictJsonParsing);
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
@@ -140,9 +167,9 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootConflictStrategy);
+            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootConflictStrategy, strictJsonParsing);
         } else {
-            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
+            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing));
         }
         return document;
     }
@@ -217,6 +244,7 @@ public final class JsonProcessor extends AbstractProcessor {
                     "Cannot set `add_to_root_conflict_strategy` if `add_to_root` is false"
                 );
             }
+            boolean strictParsing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, STRICT_JSON_PARSING_PARAMETER, true);
 
             if (targetField == null) {
                 targetField = field;
@@ -229,7 +257,8 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField,
                 addToRoot,
                 addToRootConflictStrategy,
-                allowDuplicateKeys
+                allowDuplicateKeys,
+                strictParsing
             );
         }
     }

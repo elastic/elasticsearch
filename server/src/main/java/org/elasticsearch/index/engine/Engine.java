@@ -26,6 +26,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -82,7 +83,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -1957,10 +1957,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Allows registering a callback for when the index shard is on a segment generation >= minGeneration.
-     * The provided consumer is called back with the specific segment generation number.
+     * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
      */
-    public void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
+    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 

@@ -276,7 +276,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 
@@ -307,7 +307,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 
@@ -338,7 +338,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 
@@ -862,7 +862,7 @@ public abstract class EngineTestCase extends ESTestCase {
             null,
             System::nanoTime,
             indexCommitListener,
-            false
+            true
         );
     }
 
@@ -901,7 +901,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 

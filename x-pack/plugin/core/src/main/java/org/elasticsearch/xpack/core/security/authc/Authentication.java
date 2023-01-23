@@ -417,6 +417,8 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
 
+        // Real run-as for remote access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
+        // authentication instance corresponds to the fulfilling-cluster-side view, run-as is not supported
         if (isRemoteAccess()) {
             return false;
         }

@@ -630,10 +630,10 @@ public class AuthenticationTestHelper {
                     throw new UncheckedIOException(e);
                 }
             }
-            if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS)) {
+            if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)) {
                 // TODO randomly include another set of role descriptors, once we have querying-cluster-side API key support
                 metadata.put(
-                    AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS,
+                    AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
                     List.of(new RemoteAccessAuthentication.RoleDescriptorsBytes(new BytesArray("""
                         {"a":{"indices":[{"names":["index1"],"privileges":["read","read_cross_cluster"]}]}}""")))
                 );
@@ -658,6 +658,7 @@ public class AuthenticationTestHelper {
         }
 
         private Authentication authenticationFromRemoteCluster() {
+            // TODO add apikey() once we have querying-cluster-side API key support
             return ESTestCase.randomFrom(realm(), internal(SystemUser.INSTANCE)).build();
         }
     }

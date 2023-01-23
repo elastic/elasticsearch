@@ -47,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
@@ -931,9 +932,9 @@ public final class Authentication implements ToXContentObject {
         final User userFromRemoteCluster = authenticationFromRemoteCluster.getEffectiveSubject().getUser();
         assert userFromRemoteCluster.enabled() : "The user received from a remote cluster must be enabled";
 
-        final User combinedUser = new User(
+        final User userWithoutRoles = new User(
             userFromRemoteCluster.principal(),
-            null,
+            EMPTY_ARRAY,
             userFromRemoteCluster.fullName(),
             userFromRemoteCluster.email(),
             userFromRemoteCluster.metadata(),
@@ -941,7 +942,7 @@ public final class Authentication implements ToXContentObject {
         );
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(remoteAccessApiKeyUser.principal(), nodeName);
         final Authentication authentication = new Authentication(
-            new Subject(combinedUser, authenticatedBy, Version.CURRENT, remoteAccessApiKeyAuthcResult.getMetadata()),
+            new Subject(userWithoutRoles, authenticatedBy, Version.CURRENT, remoteAccessApiKeyAuthcResult.getMetadata()),
             AuthenticationType.API_KEY
         );
         assert false == authentication.isAssignedToDomain();

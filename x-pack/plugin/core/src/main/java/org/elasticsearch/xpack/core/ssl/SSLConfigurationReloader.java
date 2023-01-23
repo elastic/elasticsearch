@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -26,8 +25,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import javax.net.ssl.SSLContext;
@@ -40,10 +37,12 @@ public final class SSLConfigurationReloader {
 
     private static final Logger logger = LogManager.getLogger(SSLConfigurationReloader.class);
 
-    private final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
-
-    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
-        startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);
+    public SSLConfigurationReloader(
+        SSLService sslService,
+        ResourceWatcherService resourceWatcherService,
+        Collection<SslConfiguration> sslConfigurations
+    ) {
+        this(reloadConsumer(sslService), resourceWatcherService, sslConfigurations);
     }
 
     // for testing
@@ -55,24 +54,10 @@ public final class SSLConfigurationReloader {
         startWatching(reloadConsumer, resourceWatcherService, sslConfigurations);
     }
 
-    public void setSSLService(SSLService sslService) {
-        final boolean completed = sslServiceFuture.complete(sslService);
-        if (completed == false) {
-            throw new IllegalStateException("ssl service future was already completed!");
-        }
-    }
-
-    private static Consumer<SslConfiguration> reloadConsumer(CompletableFuture<SSLService> future) {
+    private static Consumer<SslConfiguration> reloadConsumer(SSLService sslService) {
         return sslConfiguration -> {
-            try {
-                final SSLService sslService = future.get();
-                logger.debug("reloading ssl configuration [{}]", sslConfiguration);
-                sslService.reloadSSLContext(sslConfiguration);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException e) {
-                throw new ElasticsearchException("failed to obtain ssl service", e);
-            }
+            logger.debug("reloading ssl configuration [{}]", sslConfiguration);
+            sslService.reloadSSLContext(sslConfiguration);
         };
     }
 

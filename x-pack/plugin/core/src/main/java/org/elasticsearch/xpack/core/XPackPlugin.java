@@ -468,9 +468,8 @@ public class XPackPlugin extends XPackClientPlugin
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
         final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
-        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
-        reloader.setSSLService(sslService);
+        new SSLConfigurationReloader(sslService, resourceWatcherService, sslConfigurations.values());
         setSslService(sslService);
         return sslService;
     }

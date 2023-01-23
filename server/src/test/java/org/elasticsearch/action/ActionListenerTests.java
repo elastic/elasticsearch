@@ -7,10 +7,14 @@
  */
 package org.elasticsearch.action;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -307,6 +311,15 @@ public class ActionListenerTests extends ESTestCase {
         }
     }
 
+    public void testNotifyOnceReleasesDelegate() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final var listener = ActionListener.notifyOnce(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        reachabilityChecker.checkReachable();
+        listener.onResponse(null);
+        reachabilityChecker.ensureUnreachable();
+        assertEquals("notifyOnce[null]", listener.toString());
+    }
+
     public void testConcurrentNotifyOnce() throws InterruptedException {
         final var completed = new AtomicBoolean();
         final var listener = ActionListener.notifyOnce(new ActionListener<Void>() {
@@ -442,6 +455,63 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
         mapped.onFailure(new IllegalStateException());
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
+    }
+
+    public void testRunBeforeThrowsAssertionErrorIfExecutedMoreThanOnce() {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        var count = new AtomicInteger();
+        final ActionListener<Void> runBefore = ActionListener.runBefore(ActionListener.noop(), count::incrementAndGet);
+
+        completeListener(randomBoolean(), runBefore);
+
+        var error = expectThrows(AssertionError.class, () -> completeListener(true, runBefore));
+        assertThat(error.getMessage(), equalTo("listener already executed"));
+    }
+
+    public void testRunAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        var count = new AtomicInteger();
+        final ActionListener<Void> runAfter = ActionListener.runAfter(ActionListener.noop(), count::incrementAndGet);
+
+        completeListener(randomBoolean(), runAfter);
+
+        var error = expectThrows(AssertionError.class, () -> completeListener(true, runAfter));
+        assertThat(error.getMessage(), equalTo("listener already executed"));
+    }
+
+    public void testWrappedRunBeforeOrAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        final ActionListener<Void> throwingListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void o) {
+                throw new AlreadyClosedException("throwing on purpose");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("should not be called");
+            }
+        };
+
+        var count = new AtomicInteger();
+        final ActionListener<Void> runBeforeOrAfterListener = randomBoolean()
+            ? ActionListener.runBefore(throwingListener, count::incrementAndGet)
+            : ActionListener.runAfter(throwingListener, count::incrementAndGet);
+
+        final ActionListener<Void> wrappedListener = ActionListener.wrap(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                runBeforeOrAfterListener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                runBeforeOrAfterListener.onResponse(null);
+            }
+        });
+
+        var error = expectThrows(AssertionError.class, () -> completeListener(true, wrappedListener));
+        assertThat(error.getMessage(), equalTo("listener already executed"));
     }
 
     public void testReleasing() {

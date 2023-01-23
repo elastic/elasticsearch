@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,12 +19,18 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -37,6 +42,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -45,13 +51,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92915")
 @SuppressWarnings("resource")
 public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(ShardRoutingRoleIT.class);
 
-    public static class TestPlugin extends Plugin implements ClusterPlugin {
+    public static class TestPlugin extends Plugin implements ClusterPlugin, EnginePlugin {
 
         volatile int numIndexingCopies = 1;
 
@@ -84,11 +89,30 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             });
         }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+            // TODO revert this once replication/recovery ignores unpromotable shards
+            return Optional.of(config -> new NoOpEngine(config, new TranslogStats(0, 0, 0, 0, 0)));
+        }
+    }
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
     }
 
     private static TestPlugin getMasterNodePlugin() {
@@ -349,7 +373,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    public void testSearchRouting() throws InterruptedException {
+    public void testSearchRouting() {
 
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);
@@ -364,7 +388,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             masterClusterService.addListener(routingTableWatcher);
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
-            indexRandom(true, INDEX_NAME, between(1, 100));
+            // TODO index some documents here once recovery/replication ignore unpromotable shards
             ensureGreen(INDEX_NAME);
 
             final var searchShardProfileKeys = new HashSet<String>();

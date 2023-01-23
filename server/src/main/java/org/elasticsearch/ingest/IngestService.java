@@ -44,6 +44,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
@@ -742,7 +743,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
-                        executePipelines(pipelines.iterator(), hasFinalPipeline, indexRequest, documentListener);
+
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        executePipelines(pipelines.iterator(), hasFinalPipeline, indexRequest, ingestDocument, documentListener);
 
                         i++;
                     }
@@ -755,6 +758,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Iterator<String> it,
         final boolean hasFinalPipeline,
         final IndexRequest indexRequest,
+        final IngestDocument ingestDocument,
         final ActionListener<Boolean> listener
     ) {
         assert it.hasNext();
@@ -766,7 +770,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             final Pipeline pipeline = holder.pipeline;
             final String originalIndex = indexRequest.indices()[0];
-            innerExecute(indexRequest, pipeline, (keep, e) -> {
+            innerExecute(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
 
                 if (e != null) {
@@ -786,6 +790,26 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (keep == false) {
                     listener.onResponse(false);
                     return; // document dropped!
+                }
+
+                // update the index request so that we can execute additional pipelines (if any), etc
+                updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
+                try {
+                    // check for self-references if necessary, (i.e. if a script processor has run), and clear the bit
+                    if (ingestDocument.doNoSelfReferencesCheck()) {
+                        CollectionUtils.ensureNoSelfReferences(ingestDocument.getSource(), null);
+                        ingestDocument.doNoSelfReferencesCheck(false);
+                    }
+                } catch (IllegalArgumentException ex) {
+                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                    // In that case, we catch and wrap the exception, so we can include more details
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            format("Failed to generate the source document for ingest pipeline [%s]", pipelineId),
+                            ex
+                        )
+                    );
+                    return; // document failed!
                 }
 
                 Iterator<String> newIt = it;
@@ -809,8 +833,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newIt.hasNext()) {
-                    executePipelines(newIt, newHasFinalPipeline, indexRequest, listener);
+                    executePipelines(newIt, newHasFinalPipeline, indexRequest, ingestDocument, listener);
                 } else {
+                    // update the index request's source and (potentially) cache the timestamp for TSDB
+                    updateIndexRequestSource(indexRequest, ingestDocument);
+                    cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(true); // document succeeded!
                 }
             });
@@ -874,44 +901,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return sb.toString();
     }
 
-    private void innerExecute(final IndexRequest indexRequest, final Pipeline pipeline, final BiConsumer<Boolean, Exception> handler) {
+    private void innerExecute(final IngestDocument ingestDocument, final Pipeline pipeline, final BiConsumer<Boolean, Exception> handler) {
         if (pipeline.getProcessors().isEmpty()) {
             handler.accept(true, null);
             return;
         }
 
-        IngestDocument ingestDocument = newIngestDocument(indexRequest);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             if (e != null) {
                 handler.accept(true, e);
-            } else if (result == null) {
-                handler.accept(false, null);
             } else {
-                updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
-                try {
-                    updateIndexRequestSource(indexRequest, ingestDocument);
-                    cacheRawTimestamp(indexRequest, ingestDocument);
-                    handler.accept(true, null);
-                } catch (IllegalArgumentException ex) {
-                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
-                    // In that case, we catch and wrap the exception, so we can include which pipeline failed.
-                    handler.accept(
-                        true,
-                        new IllegalArgumentException(
-                            "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
-                            ex
-                        )
-                    );
-                } catch (Exception ex) {
-                    // If anything goes wrong here, we want to know, and cannot proceed with normal execution. For example,
-                    // *rarely*, a ConcurrentModificationException could be thrown if a pipeline leaks a reference to a shared mutable
-                    // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
-                    // no self references.
-                    handler.accept(
-                        true,
-                        new RuntimeException("Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]", ex)
-                    );
-                }
+                handler.accept(result != null, null);
             }
         });
     }
@@ -963,6 +963,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
+        // we already check for self references elsewhere (and clear the bit), so this should always be false,
+        // keeping the check and assert as a guard against extraordinarily surprising circumstances
+        assert ensureNoSelfReferences == false;
         request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
     }
 

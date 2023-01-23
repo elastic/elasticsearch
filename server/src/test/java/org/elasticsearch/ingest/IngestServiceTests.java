@@ -1864,8 +1864,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest5.getRawTimestamp(), nullValue());
         assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
         assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
-        // see https://github.com/elastic/elasticsearch/issues/93118 -- this should be 100, but it's actually 10
-        // assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
+        assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {

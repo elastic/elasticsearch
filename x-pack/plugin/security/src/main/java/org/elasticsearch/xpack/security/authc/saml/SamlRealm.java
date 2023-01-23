@@ -691,12 +691,23 @@ public final class SamlRealm extends Realm implements Releasable {
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
-        HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
         TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
         TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);
         if (minRefresh.compareTo(maxRefresh) > 0) {
-            minRefresh = maxRefresh;
+            if (config.hasSetting(IDP_METADATA_HTTP_MIN_REFRESH)) {
+                throw new SettingsException(
+                    "the value ({}) for [{}] cannot be greater than the value ({}) for [{}]",
+                    minRefresh.getStringRep(),
+                    RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_MIN_REFRESH),
+                    maxRefresh.getStringRep(),
+                    RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_REFRESH)
+                );
+            } else {
+                minRefresh = maxRefresh;
+            }
         }
+
+        HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
         resolver.setMinRefreshDelay(Duration.ofMillis(minRefresh.millis()));
         resolver.setMaxRefreshDelay(Duration.ofMillis(maxRefresh.millis()));
 

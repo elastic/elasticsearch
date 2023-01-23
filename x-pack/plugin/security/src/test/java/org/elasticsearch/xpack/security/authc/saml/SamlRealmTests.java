@@ -20,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -81,6 +80,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -193,7 +193,7 @@ public class SamlRealmTests extends SamlTestCase {
                 ElasticsearchSecurityException.class,
                 () -> SamlRealm.initializeResolver(logger, config.v1(), config.v2(), watcherService)
             );
-            assertThat(exception, TestMatchers.throwableWithMessage("cannot load SAML metadata from [" + metadataPath + "]"));
+            assertThat(exception, throwableWithMessage("cannot load SAML metadata from [" + metadataPath + "]"));
         }
     }
 
@@ -221,16 +221,16 @@ public class SamlRealmTests extends SamlTestCase {
             assertEquals(0, webServer.requests().size());
 
             // Even with a long refresh we should automatically retry metadata that fails
-            final TimeValue defaultFreshTime = TimeValue.timeValueHours(24);
+            final TimeValue defaultRefreshTime = TimeValue.timeValueHours(24);
             // OpenSAML (4.0) has a bug that can attempt to set negative duration timers if the refresh is too short.
             // Don't set this too small or we may hit "java.lang.IllegalArgumentException: Negative delay."
-            final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(200) : defaultFreshTime;
+            final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(500) : defaultRefreshTime;
 
             final Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + webServer.getPort(), builder -> {
-                if (defaultFreshTime != null) {
+                if (defaultRefreshTime != null) {
                     builder.put(
                         getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH),
-                        defaultFreshTime.getStringRep()
+                        defaultRefreshTime.getStringRep()
                     );
                 }
                 if (minimumRefreshTime != null) {
@@ -261,7 +261,7 @@ public class SamlRealmTests extends SamlTestCase {
                     new MockResponse().setResponseCode(200).setBody(metadataBody).addHeader("Content-Type", "application/xml")
                 );
                 if (testBackgroundRefresh) {
-                    assertBusy(() -> assertThat(webServer.requests().size(), greaterThan(firstRequestCount)), 1, TimeUnit.SECONDS);
+                    assertBusy(() -> assertThat(webServer.requests().size(), greaterThan(firstRequestCount)), 2, TimeUnit.SECONDS);
                 } else {
                     // The Supplier.get() call will trigger a reload anyway
                 }
@@ -271,6 +271,76 @@ public class SamlRealmTests extends SamlTestCase {
                 tuple.v1().destroy();
             }
         }
+    }
+
+    public void testMinRefreshGreaterThanRefreshThrowsSettingsException() throws Exception {
+        var refresh = randomTimeValue(20, 110, "m", "s");
+        var minRefresh = randomTimeValue(2, 8, "h");
+
+        Tuple<RealmConfig, SSLService> tuple = buildConfig(
+            "https://localhost:9900/metadata.xml",
+            builder -> builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), refresh)
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH), minRefresh)
+        );
+        final RealmConfig config = tuple.v1();
+        final SSLService sslService = tuple.v2();
+
+        final SettingsException settingsException = expectThrows(
+            SettingsException.class,
+            () -> SamlRealm.create(config, sslService, mock(ResourceWatcherService.class), mock(UserRoleMapper.class))
+        );
+
+        assertThat(
+            settingsException,
+            throwableWithMessage(
+                containsString(
+                    "the value ("
+                        + minRefresh
+                        + ") for ["
+                        + RealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH)
+                        + "]"
+                )
+            )
+        );
+        assertThat(
+            settingsException,
+            throwableWithMessage(
+                containsString(
+                    "greater than the value ("
+                        + refresh
+                        + ") for ["
+                        + RealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH)
+                        + "]"
+                )
+            )
+        );
+    }
+
+    public void testAbsurdlyLowMinimumRefreshThrowsException() throws Exception {
+        var minRefresh = randomBoolean() ? randomTimeValue(1, 450, "ms") : randomTimeValue(1, 999, "micros", "nanos");
+
+        Tuple<RealmConfig, SSLService> tuple = buildConfig(
+            "https://localhost:9900/metadata.xml",
+            builder -> builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH), minRefresh)
+        );
+        final RealmConfig config = tuple.v1();
+        final SSLService sslService = tuple.v2();
+
+        final IllegalArgumentException settingsException = expectThrows(
+            IllegalArgumentException.class,
+            () -> SamlRealm.create(config, sslService, mock(ResourceWatcherService.class), mock(UserRoleMapper.class))
+        );
+
+        assertThat(
+            settingsException,
+            throwableWithMessage(
+                "failed to parse value ["
+                    + minRefresh
+                    + "] for setting ["
+                    + RealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH)
+                    + "], must be >= [500ms]"
+            )
+        );
     }
 
     public void testAuthenticateWithRoleMapping() throws Exception {
@@ -1021,6 +1091,8 @@ public class SamlRealmTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetadataPath)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH.getStringRep())
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings);
     }

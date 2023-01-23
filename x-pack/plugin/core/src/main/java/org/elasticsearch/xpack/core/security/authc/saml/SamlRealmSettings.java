@@ -50,7 +50,7 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_MIN_REFRESH = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         IDP_METADATA_SETTING_PREFIX + "http.minimum_refresh",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), Setting.Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), TimeValue.timeValueMillis(500), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<Boolean> IDP_METADATA_HTTP_FAIL_ON_ERROR = Setting.affixKeySetting(

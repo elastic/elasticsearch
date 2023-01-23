@@ -416,6 +416,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
+        // TODO we must ensure that the engine is still opened here
         statelessReaderManager.addSegmentGenerationListener(minGeneration, consumer);
     }
 }

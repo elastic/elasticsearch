@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,7 +76,7 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     public TransformTaskParams(StreamInput in) throws IOException {
         this.transformId = in.readString();
         this.version = Version.readVersion(in);
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.from = in.readOptionalInstant();
         } else {
             this.from = null;
@@ -98,7 +99,7 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(transformId);
         Version.writeVersion(version, out);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalInstant(from);
         }
         out.writeOptionalTimeValue(frequency);

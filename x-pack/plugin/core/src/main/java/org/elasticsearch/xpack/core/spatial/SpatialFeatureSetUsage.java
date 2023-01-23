@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.spatial;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +29,7 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public SpatialFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        if (input.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             this.statsResponse = new SpatialStatsAction.Response(input);
         } else {
             this.statsResponse = null;
@@ -47,7 +48,7 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             this.statsResponse.writeTo(out);
         }
     }

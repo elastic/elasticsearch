@@ -299,7 +299,29 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
-            visitor.visitLeaf(this);    // TODO implement term visiting
+            visitor = visitor.getSubVisitor(BooleanClause.Occur.MUST, this);
+            for (int i = 0; i < termArrays.size() - 1; i++) {
+                if (termArrays.get(i).length == 1) {
+                    visitor.consumeTerms(this, termArrays.get(i)[0]);
+                } else {
+                    QueryVisitor shouldVisitor = visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this);
+                    shouldVisitor.consumeTerms(this, termArrays.get(i));
+                }
+            }
+            /* We don't report automata here because this breaks the unified highlighter,
+               which extracts automata separately from phrases. MPPQ gets rewritten to a
+               SpanMTQQuery by the PhraseHelper in any case, so highlighting is taken
+               care of there instead.  If we extract automata here then the trailing prefix
+               word will be highlighted wherever it appears in the document, instead of only
+               as part of a phrase. This can be re-instated once we switch to using Matches
+               to highlight.
+            for (Term prefixTerm : termArrays.get(termArrays.size() - 1)) {
+                visitor.consumeTermsMatching(this, field, () -> {
+                    CompiledAutomaton ca = new CompiledAutomaton(PrefixQuery.toAutomaton(prefixTerm.bytes()));
+                    return ca.runAutomaton;
+                });
+            }
+            */
         }
     }
 }

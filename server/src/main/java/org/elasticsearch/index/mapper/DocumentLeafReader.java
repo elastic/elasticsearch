@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -24,6 +25,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -46,10 +49,9 @@ import java.util.function.Consumer;
 /**
  * A {@link LeafReader} over a lucene document that exposes doc values and stored fields.
  * Note that unlike lucene's {@link MemoryIndex} implementation, this holds no state and
- * does not attempt to do any analysis on text fields.  It also supports stored
- * fields where MemoryIndex does not.  It is used to back index-time scripts that
- * reference field data and stored fields from a document that has not yet been
- * indexed.
+ * does not attempt to do any analysis on text fields.  It is used to back index-time
+ * scripts that reference field data and stored fields from a document that has not yet
+ * been indexed.
  */
 class DocumentLeafReader extends LeafReader {
 
@@ -176,6 +178,11 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
+    public StoredFields storedFields() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CacheHelper getCoreCacheHelper() {
         throw new UnsupportedOperationException();
     }
@@ -237,6 +244,21 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     protected void doClose() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TermVectors termVectors() throws IOException {
         throw new UnsupportedOperationException();
     }
 

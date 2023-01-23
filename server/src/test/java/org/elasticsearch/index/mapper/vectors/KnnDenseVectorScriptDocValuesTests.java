@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -30,12 +30,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.FLOAT),
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
@@ -51,12 +46,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.BYTE),
-            "test",
-            ElementType.BYTE,
-            dims
-        );
+        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(wrapBytes(vectors), "test", dims);
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
@@ -70,12 +60,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testFloatMetadataAndIterator() throws IOException {
         int dims = 3;
         float[][] vectors = fill(new float[randomIntBetween(1, 5)][dims], ElementType.FLOAT);
-        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.FLOAT),
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             DenseVector dv = field.get();
@@ -94,12 +79,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testByteMetadataAndIterator() throws IOException {
         int dims = 3;
         float[][] vectors = fill(new float[randomIntBetween(1, 5)][dims], ElementType.BYTE);
-        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.BYTE),
-            "test",
-            ElementType.BYTE,
-            dims
-        );
+        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(wrapBytes(vectors), "test", dims);
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             DenseVector dv = field.get();
@@ -127,12 +107,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testFloatMissingValues() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.FLOAT),
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
@@ -146,12 +121,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testByteMissingValues() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.BYTE),
-            "test",
-            ElementType.BYTE,
-            dims
-        );
+        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(wrapBytes(vectors), "test", dims);
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
@@ -165,12 +135,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testFloatGetFunctionIsNotAccessible() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.FLOAT),
-            "test",
-            ElementType.FLOAT,
-            dims
-        );
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
@@ -186,12 +151,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testByteGetFunctionIsNotAccessible() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(
-            wrap(vectors, ElementType.BYTE),
-            "test",
-            ElementType.BYTE,
-            dims
-        );
+        DenseVectorDocValuesField field = new ByteKnnDenseVectorDocValuesField(wrapBytes(vectors), "test", dims);
         DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
@@ -206,7 +166,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testFloatMissingVectorValues() throws IOException {
         int dims = 7;
-        DenseVectorDocValuesField emptyKnn = new KnnDenseVectorDocValuesField(null, "test", ElementType.FLOAT, dims);
+        DenseVectorDocValuesField emptyKnn = new KnnDenseVectorDocValuesField(null, "test", dims);
 
         emptyKnn.setNextDocId(0);
         assertEquals(0, emptyKnn.toScriptDocValues().size());
@@ -220,7 +180,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testByteMissingVectorValues() throws IOException {
         int dims = 7;
-        DenseVectorDocValuesField emptyKnn = new ByteKnnDenseVectorDocValuesField(null, "test", ElementType.BYTE, dims);
+        DenseVectorDocValuesField emptyKnn = new ByteKnnDenseVectorDocValuesField(null, "test", dims);
 
         emptyKnn.setNextDocId(0);
         assertEquals(0, emptyKnn.toScriptDocValues().size());
@@ -232,7 +192,50 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
     }
 
-    public static VectorValues wrap(float[][] vectors, ElementType elementType) {
+    public static ByteVectorValues wrapBytes(float[][] vectors) {
+        return new ByteVectorValues() {
+            int index = 0;
+            byte[] byteVector = new byte[vectors[0].length];
+
+            @Override
+            public int dimension() {
+                return 0;
+            }
+
+            @Override
+            public int size() {
+                return vectors.length;
+            }
+
+            @Override
+            public BytesRef vectorValue() {
+                for (int i = 0; i < byteVector.length; i++) {
+                    byteVector[i] = (byte) vectors[index][i];
+                }
+                return new BytesRef(byteVector);
+            }
+
+            @Override
+            public int docID() {
+                return index;
+            }
+
+            @Override
+            public int nextDoc() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int advance(int target) {
+                if (target >= size()) {
+                    return NO_MORE_DOCS;
+                }
+                return index = target;
+            }
+        };
+    }
+
+    public static VectorValues wrap(float[][] vectors) {
         return new VectorValues() {
             int index = 0;
 
@@ -253,17 +256,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
 
             @Override
             public BytesRef binaryValue() {
-                if (elementType == ElementType.FLOAT) {
-                    ByteBuffer byteBuffer = ByteBuffer.allocate(elementType.elementBytes * vectors[index].length);
-                    for (float value : vectors[index]) {
-                        elementType.writeValue(byteBuffer, value);
-                    }
-                    return new BytesRef(byteBuffer.array());
-                } else if (elementType == ElementType.BYTE) {
-                    return VectorUtil.toBytesRef(vectors[index]);
-                } else {
-                    throw new IllegalStateException("unknown element_type [" + elementType + "]");
+                ByteBuffer byteBuffer = ByteBuffer.allocate(ElementType.FLOAT.elementBytes * vectors[index].length);
+                for (float value : vectors[index]) {
+                    ElementType.FLOAT.writeValue(byteBuffer, value);
                 }
+                return new BytesRef(byteBuffer.array());
             }
 
             @Override
@@ -282,11 +279,6 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
                     return NO_MORE_DOCS;
                 }
                 return index = target;
-            }
-
-            @Override
-            public long cost() {
-                return size();
             }
         };
     }

@@ -914,13 +914,13 @@ public final class DateFieldMapper extends FieldMapper {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
         } else if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
-            // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
-            context.addToFieldNames(fieldType().name());
-        } else {
-            context.addToFieldNames(fieldType().name());
         }
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
+        }
+        if (hasDocValues == false && (indexed || store)) {
+            // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
+            context.addToFieldNames(fieldType().name());
         }
     }
 

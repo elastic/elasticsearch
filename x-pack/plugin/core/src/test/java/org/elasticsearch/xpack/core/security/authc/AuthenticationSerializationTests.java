@@ -59,6 +59,19 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
     }
 
+    public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
+        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build(false);
+        assertThat(authentication.isRemoteAccess(), is(true));
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isRemoteAccess(), is(true));
+
+        assertThat(readFrom, not(sameInstance(authentication)));
+        assertThat(readFrom, equalTo(authentication));
+    }
+
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -341,7 +342,10 @@ public class AuthenticationTestHelper {
             return remoteAccess(ESTestCase.randomAlphaOfLength(20), authenticationFromRemoteCluster());
         }
 
-        public AuthenticationTestBuilder remoteAccess(String remoteAccessApiKeyId, Authentication authenticationFromRemoteCluster) {
+        public AuthenticationTestBuilder remoteAccess(
+            final String remoteAccessApiKeyId,
+            final Authentication authenticationFromRemoteCluster
+        ) {
             assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             resetShortcutRelatedVariables();
             realmRef = null;
@@ -350,7 +354,7 @@ public class AuthenticationTestHelper {
             try {
                 metadata.put(
                     AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
-                    Objects.requireNonNull(authenticationFromRemoteCluster.encode())
+                    Objects.requireNonNull(authenticationFromRemoteCluster.encodeAsBytes())
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -443,17 +447,23 @@ public class AuthenticationTestHelper {
                         }
                         // User associated to API key authentication has empty roles
                         user = stripRoles(user);
-                        // TODO randomize?
+                        // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
+                        // so we detect if metadata includes a remote access specific field, and construct an authentication instance based
+                        // on that
                         final boolean remoteAccess = metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
                         if (remoteAccess) {
                             prepareRemoteAccessMetadata();
-                            authentication = Authentication.newRemoteAccessAuthentication(
-                                AuthenticationResult.success(user, metadata),
-                                AuthenticationContextSerializer.uncheckedDecode(
-                                    (String) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-                                ),
-                                ESTestCase.randomAlphaOfLengthBetween(3, 8)
-                            );
+                            try {
+                                authentication = Authentication.newRemoteAccessAuthentication(
+                                    AuthenticationResult.success(user, metadata),
+                                    AuthenticationContextSerializer.decodeFromBytes(
+                                        (BytesReference) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+                                    ),
+                                    ESTestCase.randomAlphaOfLengthBetween(3, 8)
+                                );
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
                         } else {
                             prepareApiKeyMetadata();
                             authentication = Authentication.newApiKeyAuthentication(
@@ -612,14 +622,21 @@ public class AuthenticationTestHelper {
         }
 
         private void prepareRemoteAccessMetadata() {
-            prepareApiKeyMetadata(); // TODO skip?
+            prepareApiKeyMetadata();
             if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)) {
-                metadata.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster().uncheckedEncode());
+                try {
+                    metadata.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster().encodeAsBytes());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
             if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS)) {
                 // TODO randomly include another set of role descriptors, once we have querying-cluster-side API key support
-                metadata.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS, List.of(new BytesArray("""
-                    {"x":{"indices":[{"names":["index1"],"privileges":["read","read_cross_cluster"]}]}}""")));
+                metadata.put(
+                    AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS,
+                    List.of(new RemoteAccessAuthentication.RoleDescriptorsBytes(new BytesArray("""
+                        {"a":{"indices":[{"names":["index1"],"privileges":["read","read_cross_cluster"]}]}}""")))
+                );
             }
         }
 

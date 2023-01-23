@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Base64;
 
 /**
@@ -63,23 +63,22 @@ public class AuthenticationContextSerializer {
 
     public static Authentication decode(String header) throws IOException {
         try {
-            byte[] bytes = Base64.getDecoder().decode(header);
-            StreamInput input = StreamInput.wrap(bytes);
-            Version version = Version.readVersion(input);
-            input.setVersion(version);
-            return new Authentication(input);
+            return decode(StreamInput.wrap(Base64.getDecoder().decode(header)));
         } catch (IOException | RuntimeException e) {
             logger.warn("Failed to decode authentication [" + header + "]", e);
             throw e;
         }
     }
 
-    public static Authentication uncheckedDecode(String header) {
-        try {
-            return decode(header);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    // TODO these probably don't belong here
+    public static Authentication decodeFromBytes(BytesReference bytes) throws IOException {
+        return decode(bytes.streamInput());
+    }
+
+    private static Authentication decode(StreamInput input) throws IOException {
+        Version version = Version.readVersion(input);
+        input.setVersion(version);
+        return new Authentication(input);
     }
 
     public Authentication getAuthentication(ThreadContext context) {

@@ -462,19 +462,15 @@ public final class Authentication implements ToXContentObject {
     }
 
     public String encode() throws IOException {
+        return Base64.getEncoder().encodeToString(BytesReference.toBytes(encodeAsBytes()));
+    }
+
+    public BytesReference encodeAsBytes() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(getEffectiveSubject().getVersion());
         Version.writeVersion(getEffectiveSubject().getVersion(), output);
         writeTo(output);
-        return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
-    }
-
-    public String uncheckedEncode() {
-        try {
-            return encode();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return output.bytes();
     }
 
     public void writeTo(StreamOutput out) throws IOException {

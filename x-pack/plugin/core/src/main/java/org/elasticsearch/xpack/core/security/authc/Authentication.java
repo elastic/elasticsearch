@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRe
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newRemoteAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
@@ -62,6 +63,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -792,6 +795,11 @@ public final class Authentication implements ToXContentObject {
             // no domain for API Key tokens
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
+
+        static RealmRef newRemoteAccessRealmRef(String apiKeyId, String nodeName) {
+            // no domain for remote access authentication
+            return new RealmRef(REMOTE_ACCESS_REALM_NAME_PREFIX + "_" + apiKeyId, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
+        }
     }
 
     public static boolean isFileOrNativeRealm(String realmType) {
@@ -876,6 +884,34 @@ public final class Authentication implements ToXContentObject {
         final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(
             new Subject(apiKeyUser, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
+            AuthenticationType.API_KEY
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
+    public static Authentication newRemoteAccessAuthentication(
+        AuthenticationResult<User> authResult,
+        Authentication receivedAuthentication,
+        String nodeName
+    ) {
+        assert authResult.isAuthenticated() : "Remote access authn result must be successful";
+        assert authResult.getValue().roles().length == 0 : "The user associated with a remote access authentication must have no role";
+        final User receivedUser = receivedAuthentication.getEffectiveSubject().getUser();
+        assert receivedUser.enabled();
+        final User user = new User(
+            // Consider including API key ID as well
+            receivedUser.principal(),
+            new String[0],
+            receivedUser.fullName(),
+            receivedUser.email(),
+            receivedUser.metadata(),
+            receivedUser.enabled()
+        );
+        final User apiKeyUser = authResult.getValue();
+        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(apiKeyUser.principal(), nodeName);
+        final Authentication authentication = new Authentication(
+            new Subject(user, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
             AuthenticationType.API_KEY
         );
         assert false == authentication.isAssignedToDomain();

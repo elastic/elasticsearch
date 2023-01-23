@@ -43,7 +43,7 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.latest();
+        return SourceVersion.RELEASE_17;
     }
 
     @Override

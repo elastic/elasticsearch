@@ -75,7 +75,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        var secureSettingsLoader = secureSettingsLoader(env);
+        var secureSettingsLoader = env.secureSettingsLoader();
 
         try (
             var loadedSecrets = secureSettingsLoader.load(env, terminal);

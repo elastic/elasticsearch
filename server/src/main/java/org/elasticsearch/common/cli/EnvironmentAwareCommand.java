@@ -154,9 +154,4 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     /** Execute the command with the initialized {@link Environment}. */
     public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
-
-    public SecureSettingsLoader secureSettingsLoader(Environment env) {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
-        return new KeyStoreLoader();
-    }
 }

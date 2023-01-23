@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
 
@@ -125,7 +127,14 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
 
-        // TODO remote access
+        // No resource sharing for remote access authentication for now
+        final Authentication randomAuthentication = randomAuthentication(user1, realm1);
+        final Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId1, randomAuthentication)
+            .build();
+        assertCannotAccessResources(remoteAccessAuthentication, remoteAccessAuthentication);
+        assertCannotAccessResources(remoteAccessAuthentication, randomAuthentication);
+        assertCannotAccessResources(remoteAccessAuthentication, randomApiKeyAuthentication(user1, apiKeyId1));
     }
 
     public void testTokenAccessResourceOf() {
@@ -434,6 +443,43 @@ public class AuthenticationTests extends ESTestCase {
             assertThat(testBack.getDomain(), nullValue());
             assertThat(testBack.isAssignedToDomain(), is(false));
         }
+    }
+
+    public void testRemoteAccessAuthentication() throws IOException {
+        final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
+        final Authentication authenticationFromRemoteCluster = ESTestCase.randomFrom(
+            AuthenticationTestHelper.builder().realm(),
+            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
+        ).build();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(remoteAccessApiKeyId, authenticationFromRemoteCluster)
+            .build(false);
+
+        assertThat(authentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.API_KEY));
+        assertThat(authentication.getEffectiveSubject(), sameInstance(authentication.getAuthenticatingSubject()));
+        assertThat(
+            authentication.getEffectiveSubject().getUser(),
+            equalTo(AuthenticationTestHelper.stripRoles(authentication.getEffectiveSubject().getUser()))
+        );
+        assertThat(authentication.isAuthenticatedAsRemoteAccess(), is(true));
+        assertThat(
+            authentication.getAuthenticatingSubject().getRealm(),
+            equalTo(
+                new RealmRef(
+                    AuthenticationField.REMOTE_ACCESS_REALM_NAME_PREFIX + "_" + remoteAccessApiKeyId,
+                    AuthenticationField.REMOTE_ACCESS_REALM_TYPE,
+                    authentication.getAuthenticatingSubject().getRealm().getNodeName()
+                )
+            )
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.API_KEY_ID_KEY, remoteAccessApiKeyId)
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster.encodeAsBytes())
+        );
     }
 
     public void testSupportsRunAs() {

@@ -207,7 +207,7 @@ public class AuthenticationTestHelper {
         );
     }
 
-    private static User stripRoles(User user) {
+    static User stripRoles(User user) {
         if (user.roles() != null || user.roles().length == 0) {
             return new User(user.principal(), Strings.EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
         } else {

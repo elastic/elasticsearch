@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -71,6 +71,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toMap;
@@ -385,66 +386,71 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void doRun() throws Exception {
+        protected void doRun() {
             boolean success = false;
             try {
                 final Collection<String> additionalFiles = reference.getAdditionalFiles();
                 logger.trace("{} uploading commit [{}] with [{}] additional files", shardId, generation, additionalFiles.size());
+                assert additionalFiles.stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).count() == 1L : additionalFiles;
 
                 // this listener releases the reference on the index commit and a permit once all commit files are uploaded
-                final ActionListener<Collection<FileUploadTask.Result>> releaseCommitlistener = ActionListener.runBefore(
-                    ActionListener.wrap(results -> {
-                        final long end = threadPool.relativeTimeInNanos();
-                        logger.debug(
-                            () -> format(
-                                "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
-                                shardId,
-                                generation,
-                                TimeValue.nsecToMSec(end - timeInNanos),
-                                results.size(),
-                                results.stream().mapToLong(FileUploadTask.Result::length).sum()
-                            )
-                        );
-
-                        NewCommitNotificationRequest request = new NewCommitNotificationRequest(
+                final AtomicLong successCount = new AtomicLong();
+                final AtomicLong successSize = new AtomicLong();
+                final ActionListener<Object> releaseCommitListener = ActionListener.runBefore(ActionListener.wrap(ignored -> {
+                    final long end = threadPool.relativeTimeInNanos();
+                    logger.debug(
+                        () -> format(
+                            "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
                             shardId,
-                            true,
-                            reference.getPrimaryTerm(),
                             generation,
-                            reference.getCommitFiles()
-                        );
-                        client.execute(NewCommitNotificationAction.INSTANCE, request);
-                    }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
+                            TimeValue.nsecToMSec(end - timeInNanos),
+                            successCount.get(),
+                            successSize.get()
+                        )
+                    );
+
+                    NewCommitNotificationRequest request = new NewCommitNotificationRequest(
+                        shardId,
+                        true,
+                        reference.getPrimaryTerm(),
+                        generation,
+                        reference.getCommitFiles()
+                    );
+                    client.execute(NewCommitNotificationAction.INSTANCE, request);
+                }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
                     () -> IOUtils.close(reference, releasable)
                 );
 
-                // Use a basic upload strategy where every file is always uploaded in a dedicated FileTask. Here we could split large files
-                // into multiple FileChunkTask of similar sizes and/or combine multiple small files into one single FileTask. We could also
-                // prioritize FileTask depending on the index. Note that the segments_N file is uploaded last after all other files of the
-                // commit have been successfully uploaded, so that a process listing the content of the bucket in the object store will
-                // be able to access a consistent set of commit files (assuming read after write consistency).
                 final BlobContainer blobContainer = getBlobContainer(shardId, reference.getPrimaryTerm());
 
-                if (additionalFiles.size() == 1) {
-                    assert additionalFiles.stream().allMatch(f -> f.startsWith(IndexFileNames.SEGMENTS)) : additionalFiles;
-                    uploadTaskRunner.enqueueTask(
-                        new FileUploadTask(
-                            shardId,
-                            generation,
-                            timeInNanos,
-                            reference.getSegmentsFileName(),
-                            reference.getDirectory(),
-                            blobContainer,
-                            ActionListener.wrap(
-                                result -> releaseCommitlistener.onResponse(List.of(result)),
-                                releaseCommitlistener::onFailure
-                            )
-                        )
-                    );
-                } else {
-                    final CountDown countDown = new CountDown(additionalFiles.size() - 1);
-                    assert additionalFiles.stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).count() == 1L : additionalFiles;
-                    var groupedListener = new GroupedActionListener<>(additionalFiles.size(), releaseCommitlistener);
+                final Consumer<FileUploadTask.Result> addResult = r -> {
+                    successCount.incrementAndGet();
+                    successSize.addAndGet(r.length());
+                };
+
+                final ActionListener<Void> uploadSegmentsFileListener = releaseCommitListener.delegateFailure((l, v) ->
+                // Note that the segments_N file is uploaded last after all other files of the commit have been successfully uploaded, and
+                // only if none of the other files failed to upload, so that a process listing the content of the bucket in the object store
+                // will be able to access a consistent set of commit files (assuming read after write consistency).
+                uploadTaskRunner.enqueueTask(
+                    new FileUploadTask(
+                        shardId,
+                        generation,
+                        timeInNanos,
+                        reference.getSegmentsFileName(),
+                        reference.getDirectory(),
+                        blobContainer,
+                        l.map(r -> {
+                            addResult.accept(r);
+                            return null;
+                        })
+                    )
+                ));
+
+                try (var listeners = new RefCountingListener(uploadSegmentsFileListener)) {
+                    // Use a basic upload strategy where every file is always uploaded in a dedicated FileTask. Here we could split large
+                    // files into multiple FileChunkTask of similar sizes and/or combine multiple small files into one single FileTask. We
+                    // could also prioritize FileTask depending on the index.
                     additionalFiles.stream()
                         .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
                         .forEach(
@@ -456,25 +462,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                                     file,
                                     reference.getDirectory(),
                                     blobContainer,
-                                    ActionListener.runAfter(groupedListener, () -> {
-                                        if (countDown.countDown()) {
-                                            uploadTaskRunner.enqueueTask(
-                                                new FileUploadTask(
-                                                    shardId,
-                                                    generation,
-                                                    timeInNanos,
-                                                    reference.getSegmentsFileName(),
-                                                    reference.getDirectory(),
-                                                    blobContainer,
-                                                    groupedListener
-                                                )
-                                            );
-                                        }
-                                    })
+                                    listeners.acquire(addResult)
                                 )
                             )
                         );
                 }
+
                 success = true;
             } catch (Exception e) {
                 logFailure(e);
@@ -581,6 +574,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     ActionListener.runAfter(listener, permits::release)
                 )
             );
+        } else {
+            listener.onFailure(new AlreadyClosedException("ObjectStoreService is not running"));
         }
     }
 

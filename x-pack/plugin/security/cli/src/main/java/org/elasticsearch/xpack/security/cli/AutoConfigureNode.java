@@ -11,6 +11,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
@@ -31,7 +32,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.SecureSettingsLoader;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -158,11 +159,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-        execute(env.secureSettingsLoader(), terminal, options, env, processInfo);
-    }
-
-    private void execute(SecureSettingsLoader secretsLoader, Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo)
-        throws Exception {
         final boolean inEnrollmentMode = options.has(enrollmentTokenParam);
 
         // skipping security auto-configuration because node considered as restarting.
@@ -197,18 +193,23 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             );
             notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, msg);
         }
-
-        // Inform that auto-configuration will not run if the configuration is not valid
-        String validationError = secretsLoader.validate(env);
-        if (validationError != null) {
-            notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, validationError);
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        // Inform that auto-configuration will not run if keystore cannot be read.
+        if (Files.exists(keystorePath)
+            && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) || false == Files.isReadable(keystorePath))) {
+            final String msg = String.format(
+                Locale.ROOT,
+                "Skipping security auto configuration because the node keystore file [%s] is not a readable regular file",
+                keystorePath
+            );
+            notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, msg);
         }
 
         if (inReconfigureMode) {
             if (false == inEnrollmentMode) {
                 throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter when reconfiguring the node");
             }
-            env = possiblyReconfigureNode(secretsLoader, env, terminal, options, processInfo);
+            env = possiblyReconfigureNode(env, terminal, options, processInfo);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
@@ -492,15 +493,51 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             throw t;
         }
 
-        var autoConfigureResult = secretsLoader.autoConfigure(env, terminal, autoConfigDate, (p) -> {
+        // save the existing keystore before replacing
+        final Path keystoreBackupPath = env.configFile()
+            .resolve(
+                String.format(Locale.ROOT, KeyStoreWrapper.KEYSTORE_FILENAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond())
+            );
+        if (Files.exists(keystorePath)) {
             try {
+                Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
+            } catch (Throwable t) {
+                try {
+                    deleteDirectory(tempGeneratedTlsCertsDir);
+                } catch (Exception ex) {
+                    t.addSuppressed(ex);
+                }
+                throw t;
+            }
+        }
+
+        final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
+        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
+            nodeKeystorePassword.set(new SecureString(terminal.readSecret("")));
+            return nodeKeystorePassword.get().clone();
+        })) {
+            // do not overwrite keystore entries
+            // instead expect the admin to manually remove them herself
+            if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password")
+                || nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password")
+                || nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
+                // this error condition is akin to condition of existing configuration in the yml file
+                // this is not a fresh install and the admin has something planned for Security
+                // Even though this is probably invalid configuration, do NOT fix it, let the node fail to start in its usual way.
+                // Still display a message, because this can be tricky to figure out (why auto-conf did not run) if by mistake.
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Aborting auto configuration because the node keystore contains password settings already"
+                );
+            }
+            try (SecureString transportKeystorePassword = newKeystorePassword()) {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
                 transportKeystore.load(null);
                 // the PKCS12 keystore and the contained private key use the same password
                 transportKeystore.setKeyEntry(
                     TRANSPORT_KEY_KEYSTORE_ENTRY,
                     transportKey,
-                    p.getChars(),
+                    transportKeystorePassword.getChars(),
                     new Certificate[] { transportCert }
                 );
                 transportKeystore.setCertificateEntry(TRANSPORT_CA_CERT_KEYSTORE_ENTRY, transportCaCert);
@@ -509,38 +546,67 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12",
                     false,
                     inReconfigureMode ? ELASTICSEARCH_GROUP_OWNER : null,
-                    stream -> transportKeystore.store(stream, p.getChars())
+                    stream -> transportKeystore.store(stream, transportKeystorePassword.getChars())
                 );
-            } catch (Exception e) {
-                throw new IllegalStateException("error configuring transport keystore", e);
+                nodeKeystore.setString("xpack.security.transport.ssl.keystore.secure_password", transportKeystorePassword.getChars());
+                // we use the same PKCS12 file for the keystore and the truststore
+                nodeKeystore.setString("xpack.security.transport.ssl.truststore.secure_password", transportKeystorePassword.getChars());
             }
-        }, (p) -> {
-            try {
+            try (SecureString httpKeystorePassword = newKeystorePassword()) {
                 KeyStore httpKeystore = KeyStore.getInstance("PKCS12");
                 httpKeystore.load(null);
                 // the keystore contains both the node's and the CA's private keys
                 // both keys are encrypted using the same password as the PKCS12 keystore they're contained in
-                httpKeystore.setKeyEntry(HTTP_CA_KEY_KEYSTORE_ENTRY, httpCaKey, p.getChars(), new Certificate[] { httpCaCert });
-                httpKeystore.setKeyEntry(HTTP_KEY_KEYSTORE_ENTRY, httpKey, p.getChars(), new Certificate[] { httpCert, httpCaCert });
+                httpKeystore.setKeyEntry(
+                    HTTP_CA_KEY_KEYSTORE_ENTRY,
+                    httpCaKey,
+                    httpKeystorePassword.getChars(),
+                    new Certificate[] { httpCaCert }
+                );
+                httpKeystore.setKeyEntry(
+                    HTTP_KEY_KEYSTORE_ENTRY,
+                    httpKey,
+                    httpKeystorePassword.getChars(),
+                    new Certificate[] { httpCert, httpCaCert }
+                );
                 fullyWriteFile(
                     tempGeneratedTlsCertsDir,
                     HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12",
                     false,
                     inReconfigureMode ? ELASTICSEARCH_GROUP_OWNER : null,
-                    stream -> httpKeystore.store(stream, p.getChars())
+                    stream -> httpKeystore.store(stream, httpKeystorePassword.getChars())
                 );
-            } catch (Exception e) {
-                throw new IllegalStateException("error configuring http keystore", e);
+                nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
-        });
-
-        if (autoConfigureResult.autoConfigureError() != null) {
+            // finally overwrites the node keystore (if the keystores have been successfully written)
+            nodeKeystore.save(env.configFile(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
+        } catch (Throwable t) {
+            // restore keystore to revert possible keystore bootstrap
+            try {
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(
+                        keystoreBackupPath,
+                        keystorePath,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES
+                    );
+                } else {
+                    Files.deleteIfExists(keystorePath);
+                }
+            } catch (Exception ex) {
+                t.addSuppressed(ex);
+            }
             try {
                 deleteDirectory(tempGeneratedTlsCertsDir);
             } catch (Exception ex) {
-                autoConfigureResult.autoConfigureError().addSuppressed(ex);
+                t.addSuppressed(ex);
             }
-            throw autoConfigureResult.autoConfigureError();
+            throw t;
+        } finally {
+            if (nodeKeystorePassword.get() != null) {
+                nodeKeystorePassword.get().close();
+            }
         }
 
         try {
@@ -564,8 +630,17 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
-                // let the secrets store do its own cleanup
-                autoConfigureResult.onFailure().apply(env);
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(
+                        keystoreBackupPath,
+                        keystorePath,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES
+                    );
+                } else {
+                    Files.deleteIfExists(keystorePath);
+                }
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
@@ -739,8 +814,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             });
         } catch (Throwable t) {
             try {
-                // let the secrets store do its own cleanup
-                autoConfigureResult.onFailure().apply(env);
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } else {
+                    // this removes a statically named file, so it is potentially dangerous
+                    Files.deleteIfExists(keystorePath);
+                }
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
@@ -759,8 +838,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
             throw t;
         }
-        // only cleanup if all went well, because the new secrets store contains its entries
-        autoConfigureResult.onSuccess().apply(env);
+        // only delete the backed-up keystore file if all went well, because the new keystore contains its entries
+        if (Files.exists(keystoreBackupPath)) {
+            Files.delete(keystoreBackupPath);
+        }
     }
 
     private String initialMasterNodesSettingValue(Environment environment) {
@@ -797,13 +878,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return false;
     }
 
-    private Environment possiblyReconfigureNode(
-        SecureSettingsLoader secretsLoader,
-        Environment env,
-        Terminal terminal,
-        OptionSet options,
-        ProcessInfo processInfo
-    ) throws UserException {
+    private Environment possiblyReconfigureNode(Environment env, Terminal terminal, OptionSet options, ProcessInfo processInfo)
+        throws UserException {
         // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
@@ -827,18 +903,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (shouldContinue == false) {
                 throw new UserException(ExitCodes.OK, "User cancelled operation");
             }
-            Exception errorOnRemove = secretsLoader.removeAutoConfiguration(env, terminal);
-            if (errorOnRemove != null) {
-                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(errorOnRemove));
-                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
-                throw new UserException(
-                    ExitCodes.IO_ERROR,
-                    "Aborting enrolling to cluster. Unable to remove existing secure settings. Error was: " + errorOnRemove.getMessage(),
-                    errorOnRemove
-                );
-            }
-
+            removeAutoConfigurationFromKeystore(env, terminal);
             try {
                 fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                     try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
@@ -1015,8 +1080,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private boolean isInitialClusterNode(Settings settings) {
         return DiscoveryModule.isSingleNodeDiscovery(settings)
             || (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty()
-                && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
-                && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
+            && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
+            && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
             || ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(NODE_NAME_SETTING.get(settings)));
     }
 
@@ -1186,4 +1251,46 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
         return existingConfigLines;
     }
+
+    private void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws UserException {
+        if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
+            try (
+                KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
+                SecureString keystorePassword = existingKeystore.hasPassword()
+                    ? new SecureString(terminal.readSecret("Enter password for the elasticsearch keystore: "))
+                    : new SecureString(new char[0]);
+            ) {
+                existingKeystore.decrypt(keystorePassword.getChars());
+                List<String> secureSettingsToRemove = List.of(
+                    "xpack.security.transport.ssl.keystore.secure_password",
+                    "xpack.security.transport.ssl.truststore.secure_password",
+                    "xpack.security.http.ssl.keystore.secure_password",
+                    "autoconfiguration.password_hash"
+                );
+                for (String setting : secureSettingsToRemove) {
+                    if (existingKeystore.getSettingNames().contains(setting) == false) {
+                        throw new UserException(
+                            ExitCodes.IO_ERROR,
+                            "Aborting enrolling to cluster. Unable to remove existing security configuration, "
+                                + "elasticsearch.keystore did not contain expected setting ["
+                                + setting
+                                + "]."
+                        );
+                    }
+                    existingKeystore.remove(setting);
+                }
+                existingKeystore.save(env.configFile(), keystorePassword.getChars());
+            } catch (Exception e) {
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Aborting enrolling to cluster. Unable to remove existing secure settings. Error was: " + e.getMessage(),
+                    e
+                );
+            }
+        }
+    }
+
 }

@@ -168,8 +168,20 @@ POST _ilm/move/my-index-000001
 <3> The optional action to which the index will be moved
 <4> The optional step name to which the index will be moved
 
-Alternatively, the following example pushes `my-index-000001` 
-from the end of hot phase into the start of warm:
+If the request succeeds, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+The request will fail if the index is not in the `new` phase as specified
+by the `current_step`.
+
+The following example pushes `my-index-000001` from the end of hot phase into
+the start of warm:
 
 [source,console]
 --------------------------------------------------
@@ -185,15 +197,3 @@ POST _ilm/move/my-index-000001
   }
 }
 --------------------------------------------------
-
-If the request succeeds, you receive the following result:
-
-[source,console-result]
---------------------------------------------------
-{
-  "acknowledged": true
-}
---------------------------------------------------
-
-The request will fail if the index is not in the `new` phase as specified
-by the `current_step`.

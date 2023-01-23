@@ -113,6 +113,14 @@ public final class MergePolicyConfig {
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
+    /**
+     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 20. This default value differs from the Lucene default of 10 in
+     * order to account for the fact that Elasticsearch uses {@link LogByteSizeMergePolicy} for time-based data, where it usually makes
+     * sense to merge data less aggressively, and because {@link LogByteSizeMergePolicy} merges segments more aggressively than
+     * {@link TieredMergePolicy} for the same number of segments per tier / merge factor because {@link TieredMergePolicy} makes decisions
+     * at the whole index level, while {@link LogByteSizeMergePolicy} makes decisions on a per-tier basis.
+     */
+    public static final int DEFAULT_MERGE_FACTOR = 20;
     public static final double DEFAULT_DELETES_PCT_ALLOWED = 33.0d;
     private static final String INDEX_COMPOUND_FORMAT_SETTING_KEY = "index.compound_format";
     public static final Setting<CompoundFileThreshold> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
@@ -215,6 +223,13 @@ public final class MergePolicyConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<Integer> INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING = Setting.intSetting(
+        "index.merge.policy.merge_factor",
+        20,
+        2,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING = Setting.doubleSetting(
         "index.merge.policy.deletes_pct_allowed",
         DEFAULT_DELETES_PCT_ALLOWED,
@@ -236,6 +251,7 @@ public final class MergePolicyConfig {
         // won't they end up with many segments?
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
+        int mergeFactor = indexSettings.getValue(INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING);
         double deletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
         this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {
@@ -252,6 +268,7 @@ public final class MergePolicyConfig {
         setMaxMergesAtOnce(maxMergeAtOnce);
         setMaxMergedSegment(maxMergedSegment);
         setSegmentsPerTier(segmentsPerTier);
+        setMergeFactor(mergeFactor);
         setDeletesPctAllowed(deletesPctAllowed);
         logger.trace(
             "using merge policy with expunge_deletes_allowed[{}], floor_segment[{}],"
@@ -272,9 +289,12 @@ public final class MergePolicyConfig {
 
     void setSegmentsPerTier(double segmentsPerTier) {
         tieredMergePolicy.setSegmentsPerTier(segmentsPerTier);
-        // LogByteSizeMergePolicy merges segments as soon as it finds `mergeFactor` segments on the same tier. So if you want to allow
-        // `segmentsPerTier` segments on each tier, you need a merge factor equal to `1 + segmentsPerTier`.
-        logByteSizeMergePolicy.setMergeFactor(1 + (int) segmentsPerTier);
+        // LogByteSizeMergePolicy ignores this parameter, it always tries to have between 1 and merge_factor - 1 segments per tier.
+    }
+
+    void setMergeFactor(int mergeFactor) {
+        // TieredMergePolicy ignores this setting, it configures a number of segments per tier instead, which has different semantics.
+        logByteSizeMergePolicy.setMergeFactor(mergeFactor);
     }
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
@@ -284,7 +304,7 @@ public final class MergePolicyConfig {
 
     void setMaxMergesAtOnce(int maxMergeAtOnce) {
         tieredMergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        // LogByteSizeMergePolicy ignores this parameter, it always merges "segments per tier" segments at once.
+        // LogByteSizeMergePolicy ignores this parameter, it always merges merge_factor segments at once.
     }
 
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {

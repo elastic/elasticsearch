@@ -804,6 +804,10 @@ public final class IndexSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
             mergePolicyConfig::setSegmentsPerTier
         );
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
+            mergePolicyConfig::setMergeFactor
+        );
 
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,

@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
@@ -50,14 +51,10 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT
     );
-    private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final NodeShutdownAllocationDecider decider = new NodeShutdownAllocationDecider();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
-        Arrays.asList(
-            decider,
-            new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
-            new ReplicaAfterPrimaryActiveAllocationDecider()
-        )
+        Arrays.asList(decider, new SameShardAllocationDecider(clusterSettings), new ReplicaAfterPrimaryActiveAllocationDecider())
     );
     private final AllocationService service = new AllocationService(
         allocationDeciders,

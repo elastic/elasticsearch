@@ -478,7 +478,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster.encodeAsBytes())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster.toVersionedBytes())
         );
     }
 

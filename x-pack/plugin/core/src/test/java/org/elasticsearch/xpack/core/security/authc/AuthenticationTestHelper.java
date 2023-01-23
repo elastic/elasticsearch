@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -354,7 +353,7 @@ public class AuthenticationTestHelper {
             try {
                 metadata.put(
                     AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
-                    Objects.requireNonNull(authenticationFromRemoteCluster.encodeAsBytes())
+                    Objects.requireNonNull(authenticationFromRemoteCluster.toVersionedBytes())
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -456,7 +455,7 @@ public class AuthenticationTestHelper {
                             try {
                                 authentication = Authentication.newRemoteAccessAuthentication(
                                     AuthenticationResult.success(user, metadata),
-                                    AuthenticationContextSerializer.decodeFromBytes(
+                                    Authentication.fromVersionedBytes(
                                         (BytesReference) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
                                     ),
                                     ESTestCase.randomAlphaOfLengthBetween(3, 8)
@@ -625,7 +624,10 @@ public class AuthenticationTestHelper {
             prepareApiKeyMetadata();
             if (false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)) {
                 try {
-                    metadata.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster().encodeAsBytes());
+                    metadata.put(
+                        AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                        authenticationFromRemoteCluster().toVersionedBytes()
+                    );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

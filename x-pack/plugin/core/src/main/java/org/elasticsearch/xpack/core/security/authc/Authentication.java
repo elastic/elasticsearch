@@ -466,15 +466,25 @@ public final class Authentication implements ToXContentObject {
     }
 
     public String encode() throws IOException {
-        return Base64.getEncoder().encodeToString(BytesReference.toBytes(encodeAsBytes()));
+        return Base64.getEncoder().encodeToString(BytesReference.toBytes(toVersionedBytes()));
     }
 
-    public BytesReference encodeAsBytes() throws IOException {
+    public BytesReference toVersionedBytes() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(getEffectiveSubject().getVersion());
         Version.writeVersion(getEffectiveSubject().getVersion(), output);
         writeTo(output);
         return output.bytes();
+    }
+
+    public static Authentication fromVersionedBytes(BytesReference bytes) throws IOException {
+        return fromVersionedStream(bytes.streamInput());
+    }
+
+    public static Authentication fromVersionedStream(StreamInput input) throws IOException {
+        Version version = Version.readVersion(input);
+        input.setVersion(version);
+        return new Authentication(input);
     }
 
     public void writeTo(StreamOutput out) throws IOException {

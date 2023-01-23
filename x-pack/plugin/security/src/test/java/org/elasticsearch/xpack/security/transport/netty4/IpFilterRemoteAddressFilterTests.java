@@ -11,6 +11,7 @@ import io.netty.channel.ChannelHandlerContext;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -43,11 +45,13 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        Settings settings = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put("xpack.security.transport.filter.allow", "127.0.0.1")
-            .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
-            .put("remote_cluster.enabled", true)
-            .build();
+            .put("xpack.security.transport.filter.deny", "10.0.0.0/8");
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settingsBuilder.put("remote_cluster.enabled", true);
+        }
+        Settings settings = settingsBuilder.build();
 
         boolean isHttpEnabled = randomBoolean();
 
@@ -62,23 +66,23 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
             )
         );
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            new HashSet<>(
-                Arrays.asList(
-                    IPFilter.HTTP_FILTER_ALLOW_SETTING,
-                    IPFilter.HTTP_FILTER_DENY_SETTING,
-                    IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
-                    IPFilter.IP_FILTER_ENABLED_SETTING,
-                    IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
-                    IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                    TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING : null,
-                    TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING : null,
-                    IPFilter.PROFILE_FILTER_ALLOW_SETTING,
-                    IPFilter.PROFILE_FILTER_DENY_SETTING
-                )
+        final Set<Setting<?>> settingsSet = new HashSet<>(
+            Arrays.asList(
+                IPFilter.HTTP_FILTER_ALLOW_SETTING,
+                IPFilter.HTTP_FILTER_DENY_SETTING,
+                IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
+                IPFilter.IP_FILTER_ENABLED_SETTING,
+                IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
+                IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                IPFilter.PROFILE_FILTER_ALLOW_SETTING,
+                IPFilter.PROFILE_FILTER_DENY_SETTING
             )
         );
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settingsSet.add(IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING);
+            settingsSet.add(IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING);
+        }
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         MockLicenseState licenseState = TestUtils.newMockLicenceState();
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
@@ -108,6 +112,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
     }
 
     public void testFilteringWorksForRemoteClusterPort() throws Exception {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         handler = new IpFilterRemoteAddressFilter(ipFilter, RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
         assertThat(handler.accept(mock(ChannelHandlerContext.class), localhostAddr), is(true));

@@ -23,6 +23,9 @@
             "type": "binary"
           },
           "bid": {
+            "type": "keyword"
+          },
+          "sha2": {
             "type": "keyword",
             "index": false
           },

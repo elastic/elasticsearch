@@ -295,9 +295,14 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
                     }
                 }
+                if (resp.isFailed()) {
+                    for (String repo : resp.getFailures().keySet()) {
+                        logger.debug(() -> "unable to retrieve snapshots for [" + repo + "] repositories: ", resp.getFailures().get(repo));
+                    }
+                }
                 listener.onResponse(snapshots);
             }, e -> {
-                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories", e);
+                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories: ", e);
                 listener.onFailure(e);
             }));
     }

@@ -271,6 +271,7 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication token() {
         assert false == isServiceAccount();
+        assert false == isRemoteAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;
     }

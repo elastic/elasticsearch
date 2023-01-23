@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;

@@ -99,10 +99,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(
-            XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD,
-            "testnode"
-        );
+        secureSettings.setString(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, "testnode");
         Settings testSettings = Settings.builder()
             .put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
             .put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)

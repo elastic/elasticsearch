@@ -209,6 +209,10 @@ public class LocalClusterSpec implements ClusterSpec {
             return resolvedSettings;
         }
 
+        public boolean isMasterEligible() {
+            return settings.getOrDefault("node.roles", "master").contains("master");
+        }
+
         /**
          * Resolve node environment variables. Order of precedence is as follows:
          * <ol>

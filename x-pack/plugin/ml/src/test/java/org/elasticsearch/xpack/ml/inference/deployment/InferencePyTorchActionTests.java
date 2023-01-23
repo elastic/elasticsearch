@@ -78,7 +78,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
             null,
             listener
@@ -99,7 +99,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
             null,
             listener
@@ -121,7 +121,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
             null,
             listener
@@ -152,7 +152,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TimeValue.MAX_VALUE,
                 processContext,
                 new PassThroughConfig(null, null, null),
-                Map.of(),
+                NlpInferenceInput.fromText("foo"),
                 tp,
                 null,
                 listener
@@ -170,7 +170,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TimeValue.MAX_VALUE,
                 processContext,
                 new PassThroughConfig(null, null, null),
-                Map.of(),
+                NlpInferenceInput.fromText("foo"),
                 tp,
                 null,
                 listener
@@ -210,7 +210,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
             cancellableTask,
             listener

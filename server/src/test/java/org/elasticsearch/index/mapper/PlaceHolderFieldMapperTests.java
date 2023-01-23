@@ -18,7 +18,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Collections;
@@ -64,8 +65,8 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
         }, iw -> {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
-                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
-                new SourceLookup.ReaderSourceProvider()
+                fieldDataLookup(mapperService),
+                SourceProvider.fromStoredFields()
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             FieldFetcher fieldFetcher = FieldFetcher.create(
@@ -74,8 +75,8 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(lookup.source());
+            Source source = lookup.getSource(context, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
             assertEquals(List.of("value"), fields.get("field").getValues());
         });

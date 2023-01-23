@@ -17,6 +17,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -84,6 +85,13 @@ public abstract class StreamOutput extends OutputStream {
      */
     public Version getVersion() {
         return this.version;
+    }
+
+    /**
+     * The transport version to serialize the data as.
+     */
+    public TransportVersion getTransportVersion() {
+        return this.version.transportVersion;
     }
 
     /**
@@ -561,7 +569,11 @@ public abstract class StreamOutput extends OutputStream {
             .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            this.writeString(next.getKey());
+            if (this.getVersion().onOrAfter(Version.V_8_7_0)) {
+                this.writeGenericValue(next.getKey());
+            } else {
+                this.writeString(next.getKey());
+            }
             this.writeGenericValue(next.getValue());
         }
     }
@@ -688,12 +700,13 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> map = (Map<String, Object>) v;
-            o.writeVInt(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                o.writeString(entry.getKey());
-                o.writeGenericValue(entry.getValue());
+            if (o.getVersion().onOrAfter(Version.V_8_7_0)) {
+                final Map<?, ?> map = (Map<?, ?>) v;
+                o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
+            } else {
+                @SuppressWarnings("unchecked")
+                final Map<String, ?> map = (Map<String, ?>) v;
+                o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
             }
         }),
         entry(Byte.class, (o, v) -> {
@@ -954,6 +967,14 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(false);
         }
+    }
+
+    /**
+     * This method allow to use a method reference when writing collection elements such as
+     * {@code out.writeMap(map, StreamOutput::writeString, StreamOutput::writeWriteable)}
+     */
+    public void writeWriteable(Writeable writeable) throws IOException {
+        writeable.writeTo(this);
     }
 
     public void writeException(Throwable throwable) throws IOException {

@@ -70,6 +70,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
@@ -169,6 +174,82 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.nullField("field")));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+    }
+
+    public void testBlankFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("", "value").endObject()));
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+    }
+
+    public void testDotOnlyFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field(".", "value1").field("..", "value2").field("...", "value3").endObject())
+        );
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.length);
+    }
+
+    public void testMixOfOrdinaryAndFlattenedFields() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            topMapping(
+                b -> b.field("dynamic", "strict")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "flattened")
+                    .endObject()
+                    .startObject("a")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("b")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("c")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .startObject("d")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("e")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ParsedDocument parsedDoc = mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field("", "value")
+                    .field("subfield1", "value1")
+                    .field("subfield2", "value2")
+                    .endObject()
+                    .startObject("a")
+                    .startObject("b")
+                    .field("c", "value3")
+                    .endObject()
+                    .endObject()
+                    .field("d.e", "value4")
+            )
+        );
+        assertNull(parsedDoc.dynamicMappingsUpdate());
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.length);
+        fields = parsedDoc.rootDoc().getFields("a.b");
+        assertEquals(0, fields.length);
+        fields = parsedDoc.rootDoc().getFields("a.b.c");
+        assertEquals(2, fields.length);
+        fields = parsedDoc.rootDoc().getFields("d");
+        assertEquals(0, fields.length);
+        fields = parsedDoc.rootDoc().getFields("d.e");
+        assertEquals(2, fields.length);
     }
 
     public void testMalformedJson() throws Exception {
@@ -432,7 +513,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         throw new AssumptionViolatedException("not supported");
     }
 

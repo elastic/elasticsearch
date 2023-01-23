@@ -317,7 +317,7 @@ public class HighlightBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.ROOT).fieldType();
+                return builder.build(MapperBuilderContext.root(false)).fieldType();
             }
         };
         mockContext.setMapUnmappedFieldAsString(true);

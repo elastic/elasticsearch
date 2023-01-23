@@ -8,8 +8,10 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -25,6 +27,20 @@ import java.util.stream.Collectors;
  * Represents a node role.
  */
 public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
+
+    /**
+     * A feature flag to indicate if stateless is available or not. This is useful to enable stateless specific behavior like node roles
+     * enabled by default. Defaults to false.
+     */
+    private static final String USE_STATELESS_SYSTEM_PROPERTY = "es.use_stateless";
+    private static final Boolean USE_STATELESS_FEATURE_FLAG;
+    static {
+        final Boolean useStateless = Booleans.parseBoolean(System.getProperty(USE_STATELESS_SYSTEM_PROPERTY), false);
+        if (useStateless && Build.CURRENT.isSnapshot() == false) {
+            throw new IllegalArgumentException("Enabling stateless usage is only supported in snapshot builds");
+        }
+        USE_STATELESS_FEATURE_FLAG = useStateless;
+    }
 
     private final String roleName;
 
@@ -141,7 +157,18 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a data node.
      */
-    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true);
+    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true) {
+
+        @Override
+        public boolean isEnabledByDefault(Settings settings) {
+            return DiscoveryNode.isStateless(settings) == false;
+        }
+
+        @Override
+        public void validateRoles(List<DiscoveryNodeRole> roles) {
+            ensureNoStatelessFeatureFlag(this);
+        }
+    };
 
     /**
      * Represents the role for a content node.
@@ -153,6 +180,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
+        @Override
+        public void validateRoles(List<DiscoveryNodeRole> roles) {
+            ensureNoStatelessFeatureFlag(this);
+        }
     };
 
     /**
@@ -165,6 +196,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
+        @Override
+        public void validateRoles(List<DiscoveryNodeRole> roles) {
+            ensureNoStatelessFeatureFlag(this);
+        }
     };
 
     /**
@@ -177,6 +212,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
+        @Override
+        public void validateRoles(List<DiscoveryNodeRole> roles) {
+            ensureNoStatelessFeatureFlag(this);
+        }
     };
 
     /**
@@ -189,6 +228,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
+        @Override
+        public void validateRoles(List<DiscoveryNodeRole> roles) {
+            ensureNoStatelessFeatureFlag(this);
+        }
     };
 
     /**
@@ -201,6 +244,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
+        @Override
+        public void validateRoles(List<DiscoveryNodeRole> roles) {
+            ensureNoStatelessFeatureFlag(this);
+        }
     };
 
     /**
@@ -246,6 +293,27 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
      * Represents the role for a transform node.
      */
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
+
+    /**
+     * Represents the role for an index node.
+     */
+    public static final DiscoveryNodeRole INDEX_ROLE = new DiscoveryNodeRole("index", "I", true) {
+
+        @Override
+        public boolean isEnabledByDefault(Settings settings) {
+            return DiscoveryNode.isStateless(settings);
+        }
+    };
+
+    /**
+     * Represents the role for a search node.
+     */
+    public static final DiscoveryNodeRole SEARCH_ROLE = new DiscoveryNodeRole("search", "S", true) {
+
+        public boolean isEnabledByDefault(Settings settings) {
+            return false;
+        }
+    };
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -335,4 +403,13 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         return maybeGetRoleFromRoleName(roleName).orElseThrow(() -> new IllegalArgumentException("unknown role [" + roleName + "]"));
     }
 
+    public static boolean hasStatelessFeatureFlag() {
+        return USE_STATELESS_FEATURE_FLAG;
+    }
+
+    private static void ensureNoStatelessFeatureFlag(DiscoveryNodeRole role) {
+        if (hasStatelessFeatureFlag()) {
+            throw new IllegalArgumentException("Role [" + role.roleName() + "] is only supported on non-stateless deployments");
+        }
+    }
 }

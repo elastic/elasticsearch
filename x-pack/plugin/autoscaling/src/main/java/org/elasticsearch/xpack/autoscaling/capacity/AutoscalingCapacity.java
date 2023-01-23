@@ -44,8 +44,8 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         public AutoscalingResources(StreamInput in) throws IOException {
-            this.storage = in.readOptionalWriteable(ByteSizeValue::new);
-            this.memory = in.readOptionalWriteable(ByteSizeValue::new);
+            this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
@@ -147,7 +147,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
                 return v1;
             }
 
-            return new ByteSizeValue(v1.getBytes() + v2.getBytes());
+            return ByteSizeValue.ofBytes(v1.getBytes() + v2.getBytes());
         }
 
         private static Processors max(Processors v1, Processors v2) {
@@ -315,7 +315,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         private ByteSizeValue byteSizeValue(Long memory) {
-            return memory == null ? null : new ByteSizeValue(memory);
+            return memory == null ? null : ByteSizeValue.ofBytes(memory);
         }
     }
 }

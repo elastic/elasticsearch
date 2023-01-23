@@ -50,7 +50,7 @@ public final class ResponseException extends IOException {
         );
 
         if (response.hasWarnings()) {
-            message += "\n" + "Warnings: " + response.getWarnings();
+            message += "\nWarnings: " + response.getWarnings();
         }
 
         HttpEntity entity = response.getEntity();

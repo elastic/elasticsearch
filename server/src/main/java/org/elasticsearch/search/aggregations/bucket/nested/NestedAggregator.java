@@ -60,7 +60,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
+        Query parentFilter = parentObjectMapper != null
+            ? parentObjectMapper.nestedTypeFilter()
+            : Queries.newNonNestedFilter(context.getIndexSettings().getIndexVersionCreated());
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);

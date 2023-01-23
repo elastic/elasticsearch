@@ -97,20 +97,18 @@ public class PackageUpgradeTests extends PackagingTestCase {
         } else {
             installation = Packages.upgradePackage(sh, distribution);
         }
-        // We add this so that we don't trigger the SecurityImplicitBehaviorBootstrapCheck in 8
-        if (Version.fromString(bwcDistribution.baseVersion).before(Version.V_8_0_0)
-            && Version.fromString(distribution.baseVersion).onOrAfter(Version.V_8_0_0)) {
-            ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.enabled", "false");
-        }
 
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
         verifySecurityNotAutoConfigured(installation);
+
+        // TODO modify tests to work with Security
+        // Security is still enabled by default even if not autoconfigured
+        ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.enabled", "false");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85386")
     public void test21CheckUpgradedVersion() throws Exception {
-        assertWhileRunning(() -> { assertDocsExist(); });
+        assertWhileRunning(this::assertDocsExist);
     }
 
     private void assertDocsExist() throws Exception {

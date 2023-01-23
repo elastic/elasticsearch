@@ -1,5 +1,0 @@
-pr: 89516
-summary: "Synthetic _source: support `match_only_text`"
-area: "TSDB"
-type: enhancement
-issues: []

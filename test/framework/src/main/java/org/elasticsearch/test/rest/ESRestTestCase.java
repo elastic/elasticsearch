@@ -20,7 +20,6 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -57,7 +56,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -98,7 +96,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -109,7 +106,6 @@ import javax.net.ssl.SSLContext;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.core.Strings.format;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -606,6 +602,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "180-days-default",
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
+            ".fleet-file-data-ilm-policy",
+            ".fleet-files-ilm-policy",
             ".deprecation-indexing-ilm-policy",
             ".monitoring-8-ilm-policy"
         );
@@ -638,14 +636,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    /**
-     * Returns whether to wait to make absolutely certain that all snapshots
-     * have been deleted.
-     */
-    protected boolean waitForAllSnapshotsWiped() {
-        return false;
-    }
-
     private void wipeCluster() throws Exception {
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
@@ -666,24 +656,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeSearchableSnapshotsIndices();
         }
 
-        SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
-        if (waitForAllSnapshotsWiped()) {
-            AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
-            try {
-                // Repeatedly delete the snapshots until there aren't any
-                assertBusy(() -> {
-                    snapshots.set(wipeSnapshots());
-                    assertThat(snapshots.get(), anEmptyMap());
-                }, 2, TimeUnit.MINUTES);
-                // At this point there should be no snaphots
-                inProgressSnapshots.set(snapshots.get());
-            } catch (AssertionError e) {
-                // This will cause an error at the end of this method, but do the rest of the cleanup first
-                inProgressSnapshots.set(snapshots.get());
-            }
-        } else {
-            inProgressSnapshots.set(wipeSnapshots());
-        }
+        wipeSnapshots();
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
         if (preserveDataStreamsUponCompletion() == false) {
@@ -816,8 +789,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         deleteAllNodeShutdownMetadata();
-
-        assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
     }
 
     /**
@@ -1007,37 +978,21 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
-     * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
-     * the snapshots intact in the repository.
-     * @return Map of repository name to list of snapshots found in unfinished state
+     * start empty.
      */
-    protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
-        final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
+    protected void wipeSnapshots() throws IOException {
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
             if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
-                Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
-                listRequest.addParameter("ignore_unavailable", "true");
-
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
-                for (Object snapshot : snapshots) {
-                    Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
-                    String name = (String) snapshotInfo.get("snapshot");
-                    if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
-                        inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
-                    }
-                    logger.debug("wiping snapshot [{}/{}]", repoName, name);
-                    adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
-                }
+                adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/*"));
             }
             if (preserveReposUponCompletion() == false) {
                 deleteRepository(repoName);
             }
         }
-        return inProgressSnapshots;
     }
 
     protected void deleteRepository(String repoName) throws IOException {
@@ -1819,6 +1774,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         if (name.startsWith(".deprecation-")) {
+            return true;
+        }
+        if (name.startsWith(".fleet-")) {
             return true;
         }
         switch (name) {

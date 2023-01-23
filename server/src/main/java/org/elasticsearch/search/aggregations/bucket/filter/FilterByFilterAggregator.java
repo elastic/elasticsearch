@@ -13,7 +13,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -70,7 +69,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             this.cardinality = cardinality;
             this.metadata = metadata;
             this.rewrittenTopLevelQuery = aggCtx.searcher().rewrite(aggCtx.query());
-            this.valid = parent == null && otherBucketKey == null;
+            this.valid = parent == null && otherBucketKey == null && aggCtx.isInSortOrderExecutionRequired() == false;
         }
 
         /**
@@ -224,6 +223,9 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();
+        if (live != null) {
+            segmentsWithDeletedDocs++;
+        }
         if (false == docCountProvider.alwaysOne()) {
             segmentsWithDocCountField++;
         }
@@ -304,25 +306,4 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         add.accept("segments_with_doc_count_field", segmentsWithDocCountField);
     }
 
-    CheckedSupplier<Boolean, IOException> canUseMetadata(LeafReaderContext ctx) {
-        return new CheckedSupplier<Boolean, IOException>() {
-            Boolean canUse;
-
-            @Override
-            public Boolean get() throws IOException {
-                if (canUse == null) {
-                    canUse = canUse();
-                }
-                return canUse;
-            }
-
-            private boolean canUse() throws IOException {
-                if (ctx.reader().getLiveDocs() != null) {
-                    return false;
-                }
-                docCountProvider.setLeafReaderContext(ctx);
-                return docCountProvider.alwaysOne();
-            }
-        };
-    }
 }

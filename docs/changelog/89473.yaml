@@ -1,5 +1,0 @@
-pr: 89473
-summary: Add source fallback support for `match_only_text` mapped type
-area: Mapping
-type: enhancement
-issues: []

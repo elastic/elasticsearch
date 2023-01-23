@@ -1090,12 +1090,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             71,
             UNKNOWN_VERSION_ADDED
         ),
-        SEARCH_PARSE_EXCEPTION(
-            org.elasticsearch.search.SearchParseException.class,
-            org.elasticsearch.search.SearchParseException::new,
-            72,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 72 was SearchParseException, only used in tests after 7.11
         CONCURRENT_SNAPSHOT_EXECUTION_EXCEPTION(
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class,
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException::new,

@@ -1,7 +1,0 @@
-pr: 89196
-summary: Buffer H3Polygon2D bounding boxes to avoid edge precision issues
-area: Geo
-type: bug
-issues:
- - 89868
- - 87391

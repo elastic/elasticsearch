@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
@@ -106,7 +106,7 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
@@ -122,7 +122,7 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -132,7 +132,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
     public void testCircuitBreakerTumblingWindow() {
         QueryClient client = new TestQueryClient();
-        List<Criterion<BoxedQueryRequest>> criteria = buildCriteria(stages);
+        List<SequenceCriterion> criteria = buildCriteria(stages);
 
         SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, CIRCUIT_BREAKER);
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
@@ -203,7 +203,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
-            List<Criterion<BoxedQueryRequest>> criteria = buildCriteria(sequenceFiltersCount);
+            List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
             SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
             window.execute(wrap(p -> {}, ex -> {}));
@@ -232,7 +232,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
-            List<Criterion<BoxedQueryRequest>> criteria = buildCriteria(sequenceFiltersCount);
+            List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
 
             SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
@@ -253,12 +253,13 @@ public class CircuitBreakerTests extends ESTestCase {
         return eqlBreakerSettings;
     }
 
-    private List<Criterion<BoxedQueryRequest>> buildCriteria(int sequenceFiltersCount) {
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(sequenceFiltersCount);
-        for (int i = 0; i < sequenceFiltersCount; i++) {
+    private List<SequenceCriterion> buildCriteria(int sequenceFiltersCount) {
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
+
+        for (int i = 0; i < stages; i++) {
             final int j = i;
             criteria.add(
-                new Criterion<>(
+                new SequenceCriterion(
                     i,
                     new BoxedQueryRequest(
                         () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
@@ -289,6 +290,7 @@ public class CircuitBreakerTests extends ESTestCase {
             TimeValue.timeValueSeconds(30),
             null,
             123,
+            1,
             "",
             new TaskId("test", 123),
             new EqlSearchTask(
@@ -301,8 +303,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 emptyMap(),
                 new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
                 TimeValue.timeValueDays(5)
-            ),
-            x -> Collections.emptySet()
+            )
         );
         IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
         EqlSession eqlSession = new EqlSession(
@@ -386,7 +387,7 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
@@ -433,7 +434,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
-                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
                 searchHit.sortValues(
                     new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
                 );

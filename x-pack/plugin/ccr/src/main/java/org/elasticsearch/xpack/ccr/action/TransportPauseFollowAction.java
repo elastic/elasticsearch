@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeAction<PauseFollowAction.Request> {
 
@@ -87,7 +86,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
                 return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
             })
             .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-            .collect(Collectors.toList());
+            .toList();
 
         if (shardFollowTaskIds.isEmpty()) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));

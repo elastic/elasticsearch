@@ -148,7 +148,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
+            return value == null ? (lookup, doc, ignoredValues) -> List.of() : (lookup, doc, ignoredValues) -> List.of(value);
         }
 
         @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -17,8 +19,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.NodeResponseTracker;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -68,8 +70,10 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportBroadcastByNodeAction.class);
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -118,11 +122,10 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     private Response newResponse(
-        Request request,
         NodeResponseTracker nodeResponseTracker,
         int unavailableShardCount,
         Map<String, List<ShardRouting>> nodes,
-        ClusterState clusterState
+        ResponseFactory<Response, ShardOperationResult> responseFactory
     ) throws NodeResponseTracker.DiscardedResponsesException {
         int totalShards = 0;
         int successfulShards = 0;
@@ -156,7 +159,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
         totalShards += unavailableShardCount;
         int failedShards = exceptions.size();
-        return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
+        return responseFactory.newResponse(totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions);
     }
 
     /**
@@ -167,27 +170,31 @@ public abstract class TransportBroadcastByNodeAction<
      */
     protected abstract ShardOperationResult readShardResult(StreamInput in) throws IOException;
 
+    public interface ResponseFactory<Response, ShardOperationResult> {
+        /**
+         * Creates a new response to the underlying request.
+         *
+         * @param totalShards      the total number of shards considered for execution of the operation
+         * @param successfulShards the total number of shards for which execution of the operation was successful
+         * @param failedShards     the total number of shards for which execution of the operation failed
+         * @param results          the per-node aggregated shard-level results
+         * @param shardFailures    the exceptions corresponding to shard operation failures
+         * @return the response
+         */
+        Response newResponse(
+            int totalShards,
+            int successfulShards,
+            int failedShards,
+            List<ShardOperationResult> results,
+            List<DefaultShardOperationFailedException> shardFailures
+        );
+    }
+
     /**
-     * Creates a new response to the underlying request.
-     *
-     * @param request          the underlying request
-     * @param totalShards      the total number of shards considered for execution of the operation
-     * @param successfulShards the total number of shards for which execution of the operation was successful
-     * @param failedShards     the total number of shards for which execution of the operation failed
-     * @param results          the per-node aggregated shard-level results
-     * @param shardFailures    the exceptions corresponding to shard operation failures
-     * @param clusterState     the cluster state
-     * @return the response
+     * Create a response factory based on the requst and the cluster state captured at the time the request was handled. Implementations
+     * must avoid capturing the full cluster state if possible.
      */
-    protected abstract Response newResponse(
-        Request request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<ShardOperationResult> results,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
-    );
+    protected abstract ResponseFactory<Response, ShardOperationResult> getResponseFactory(Request request, ClusterState clusterState);
 
     /**
      * Deserialize a request from an input stream
@@ -255,25 +262,33 @@ public abstract class TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        new AsyncAction(task, request, listener).start();
+        final var clusterState = clusterService.state();
+        final var responseFactory = getResponseFactory(request, clusterState);
+        new AsyncAction(task, request, clusterState, responseFactory, listener).start();
     }
 
     protected class AsyncAction implements CancellableTask.CancellationListener {
         private final Task task;
         private final Request request;
         private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
         private final DiscoveryNodes nodes;
         private final Map<String, List<ShardRouting>> nodeIds;
         private final int unavailableShardCount;
         private final NodeResponseTracker nodeResponseTracker;
+        private final ResponseFactory<Response, ShardOperationResult> responseFactory;
 
-        protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
+        protected AsyncAction(
+            Task task,
+            Request request,
+            ClusterState clusterState,
+            ResponseFactory<Response, ShardOperationResult> responseFactory,
+            ActionListener<Response> listener
+        ) {
             this.task = task;
             this.request = request;
             this.listener = listener;
+            this.responseFactory = responseFactory;
 
-            clusterState = clusterService.state();
             nodes = clusterState.nodes();
 
             ClusterBlockException globalBlockException = checkGlobalBlock(clusterState, request);
@@ -338,7 +353,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
-                final NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                final NodeRequest nodeRequest = new NodeRequest(request, shards, node.getId());
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
@@ -400,7 +415,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             Response response = null;
             try {
-                response = newResponse(request, nodeResponseTracker, unavailableShardCount, nodeIds, clusterState);
+                response = newResponse(nodeResponseTracker, unavailableShardCount, nodeIds, responseFactory);
             } catch (NodeResponseTracker.DiscardedResponsesException e) {
                 // We propagate the reason that the results, in this case the task cancellation, in case the listener needs to take
                 // follow-up actions
@@ -541,7 +556,7 @@ public abstract class TransportBroadcastByNodeAction<
                 listener.onFailure(failure);
             };
             try {
-                shardOperation(request.indicesLevelRequest, shardRouting, task, new ActionListener<>() {
+                shardOperation(request.getIndicesLevelRequest(), shardRouting, task, new ActionListener<>() {
                     @Override
                     public void onResponse(ShardOperationResult shardOperationResult) {
                         if (logger.isTraceEnabled()) {
@@ -563,11 +578,10 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     public class NodeRequest extends TransportRequest implements IndicesRequest {
-        private String nodeId;
 
-        private List<ShardRouting> shards;
-
-        protected Request indicesLevelRequest;
+        private final Request indicesLevelRequest;
+        private final List<ShardRouting> shards;
+        private final String nodeId;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -576,8 +590,8 @@ public abstract class TransportBroadcastByNodeAction<
             nodeId = in.readString();
         }
 
-        public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
-            this.indicesLevelRequest = request;
+        public NodeRequest(Request indicesLevelRequest, List<ShardRouting> shards, String nodeId) {
+            this.indicesLevelRequest = indicesLevelRequest;
             this.shards = shards;
             this.nodeId = nodeId;
         }
@@ -588,6 +602,10 @@ public abstract class TransportBroadcastByNodeAction<
 
         public String getNodeId() {
             return nodeId;
+        }
+
+        public Request getIndicesLevelRequest() {
+            return indicesLevelRequest;
         }
 
         @Override
@@ -681,13 +699,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         private EmptyResult() {}
 
-        private EmptyResult(StreamInput in) {}
-
         @Override
         public void writeTo(StreamOutput out) {}
-
-        public static EmptyResult readEmptyResultFrom(StreamInput in) {
-            return INSTANCE;
-        }
     }
 }

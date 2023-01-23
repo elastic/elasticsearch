@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -33,8 +34,20 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         int allocations,
         int threadsPerAllocation,
         Map<String, Integer> currentAllocationsByNodeId,
-        int maxAssignedAllocations
+        int maxAssignedAllocations,
+        Priority priority
     ) {
+
+        public Model(
+            String id,
+            long memoryBytes,
+            int allocations,
+            int threadsPerAllocation,
+            Map<String, Integer> currentAllocationsByNodeId,
+            int maxAssignedAllocations
+        ) {
+            this(id, memoryBytes, allocations, threadsPerAllocation, currentAllocationsByNodeId, maxAssignedAllocations, Priority.NORMAL);
+        }
 
         int getCurrentAssignedAllocations() {
             return currentAllocationsByNodeId.values().stream().mapToInt(Integer::intValue).sum();
@@ -238,7 +251,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return new Builder(nodes, models);
     }
 
-    static class Builder {
+    public static class Builder {
 
         private final Map<Model, Map<Node, Integer>> assignments;
         private final Map<Node, Long> remainingNodeMemory;
@@ -290,18 +303,19 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         boolean canAssign(Model model, Node node, int allocations) {
-            return (isAlreadyAssigned(model, node) || model.memoryBytes() <= remainingNodeMemory.get(node))
-                && allocations * model.threadsPerAllocation() <= remainingNodeCores.get(node);
+            return (isAlreadyAssigned(model, node)
+                || (model.memoryBytes() <= remainingNodeMemory.get(node))
+                    && (model.priority == Priority.LOW || allocations * model.threadsPerAllocation() <= remainingNodeCores.get(node)));
         }
 
-        Builder assignModelToNode(Model model, Node node, int allocations) {
+        public Builder assignModelToNode(Model model, Node node, int allocations) {
             if (allocations <= 0) {
                 return this;
             }
             if (isAlreadyAssigned(model, node) == false && model.memoryBytes() > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException("not enough memory on node [" + node.id() + "] to assign model [" + model.id() + "]");
             }
-            if (allocations * model.threadsPerAllocation() > remainingNodeCores.get(node)) {
+            if (model.priority == Priority.NORMAL && allocations * model.threadsPerAllocation() > remainingNodeCores.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough cores on node ["
                         + node.id()
@@ -318,7 +332,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             long additionalModelMemory = isAlreadyAssigned(model, node) ? 0 : model.memoryBytes;
             assignments.get(model).compute(node, (n, remAllocations) -> remAllocations + allocations);
             remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - additionalModelMemory);
-            remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * model.threadsPerAllocation());
+            if (model.priority == Priority.NORMAL) {
+                remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * model.threadsPerAllocation());
+            }
             remainingModelAllocations.compute(model, (m, remModelThreads) -> remModelThreads - allocations);
             return this;
         }
@@ -327,11 +343,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return model.currentAllocationsByNodeId().containsKey(node.id()) || assignments.get(model).get(node) > 0;
         }
 
-        void accountMemory(Model m, Node n) {
+        public void accountMemory(Model m, Node n) {
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.memoryBytes());
         }
 
-        AssignmentPlan build() {
+        public AssignmentPlan build() {
             Map<Model, Map<Node, Integer>> finalAssignments = new HashMap<>();
             for (Model m : assignments.keySet()) {
                 Map<Node, Integer> allocationsPerNode = new HashMap<>();

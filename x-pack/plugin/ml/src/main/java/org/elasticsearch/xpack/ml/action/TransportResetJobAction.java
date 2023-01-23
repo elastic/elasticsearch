@@ -245,7 +245,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             }, listener::onFailure));
         };
 
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId);
+        JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId, request.getDeleteUserAnnotations());
         jobDataDeleter.deleteJobDocuments(
             jobConfigProvider,
             indexNameExpressionResolver,

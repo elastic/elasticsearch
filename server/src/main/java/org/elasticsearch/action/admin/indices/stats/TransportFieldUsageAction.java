@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -67,20 +66,17 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected FieldUsageStatsResponse newResponse(
+    protected ResponseFactory<FieldUsageStatsResponse, FieldUsageShardResponse> getResponseFactory(
         FieldUsageStatsRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<FieldUsageShardResponse> fieldUsages,
-        List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
-        for (FieldUsageShardResponse response : fieldUsages) {
-            combined.computeIfAbsent(response.shardRouting.shardId().getIndexName(), i -> new ArrayList<>()).add(response);
-        }
-        return new FieldUsageStatsResponse(totalShards, successfulShards, shardFailures.size(), shardFailures, combined);
+        return (totalShards, successfulShards, failedShards, fieldUsages, shardFailures) -> {
+            final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
+            for (FieldUsageShardResponse response : fieldUsages) {
+                combined.computeIfAbsent(response.shardRouting.shardId().getIndexName(), i -> new ArrayList<>()).add(response);
+            }
+            return new FieldUsageStatsResponse(totalShards, successfulShards, shardFailures.size(), shardFailures, combined);
+        };
     }
 
     @Override

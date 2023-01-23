@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-profile.html",
       "description":"Retrieves user profiles for the given unique ID(s)."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"private",
     "headers":{
       "accept": [ "application/json"]

@@ -73,7 +73,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
     public DataFrameAnalyticsConfigUpdate(StreamInput in) throws IOException {
         this.id = in.readString();
         this.description = in.readOptionalString();
-        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
+        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
         this.allowLazyStart = in.readOptionalBoolean();
         this.maxNumThreads = in.readOptionalVInt();
     }

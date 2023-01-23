@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -19,7 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
 
-public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicyMetadata> {
+public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerializingTestCase<SnapshotLifecyclePolicyMetadata> {
     private String policyId;
 
     @Override

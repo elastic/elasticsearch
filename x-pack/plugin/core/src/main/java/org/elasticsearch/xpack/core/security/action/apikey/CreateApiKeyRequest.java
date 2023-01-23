@@ -85,7 +85,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
             this.name = in.readString();
         }
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
+        this.roleDescriptors = in.readImmutableList(RoleDescriptor::new);
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.metadata = in.readMap();

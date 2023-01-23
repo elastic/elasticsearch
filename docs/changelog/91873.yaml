@@ -1,0 +1,5 @@
+pr: 91873
+summary: Record timestamp on API key invalidation
+area: Security
+type: enhancement
+issues: []

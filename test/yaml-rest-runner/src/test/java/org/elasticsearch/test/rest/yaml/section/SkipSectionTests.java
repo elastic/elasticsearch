@@ -10,6 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -71,9 +72,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         Version version = VersionUtils.randomVersion(random());
-        parser = createParser(YamlXContent.yamlXContent, """
+        parser = createParser(YamlXContent.yamlXContent, Strings.format("""
             version:     " - %s"
-            reason:      Delete ignores the parent param""".formatted(version));
+            reason:      Delete ignores the parent param""", version));
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());

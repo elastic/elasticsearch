@@ -139,9 +139,9 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     () -> Map.of(
                         randomAlphaOfLength(5),
                         randomInt(),
-                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(6),
                         randomBoolean(),
-                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(7),
                         randomAlphaOfLength(10)
                     )
                 );

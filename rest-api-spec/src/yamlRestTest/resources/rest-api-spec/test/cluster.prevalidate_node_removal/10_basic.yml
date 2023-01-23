@@ -1,0 +1,58 @@
+---
+"Prevalidation basic test":
+  - skip:
+      features: contains
+      version: "- 8.6.99"
+      reason: "The reason field was introduced in 8.7.0"
+
+  # Fetch a node ID and stash it in node_id
+  - do:
+      nodes.info: { }
+  - set:
+      nodes._arbitrary_key_: node_id
+  # Prevalidate its removal
+  - do:
+      _internal.prevalidate_node_removal:
+        ids: $node_id
+
+  - match: { is_safe: true}
+  - contains: {nodes: {id: "$node_id", result: {is_safe: true, reason: no_problems, message: ""}}}
+---
+"Prevalidation with no node specified":
+  - skip:
+      version: "- 8.5.99"
+      reason: "API added in 8.6.0"
+  - do:
+      catch: bad_request
+      _internal.prevalidate_node_removal: {}
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: request must contain one of the parameters 'names', 'ids', or 'external_ids';" }
+---
+"Prevalidation with more than one query parameter":
+  - skip:
+      version: "- 8.5.99"
+      reason: "API added in 8.6.0"
+  - do:
+      catch: bad_request
+      _internal.prevalidate_node_removal:
+        names: "node1"
+        ids: "id1"
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: request must contain only one of the parameters 'names', 'ids', or 'external_ids';" }
+---
+"Prevalidation with non-existing node":
+  - skip:
+      version: "- 8.5.99"
+      reason: "API added in 8.6.0"
+  - do:
+      catch: missing
+      _internal.prevalidate_node_removal:
+        external_ids: "non-existing-id"
+
+  - match: { status: 404 }
+  - match: { error.type: resource_not_found_exception }
+  - match: { error.reason: "could not resolve node external IDs [non-existing-id]" }

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -294,18 +293,22 @@ public final class MappingLookup {
 
     private void checkObjectDepthLimit(long limit) {
         for (String objectPath : objectMappers.keySet()) {
-            int numDots = 0;
-            for (int i = 0; i < objectPath.length(); ++i) {
-                if (objectPath.charAt(i) == '.') {
-                    numDots += 1;
-                }
+            checkObjectDepthLimit(limit, objectPath);
+        }
+    }
+
+    static void checkObjectDepthLimit(long limit, String objectPath) {
+        int numDots = 0;
+        for (int i = 0; i < objectPath.length(); ++i) {
+            if (objectPath.charAt(i) == '.') {
+                numDots += 1;
             }
-            final int depth = numDots + 2;
-            if (depth > limit) {
-                throw new IllegalArgumentException(
-                    "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
-                );
-            }
+        }
+        final int depth = numDots + 2;
+        if (depth > limit) {
+            throw new IllegalArgumentException(
+                "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
+            );
         }
     }
 
@@ -486,20 +489,6 @@ public final class MappingLookup {
         }
         if (shadowed.getMetricType() != null) {
             throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
-        }
-    }
-
-    /**
-     * Returns a SourceProvider describing how to read the source. If using synthetic source, returns the null source provider
-     * expecting the source to either be provided later by a fetch phase or not be accessed at all (as in scripts).
-     * @return
-     */
-    public SourceLookup.SourceProvider getSourceProvider() {
-        SourceFieldMapper sourceMapper = (SourceFieldMapper) getMapper("_source");
-        if (sourceMapper == null || sourceMapper.isSynthetic() == false) {
-            return new SourceLookup.ReaderSourceProvider();
-        } else {
-            return new SourceLookup.NullSourceProvider();
         }
     }
 }

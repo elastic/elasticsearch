@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.existence;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +72,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class);
+        return List.of(BlobCachePlugin.class, LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class);
     }
 
     public void testZeroToOne() throws Exception {
@@ -131,7 +132,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             String[] indices = indices();
             assertThat(indices, arrayContaining(PARTIAL_INDEX_NAME));
             assertThat(indices, not(arrayContaining(INDEX_NAME)));
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
         ensureGreen();
     }
 

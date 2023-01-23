@@ -904,12 +904,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootDynamicUpdate() throws Exception {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
-            b.startObject("host.name").field("type", "keyword").endObject();
-            b.endObject();
-        }));
+        MapperService mapperService = createMapperService(
+            mappingNoSubobjects(b -> b.startObject("host.name").field("type", "keyword").endObject())
+        );
         ParsedDocument doc = mapperService.documentMapper().parse(source("""
             {
               "time" : 10,

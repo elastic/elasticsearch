@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -337,4 +338,24 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: unknown parameter [unsupported] on runtime field [field] of type [keyword]", e.getMessage());
     }
+
+    public void testEmptyType() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        // Empty name not allowed in index created after 5.0
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
 }

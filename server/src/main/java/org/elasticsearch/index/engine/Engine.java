@@ -82,6 +82,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -212,6 +213,33 @@ public abstract class Engine implements Closeable {
                     + shardId
             );
         }
+    }
+
+    public interface IndexCommitListener {
+
+        /**
+         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
+         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
+         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
+         * reference as soon as it is done with it.
+         *
+         * @param shardId         the {@link ShardId} of shard
+         * @param store           the index shard store
+         * @param primaryTerm     the shard's primary term value
+         * @param indexCommitRef  a reference on the newly created index commit
+         * @param additionalFiles the set of filenames that are added by the new commit
+         */
+        void onNewCommit(ShardId shardId, Store store, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
+
+        /**
+         * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
+         * until the corresponding {@link Engine.IndexCommitRef} received through {@link #onNewCommit} has been closed; closing which in
+         * turn can call this method directly.
+         *
+         * @param shardId the {@link ShardId} of shard
+         * @param deletedCommit the deleted {@link IndexCommit}
+         */
+        void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit);
     }
 
     /**
@@ -986,16 +1014,14 @@ public abstract class Engine implements Closeable {
      * changes.
      */
     @Nullable
-    public abstract void refresh(String source) throws EngineException;
+    public abstract RefreshResult refresh(String source) throws EngineException;
 
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
-     *
-     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
      */
     @Nullable
-    public abstract boolean maybeRefresh(String source) throws EngineException;
+    public abstract RefreshResult maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1156,7 +1182,7 @@ public abstract class Engine implements Closeable {
             }
         } else {
             logger.debug(
-                () -> format("tried to fail engine but could not acquire lock - engine should " + "be failed by now [%s]", reason),
+                () -> format("tried to fail engine but could not acquire lock - engine should be failed by now [%s]", reason),
                 failure
             );
         }
@@ -1928,5 +1954,29 @@ public abstract class Engine implements Closeable {
 
     public final EngineConfig getEngineConfig() {
         return engineConfig;
+    }
+
+    /**
+     * Allows registering a callback for when the index shard is on a segment generation >= minGeneration.
+     * The provided consumer is called back with the specific segment generation number.
+     */
+    public void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Captures the result of a refresh operation on the index shard.
+     * <p>
+     * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
+     * contains the generation of the index commit that the reader has opened upon refresh.
+     */
+    public record RefreshResult(boolean refreshed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final RefreshResult NO_REFRESH = new RefreshResult(false);
+
+        public RefreshResult(boolean refreshed) {
+            this(refreshed, UNKNOWN_GENERATION);
+        }
     }
 }

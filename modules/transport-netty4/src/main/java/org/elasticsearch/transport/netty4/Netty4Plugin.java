@@ -112,7 +112,9 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
-                tracer
+                tracer,
+                TLSConfig.noTLS(),
+                null
             )
         );
     }

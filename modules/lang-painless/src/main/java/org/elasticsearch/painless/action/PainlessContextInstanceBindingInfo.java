@@ -72,7 +72,7 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
         declaring = in.readString();
         name = in.readString();
         rtn = in.readString();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readImmutableList(StreamInput::readString);
     }
 
     @Override

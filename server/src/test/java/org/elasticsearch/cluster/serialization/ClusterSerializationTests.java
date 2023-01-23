@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -26,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,11 +38,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +58,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(newNode("node1"))
@@ -71,7 +77,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
 
         AllocationService strategy = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
+            .build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
@@ -89,7 +97,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).build();
 
@@ -100,7 +110,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
 
         AllocationService strategy = createAllocationService();
-        RoutingTable source = strategy.reroute(clusterState, "reroute").routingTable();
+        RoutingTable source = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);
@@ -199,7 +209,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
         Metadata metadata = Metadata.builder().put(indexMetadata, true).put(indexTemplateMetadata).build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
             .metadata(metadata)
@@ -282,13 +294,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("custom_string_object", strObject);
-            }
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject()),
+                Iterators.single((builder, params) -> builder.field("custom_string_object", strObject)),
+                Iterators.single((builder, params) -> builder.endObject())
+            );
         }
 
         @Override
@@ -326,13 +337,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("custom_integer_object", intObject);
-            }
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject()),
+                Iterators.single((builder, params) -> builder.field("custom_integer_object", intObject)),
+                Iterators.single((builder, params) -> builder.endObject())
+            );
         }
 
         @Override

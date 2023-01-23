@@ -42,14 +42,14 @@ import static org.elasticsearch.core.Strings.format;
  * attempt to find a solution that provides at least one allocation to
  * previously assigned models.
  */
-class AssignmentPlanner {
+public class AssignmentPlanner {
 
     private static final Logger logger = LogManager.getLogger(AssignmentPlanner.class);
 
     private final List<Node> nodes;
     private final List<Model> models;
 
-    AssignmentPlanner(List<Node> nodes, List<Model> models) {
+    public AssignmentPlanner(List<Node> nodes, List<Model> models) {
         this.nodes = nodes.stream().sorted(Comparator.comparing(Node::id)).toList();
         this.models = models.stream().sorted(Comparator.comparing(Model::id)).toList();
     }
@@ -107,7 +107,7 @@ class AssignmentPlanner {
     }
 
     private AssignmentPlan solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated() {
-        logger.debug(() -> "Attempting to solve assigning at least one allocations to previously assigned models");
+        logger.debug(() -> "Attempting to solve assigning at least one allocation to previously assigned models");
         List<Model> previouslyAssignedModelsOnly = models.stream()
             .filter(m -> m.hasEverBeenAllocated())
             .map(

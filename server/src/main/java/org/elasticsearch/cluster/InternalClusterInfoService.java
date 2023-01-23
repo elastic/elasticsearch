@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
@@ -161,7 +161,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private class AsyncRefresh {
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
-        private final CountDown countDown = new CountDown(2);
+        private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
         AsyncRefresh(List<ActionListener<ClusterInfo>> thisRefreshListeners) {
             this.thisRefreshListeners = thisRefreshListeners;
@@ -177,15 +177,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 return;
             }
 
-            assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
-            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                fetchNodeStats();
-            }
-
-            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                fetchIndicesStats();
+            try (var ignoredRefs = fetchRefs) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodeStats();
+                }
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchIndicesStats();
+                }
             }
         }
 
@@ -203,7 +203,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         logger,
                         threadPool,
                         ThreadPool.Names.MANAGEMENT,
-                        ActionListener.runAfter(new ActionListener<>() {
+                        ActionListener.releaseAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 logger.trace("received indices stats response");
@@ -245,7 +245,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 final ShardStats[] stats = indicesStatsResponse.getShards();
                                 final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
                                 final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
-                                final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
+                                final Map<ClusterInfo.NodeAndShard, String> dataPath = new HashMap<>();
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
                                     new HashMap<>();
                                 buildShardLevelInfo(
@@ -253,18 +253,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     adjustShardStats(stats),
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
-                                    dataPathByShardRoutingBuilder,
+                                    dataPath,
                                     reservedSpaceBuilders
                                 );
 
-                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
-                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
+                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
+                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> reservedSpace.put(nodeAndPath, builder.build()));
 
                                 indicesStatsSummary = new IndicesStatsSummary(
                                     Map.copyOf(shardSizeByIdentifierBuilder),
                                     Map.copyOf(shardDataSetSizeBuilder),
-                                    Map.copyOf(dataPathByShardRoutingBuilder),
-                                    Map.copyOf(rsrvdSpace)
+                                    Map.copyOf(dataPath),
+                                    Map.copyOf(reservedSpace)
                                 );
                             }
 
@@ -277,7 +277,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 }
                                 indicesStatsSummary = IndicesStatsSummary.EMPTY;
                             }
-                        }, this::onStatsProcessed),
+                        }, fetchRefs.acquire()),
                         false
                     )
                 );
@@ -288,7 +288,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             nodesStatsRequest.clear();
             nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
             nodesStatsRequest.timeout(fetchTimeout);
-            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
+            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodesStatsResponse) {
                     logger.trace("received node stats response");
@@ -318,18 +318,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     leastAvailableSpaceUsages = Map.of();
                     mostAvailableSpaceUsages = Map.of();
                 }
-            }, this::onStatsProcessed));
-        }
-
-        private void onStatsProcessed() {
-            if (countDown.countDown()) {
-                logger.trace("stats all received, computing cluster info and notifying listeners");
-                callListeners();
-            }
+            }, fetchRefs.acquire()));
         }
 
         private void callListeners() {
             try {
+                logger.trace("stats all received, computing cluster info and notifying listeners");
                 final ClusterInfo clusterInfo = getClusterInfo();
                 boolean anyListeners = false;
                 for (final Consumer<ClusterInfo> listener : listeners) {
@@ -420,7 +414,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             mostAvailableSpaceUsages,
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardDataSetSizes,
-            indicesStatsSummary.shardRoutingToDataPath,
+            indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace
         );
     }
@@ -454,12 +448,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ShardStats[] stats,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
-        Map<ShardRouting, String> newShardRoutingToDataPath,
+        Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = routingTable.deduplicate(s.getShardRouting());
-            newShardRoutingToDataPath.put(shardRouting, s.getDataPath());
+            dataPathByShard.put(ClusterInfo.NodeAndShard.from(shardRouting), s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
             if (storeStats == null) {
@@ -505,7 +499,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private record IndicesStatsSummary(
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
-        Map<ShardRouting, String> shardRoutingToDataPath,
+        Map<ClusterInfo.NodeAndShard, String> dataPath,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
         static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of());

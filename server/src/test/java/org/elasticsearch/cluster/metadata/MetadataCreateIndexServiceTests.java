@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -71,9 +73,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -151,7 +151,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsNew(metadata.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
@@ -268,10 +268,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
@@ -370,10 +371,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
@@ -518,10 +520,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute").routingTable();
+        final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute", ActionListener.noop()).routingTable();
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
 
         // now we start the shard
@@ -988,7 +991,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state, null)
+                () -> clusterStateCreateIndex(
+                    currentClusterState,
+                    Set.of(),
+                    newIndex,
+                    null,
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+                )
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -1004,23 +1013,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
             .build();
 
-        // used as a value container, not for the concurrency and visibility guarantees
-        AtomicBoolean allocationRerouted = new AtomicBoolean(false);
-        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable = (clusterState, reason) -> {
-            allocationRerouted.compareAndSet(false, true);
-            return clusterState;
-        };
-
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
             Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
-            rerouteRoutingTable,
-            null
+            null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
-        assertThat(allocationRerouted.get(), is(true));
 
         Metadata metadata = updatedClusterState.metadata();
         IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
@@ -1062,8 +1063,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             currentClusterState,
             Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
-            (clusterState, y) -> clusterState,
-            metadataTransformer
+            metadataTransformer,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
         assertNotNull(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index"));

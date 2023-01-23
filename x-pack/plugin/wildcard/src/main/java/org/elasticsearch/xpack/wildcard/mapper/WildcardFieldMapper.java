@@ -16,8 +16,11 @@ import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -41,6 +44,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.RegExp;
@@ -60,11 +64,13 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
 
@@ -78,6 +84,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
+
+import static java.util.Collections.emptyList;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -230,6 +239,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 name,
                 new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
+                context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 nullValue.get(),
@@ -864,11 +874,13 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final FieldType ngramFieldType;
     private final Version indexVersionCreated;
+    private final boolean storeIgnored;
 
     private WildcardFieldMapper(
         String simpleName,
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
+        boolean storeIgnored,
         MultiFields multiFields,
         CopyTo copyTo,
         String nullValue,
@@ -877,6 +889,7 @@ public class WildcardFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
+        this.storeIgnored = storeIgnored;
         this.indexVersionCreated = indexVersionCreated;
         this.ngramFieldType = new FieldType(Defaults.FIELD_TYPE);
         this.ngramFieldType.setTokenized(true);
@@ -918,9 +931,16 @@ public class WildcardFieldMapper extends FieldMapper {
                 createFields(value, parseDoc, fields);
             } else {
                 context.addIgnoredField(name());
+                if (storeIgnored) {
+                    parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
+                }
             }
         }
         parseDoc.addAll(fields);
+    }
+
+    private String originalName() {
+        return name() + "._original";
     }
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {
@@ -950,5 +970,83 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexVersionCreated).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new WildcardSyntheticFieldLoader();
+    }
+
+    private class WildcardSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
+        private int docValueCount;
+        private BytesRef docValueBytes;
+
+        private List<Object> storedValues = emptyList();
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+                return Stream.of(Map.entry(originalName(), storedValues -> this.storedValues = storedValues));
+            }
+            return Stream.empty();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            BinaryDocValues values = leafReader.getBinaryDocValues(name());
+            if (values == null) {
+                docValueCount = 0;
+                return null;
+            }
+
+            return docId -> {
+                if (values.advanceExact(docId) == false) {
+                    docValueCount = 0;
+                    return hasValue();
+                }
+                docValueBytes = values.binaryValue();
+                docValuesStream.reset(docValueBytes.bytes);
+                docValuesStream.setPosition(docValueBytes.offset);
+                docValueCount = docValuesStream.readVInt();
+                return hasValue();
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return docValueCount > 0 || storedValues.isEmpty() == false;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            switch (docValueCount + storedValues.size()) {
+                case 0:
+                    return;
+                case 1:
+                    b.field(simpleName());
+                    break;
+                default:
+                    b.startArray(simpleName());
+            }
+            for (int i = 0; i < docValueCount; i++) {
+                int length = docValuesStream.readVInt();
+                b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
+                docValuesStream.skipBytes(length);
+            }
+            for (Object o : storedValues) {
+                BytesRef r = (BytesRef) o;
+                b.utf8Value(r.bytes, r.offset, r.length);
+            }
+            if (docValueCount + storedValues.size() > 1) {
+                b.endArray();
+            }
+            storedValues = emptyList();
+        }
     }
 }

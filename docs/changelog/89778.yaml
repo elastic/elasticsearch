@@ -1,5 +1,0 @@
-pr: 89778
-summary: "Synthetic _source: fix extra fields in GET"
-area: TSDB
-type: bug
-issues: []

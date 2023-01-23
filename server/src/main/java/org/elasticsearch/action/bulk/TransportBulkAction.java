@@ -196,9 +196,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // TODO: Replace with a less hacky approach.
         final ActionListener<BulkResponse> listener = DiscoveryNode.isStateless(clusterService.getSettings())
             && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE
-                ? outerListener.delegateFailure(
-                    (l, r) -> { client.admin().indices().prepareRefresh().execute(l.map(ignored -> r)); }
-                )
+                ? outerListener.delegateFailure((l, r) -> { client.admin().indices().prepareRefresh().execute(l.map(ignored -> r)); })
                 : outerListener;
         /*
          * This is called on the Transport tread so we can check the indexing

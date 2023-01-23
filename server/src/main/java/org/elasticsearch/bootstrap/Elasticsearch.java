@@ -68,7 +68,7 @@ class Elasticsearch {
             initPhase2(bootstrap);
             initPhase3(bootstrap);
         } catch (NodeValidationException e) {
-            bootstrap.exitWithUserException(ExitCodes.CONFIG, e);
+            bootstrap.exitWithNodeValidationException(e);
         } catch (Throwable t) {
             bootstrap.exitWithUnknownException(t);
         }

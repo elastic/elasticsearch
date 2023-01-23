@@ -25,13 +25,16 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -51,11 +54,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 // TODO: Add unit level tests for the commit download process
-public class StatelessReaderManager implements Closeable {
+public class StatelessReaderManager extends AbstractRefCounted implements Closeable {
 
     private final Logger logger;
     private final ObjectStoreService objectStoreService;
@@ -64,6 +68,8 @@ public class StatelessReaderManager implements Closeable {
     private final Store store;
     private final ThreadPool threadPool;
     private final LongSupplier globalCheckpointSupplier;
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     private volatile CurrentState currentState;
     // TODO: ensure we release the listeners when the search shard is relocated.
     private List<SegmentGenerationListener> segmentGenerationListeners = new ArrayList<>();
@@ -81,55 +87,55 @@ public class StatelessReaderManager implements Closeable {
         this.store = store;
         this.threadPool = threadPool;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.store.incRef();
     }
 
     synchronized void reloadReaderManager() throws IOException {
-        logger.debug(
-            "refreshing current directory reader with generation [{}] using new generation [{}]",
-            currentState != null ? currentState.lastCommittedSegmentInfos().getGeneration() : "",
-            currentState != null ? currentState.lastCommittedSegmentInfos().getGeneration() : ""
-        );
-
-        Directory directory = store.directory();
-        ElasticsearchReaderManager readerManager;
-        if (currentState != null) {
-            readerManager = currentState.readerManager;
-        } else {
-            ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.wrap(
-                new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory), Lucene.SOFT_DELETES_FIELD),
-                shardId
-            );
-            readerManager = new ElasticsearchReaderManager(reader);
-        }
-
-        boolean success = false;
-        SegmentInfos newLastCommittedSegmentInfos;
-        SeqNoStats newSeqNoStats;
-        SafeCommitInfo newSafeCommitInfo;
-        IndexCommit newIndexCommit;
+        incRef();
         try {
-            readerManager.maybeRefresh();
-            newLastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-            assert currentState == null
-                || newLastCommittedSegmentInfos.getGeneration() >= currentState.lastCommittedSegmentInfos.getGeneration();
-            final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                newLastCommittedSegmentInfos.userData.entrySet()
-            );
-            long maxSeqNo = seqNoStats.maxSeqNo;
-            long localCheckpoint = seqNoStats.localCheckpoint;
-            newSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpointSupplier.getAsLong());
-            newSafeCommitInfo = new SafeCommitInfo(newSeqNoStats.getLocalCheckpoint(), newLastCommittedSegmentInfos.totalMaxDoc());
-            newIndexCommit = Lucene.getIndexCommit(newLastCommittedSegmentInfos, directory);
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.close(readerManager);
-                currentState = null;
+            Directory directory = store.directory();
+            ElasticsearchReaderManager readerManager;
+            if (currentState != null) {
+                readerManager = currentState.readerManager;
+            } else {
+                ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+                    new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory), Lucene.SOFT_DELETES_FIELD),
+                    shardId
+                );
+                readerManager = new ElasticsearchReaderManager(reader);
             }
-        }
 
-        currentState = new CurrentState(newLastCommittedSegmentInfos, newSeqNoStats, newIndexCommit, readerManager, newSafeCommitInfo);
-        callSegmentGenerationListeners(newIndexCommit.getGeneration());
+            boolean success = false;
+            SegmentInfos newLastCommittedSegmentInfos;
+            SeqNoStats newSeqNoStats;
+            SafeCommitInfo newSafeCommitInfo;
+            IndexCommit newIndexCommit;
+            try {
+                readerManager.maybeRefresh();
+                newLastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                assert currentState == null
+                    || newLastCommittedSegmentInfos.getGeneration() >= currentState.lastCommittedSegmentInfos.getGeneration();
+                final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                    newLastCommittedSegmentInfos.userData.entrySet()
+                );
+                long maxSeqNo = seqNoStats.maxSeqNo;
+                long localCheckpoint = seqNoStats.localCheckpoint;
+                newSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpointSupplier.getAsLong());
+                newSafeCommitInfo = new SafeCommitInfo(newSeqNoStats.getLocalCheckpoint(), newLastCommittedSegmentInfos.totalMaxDoc());
+                newIndexCommit = Lucene.getIndexCommit(newLastCommittedSegmentInfos, directory);
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.close(readerManager);
+                    currentState = null;
+                }
+            }
+            logger.debug("{} refreshing current directory reader with generation [{}]", shardId, newIndexCommit.getGeneration());
+            currentState = new CurrentState(newLastCommittedSegmentInfos, newSeqNoStats, newIndexCommit, readerManager, newSafeCommitInfo);
+            callSegmentGenerationListeners(newIndexCommit.getGeneration());
+        } finally {
+            decRef();
+        }
     }
 
     public void onNewCommit(
@@ -137,15 +143,24 @@ public class StatelessReaderManager implements Closeable {
         final long generation,
         final Map<String, StoreFileMetadata> commitFiles,
         ActionListener<Void> listener
-    ) throws IOException {
+    ) {
         synchronized (commitsToDownload) {
             NewCommit currentlyDownloadingCommit = commitsToDownload.peek();
             if (currentlyDownloadingCommit != null && currentlyDownloadingCommit.generation >= generation) {
                 // Already downloading a newer commit. Just ignore
-                listener.onResponse(null);
+                listener.onResponse(null); // TODO Delay notification of the listener once the commit is downloaded
+                return;
+            } else if (closed.get()) {
+                listener.onFailure(new AlreadyClosedException("Stateless reader manager is closed"));
                 return;
             }
-            commitsToDownload.add(new NewCommit(primaryTerm, generation, commitFiles, listener));
+            try {
+                incRef();
+                commitsToDownload.add(new NewCommit(primaryTerm, generation, commitFiles, ActionListener.runAfter(listener, this::decRef)));
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
             if (currentlyDownloadingCommit != null) {
                 // Already downloading a commit, do not schedule
                 return;
@@ -180,21 +195,29 @@ public class StatelessReaderManager implements Closeable {
 
             @Override
             protected void doRun() throws Exception {
-                NewCommit commit = commitsToDownload.peek();
-                assert commit != null;
-
-                Store.MetadataSnapshot target = store.getMetadata(null);
-                var toDownload = new HashMap<>(commit.commitFiles());
-                var localFiles = new HashMap<>(target.fileMetadataMap());
-                var currentSegmentFile = target.getSegmentsFile();
-                if (currentSegmentFile != null) {
-                    // TODO: Bootstrap workaround
-                    // We always download the current segment file to avoid scenarios where the existing segment files
-                    // is from the local bootstrap process. Hopefully we can remove this once bootstrap is cleaner.
-                    localFiles.remove(currentSegmentFile.name());
+                if (closed.get()) {
+                    throw new AlreadyClosedException("Stateless reader manager is closed");
                 }
 
-                toDownload.keySet().removeAll(localFiles.keySet());
+                final NewCommit commit = commitsToDownload.peek();
+                assert commit != null;
+
+                var toDownload = new HashMap<>(commit.commitFiles());
+                store.incRef();
+                try {
+                    Store.MetadataSnapshot target = store.getMetadata(null);
+                    var localFiles = new HashMap<>(target.fileMetadataMap());
+                    var currentSegmentFile = target.getSegmentsFile();
+                    if (currentSegmentFile != null) {
+                        // TODO: Bootstrap workaround
+                        // We always download the current segment file to avoid scenarios where the existing segment files
+                        // is from the local bootstrap process. Hopefully we can remove this once bootstrap is cleaner.
+                        localFiles.remove(currentSegmentFile.name());
+                    }
+                    toDownload.keySet().removeAll(localFiles.keySet());
+                } finally {
+                    store.decRef();
+                }
 
                 RecoveryState.Index indexState = new RecoveryState.Index();
                 final String tempFilePrefix = "new_commit_" + commit.generation() + "_download_" + UUIDs.randomBase64UUID();
@@ -204,7 +227,7 @@ public class StatelessReaderManager implements Closeable {
                     indexState.addFileDetail(fileMetadata.name(), fileMetadata.length(), false);
                 }
 
-                store.incRef();
+                incRef();
                 objectStoreService.onNewCommitReceived(
                     shardId,
                     commit.primaryTerm(),
@@ -214,25 +237,32 @@ public class StatelessReaderManager implements Closeable {
                     ActionListener.runAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
-                            try (multiFileWriter) {
-                                multiFileWriter.renameAllTempFiles();
-                            } catch (IOException e) {
-                                logger.error("failed to rename temporary commit files", e);
-                            }
+                            boolean success = false;
                             try {
+                                multiFileWriter.renameAllTempFiles();
                                 reloadReaderManager();
-                            } catch (IOException e) {
-                                logger.error("failed to reload reader manager", e);
+                                success = true;
+                            } catch (Exception e) {
+                                logger.error("failed to reload reader after new commit", e);
+                                success = false;
+                                finish(e);
+                            } finally {
+                                IOUtils.closeWhileHandlingException(multiFileWriter);
+                                if (success) {
+                                    finish(null);
+                                }
                             }
-                            finish(null);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            multiFileWriter.close();
-                            finish(e);
+                            try {
+                                finish(e);
+                            } finally {
+                                IOUtils.closeWhileHandlingException(multiFileWriter);
+                            }
                         }
-                    }, store::decRef)
+                    }, () -> decRef())
                 );
             }
         });
@@ -255,12 +285,28 @@ public class StatelessReaderManager implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
-        IOUtils.close(currentState.readerManager());
-        currentState = null;
+    public void close() {
+        final boolean success = closed.compareAndSet(false, true);
+        assert success : "stateless reader manager is already closed";
+        if (success) {
+            decRef();
+        }
+    }
+
+    @Override
+    protected void closeInternal() {
+        try {
+            IOUtils.close(currentState.readerManager(), store::decRef);
+            this.currentState = null;
+            // TODO also complete any SegmentGenerationListener here
+        } catch (Exception e) {
+            assert false : e;
+            throw new ElasticsearchException("Failed to close stateless reader manager", e);
+        }
     }
 
     public synchronized void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
+        // TODO we must ensure that StatelessReaderManager is still opened here
         long currentGen = currentState.newIndexCommit().getGeneration();
         if (currentGen >= minGeneration) {
             consumer.accept(currentGen);

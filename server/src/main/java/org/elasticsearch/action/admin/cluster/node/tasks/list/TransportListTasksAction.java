@@ -46,15 +46,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
-    private final ThreadPool threadPool;
-
     @Inject
-    public TransportListTasksAction(
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ThreadPool threadPool
-    ) {
+    public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
             ListTasksAction.NAME,
             clusterService,
@@ -65,7 +58,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             TaskInfo::from,
             ThreadPool.Names.MANAGEMENT
         );
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -135,13 +127,20 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 allMatchedTasksRemovedListener.onResponse(null);
             } else {
                 future.addListener(
-                    new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.MANAGEMENT, allMatchedTasksRemovedListener, false)
+                    new ThreadedActionListener<>(
+                        logger,
+                        clusterService.threadPool(),
+                        ThreadPool.Names.MANAGEMENT,
+                        allMatchedTasksRemovedListener,
+                        false
+                    )
                 );
-                var cancellable = threadPool.schedule(
-                    () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
-                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
-                    ThreadPool.Names.SAME
-                );
+                var cancellable = clusterService.threadPool()
+                    .schedule(
+                        () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
+                        requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                        ThreadPool.Names.SAME
+                    );
                 future.addListener(ActionListener.wrap(cancellable::cancel));
             }
         } else {

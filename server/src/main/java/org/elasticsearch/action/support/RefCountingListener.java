@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * A mechanism to complete a listener on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
@@ -40,11 +41,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * try (var refs = new RefCountingListener(finalListener)) {
  *     for (var item : collection) {
  *         if (condition(item)) {
- *             runAsyncAction(item, refs.acquire().map(results::add));
+ *             runAsyncAction(item, refs.acquire(results::add));
  *         }
  *     }
  *     if (flag) {
- *         runOneOffAsyncAction(refs.acquire().map(results::add));
+ *         runOneOffAsyncAction(refs.acquire(results::add));
  *         return;
  *     }
  *     for (var item : otherCollection) {
@@ -52,7 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *         executorService.execute(() -> {
  *             try {
  *                 if (condition(item)) {
- *                     runOtherAsyncAction(item, refs.acquire().map(results::add));
+ *                     runOtherAsyncAction(item, refs.acquire(results::add));
  *                 }
  *             } finally {
  *                 itemRef.onResponse(null);
@@ -141,26 +142,20 @@ public final class RefCountingListener implements Releasable {
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.
      */
-    public <T> ActionListener<T> acquire() {
+    public ActionListener<Void> acquire() {
         return new ActionListener<>() {
             private final Releasable ref = refs.acquire();
 
             @Override
-            public void onResponse(T unused) {
+            public void onResponse(Void unused) {
                 ref.close();
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (exceptionPermits.tryAcquire()) {
-                    final var firstException = exceptionRef.compareAndExchange(null, e);
-                    if (firstException != null && firstException != e) {
-                        firstException.addSuppressed(e);
-                    }
-                } else {
-                    droppedExceptionsRef.incrementAndGet();
+                try (ref) {
+                    addException(e);
                 }
-                ref.close();
             }
 
             @Override
@@ -168,6 +163,62 @@ public final class RefCountingListener implements Releasable {
                 return RefCountingListener.this.toString();
             }
         };
+    }
+
+    /**
+     * Acquire a reference to this object and return a listener which consumes a response and releases the reference. The delegate {@link
+     * ActionListener} is called when all its references have been released. The consumer must not throw any exception.
+     *
+     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
+     * will throw an {@link IllegalStateException} otherwise.
+     *
+     * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
+     * will be ignored otherwise.
+     */
+    public <Response> ActionListener<Response> acquire(Consumer<Response> consumer) {
+        final var ref = refs.acquire();
+        final var consumerRef = new AtomicReference<>(Objects.requireNonNull(consumer));
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try (ref) {
+                    var acquiredConsumer = consumerRef.getAndSet(null);
+                    if (acquiredConsumer == null) {
+                        assert false : "already closed";
+                    } else {
+                        acquiredConsumer.accept(response);
+                    }
+                } catch (Exception e) {
+                    assert false : e;
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try (ref) {
+                    var acquiredConsumer = consumerRef.getAndSet(null);
+                    assert acquiredConsumer != null : "already closed";
+                    addException(e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return RefCountingListener.this + "[" + consumerRef.get() + "]";
+            }
+        };
+    }
+
+    private void addException(Exception e) {
+        if (exceptionPermits.tryAcquire()) {
+            final var firstException = exceptionRef.compareAndExchange(null, e);
+            if (firstException != null && firstException != e) {
+                firstException.addSuppressed(e);
+            }
+        } else {
+            droppedExceptionsRef.incrementAndGet();
+        }
     }
 
     @Override

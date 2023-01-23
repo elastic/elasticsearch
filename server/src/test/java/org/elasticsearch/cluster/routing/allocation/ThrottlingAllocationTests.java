@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -70,6 +71,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build(),
             gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
 
@@ -128,6 +130,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build(),
             gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
 
@@ -191,7 +194,12 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 5)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 5)
             .build();
-        AllocationService strategy = createAllocationService(settings, gatewayAllocator, snapshotsInfoService);
+        AllocationService strategy = createAllocationService(
+            settings,
+            gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
+            snapshotsInfoService
+        );
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
@@ -250,6 +258,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1).build(),
             gatewayAllocator,
+            EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
 

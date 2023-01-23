@@ -2035,9 +2035,12 @@ incoming JWTs. Defaults to `id_token`.
 (<<static-cluster-setting,Static>>)
 A list of allowed JWT audiences that {es} should verify. {es} will only consume
 JWTs that were intended for any of these audiences, as denoted by the `aud`
-claim in the JWT). Examples of `aud` claim are `https://example.com/client1`
+claim in the JWT).
+The audiences are compared with exact string matches and do not support wildcards or regex.
+Examples of `aud` claim are `https://example.com/client1`
 and `other_service,elasticsearch`. When `token_type` is `access_token`, the audiences can
 be optionally denoted by a different claim in the JWT if `aud` does not exist.
+See also <<security-settings-jwt-fallback-claims-aud,`fallback_claims.aud`>>.
 // end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-allowed-clock-skew-tag[]
@@ -2055,6 +2058,7 @@ Identifier is usually a case sensitive URL using the https scheme that contains
 scheme, host, and optionally, port number and path components and no query or
 fragment components. However, it can be any string. The value for this setting
 should be provided by your JWT Issuer.
+The issuer is compared with exact string matches and do not support wildcards or regex.
 Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 // end::jwt-allowed-issuer-tag[]
 
@@ -2063,13 +2067,17 @@ Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 (<<static-cluster-setting,Static>>)
 A list of allowed JWT subjects that {es} should verify. {es} will only consume
 JWTs that were issued for any of these subjects, as denoted by the `sub`
-claim in the JWT. Examples of `sub` claim are `https://example.com/user1`
+claim in the JWT.
+The subjects are compared with exact string matches and do not support wildcards or regex.
+Examples of `sub` claim are `https://example.com/user1`
 and `user_1,user2`.
 When `token_type` is `access_token`, this setting is mandatory and the subject can be
 optionally denoted by a different claim in the JWT if `sub` does not exist.
+See also <<security-settings-jwt-fallback-claims-sub,`fallback_claims.sub`>>.
 // end::jwt-allowed-subjects-tag[]
 
 // tag::jwt-fallback-claims-sub-tag[]
+[[security-settings-jwt-fallback-claims-sub]]
 `fallback_claims.sub` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The alternative claim to look for the subject information if the `sub` claim
@@ -2078,6 +2086,7 @@ The fallback is applied everywhere the `sub` claim is used.
 // end::jwt-fallback-claims-sub-tag[]
 
 // tag::jwt-fallback-claims-aud-tag[]
+[[security-settings-jwt-fallback-claims-aud]]
 `fallback_claims.aud` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The alternative claim to look for the audiences information if the `aud` claim
@@ -2091,6 +2100,7 @@ The fallback is applied everywhere the `aud` claim is used.
 Additional claims and associated values that {es} should verify.
 This is a group setting that takes key/value pairs, where the key is a string
 and the value must be either a string or an array of strings.
+The values are compared with exact string matches and do not support wildcards or regex.
 
 For example:
 

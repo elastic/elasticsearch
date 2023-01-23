@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
@@ -420,7 +421,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
-        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings); // TODO: handle remote access separately
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);

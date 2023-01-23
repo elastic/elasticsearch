@@ -243,7 +243,7 @@ public class IPFilter {
                 REMOTE_CLUSTER_FILTER_ALLOW_SETTING.getKey(),
                 REMOTE_CLUSTER_FILTER_DENY_SETTING.getKey()
             );
-            profiles.add(REMOTE_CLUSTER_PROFILE);
+            profiles.add(REMOTE_CLUSTER_PROFILE); // TODO: assert no such profile exists
             profileAllowRules.put(REMOTE_CLUSTER_PROFILE, REMOTE_CLUSTER_FILTER_ALLOW_SETTING.get(settings));
             profileDenyRules.put(REMOTE_CLUSTER_PROFILE, REMOTE_CLUSTER_FILTER_DENY_SETTING.get(settings));
         }
@@ -274,12 +274,12 @@ public class IPFilter {
     }
 
     private void setProfileAllowRules(String profile, List<String> rules) {
-        profileAllowRules.put(profile, rules);
+        profileAllowRules.put(profile, rules);  // TODO: prevent remote access
         updateRules();
     }
 
     private void setProfileDenyRules(String profile, List<String> rules) {
-        profileDenyRules.put(profile, rules);
+        profileDenyRules.put(profile, rules);  // TODO: prevent remote access
         updateRules();
     }
 

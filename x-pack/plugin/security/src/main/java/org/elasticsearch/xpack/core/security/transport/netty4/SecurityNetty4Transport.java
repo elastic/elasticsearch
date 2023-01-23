@@ -81,7 +81,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         );
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
-        this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings); // TODO: handle remote access separately
         if (sslEnabled) {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
             Map<String, SslConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, sslConfiguration);

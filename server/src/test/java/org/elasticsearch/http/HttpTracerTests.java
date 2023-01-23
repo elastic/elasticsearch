@@ -31,8 +31,8 @@ import java.util.Map;
 public class HttpTracerTests extends ESTestCase {
 
     // these loggers are named in the docs so must not be changed without due care
-    private static final String HTTP_TRACER_LOGGER = "org.elasticsearch.http.HttpTracer";
-    private static final String HTTP_BODY_TRACER_LOGGER = "org.elasticsearch.http.HttpBodyTracer";
+    public static final String HTTP_TRACER_LOGGER = "org.elasticsearch.http.HttpTracer";
+    public static final String HTTP_BODY_TRACER_LOGGER = "org.elasticsearch.http.HttpBodyTracer";
 
     @TestLogging(reason = "testing trace logging", value = HTTP_TRACER_LOGGER + ":TRACE," + HTTP_BODY_TRACER_LOGGER + ":INFO")
     public void testLogging() {

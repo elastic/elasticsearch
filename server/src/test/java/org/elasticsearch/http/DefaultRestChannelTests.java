@@ -474,10 +474,10 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
     }
 
-    // literal name because it appears in the docs so must not be changed without care
-    private static final String BODY_LOGGER_NAME = "org.elasticsearch.http.HttpBodyTracer";
-
-    @TestLogging(reason = "testing trace logging", value = "org.elasticsearch.http.HttpTracer:TRACE," + BODY_LOGGER_NAME + ":TRACE")
+    @TestLogging(
+        reason = "testing trace logging",
+        value = HttpTracerTests.HTTP_TRACER_LOGGER + ":TRACE," + HttpTracerTests.HTTP_BODY_TRACER_LOGGER + ":TRACE"
+    )
     public void testResponseBodyTracing() {
         doAnswer(invocationOnMock -> {
             ActionListener<?> listener = invocationOnMock.getArgument(1);
@@ -518,7 +518,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals(
             responseBody,
             ChunkedLoggingStreamTests.getDecodedLoggedBody(
-                LogManager.getLogger(BODY_LOGGER_NAME),
+                LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
@@ -529,7 +529,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals(
             responseBody,
             ChunkedLoggingStreamTests.getDecodedLoggedBody(
-                LogManager.getLogger(BODY_LOGGER_NAME),
+                LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,

@@ -537,6 +537,23 @@ public class AuthenticationTests extends ESTestCase {
         runWithAuthenticationToXContent(authentication2, m -> assertThat(m, not(hasKey("api_key"))));
     }
 
+    public void testToXContentWithRemoteAccess() throws IOException {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication1 = randomRemoteAccessAuthentication(apiKeyId, randomUser());
+        final String apiKeyName = (String) authentication1.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.API_KEY_NAME_KEY);
+        runWithAuthenticationToXContent(
+            authentication1,
+            m -> {
+                assertThat(
+                    m,
+                    hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                );
+            }
+        );
+    }
+
     public void testToXContentWithServiceAccount() throws IOException {
         final Authentication authentication1 = randomServiceAccountAuthentication();
         final String tokenName = (String) authentication1.getAuthenticatingSubject()
@@ -694,8 +711,14 @@ public class AuthenticationTests extends ESTestCase {
         return AuthenticationTestHelper.builder().anonymous().build();
     }
 
+    public static Authentication randomRemoteAccessAuthentication(final String remoteAccessApiKeyId, final User user) {
+        return AuthenticationTestHelper.builder()
+            .remoteAccess(remoteAccessApiKeyId, AuthenticationTestHelper.builder().user(user).build())
+            .build(false);
+    }
+
     public static Authentication randomRemoteAccessAuthentication() {
-        return AuthenticationTestHelper.builder().remoteAccess().build(false);
+        return randomRemoteAccessAuthentication(ESTestCase.randomAlphaOfLength(20), randomUser());
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

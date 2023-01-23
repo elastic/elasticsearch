@@ -613,7 +613,7 @@ public final class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey()) {
+        if (isApiKey() || isRemoteAccess()) {
             final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
@@ -622,7 +622,6 @@ public final class Authentication implements ToXContentObject {
                 builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
             }
         }
-        // TODO isRemoteAccess()
     }
 
     private void assertInternalConsistency() {

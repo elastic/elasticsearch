@@ -17,8 +17,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SlimProcessorTests extends ESTestCase {
 
@@ -26,15 +24,11 @@ public class SlimProcessorTests extends ESTestCase {
         double[][][] pytorchResult = new double[][][] { { { 0.0, 1.0, 0.0, 3.0, 4.0, 0.0, 0.0 } } };
 
         TokenizationResult tokenizationResult = new BertTokenizationResult(List.of(), List.of(), 0);
-        boolean truncated = randomBoolean();
-        var tr = mock(TokenizationResult.class);
-        when(tr.anyTruncated()).thenReturn(truncated);
 
         var inferenceResult = SlimProcessor.processResult(tokenizationResult, new PyTorchInferenceResult(pytorchResult), "foo");
         assertThat(inferenceResult, instanceOf(SlimResults.class));
         var slimResults = (SlimResults) inferenceResult;
         assertEquals(slimResults.getResultsField(), "foo");
-        assertEquals(truncated, slimResults.isTruncated());
 
         var weightedTokens = slimResults.getWeightedTokens();
         assertThat(weightedTokens, hasSize(3));

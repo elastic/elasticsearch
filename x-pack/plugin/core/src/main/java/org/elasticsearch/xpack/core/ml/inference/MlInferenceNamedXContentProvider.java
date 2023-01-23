@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInfere
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUp
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenizationUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -313,6 +315,20 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 StrictlyParsedInferenceConfig.class,
                 new ParseField(FillMaskConfig.NAME),
                 FillMaskConfig::fromXContentStrict
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                LenientlyParsedInferenceConfig.class,
+                new ParseField(SlimConfig.NAME),
+                SlimConfig::fromXContentLenient
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                StrictlyParsedInferenceConfig.class,
+                new ParseField(SlimConfig.NAME),
+                SlimConfig::fromXContentStrict
             )
         );
         namedXContent.add(
@@ -588,6 +604,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceResults.class, PyTorchPassThroughResults.NAME, PyTorchPassThroughResults::new)
         );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, SlimResults.NAME, SlimResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -619,6 +636,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, NerConfig.NAME, NerConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, FillMaskConfig.NAME, FillMaskConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, SlimConfig.NAME, SlimConfig::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, TextClassificationConfig.NAME, TextClassificationConfig::new)
         );

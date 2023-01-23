@@ -21,6 +21,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.LoggingChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -113,7 +115,20 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         try {
             final HttpResponse httpResponse;
             if (isHeadRequest == false && restResponse.isChunked()) {
-                httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.chunkedContent());
+                ChunkedRestResponseBody chunkedContent = restResponse.chunkedContent();
+                if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
+                    final var loggerStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId());
+                    toClose.add(() -> {
+                        try {
+                            loggerStream.close();
+                        } catch (Exception e) {
+                            assert false : e; // nothing much to go wrong here
+                        }
+                    });
+                    chunkedContent = new LoggingChunkedRestResponseBody(chunkedContent, loggerStream);
+                }
+
+                httpResponse = httpRequest.createResponse(restResponse.status(), chunkedContent);
             } else {
                 final BytesReference content = restResponse.content();
                 if (content instanceof Releasable) {
@@ -122,6 +137,15 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 toClose.add(this::releaseOutputBuffer);
 
                 BytesReference finalContent = isHeadRequest ? BytesArray.EMPTY : content;
+
+                if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
+                    try (var responseBodyLoggingStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId())) {
+                        finalContent.writeTo(responseBodyLoggingStream);
+                    } catch (Exception e) {
+                        assert false : e; // nothing much to go wrong here
+                    }
+                }
+
                 httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
             }
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
@@ -152,6 +176,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
+
+            if (httpLogger != null) {
+                final String finalContentLength = contentLength;
+                final String finalOpaque = opaque;
+                listener = ActionListener.runAfter(
+                    listener,
+                    () -> httpLogger.logResponse(restResponse, httpChannel, finalContentLength, finalOpaque, request.getRequestId(), true)
+                );
+            }
+
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }
@@ -159,9 +193,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         } finally {
             if (success == false) {
                 Releasables.close(toClose);
-            }
-            if (httpLogger != null) {
-                httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+                if (httpLogger != null) {
+                    httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+                }
             }
         }
     }

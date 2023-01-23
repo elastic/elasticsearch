@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  * Listeners are executed within the thread that triggers the completion, the failure or the progress update and
  * the progress value passed to the listeners on execution is the last updated value.
  */
-class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
+class ProgressListenableActionFuture extends AdapterActionFuture<Long> {
 
     protected final long start;
     protected final long end;
@@ -111,6 +111,10 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
 
     @Override
     public void onResponse(Long result) {
+        if (result == null || result < start || end < result) {
+            assert false : start + " < " + result + " < " + end;
+            throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
+        }
         ensureNotCompleted();
         super.onResponse(result);
     }
@@ -178,15 +182,6 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    @Override
-    protected Long convert(Long response) {
-        if (response == null || response < start || end < response) {
-            assert false : start + " < " + response + " < " + end;
-            throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + response + ']');
-        }
-        return response;
     }
 
     @Override

@@ -17,7 +17,7 @@ import java.util.List;
  * A {@code Future} and {@link ActionListener} against which other {@link ActionListener}s can be registered later, to support
  * fanning-out a result to a dynamic collection of listeners.
  */
-public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
+public class ListenableActionFuture<T> extends AdapterActionFuture<T> {
 
     private Object listeners;
     private boolean executedListeners = false;
@@ -75,11 +75,6 @@ public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
                 executeListener((ActionListener<T>) listenersToExecute);
             }
         }
-    }
-
-    @Override
-    protected T convert(T listenerResponse) {
-        return listenerResponse;
     }
 
     private void executeListener(final ActionListener<T> listener) {

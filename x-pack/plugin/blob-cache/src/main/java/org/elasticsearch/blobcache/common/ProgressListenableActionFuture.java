@@ -9,7 +9,7 @@ package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.AdapterActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  * Listeners are executed within the thread that triggers the completion, the failure or the progress update and
  * the progress value passed to the listeners on execution is the last updated value.
  */
-class ProgressListenableActionFuture extends AdapterActionFuture<Long> {
+class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     protected final long start;
     protected final long end;

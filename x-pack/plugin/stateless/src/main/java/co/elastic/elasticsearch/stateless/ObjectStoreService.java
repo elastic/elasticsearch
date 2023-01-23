@@ -25,12 +25,15 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -62,10 +66,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class ObjectStoreService extends AbstractLifecycleComponent {
@@ -278,6 +284,55 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         if (permits.tryAcquire()) {
             uploadTaskRunner.enqueueTask(new CommitUploadTask(commit, threadPool.relativeTimeInNanos(), permits::release));
         }
+    }
+
+    public void downloadSearchShardFiles(ShardId shardId, long primaryTerm, Store store, ActionListener<Set<String>> listener) {
+        try {
+            var blobs = getBlobContainer(shardId, primaryTerm).listBlobs();
+            if (blobs.isEmpty()) {
+                listener.onResponse(blobs.keySet());
+                return;
+            }
+            RecoveryState.Index indexState = new RecoveryState.Index();
+            for (var blob : blobs.values()) {
+                indexState.addFileDetail(blob.name(), blob.length(), false);
+            }
+            MultiFileWriter multiFileWriter = new MultiFileWriter(
+                store,
+                indexState,
+                "prepare_index_recovery_download_" + UUIDs.randomBase64UUID(),
+                org.apache.logging.log4j.LogManager.getLogger(getClass()),
+                () -> {},
+                false // TODO ES-4993 we should start verifying output
+            );
+
+            downloadTaskRunner.enqueueTask(
+                new CommitDownloadTask(
+                    multiFileWriter,
+                    toStoreFileMetadata(blobs),
+                    shardId,
+                    primaryTerm,
+                    -1,
+                    threadPool.relativeTimeInNanos(),
+                    ActionListener.runBefore(listener.map(ignored -> blobs.keySet()), multiFileWriter::renameAllTempFiles)
+                )
+            );
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static Map<String, StoreFileMetadata> toStoreFileMetadata(Map<String, BlobMetadata> metadata) {
+        return metadata.entrySet().stream().collect(toMap(Map.Entry::getKey, it -> toStoreFileMetadata(it.getValue())));
+    }
+
+    private static StoreFileMetadata toStoreFileMetadata(BlobMetadata metadata) {
+        return new StoreFileMetadata(
+            metadata.name(),
+            metadata.length(),
+            "checksum is not available", // TODO ES-4993 verify segments file checksum
+            Version.CURRENT.toString()
+        );
     }
 
     /**

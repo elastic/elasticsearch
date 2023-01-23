@@ -55,6 +55,7 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -185,7 +186,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testUploadToObjectStore() throws Exception {
+    public void testUploadToObjectStore() {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
@@ -200,12 +201,12 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
 
-        assertObjectStoreConsistency();
+        assertObjectStoreConsistentWithIndexShards();
 
         indexDocuments(indexName);
     }
 
-    public void testDownloadFromObjectStore() throws Exception {
+    public void testDownloadNewCommitsFromObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 2);
         startIndexNodes(numberOfShards);
@@ -221,7 +222,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
 
-        assertObjectStoreConsistency();
+        assertObjectStoreConsistentWithIndexShards();
 
         // Index more documents
         indexDocuments(indexName);
@@ -236,7 +237,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             for (int shardId = 0; shardId < entry.getValue(); shardId++) {
                 IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
                 IndexShard searchShard = findSearchShard(entry.getKey(), shardId);
-                assertObjectStoreConsistency();
+                assertObjectStoreConsistentWithIndexShards();
                 assertBusy(() -> assertThatSearchShardIsConsistentWithLastCommit(indexShard, searchShard));
             }
         }
@@ -251,13 +252,38 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             for (int shardId = 0; shardId < entry.getValue(); shardId++) {
                 IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
                 IndexShard searchShard = findSearchShard(entry.getKey(), shardId);
-                assertObjectStoreConsistency();
+                assertObjectStoreConsistentWithIndexShards();
                 assertBusy(() -> assertThatSearchShardIsConsistentWithLastCommit(indexShard, searchShard));
             }
         }
     }
 
-    private static void indexDocuments(String indexName) throws IOException {
+    public void testDownloadNewReplicasFromObjectStore() {
+        startMasterOnlyNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numberOfShards = randomIntBetween(1, 5);
+        startIndexNodes(numberOfShards);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+        indexDocuments(indexName);
+        flush(indexName);
+        assertObjectStoreConsistentWithIndexShards();
+
+        startSearchNodes(numberOfShards);
+        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
+        assertObjectStoreConsistentWithSearchShards();
+    }
+
+    private static void indexDocuments(String indexName) {
         final int iters = randomIntBetween(1, 20);
         for (int i = 0; i < iters; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
@@ -266,11 +292,11 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 case 1 -> client().admin().indices().prepareRefresh().get();
                 case 2 -> client().admin().indices().prepareForceMerge().get();
             }
-            assertObjectStoreConsistency();
+            assertObjectStoreConsistentWithIndexShards();
         }
     }
 
-    private static void assertObjectStoreConsistency() throws IOException {
+    private static void assertObjectStoreConsistentWithIndexShards() {
         final Map<Index, Integer> indices = resolveIndices();
         assertThat(indices.isEmpty(), is(false));
 
@@ -282,7 +308,19 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) throws IOException {
+    private static void assertObjectStoreConsistentWithSearchShards() {
+        final Map<Index, Integer> indices = resolveIndices();
+        assertThat(indices.isEmpty(), is(false));
+
+        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
+            assertThat(entry.getValue(), greaterThan(0));
+            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
+                assertThatObjectStoreIsConsistentWithLastCommit(findSearchShard(entry.getKey(), shardId));
+            }
+        }
+    }
+
+    private static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) {
         final Store store = indexShard.store();
         store.incRef();
         try {
@@ -291,11 +329,17 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
 
-            for (String file : segmentInfos.files(true)) {
-                // can take some time for files to be uploaded to the object store
-                assertBusy(() -> {
+            // can take some time for files to be uploaded to the object store
+            assertBusy(() -> {
+                var localFiles = segmentInfos.files(true);
+                var remoteFiles = blobContainer.listBlobs().keySet();
+                assertThat(
+                    "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
+                    remoteFiles,
+                    hasItems(localFiles.toArray(String[]::new))
+                );
+                for (String file : segmentInfos.files(true)) {
                     assertThat("" + file, blobContainer.blobExists(file), is(true));
-
                     try (
                         IndexInput input = store.directory().openInput(file, IOContext.READONCE);
                         InputStream local = new InputStreamIndexInput(input, input.length());
@@ -303,8 +347,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                     ) {
                         assertEquals("File [" + file + "] in object store has a different content than local file ", local, remote);
                     }
-                });
-            }
+                }
+            });
         } catch (Exception e) {
             throw new AssertionError(e);
         } finally {
@@ -312,8 +356,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard)
-        throws IOException {
+    private static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard) {
         final Store indexStore = indexShard.store();
         final Store searchStore = searchShard.store();
         indexStore.incRef();

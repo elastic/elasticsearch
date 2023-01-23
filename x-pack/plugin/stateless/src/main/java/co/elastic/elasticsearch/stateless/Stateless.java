@@ -32,7 +32,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -165,22 +164,28 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
 
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                ActionRunnable.run(listener, () -> {
-                    if (indexShard.routingEntry().role().isSearchable()) {
-                        final Store store = indexShard.store();
-                        store.incRef();
-                        try {
-                            // creates a new empty Lucene index
-                            Lucene.cleanLuceneIndex(store.directory());
-                            // TODO Download files from object store here and only create an empty store if no blobs are downloaded
-                            store.createEmpty();
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Failed to create empty Lucene index", e);
-                        } finally {
-                            store.decRef();
-                        }
-                    }
-                }).run();
+                if (indexShard.routingEntry().role().isPromotableToPrimary()) {
+                    listener.onResponse(null);
+                    return;
+                }
+                assert indexShard.routingEntry().role().isSearchable();
+                final Store store = indexShard.store();
+                store.incRef();
+                var wrappedListener = ActionListener.runBefore(listener, store::decRef);
+                objectStoreService.get()
+                    .downloadSearchShardFiles(
+                        indexShard.shardId(),
+                        indexShard.getOperationPrimaryTerm(),
+                        indexShard.store(),
+                        ActionListener.wrap(blobs -> {
+                            if (blobs.isEmpty()) {
+                                // creates a new empty Lucene index
+                                Lucene.cleanLuceneIndex(store.directory());
+                                store.createEmpty();
+                            }
+                            wrappedListener.onResponse(null);
+                        }, wrappedListener::onFailure)
+                    );
             }
 
             @Override

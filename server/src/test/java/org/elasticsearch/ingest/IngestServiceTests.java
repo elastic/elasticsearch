@@ -56,6 +56,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1389,6 +1390,113 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testIngestAndPipelineStats() throws Exception {
+        final Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock");
+        when(processor.getTag()).thenReturn("mockTag");
+        when(processor.isAsync()).thenReturn(true);
+
+        // avoid returning null and dropping the document
+        doAnswer(args -> {
+            @SuppressWarnings("unchecked")
+            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+            return null;
+        }).when(processor).execute(any(IngestDocument.class), any());
+
+        // mock up an ingest service for returning a pipeline, this is used by the pipeline processor
+        final Pipeline[] pipelineToReturn = new Pipeline[1];
+        final IngestService pipelineIngestService = mock(IngestService.class);
+        when(pipelineIngestService.getPipeline(anyString())).thenAnswer(inv -> pipelineToReturn[0]);
+
+        IngestService ingestService = createWithProcessors(
+            Map.of(
+                "pipeline",
+                (factories, tag, description, config) -> new PipelineProcessor(tag, description, (params) -> new TemplateScript(params) {
+                    @Override
+                    public String execute() {
+                        return "_id3";
+                    } // this pipeline processor will always execute the '_id3' processor
+                }, false, pipelineIngestService),
+                "mock",
+                (factories, tag, description, config) -> processor
+            )
+        );
+
+        {
+            // all zeroes since nothing has executed
+            final IngestStats ingestStats = ingestService.stats();
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(0));
+            assertStats(ingestStats.getTotalStats(), 0, 0, 0);
+        }
+
+        // put some pipelines, and now there are pipeline and processor stats, too
+        PutPipelineRequest putRequest1 = new PutPipelineRequest(
+            "_id1",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        // n.b. this 'pipeline' processor will always run the '_id3' pipeline, see the mocking/plumbing above and below
+        PutPipelineRequest putRequest2 = new PutPipelineRequest(
+            "_id2",
+            new BytesArray("{\"processors\": [{\"pipeline\" : {}}]}"),
+            XContentType.JSON
+        );
+        PutPipelineRequest putRequest3 = new PutPipelineRequest(
+            "_id3",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(putRequest2, clusterState);
+        clusterState = executePut(putRequest3, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        // hook up the mock ingest service to return pipeline3 when asked by the pipeline processor
+        pipelineToReturn[0] = ingestService.getPipeline("_id3");
+
+        {
+            final IngestStats ingestStats = ingestService.stats();
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
+
+            // total
+            assertStats(ingestStats.getTotalStats(), 0, 0, 0);
+            // pipeline
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 0, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 0, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id3", 0, 0, 0);
+            // processor
+            assertProcessorStats(0, ingestStats, "_id1", 0, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id2", 0, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id3", 0, 0, 0);
+        }
+
+        // put a single document through ingest processing
+        final IndexRequest indexRequest = new IndexRequest("_index");
+        indexRequest.setPipeline("_id1").setFinalPipeline("_id2");
+        indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+
+        {
+            final IngestStats ingestStats = ingestService.stats();
+            assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
+
+            // total
+            // see https://github.com/elastic/elasticsearch/issues/92843 -- this should be 1, but it's actually 2
+            // assertStats(ingestStats.getTotalStats(), 1, 0, 0);
+            // pipeline
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 1, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 1, 0, 0);
+            assertPipelineStats(ingestStats.getPipelineStats(), "_id3", 1, 0, 0);
+            // processor
+            assertProcessorStats(0, ingestStats, "_id1", 1, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id2", 1, 0, 0);
+            assertProcessorStats(0, ingestStats, "_id3", 1, 0, 0);
+        }
+    }
+
     public void testStats() throws Exception {
         final Processor processor = mock(Processor.class);
         final Processor processorFailure = mock(Processor.class);
@@ -2076,6 +2184,90 @@ public class IngestServiceTests extends ESTestCase {
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
         assertThat(updatedConfig, notNullValue());
         assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
+    }
+
+    public void testResolvePipelinesWithNonePipeline() {
+        // _none request pipeline:
+        {
+            Metadata metadata = Metadata.builder().build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(IngestService.NOOP_PIPELINE_NAME);
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(false));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+        }
+
+        // _none default pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(false));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+        }
+
+        // _none default pipeline with request pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
+        }
+
+        // _none request pipeline with default pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(IngestService.NOOP_PIPELINE_NAME);
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(false));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+        }
+
+        // _none request pipeline with final pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(IngestService.NOOP_PIPELINE_NAME);
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        }
+
+        // _none final pipeline:
+        {
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
+            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+            assertThat(result, is(true));
+            assertThat(indexRequest.isPipelineResolved(), is(true));
+            assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
+            assertThat(indexRequest.getFinalPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+        }
     }
 
     private static Tuple<String, Object> randomMapEntry() {

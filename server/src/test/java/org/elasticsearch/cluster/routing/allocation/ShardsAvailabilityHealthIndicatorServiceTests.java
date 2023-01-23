@@ -81,7 +81,9 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
@@ -1481,10 +1483,50 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION.getUniqueId(),
             equalTo("elasticsearch:health:shards_availability:diagnosis:enable_cluster_allocations")
         );
+        assertThat(
+            ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_cluster_setting")
+        );
+        assertThat(
+            ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_index_setting")
+        );
+        assertThat(
+            ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:migrate_data_tiers_require_data")
+        );
+        assertThat(
+            ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:migrate_data_tiers_include_data")
+        );
+        assertThat(
+            ACTION_INCREASE_NODE_CAPACITY.getUniqueId(),
+            equalTo("elasticsearch:health:shards_availability:diagnosis:increase_node_capacity_for_allocations")
+        );
         for (String tier : List.of("data_content", "data_hot", "data_warm", "data_cold", "data_frozen")) {
             assertThat(
                 ACTION_ENABLE_TIERS_LOOKUP.get(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:enable_data_tiers:tier:" + tier)
+            );
+            assertThat(
+                ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(tier).getUniqueId(),
+                equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_index_setting:tier:" + tier)
+            );
+            assertThat(
+                ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(tier).getUniqueId(),
+                equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_cluster_setting:tier:" + tier)
+            );
+            assertThat(
+                ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP.get(tier).getUniqueId(),
+                equalTo("elasticsearch:health:shards_availability:diagnosis:migrate_data_tiers_require_data:tier:" + tier)
+            );
+            assertThat(
+                ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP.get(tier).getUniqueId(),
+                equalTo("elasticsearch:health:shards_availability:diagnosis:migrate_data_tiers_include_data:tier:" + tier)
+            );
+            assertThat(
+                ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(tier).getUniqueId(),
+                equalTo("elasticsearch:health:shards_availability:diagnosis:increase_tier_capacity_for_allocations:tier:" + tier)
             );
         }
     }

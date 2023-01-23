@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.TimeUnit;
 
-public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<L> {
+public abstract class AdapterActionFuture<T> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<T> {
 
     @Override
     public T actionGet() {
@@ -54,16 +54,14 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     }
 
     @Override
-    public void onResponse(L result) {
-        set(convert(result));
+    public void onResponse(T result) {
+        set(result);
     }
 
     @Override
     public void onFailure(Exception e) {
         setException(e);
     }
-
-    protected abstract T convert(L listenerResponse);
 
     private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
         Throwable root = esEx.unwrapCause();

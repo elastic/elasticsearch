@@ -364,7 +364,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
         ) {
-            assertEquals(val1.getBytes(), cacheService.getStats().getSize());
+            assertEquals(val1.getBytes(), cacheService.getStats().size());
         }
 
         ByteSizeValue val2 = new ByteSizeValue(randomIntBetween(1, 5), ByteSizeUnit.MB);
@@ -376,7 +376,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
         ) {
-            assertEquals(val2.getBytes(), cacheService.getStats().getSize());
+            assertEquals(val2.getBytes(), cacheService.getStats().size());
         }
     }
 

@@ -269,6 +269,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(addDataNodes(DATA_HOT_NODE_ROLE, "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93142")
     public void testMoveToEmpty() {
         // allocate all primary shards
         allocate();

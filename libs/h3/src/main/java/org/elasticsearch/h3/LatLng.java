@@ -72,6 +72,7 @@ public final class LatLng {
      * @return The azimuth in radians.
      */
     double geoAzimuthRads(double lat, double lon) {
+        // algorithm from the original H3 library
         final double cosLat = FastMath.cos(lat);
         return FastMath.atan2(
             cosLat * FastMath.sin(lon - this.lon),
@@ -88,6 +89,7 @@ public final class LatLng {
      * @return The LatLng point.
      */
     LatLng geoAzDistanceRads(double az, double distance) {
+        // algorithm from the original H3 library
         az = Vec2d.posAngleRads(az);
         final double sinDistance = FastMath.sin(distance);
         final double cosDistance = FastMath.cos(distance);

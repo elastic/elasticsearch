@@ -11,12 +11,8 @@ import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheFile;
-import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -25,50 +21,18 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.synchronizedNavigableSet;
-import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertTrue;
 
 public final class BlobCacheTestUtils {
     private BlobCacheTestUtils() {}
-
-    public static SortedSet<ByteRange> randomPopulateAndReads(final CacheFile cacheFile) {
-        return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
-    }
-
-    public static SortedSet<ByteRange> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
-        final SortedSet<ByteRange> ranges = synchronizedNavigableSet(new TreeSet<>());
-        final List<Future<Integer>> futures = new ArrayList<>();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
-        for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
-            final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
-            final ByteRange range = ByteRange.of(start, end);
-            futures.add(
-                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
-                    consumer.apply(channel, from, to);
-                    ranges.add(ByteRange.of(from, to));
-                    progressUpdater.accept(to);
-                }, deterministicTaskQueue.getThreadPool().generic())
-            );
-        }
-        deterministicTaskQueue.runAllRunnableTasks();
-        assertTrue(futures.stream().allMatch(Future::isDone));
-        return mergeContiguousRanges(ranges);
-    }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
         return numberOfRanges(BlobCacheUtils.toIntBytes(fileSize), BlobCacheUtils.toIntBytes(rangeSize));
@@ -125,17 +89,6 @@ public final class BlobCacheTestUtils {
             }
             gaps1.addAll(gaps2);
         });
-    }
-
-    public static void assertCacheFileEquals(CacheFile expected, CacheFile actual) {
-        MatcherAssert.assertThat(actual.getLength(), equalTo(expected.getLength()));
-        MatcherAssert.assertThat(actual.getFile(), equalTo(expected.getFile()));
-        MatcherAssert.assertThat(actual.getCacheKey(), equalTo(expected.getCacheKey()));
-        MatcherAssert.assertThat(actual.getCompletedRanges(), equalTo(expected.getCompletedRanges()));
-    }
-
-    public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
-        return cacheFile.getCompletedRanges().stream().mapToLong(ByteRange::length).sum();
     }
 
     /**

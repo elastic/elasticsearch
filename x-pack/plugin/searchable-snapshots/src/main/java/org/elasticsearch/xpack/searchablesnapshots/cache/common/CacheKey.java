@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.blobcache.common;
+package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.elasticsearch.index.shard.ShardId;
 

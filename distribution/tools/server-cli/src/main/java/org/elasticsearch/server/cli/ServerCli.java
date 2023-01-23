@@ -148,7 +148,7 @@ class ServerCli extends EnvironmentAwareCommand {
         OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
 
         boolean changed = true;
-        try (var autoConfigTerminal = new PasswordTerminal(terminal, optionalPassword)) {
+        try (var autoConfigTerminal = new PasswordTerminal(terminal, optionalPassword.clone())) {
             autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
         } catch (UserException e) {
             boolean okCode = switch (e.exitCode) {

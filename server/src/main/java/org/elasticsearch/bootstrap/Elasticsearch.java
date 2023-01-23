@@ -16,7 +16,6 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;

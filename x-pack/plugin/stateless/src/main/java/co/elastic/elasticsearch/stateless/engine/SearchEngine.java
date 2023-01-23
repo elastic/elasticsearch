@@ -73,7 +73,7 @@ public class SearchEngine extends Engine {
 
     public SearchEngine(EngineConfig config, ObjectStoreService objectStoreService) {
         super(config);
-        assert config.isRecoveringAsPrimary() == false;
+        assert config.isPromotableToPrimary() == false;
         store.incRef();
         try {
             StatelessReaderManager readerManager = null;

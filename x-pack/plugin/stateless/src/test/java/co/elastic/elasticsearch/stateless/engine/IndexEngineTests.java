@@ -96,7 +96,7 @@ public class IndexEngineTests extends EngineTestCase {
             config.getLeafSorter(),
             relativeTimeInNanosSupplier,
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 }

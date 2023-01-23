@@ -200,7 +200,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         return Optional.of(
-            config -> config.isRecoveringAsPrimary() ? new IndexEngine(config) : new SearchEngine(config, getObjectStoreService())
+            config -> config.isPromotableToPrimary() ? new IndexEngine(config) : new SearchEngine(config, getObjectStoreService())
         );
     }
 

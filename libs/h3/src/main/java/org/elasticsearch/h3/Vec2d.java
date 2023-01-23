@@ -87,19 +87,6 @@ final class Vec2d {
         { 2.361378999196363184, 0.266983896803167583, 4.455774101589558636 },  // face 19
     };
 
-    /**
-     * pi
-     */
-    private static final double M_PI = 3.14159265358979323846;
-    /**
-     * pi / 2.0
-     */
-    private static final double M_PI_2 = 1.5707963267948966;
-    /**
-     * 2.0 * PI
-     */
-    public static final double M_2PI = 6.28318530717958647692528676655900576839433;
-
     private final double x;  /// < x component
     private final double y;  /// < y component
 
@@ -155,7 +142,7 @@ final class Vec2d {
         // find theta as an azimuth
         theta = posAngleRads(faceAxesAzRadsCII[face][0] - theta);
         // now find the point at (r,theta) from the face center
-        return geoAzDistanceRads(faceCenterGeo[face], theta, r);
+        return Vec3d.faceCenterPoint[face].geoAzDistanceRads(theta, r);
     }
 
     /**
@@ -313,106 +300,11 @@ final class Vec2d {
      */
     static double posAngleRads(double rads) {
         if (rads < 0.0) {
-            return rads + M_2PI;
-        } else if (rads >= M_2PI) {
-            return rads - M_2PI;
+            return rads + Constants.M_2PI;
+        } else if (rads >= Constants.M_2PI) {
+            return rads - Constants.M_2PI;
         } else {
             return rads;
         }
-    }
-
-    /**
-     * Computes the point on the sphere a specified azimuth and distance from
-     * another point.
-     *
-     * @param p1       The first spherical coordinates.
-     * @param az       The desired azimuth from p1.
-     * @param distance The desired distance from p1, must be non-negative.
-     *                 p1.
-     */
-    private static LatLng geoAzDistanceRads(LatLng p1, double az, double distance) {
-        if (distance < Constants.EPSILON) {
-            return p1;
-        }
-
-        double sinlat, sinlng, coslng;
-
-        az = posAngleRads(az);
-
-        double lat, lon;
-
-        // check for due north/south azimuth
-        if (az < Constants.EPSILON || Math.abs(az - M_PI) < Constants.EPSILON) {
-            if (az < Constants.EPSILON) {// due north
-                lat = p1.getLatRad() + distance;
-            } else { // due south
-                lat = p1.getLatRad() - distance;
-            }
-            if (Math.abs(lat - M_PI_2) < Constants.EPSILON) { // north pole
-                lat = M_PI_2;
-                lon = 0.0;
-            } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON) { // south pole
-                lat = -M_PI_2;
-                lon = 0.0;
-            } else {
-                lon = constrainLng(p1.getLonRad());
-            }
-        } else { // not due north or south
-            final double sinDistance = FastMath.sin(distance);
-            final double cosDistance = FastMath.cos(distance);
-            final double sinP1Lat = FastMath.sin(p1.getLatRad());
-            final double cosP1Lat = FastMath.cos(p1.getLatRad());
-            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * FastMath.cos(az);
-            if (sinlat > 1.0) {
-                sinlat = 1.0;
-            }
-            if (sinlat < -1.0) {
-                sinlat = -1.0;
-            }
-            lat = FastMath.asin(sinlat);
-            if (Math.abs(lat - M_PI_2) < Constants.EPSILON)  // north pole
-            {
-                lat = M_PI_2;
-                lon = 0.0;
-            } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON)  // south pole
-            {
-                lat = -M_PI_2;
-                lon = 0.0;
-            } else {
-                final double cosLat = FastMath.cos(lat);
-                sinlng = FastMath.sin(az) * sinDistance / cosLat;
-                coslng = (cosDistance - sinP1Lat * FastMath.sin(lat)) / cosP1Lat / cosLat;
-                if (sinlng > 1.0) {
-                    sinlng = 1.0;
-                }
-                if (sinlng < -1.0) {
-                    sinlng = -1.0;
-                }
-                if (coslng > 1.0) {
-                    coslng = 1.0;
-                }
-                if (coslng < -1.0) {
-                    coslng = -1.0;
-                }
-                lon = constrainLng(p1.getLonRad() + FastMath.atan2(sinlng, coslng));
-            }
-        }
-        return new LatLng(lat, lon);
-    }
-
-    /**
-     * constrainLng makes sure longitudes are in the proper bounds
-     *
-     * @param lng The origin lng value
-     * @return The corrected lng value
-     */
-    private static double constrainLng(double lng) {
-        while (lng > M_PI) {
-            lng = lng - (2 * M_PI);
-        }
-        while (lng < -M_PI) {
-            lng = lng + (2 * M_PI);
-        }
-        return lng;
     }
 }

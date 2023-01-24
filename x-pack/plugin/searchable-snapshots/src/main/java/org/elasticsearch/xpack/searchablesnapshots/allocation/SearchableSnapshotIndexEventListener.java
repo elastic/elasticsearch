@@ -23,6 +23,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
@@ -36,12 +38,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final @Nullable CacheService cacheService;
-    private final @Nullable SharedBlobCacheService sharedBlobCacheService;
+    private final @Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService;
 
     public SearchableSnapshotIndexEventListener(
         Settings settings,
         @Nullable CacheService cacheService,
-        @Nullable SharedBlobCacheService sharedBlobCacheService
+        @Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) {
         assert cacheService != null || DiscoveryNode.canContainData(settings) == false;
         this.cacheService = cacheService;
@@ -104,11 +106,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                         );
                     }
                     if (sharedBlobCacheService != null) {
-                        sharedBlobCacheService.markShardAsEvictedInCache(
-                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                            shardId
-                        );
+                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
                     }
                 }
             }

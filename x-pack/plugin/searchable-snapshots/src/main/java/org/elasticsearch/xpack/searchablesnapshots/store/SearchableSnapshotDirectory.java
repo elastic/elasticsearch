@@ -22,9 +22,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFile;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -55,6 +53,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInput;
@@ -134,7 +134,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
     private final boolean partial;
-    private final SharedBlobCacheService sharedBlobCacheService;
+    private final SharedBlobCacheService<CacheKey> sharedBlobCacheService;
     private final ByteSizeValue blobStoreCacheMaxLength;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
@@ -157,7 +157,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        SharedBlobCacheService sharedBlobCacheService
+        SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -364,7 +364,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return new CacheKey(snapshotId.getUUID(), indexId.getName(), shardId, fileName);
     }
 
-    public org.elasticsearch.blobcache.common.CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
+    public CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
         return cacheService.get(cacheKey, fileLength, cacheDir);
     }
 
@@ -585,7 +585,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
         BlobStoreCacheService blobStoreCacheService,
-        SharedBlobCacheService sharedBlobCacheService
+        SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -711,7 +711,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         );
     }
 
-    public CacheFile getFrozenCacheFile(String fileName, long length) {
+    public SharedBlobCacheService<CacheKey>.CacheFile getFrozenCacheFile(String fileName, long length) {
         return sharedBlobCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
     }
 

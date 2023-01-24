@@ -66,7 +66,10 @@ public class FilterOperator implements Operator {
         int rowCount = 0;
 
         for (int i = 0; i < lastInput.getPositionCount(); i++) {
-            if ((Boolean) evaluator.computeRow(lastInput, i)) {
+            Object result = evaluator.computeRow(lastInput, i);
+            // possible 3vl evaluation results: true, false, null
+            // provided condition must evaluate to `true`, otherwise the position is filtered out
+            if (result instanceof Boolean bool && bool) {
                 positions[rowCount++] = i;
             }
         }

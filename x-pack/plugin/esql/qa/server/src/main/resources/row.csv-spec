@@ -102,6 +102,24 @@ row a = 1 | where a > 10;
 a:integer
 ;
 
+filterRow3
+row a = 1 | eval b = a * null | where b > 10;
+
+a:integer | b:integer
+;
+
+filterRow4
+row a = 1 | eval b = null * 1 | where b > 10;
+
+a:integer | b:integer
+;
+
+filterRow5
+row a = 1.0 | eval b = a * null | where b > 2.0;
+
+a:double | b:double
+;
+
 evalRowWithNulls
 row a = 1, b = 2 | eval y = null;
 

@@ -689,6 +689,36 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
     }
 
+    public void testFilterWithNullAndEval() {
+        EsqlQueryResponse results = run("row a = 1 | eval b = a + null | where b > 1");
+        logger.info(results);
+        Assert.assertEquals(0, results.values().size());
+    }
+
+    public void testFilterWithNullAndEvalFromIndex() {
+        // append entry, with an absent count, to the index
+        client().prepareBulk().add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
+
+        client().admin().indices().prepareRefresh("test").get();
+        // sanity
+        EsqlQueryResponse results = run("from test");
+        Assert.assertEquals(41, results.values().size());
+
+        results = run("from test | eval newCount = count + 1 | where newCount > 1");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count", "long"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count_d", "double"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data", "long"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data_d", "double"))));
+        assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("time", "long"))));
+
+        // restore index to original pre-test state
+        client().prepareBulk().add(new DeleteRequest("test").id("no_count")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        results = run("from test");
+        Assert.assertEquals(40, results.values().size());
+    }
+
     public void testStatsWhere() {
         EsqlQueryResponse results = run("from test | stats x = avg(count) | where x > 100");
         logger.info(results);

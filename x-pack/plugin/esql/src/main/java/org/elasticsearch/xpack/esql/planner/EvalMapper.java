@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -101,7 +102,14 @@ final class EvalMapper {
         @Override
         protected ExpressionEvaluator map(Attribute attr, Layout layout) {
             int channel = layout.getChannel(attr.id());
-            return (page, pos) -> page.getBlock(channel).getObject(pos);
+            return (page, pos) -> {
+                Block block = page.getBlock(channel);
+                if (block.isNull(pos)) {
+                    return null;
+                } else {
+                    return block.getObject(pos);
+                }
+            };
         }
     }
 

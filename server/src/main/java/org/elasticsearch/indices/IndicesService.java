@@ -698,7 +698,38 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexEventListener> builtInListeners,
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
-        try (var ignored = threadPool.getThreadContext().stashContext()) {
+        final IndexModule indexModule = createIndexModule(indexCreationContext, indexMetadata);
+        for (IndexingOperationListener operationListener : indexingOperationListeners) {
+            indexModule.addIndexOperationListener(operationListener);
+        }
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
+        for (IndexEventListener listener : builtInListeners) {
+            indexModule.addIndexEventListener(listener);
+        }
+        return indexModule.newIndexService(
+            indexCreationContext,
+            nodeEnv,
+            parserConfig,
+            this,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldMappers.apply(indexModule.indexSettings().getMode()),
+            valuesSourceRegistry,
+            indexFoldersDeletionListeners,
+            snapshotCommitSuppliers
+        );
+    }
+
+    private IndexModule createIndexModule(IndexService.IndexCreationContext indexCreationContext, IndexMetadata indexMetadata) {
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
             // we ignore private settings since they are not registered settings
             indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
@@ -710,7 +741,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 indexCreationContext
             );
 
-            final IndexModule indexModule = new IndexModule(
+            return new IndexModule(
                 idxSettings,
                 analysisRegistry,
                 getEngineFactory(idxSettings),
@@ -718,33 +749,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 () -> allowExpensiveQueries,
                 indexNameExpressionResolver,
                 recoveryStateFactories
-            );
-            for (IndexingOperationListener operationListener : indexingOperationListeners) {
-                indexModule.addIndexOperationListener(operationListener);
-            }
-            pluginsService.forEach(p -> p.onIndexModule(indexModule));
-            for (IndexEventListener listener : builtInListeners) {
-                indexModule.addIndexEventListener(listener);
-            }
-            return indexModule.newIndexService(
-                indexCreationContext,
-                nodeEnv,
-                parserConfig,
-                this,
-                circuitBreakerService,
-                bigArrays,
-                threadPool,
-                scriptService,
-                clusterService,
-                client,
-                indicesQueryCache,
-                mapperRegistry,
-                indicesFieldDataCache,
-                namedWriteableRegistry,
-                idFieldMappers.apply(idxSettings.getMode()),
-                valuesSourceRegistry,
-                indexFoldersDeletionListeners,
-                snapshotCommitSuppliers
             );
         }
     }

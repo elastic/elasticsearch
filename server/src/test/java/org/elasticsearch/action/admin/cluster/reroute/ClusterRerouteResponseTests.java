@@ -22,12 +22,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -175,7 +178,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                   }
                 }
               }
-            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id));
+            }""", clusterState.stateUUID(), clusterState.getNodes().get("node0").getEphemeralId(), Version.CURRENT.id), """
+            The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
+            Specify ?metric=none to adopt the future behaviour.""");
     }
 
     public void testToXContentWithDeprecatedClusterStateAndMetadata() {
@@ -235,27 +240,48 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "reserved_state":{}
                     }
                   }
-                }"""
+                }""",
+            """
+                The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
+                Specify ?metric=none to adopt the future behaviour."""
         );
     }
 
-    private static void assertXContent(ClusterRerouteResponse response, ToXContent.Params params, int expectedChunks, String expectedBody) {
+    private void assertXContent(
+        ClusterRerouteResponse response,
+        ToXContent.Params params,
+        int expectedChunks,
+        String expectedBody,
+        String... criticalDeprecationWarnings
+    ) {
         try {
             var builder = jsonBuilder();
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
-            int actualChunks = 0;
-            final var iterator = response.toXContentChunked(params);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, params);
-                actualChunks += 1;
-            }
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
             assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
-            assertEquals(expectedChunks, actualChunks);
         } catch (IOException e) {
             throw new AssertionError("unexpected", e);
         }
+
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, ignored -> expectedChunks);
+        assertCriticalWarnings(criticalDeprecationWarnings);
+
+        // check the v7 API too
+        AbstractChunkedSerializingTestCase.assertChunkCount(new ChunkedToXContent() {
+            @Override
+            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+                return response.toXContentChunkedV7(outerParams);
+            }
+
+            @Override
+            public boolean isFragment() {
+                return response.isFragment();
+            }
+        }, params, ignored -> expectedChunks);
+        // the v7 API should not emit any deprecation warnings
+        assertCriticalWarnings();
     }
 
     private static ClusterRerouteResponse createClusterRerouteResponse(ClusterState clusterState) {

@@ -55,12 +55,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 dims,
                 Version.CURRENT
             ),
-            new KnnDenseVectorDocValuesField(
-                KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT),
-                "test",
-                ElementType.FLOAT,
-                dims
-            )
+            new KnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }), "test", dims)
         );
         for (DenseVectorDocValuesField field : fields) {
             field.setNextDocId(0);
@@ -140,12 +135,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 ElementType.BYTE,
                 dims
             ),
-            new ByteKnnDenseVectorDocValuesField(
-                KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE),
-                "test",
-                ElementType.BYTE,
-                dims
-            )
+            new ByteKnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrapBytes(new float[][] { docVector }), "test", dims)
         );
         for (DenseVectorDocValuesField field : fields) {
             field.setNextDocId(0);
@@ -233,24 +223,14 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 dims,
                 Version.CURRENT
             ),
-            new KnnDenseVectorDocValuesField(
-                KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT),
-                "field2",
-                ElementType.FLOAT,
-                dims
-            ),
+            new KnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }), "field2", dims),
             new ByteBinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, Version.CURRENT),
                 "field3",
                 ElementType.BYTE,
                 dims
             ),
-            new ByteKnnDenseVectorDocValuesField(
-                KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE),
-                "field4",
-                ElementType.BYTE,
-                dims
-            )
+            new ByteKnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrapBytes(new float[][] { docVector }), "field4", dims)
         );
         for (DenseVectorDocValuesField field : fields) {
             field.setNextDocId(0);
@@ -388,12 +368,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 ElementType.BYTE,
                 dims
             ),
-            new ByteKnnDenseVectorDocValuesField(
-                KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE),
-                "test",
-                ElementType.BYTE,
-                dims
-            )
+            new ByteKnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrapBytes(new float[][] { docVector }), "test", dims)
         );
 
         for (DenseVectorDocValuesField field : fields) {

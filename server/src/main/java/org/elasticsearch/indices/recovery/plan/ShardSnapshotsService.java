@@ -104,7 +104,7 @@ public class ShardSnapshotsService {
         client.execute(
             GetShardSnapshotAction.INSTANCE,
             request,
-            new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.GENERIC), listener.map(this::fetchSnapshotFiles))
+            new ThreadedActionListener<>(threadPool.generic(), listener.map(this::fetchSnapshotFiles))
         );
     }
 

@@ -286,10 +286,7 @@ public class RecoverySourceHandler {
                             // new one later on in the recovery.
                             shard.removePeerRecoveryRetentionLease(
                                 request.targetNode().getId(),
-                                new ThreadedActionListener<>(
-                                    shard.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                                    deleteRetentionLeaseStep
-                                )
+                                new ThreadedActionListener<>(shard.getThreadPool().generic(), deleteRetentionLeaseStep)
                             );
                         } catch (RetentionLeaseNotFoundException e) {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
@@ -978,7 +975,7 @@ public class RecoverySourceHandler {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
-                    new ThreadedActionListener<>(shard.getThreadPool().executor(ThreadPool.Names.GENERIC), cloneRetentionLeaseStep)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), cloneRetentionLeaseStep)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                 cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
@@ -993,7 +990,7 @@ public class RecoverySourceHandler {
                 final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
                     estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(shard.getThreadPool().executor(ThreadPool.Names.GENERIC), addRetentionLeaseStep)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), addRetentionLeaseStep)
                 );
                 addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);

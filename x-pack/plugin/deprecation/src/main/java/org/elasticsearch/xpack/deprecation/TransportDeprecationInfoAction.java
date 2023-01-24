@@ -126,7 +126,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     PLUGIN_CHECKERS,
                     components,
                     new ThreadedActionListener<>(
-                        client.threadPool().executor(ThreadPool.Names.GENERIC),
+                        client.threadPool().generic(),
                         listener.map(
                             deprecationIssues -> DeprecationInfoAction.Response.from(
                                 state,

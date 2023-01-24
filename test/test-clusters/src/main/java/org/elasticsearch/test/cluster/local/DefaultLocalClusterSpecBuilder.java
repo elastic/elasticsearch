@@ -28,6 +28,7 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
 
     public DefaultLocalClusterSpecBuilder() {
         super(null);
+        this.apply(new FipsEnabledClusterConfigProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());
         this.rolesFile(Resource.fromClasspath("default_test_roles.yml"));
@@ -147,7 +148,9 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
                 Optional.ofNullable(getDistributionType()).orElse(DistributionType.INTEG_TEST),
                 getFeatures(),
                 getKeystoreSettings(),
-                getExtraConfigFiles()
+                getKeystorePassword(),
+                getExtraConfigFiles(),
+                getSystemProperties()
             );
         }
     }

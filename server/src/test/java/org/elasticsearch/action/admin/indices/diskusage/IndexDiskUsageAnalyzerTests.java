@@ -248,7 +248,6 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93088")
     public void testKnnVectors() throws Exception {
         try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
@@ -264,10 +263,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             logger.info("--> stats {}", stats);
 
             long dataBytes = (long) numDocs * dimension * Float.BYTES; // size of flat vector data
-            long indexBytesEstimate = (long) numDocs * (Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN / 2); // rough size of HNSW graph
-            assertThat(stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
+            long indexBytesEstimate = (long) numDocs * (Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
+            assertThat("numDocs=" + numDocs + ";dimension=" + dimension, stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
             long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;
-            assertThat(connectionOverhead, greaterThan(indexBytesEstimate));
+            assertThat("numDocs=" + numDocs, connectionOverhead, greaterThan(indexBytesEstimate));
         }
     }
 

@@ -444,7 +444,7 @@ public class MasterServiceTests extends ESTestCase {
             )
         );
 
-        try (var masterService = createMasterService(true); var ignored = mockAppender.capturing(MasterService.class)) {
+        try (var ignored = mockAppender.capturing(MasterService.class); var masterService = createMasterService(true)) {
             masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -1172,13 +1172,13 @@ public class MasterServiceTests extends ESTestCase {
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
             .build();
         try (
+            var ignored = mockAppender.capturing(MasterService.class);
             MasterService masterService = new MasterService(
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
                 new TaskManager(settings, threadPool, emptySet())
-            );
-            var ignored = mockAppender.capturing(MasterService.class)
+            )
         ) {
             final DiscoveryNode localNode = new DiscoveryNode(
                 "node1",
@@ -1803,7 +1803,7 @@ public class MasterServiceTests extends ESTestCase {
     )
     public void testBatchedUpdateSummaryLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        try (var masterService = createMasterService(true); var ignored = mockAppender.capturing(MasterService.class)) {
+        try (var ignored = mockAppender.capturing(MasterService.class); var masterService = createMasterService(true)) {
 
             final var barrier = new CyclicBarrier(2);
             final var blockingTask = new ClusterStateUpdateTask() {

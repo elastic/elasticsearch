@@ -143,7 +143,9 @@ settings belong in the `elasticsearch.yml` file.
 
 `read_timeout`::
 
-    The socket timeout for connecting to S3. The value should specify the unit.
+    The maximum time {es} will wait to receive the next byte of data over an established,
+    open connection to the repository before it closes the connection. The value should
+    specify the unit.
     For example, a value of `5s` specifies a 5 second timeout. The default value
     is 50 seconds.
 

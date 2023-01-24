@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -34,7 +33,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +57,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class SharedBlobCacheService implements Releasable {
+public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -230,11 +228,11 @@ public class SharedBlobCacheService implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheService.class);
 
-    private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
+    private final ConcurrentHashMap<RegionKey<KeyType>, Entry<CacheFileRegion>> keyMapping;
 
     private final LongSupplier currentTimeSupplier;
 
-    private final KeyedLock<CacheKey> keyedLock = new KeyedLock<>();
+    private final KeyedLock<KeyType> keyedLock = new KeyedLock<>();
 
     private final SharedBytes sharedBytes;
     private final long cacheSize;
@@ -370,10 +368,10 @@ public class SharedBlobCacheService implements Releasable {
         return effectiveRegionSize;
     }
 
-    public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region) {
+    public CacheFileRegion get(KeyType cacheKey, long fileLength, int region) {
         final long effectiveRegionSize = getRegionSize(fileLength, region);
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
-            final RegionKey regionKey = new RegionKey(cacheKey, region);
+            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
             final long now = currentTimeSupplier.getAsLong();
             final Entry<CacheFileRegion> entry = keyMapping.computeIfAbsent(
                 regionKey,
@@ -560,17 +558,11 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    public void removeFromCache(CacheKey cacheKey) {
+    public void removeFromCache(KeyType cacheKey) {
         forceEvict(cacheKey::equals);
     }
 
-    public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-        forceEvict(
-            k -> shardId.equals(k.shardId()) && snapshotIndexName.equals(k.snapshotIndexName()) && snapshotUUID.equals(k.snapshotUUID())
-        );
-    }
-
-    private void forceEvict(Predicate<CacheKey> cacheKeyPredicate) {
+    public void forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         final List<Entry<CacheFileRegion>> matchingEntries = new ArrayList<>();
         keyMapping.forEach((key, value) -> {
             if (cacheKeyPredicate.test(key.file)) {
@@ -628,7 +620,7 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    private record RegionKey(CacheKey file, int region) {
+    private record RegionKey<KeyType> (KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';
@@ -649,11 +641,11 @@ public class SharedBlobCacheService implements Releasable {
     }
 
     class CacheFileRegion extends AbstractRefCounted {
-        final RegionKey regionKey;
+        final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
         volatile int sharedBytesPos = -1;
 
-        CacheFileRegion(RegionKey regionKey, long regionSize) {
+        CacheFileRegion(RegionKey<KeyType> regionKey, long regionSize) {
             this.regionKey = regionKey;
             assert regionSize > 0L;
             tracker = new SparseFileTracker("file", regionSize);
@@ -815,12 +807,12 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    public class FrozenCacheFile {
+    public class CacheFile {
 
-        private final CacheKey cacheKey;
+        private final KeyType cacheKey;
         private final long length;
 
-        private FrozenCacheFile(CacheKey cacheKey, long length) {
+        private CacheFile(KeyType cacheKey, long length) {
             this.cacheKey = cacheKey;
             this.length = length;
         }
@@ -829,17 +821,17 @@ public class SharedBlobCacheService implements Releasable {
             return length;
         }
 
-        public CacheKey getCacheKey() {
+        public KeyType getCacheKey() {
             return cacheKey;
         }
 
-        public StepListener<Integer> populateAndRead(
+        public int populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
             final Executor executor
-        ) {
+        ) throws Exception {
             StepListener<Integer> stepListener = null;
             final long writeStart = rangeToWrite.start();
             final long readStart = rangeToRead.start();
@@ -881,7 +873,7 @@ public class SharedBlobCacheService implements Releasable {
                 }
 
             }
-            return stepListener;
+            return stepListener.asFuture().get();
         }
 
         @Override
@@ -890,8 +882,8 @@ public class SharedBlobCacheService implements Releasable {
         }
     }
 
-    public FrozenCacheFile getFrozenCacheFile(CacheKey cacheKey, long length) {
-        return new FrozenCacheFile(cacheKey, length);
+    public CacheFile getFrozenCacheFile(KeyType cacheKey, long length) {
+        return new CacheFile(cacheKey, length);
     }
 
     @FunctionalInterface
@@ -907,69 +899,16 @@ public class SharedBlobCacheService implements Releasable {
             throws IOException;
     }
 
-    public static class Stats {
-
+    public record Stats(
+        int numberOfRegions,
+        long size,
+        long regionSize,
+        long evictCount,
+        long writeCount,
+        long writeBytes,
+        long readCount,
+        long readBytes
+    ) {
         public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
-
-        private final int numberOfRegions;
-        private final long size;
-        private final long regionSize;
-        private final long evictCount;
-        private final long writeCount;
-        private final long writeBytes;
-        private final long readCount;
-        private final long readBytes;
-
-        private Stats(
-            int numberOfRegions,
-            long size,
-            long regionSize,
-            long evictCount,
-            long writeCount,
-            long writeBytes,
-            long readCount,
-            long readBytes
-        ) {
-            this.numberOfRegions = numberOfRegions;
-            this.size = size;
-            this.regionSize = regionSize;
-            this.evictCount = evictCount;
-            this.writeCount = writeCount;
-            this.writeBytes = writeBytes;
-            this.readCount = readCount;
-            this.readBytes = readBytes;
-        }
-
-        public int getNumberOfRegions() {
-            return numberOfRegions;
-        }
-
-        public long getSize() {
-            return size;
-        }
-
-        public long getRegionSize() {
-            return regionSize;
-        }
-
-        public long getEvictCount() {
-            return evictCount;
-        }
-
-        public long getWriteCount() {
-            return writeCount;
-        }
-
-        public long getWriteBytes() {
-            return writeBytes;
-        }
-
-        public long getReadCount() {
-            return readCount;
-        }
-
-        public long getReadBytes() {
-            return readBytes;
-        }
     }
 }

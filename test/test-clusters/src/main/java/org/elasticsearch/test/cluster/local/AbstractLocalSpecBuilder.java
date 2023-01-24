@@ -33,7 +33,9 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Set<FeatureFlag> features = new HashSet<>();
     private final Map<String, String> keystoreSettings = new HashMap<>();
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
+    private final Map<String, String> systemProperties = new HashMap<>();
     private DistributionType distributionType;
+    private String keystorePassword;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
         this.parent = parent;
@@ -144,6 +146,26 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public Map<String, Resource> getExtraConfigFiles() {
         return inherit(() -> parent.getExtraConfigFiles(), extraConfigFiles);
+    }
+
+    @Override
+    public T systemProperty(String property, String value) {
+        this.systemProperties.put(property, value);
+        return cast(this);
+    }
+
+    public Map<String, String> getSystemProperties() {
+        return inherit(() -> parent.getSystemProperties(), systemProperties);
+    }
+
+    @Override
+    public T keystorePassword(String password) {
+        this.keystorePassword = password;
+        return cast(this);
+    }
+
+    public String getKeystorePassword() {
+        return inherit(() -> parent.getKeystorePassword(), keystorePassword);
     }
 
     private <T> List<T> inherit(Supplier<List<T>> parent, List<T> child) {

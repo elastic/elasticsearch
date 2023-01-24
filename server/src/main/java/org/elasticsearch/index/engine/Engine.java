@@ -26,6 +26,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -1013,16 +1014,14 @@ public abstract class Engine implements Closeable {
      * changes.
      */
     @Nullable
-    public abstract void refresh(String source) throws EngineException;
+    public abstract RefreshResult refresh(String source) throws EngineException;
 
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
-     *
-     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
      */
     @Nullable
-    public abstract boolean maybeRefresh(String source) throws EngineException;
+    public abstract RefreshResult maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1955,5 +1954,28 @@ public abstract class Engine implements Closeable {
 
     public final EngineConfig getEngineConfig() {
         return engineConfig;
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     */
+    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Captures the result of a refresh operation on the index shard.
+     * <p>
+     * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
+     * contains the generation of the index commit that the reader has opened upon refresh.
+     */
+    public record RefreshResult(boolean refreshed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final RefreshResult NO_REFRESH = new RefreshResult(false);
+
+        public RefreshResult(boolean refreshed) {
+            this(refreshed, UNKNOWN_GENERATION);
+        }
     }
 }

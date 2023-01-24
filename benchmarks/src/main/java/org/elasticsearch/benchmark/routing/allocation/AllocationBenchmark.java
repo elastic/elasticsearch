@@ -131,7 +131,7 @@ public class AllocationBenchmark {
             );
         }
         Metadata metadata = mb.build();
-        RoutingTable.Builder rb = RoutingTable.builder();
+        RoutingTable.Builder rb = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 1; i <= numIndices; i++) {
             rb.addAsNew(metadata.index("test_" + i));
         }

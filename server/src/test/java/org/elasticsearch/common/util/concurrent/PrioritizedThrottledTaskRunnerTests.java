@@ -231,7 +231,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     private void assertNoRunningTasks(PrioritizedThrottledTaskRunner<TestTask> taskRunner) {
-        logger.info("--> ensure that there are no running tasks in the executor");
+        logger.info("--> ensure that there are no running tasks in the executor. Max number of threads [{}]", maxThreads);
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
             executor.execute(() -> {

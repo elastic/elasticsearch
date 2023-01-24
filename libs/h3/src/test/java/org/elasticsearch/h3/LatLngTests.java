@@ -28,12 +28,23 @@ import org.elasticsearch.test.ESTestCase;
 
 public class LatLngTests extends ESTestCase {
 
-    public void testLatLonVec3d() {
+    public void testLatLonAzimuthRads() {
         final GeoPoint point = safePoint();
         for (int i = 0; i < Vec3d.faceCenterPoint.length; i++) {
             final double azVec3d = Vec3d.faceCenterPoint[i].geoAzimuthRads(point.x, point.y, point.z);
             final double azVec2d = Vec2d.faceCenterGeo[i].geoAzimuthRads(point.getLatitude(), point.getLongitude());
             assertEquals("Face " + i, azVec2d, azVec3d, 1e-12);
+
+        }
+    }
+
+    public void testLatLonAzDistanceRads() {
+        final double az = randomDoubleBetween(-2 * Math.PI, 2 * Math.PI, true);
+        final double distance = randomDoubleBetween(-Math.PI, Math.PI / 2, true);
+        for (int i = 0; i < Vec3d.faceCenterPoint.length; i++) {
+            final LatLng latLng3d = Vec3d.faceCenterPoint[i].geoAzDistanceRads(az, distance);
+            final LatLng latLng2d = Vec2d.faceCenterGeo[i].geoAzDistanceRads(az, distance);
+            assertTrue("Face " + i, latLng2d.isNumericallyIdentical(latLng3d));
         }
     }
 

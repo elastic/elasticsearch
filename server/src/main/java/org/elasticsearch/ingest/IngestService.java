@@ -875,13 +875,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        String index = indexRequest.index();
-        String id = indexRequest.id();
-        String routing = indexRequest.routing();
-        long version = indexRequest.version();
-        VersionType versionType = indexRequest.versionType();
-        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
+        IngestDocument ingestDocument = newIngestDocument(indexRequest);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             if (e != null) {
                 handler.accept(e);
@@ -941,6 +935,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 handler.accept(null);
             }
         });
+    }
+
+    private static IngestDocument newIngestDocument(final IndexRequest request) {
+        return new IngestDocument(
+            request.index(),
+            request.id(),
+            request.version(),
+            request.routing(),
+            request.versionType(),
+            request.sourceAsMap()
+        );
     }
 
     private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {

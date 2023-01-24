@@ -89,6 +89,5 @@ public class TransportVersionUtils {
 
     public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
         return randomVersionBetween(random, version.calculateMinimumCompatVersion(), getPreviousVersion(version));
-
     }
 }

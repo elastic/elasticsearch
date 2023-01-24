@@ -244,13 +244,13 @@ public class TransportVersion implements Comparable<TransportVersion> {
     /**
      * Placeholder method for code compatibility with code calling {@code CURRENT.minimumCompatibilityVersion}.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public TransportVersion minimumCompatibilityVersion() {
         assert this.equals(CURRENT) : "Should be CURRENT, but was: " + this;
         return MINIMUM_COMPATIBLE;
     }
 
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public boolean isCompatible(TransportVersion version) {
         return onOrAfter(version.calculateMinimumCompatVersion()) && version.onOrAfter(calculateMinimumCompatVersion());
     }
@@ -261,7 +261,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
      * Placeholder for code calling {@code minimumCompatibilityVersion} on arbitrary Version instances.
      * Code calling this should be refactored to not do this.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public TransportVersion calculateMinimumCompatVersion() {
         if (minimumCompatibleVersion == null) {
             minimumCompatibleVersion = Version.findVersion(this).minimumCompatibilityVersion().transportVersion;

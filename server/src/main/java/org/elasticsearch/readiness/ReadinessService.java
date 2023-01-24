@@ -194,6 +194,13 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // package private for testing
     synchronized void stopListener() {
         assert enabled(environment);
+
+        // Avoid unnecessary logging if stop is repeatedly called.
+        // This can happen because we call stop listener on cluster state updates.
+        if (ready() == false) {
+            return;
+        }
+
         try {
             logger.info(
                 "stopping readiness service on channel {}",

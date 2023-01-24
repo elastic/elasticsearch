@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -304,7 +303,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
-        Set<String> indices = Sets.newHashSet(esQuery.index().name());
+        Set<String> indices = esQuery.index().concreteIndices();
         List<SearchExecutionContext> matchedSearchContexts = context.searchContexts.stream()
             .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
             .map(SearchContext::getSearchExecutionContext)

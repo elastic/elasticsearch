@@ -120,7 +120,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newFields.put(entry.getKey(), entry.getValue());
                 }
             }
-            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields), plan.frozen());
+            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields, esIndex.concreteIndices()), plan.frozen());
         }
     }
 

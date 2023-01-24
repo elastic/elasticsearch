@@ -899,6 +899,60 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
+    public void testIndexPatterns() throws Exception {
+        String[] indexNames = { "test_index_patterns_1", "test_index_patterns_2", "test_index_patterns_3" };
+        int i = 0;
+        for (String indexName : indexNames) {
+            ElasticsearchAssertions.assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(indexName)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                    .setMapping("data", "type=long", "count", "type=long")
+                    .get()
+            );
+            ensureYellow(indexName);
+            client().prepareBulk()
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest(indexName).id("1").source("data", ++i, "count", i * 1000))
+                .add(new IndexRequest(indexName).id("2").source("data", ++i, "count", i * 1000))
+                .add(new IndexRequest(indexName).id("3").source("data", ++i, "count", i * 1000))
+                .add(new IndexRequest(indexName).id("4").source("data", ++i, "count", i * 1000))
+                .add(new IndexRequest(indexName).id("5").source("data", ++i, "count", i * 1000))
+                .get();
+        }
+
+        EsqlQueryResponse results = run("from test_index_patterns* | stats count(data), sum(count)");
+        assertEquals(1, results.values().size());
+        assertEquals(15L, results.values().get(0).get(0));
+        assertEquals(120000L, results.values().get(0).get(1));
+
+        results = run("from test_index_patterns_1,test_index_patterns_2 | stats count(data), sum(count)");
+        assertEquals(1, results.values().size());
+        assertEquals(10L, results.values().get(0).get(0));
+        assertEquals(55000L, results.values().get(0).get(1));
+
+        results = run("from test_index_patterns_1*,test_index_patterns_2* | stats count(data), sum(count)");
+        assertEquals(1, results.values().size());
+        assertEquals(10L, results.values().get(0).get(0));
+        assertEquals(55000L, results.values().get(0).get(1));
+
+        results = run("from test_index_patterns_*,-test_index_patterns_1 | stats count(data), sum(count)");
+        assertEquals(1, results.values().size());
+        assertEquals(10L, results.values().get(0).get(0));
+        assertEquals(105000L, results.values().get(0).get(1));
+
+        results = run("from * | stats count(data), sum(count)");
+        assertEquals(1, results.values().size());
+        assertEquals(55L, results.values().get(0).get(0));
+        assertEquals(121720L, results.values().get(0).get(1));
+
+        results = run("from test_index_patterns_2 | stats count(data), sum(count)");
+        assertEquals(1, results.values().size());
+        assertEquals(5L, results.values().get(0).get(0));
+        assertEquals(40000L, results.values().get(0).get(1));
+    }
+
     public void testEvalWithMultipleExpressions() {
         EsqlQueryResponse results = run(
             "from test | sort time | eval x = data + 1, y = data_d + count, z = x + y | project data, x, y, z, time | limit 2"

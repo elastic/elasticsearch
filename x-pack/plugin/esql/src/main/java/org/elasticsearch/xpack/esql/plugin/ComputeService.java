@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -38,9 +36,10 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -48,7 +47,6 @@ import java.util.stream.Collectors;
 public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
     private final NodeClient client;
     private final ThreadPool threadPool;
@@ -56,14 +54,12 @@ public class ComputeService {
 
     public ComputeService(
         SearchService searchService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         NodeClient client,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
         this.searchService = searchService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
@@ -72,11 +68,9 @@ public class ComputeService {
 
     private void acquireSearchContexts(String[] indexNames, ActionListener<List<SearchContext>> listener) {
         try {
-            Index[] indices = indexNameExpressionResolver.concreteIndices(
-                clusterService.state(),
-                IndicesOptions.STRICT_EXPAND_OPEN,
-                indexNames
-            );
+            Index[] indices = Arrays.stream(indexNames)
+                .map(x -> clusterService.state().metadata().index(x).getIndex())
+                .toArray(Index[]::new);
             List<IndexShard> targetShards = new ArrayList<>();
             for (Index index : indices) {
                 IndexService indexService = searchService.getIndicesService().indexServiceSafe(index);
@@ -130,8 +124,9 @@ public class ComputeService {
     public void runCompute(Task rootTask, PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener) {
         String[] indexNames = physicalPlan.collect(l -> l instanceof EsQueryExec)
             .stream()
-            .map(qe -> ((EsQueryExec) qe).index().name())
-            .collect(Collectors.toSet())
+            .map(qe -> ((EsQueryExec) qe).index().concreteIndices())
+            .flatMap(Collection::stream)
+            .distinct()
             .toArray(String[]::new);
 
         acquireSearchContexts(indexNames, ActionListener.wrap(searchContexts -> {

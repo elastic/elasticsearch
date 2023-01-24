@@ -28,8 +28,7 @@ public class BytesReferenceIndexInput extends IndexInput {
     }
 
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 
     @Override
     public long getFilePointer() {
@@ -50,7 +49,7 @@ public class BytesReferenceIndexInput extends IndexInput {
         } else if (longPos > bytesReference.length()) {
             throw new EOFException("seek past EOF");
         }
-        var pos = (int)longPos;
+        var pos = (int) longPos;
         if (streamInput != null && filePointer <= pos) {
             final var toSkip = pos - filePointer;
             final var skipped = streamInput.skip(toSkip);
@@ -67,19 +66,19 @@ public class BytesReferenceIndexInput extends IndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if (offset >= 0L && length >= 0L && offset + length <= bytesReference.length()) {
-            return new BytesReferenceIndexInput(sliceDescription, bytesReference.slice((int)offset, (int)length));
+            return new BytesReferenceIndexInput(sliceDescription, bytesReference.slice((int) offset, (int) length));
         } else {
             throw new IllegalArgumentException(
                 "slice() "
-                + sliceDescription
-                + " out of bounds: offset="
-                + offset
-                + ",length="
-                + length
-                + ",fileLength="
-                + bytesReference.length()
-                + ": "
-                + this
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + bytesReference.length()
+                    + ": "
+                    + this
             );
         }
     }

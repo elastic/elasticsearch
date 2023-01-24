@@ -13,8 +13,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsSynchronizer;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -42,7 +41,7 @@ import java.util.stream.Collectors;
  * This action cannot be called from the command line. It is used exclusively by Elasticsearch on startup, but only
  * if the config file exists and the distribution type allows it.
  */
-public class SyncPluginsAction implements PluginsSynchronizer {
+public class SyncPluginsAction {
     public static final String ELASTICSEARCH_PLUGINS_YML = "elasticsearch-plugins.yml";
     public static final String ELASTICSEARCH_PLUGINS_YML_CACHE = ".elasticsearch-plugins.yml.cache";
 
@@ -77,7 +76,6 @@ public class SyncPluginsAction implements PluginsSynchronizer {
      *
      * @throws Exception if anything goes wrong
      */
-    @Override
     public void execute() throws Exception {
         final Path configPath = this.env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
         final Path previousConfigPath = this.env.pluginsFile().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
@@ -115,28 +113,28 @@ public class SyncPluginsAction implements PluginsSynchronizer {
 
     // @VisibleForTesting
     PluginChanges getPluginChanges(PluginsConfig pluginsConfig, Optional<PluginsConfig> cachedPluginsConfig) throws PluginSyncException {
-        final List<PluginInfo> existingPlugins = getExistingPlugins();
+        final List<PluginDescriptor> existingPlugins = getExistingPlugins();
 
-        final List<PluginDescriptor> pluginsThatShouldExist = getPluginsThatShouldExist(pluginsConfig);
+        final List<InstallablePlugin> pluginsThatShouldExist = getPluginsThatShouldExist(pluginsConfig);
 
-        final List<PluginDescriptor> pluginsThatActuallyExist = existingPlugins.stream()
-            .map(info -> new PluginDescriptor(info.getName()))
+        final List<InstallablePlugin> pluginsThatActuallyExist = existingPlugins.stream()
+            .map(info -> new InstallablePlugin(info.getName()))
             .collect(Collectors.toList());
-        final Set<String> existingPluginIds = pluginsThatActuallyExist.stream().map(PluginDescriptor::getId).collect(Collectors.toSet());
+        final Set<String> existingPluginIds = pluginsThatActuallyExist.stream().map(InstallablePlugin::getId).collect(Collectors.toSet());
 
-        final List<PluginDescriptor> pluginsToInstall = difference(pluginsThatShouldExist, pluginsThatActuallyExist);
-        final List<PluginDescriptor> pluginsToRemove = difference(pluginsThatActuallyExist, pluginsThatShouldExist);
+        final List<InstallablePlugin> pluginsToInstall = difference(pluginsThatShouldExist, pluginsThatActuallyExist);
+        final List<InstallablePlugin> pluginsToRemove = difference(pluginsThatActuallyExist, pluginsThatShouldExist);
 
         // Candidates for upgrade are any plugin that already exist and isn't about to be removed.
-        final List<PluginDescriptor> pluginsToMaybeUpgrade = difference(pluginsThatShouldExist, pluginsToRemove).stream()
+        final List<InstallablePlugin> pluginsToMaybeUpgrade = difference(pluginsThatShouldExist, pluginsToRemove).stream()
             .filter(each -> existingPluginIds.contains(each.getId()))
             .collect(Collectors.toList());
 
-        final List<PluginDescriptor> pluginsToUpgrade = getPluginsToUpgrade(pluginsToMaybeUpgrade, cachedPluginsConfig, existingPlugins);
+        final List<InstallablePlugin> pluginsToUpgrade = getPluginsToUpgrade(pluginsToMaybeUpgrade, cachedPluginsConfig, existingPlugins);
 
-        pluginsToRemove.sort(Comparator.comparing(PluginDescriptor::getId));
-        pluginsToInstall.sort(Comparator.comparing(PluginDescriptor::getId));
-        pluginsToMaybeUpgrade.sort(Comparator.comparing(PluginDescriptor::getId));
+        pluginsToRemove.sort(Comparator.comparing(InstallablePlugin::getId));
+        pluginsToInstall.sort(Comparator.comparing(InstallablePlugin::getId));
+        pluginsToMaybeUpgrade.sort(Comparator.comparing(InstallablePlugin::getId));
 
         return new PluginChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade);
     }
@@ -153,12 +151,12 @@ public class SyncPluginsAction implements PluginsSynchronizer {
      * they are currently installed. However, this also means that we need to emit our own warning
      * that installation by plugin is deprecated.
      */
-    private List<PluginDescriptor> getPluginsThatShouldExist(PluginsConfig pluginsConfig) {
-        final List<PluginDescriptor> pluginsThatShouldExist = new ArrayList<>(pluginsConfig.getPlugins());
+    private List<InstallablePlugin> getPluginsThatShouldExist(PluginsConfig pluginsConfig) {
+        final List<InstallablePlugin> pluginsThatShouldExist = new ArrayList<>(pluginsConfig.getPlugins());
 
-        final Iterator<PluginDescriptor> shouldExistIterator = pluginsThatShouldExist.iterator();
+        final Iterator<InstallablePlugin> shouldExistIterator = pluginsThatShouldExist.iterator();
         while (shouldExistIterator.hasNext()) {
-            final PluginDescriptor each = shouldExistIterator.next();
+            final InstallablePlugin each = shouldExistIterator.next();
             if (InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES.contains(each.getId())) {
                 terminal.errorPrintln(
                     "[" + each.getId() + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
@@ -203,13 +201,13 @@ public class SyncPluginsAction implements PluginsSynchronizer {
         }
     }
 
-    private List<PluginDescriptor> getPluginsToUpgrade(
-        List<PluginDescriptor> pluginsToMaybeUpgrade,
+    private List<InstallablePlugin> getPluginsToUpgrade(
+        List<InstallablePlugin> pluginsToMaybeUpgrade,
         Optional<PluginsConfig> cachedPluginsConfig,
-        List<PluginInfo> existingPlugins
+        List<PluginDescriptor> existingPlugins
     ) {
         final Map<String, String> cachedPluginIdToLocation = cachedPluginsConfig.map(
-            config -> config.getPlugins().stream().collect(Collectors.toMap(PluginDescriptor::getId, PluginDescriptor::getLocation))
+            config -> config.getPlugins().stream().collect(Collectors.toMap(InstallablePlugin::getId, InstallablePlugin::getLocation))
         ).orElse(Map.of());
 
         return pluginsToMaybeUpgrade.stream().filter(eachPlugin -> {
@@ -234,7 +232,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
             if (InstallPluginAction.OFFICIAL_PLUGINS.contains(eachPluginId)) {
                 // Find the currently installed plugin and check whether the version is lower than
                 // the current node's version.
-                final PluginInfo info = existingPlugins.stream()
+                final PluginDescriptor info = existingPlugins.stream()
                     .filter(each -> each.getName().equals(eachPluginId))
                     .findFirst()
                     .orElseThrow(() -> {
@@ -264,8 +262,8 @@ public class SyncPluginsAction implements PluginsSynchronizer {
         }).collect(Collectors.toList());
     }
 
-    private List<PluginInfo> getExistingPlugins() throws PluginSyncException {
-        final List<PluginInfo> plugins = new ArrayList<>();
+    private List<PluginDescriptor> getExistingPlugins() throws PluginSyncException {
+        final List<PluginDescriptor> plugins = new ArrayList<>();
 
         try {
             try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
@@ -275,7 +273,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
                         continue;
                     }
 
-                    PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(pluginPath));
+                    PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(pluginPath));
                     plugins.add(info);
 
                     // Check for a version mismatch, unless it's an official plugin since we can upgrade them.
@@ -303,13 +301,13 @@ public class SyncPluginsAction implements PluginsSynchronizer {
     /**
      * Returns a list of all elements in {@code left} that are not present in {@code right}.
      * <p>
-     * Comparisons are based solely using {@link PluginDescriptor#getId()}.
+     * Comparisons are based solely using {@link InstallablePlugin#getId()}.
      *
      * @param left the items that may be retained
      * @param right the items that may be removed
      * @return a list of the remaining elements
      */
-    private static List<PluginDescriptor> difference(List<PluginDescriptor> left, List<PluginDescriptor> right) {
+    private static List<InstallablePlugin> difference(List<InstallablePlugin> left, List<InstallablePlugin> right) {
         return left.stream().filter(eachDescriptor -> {
             final String id = eachDescriptor.getId();
             return right.stream().anyMatch(p -> p.getId().equals(id)) == false;
@@ -317,9 +315,9 @@ public class SyncPluginsAction implements PluginsSynchronizer {
     }
 
     private void logRequiredChanges(PluginChanges changes) {
-        final BiConsumer<String, List<PluginDescriptor>> printSummary = (action, plugins) -> {
+        final BiConsumer<String, List<InstallablePlugin>> printSummary = (action, plugins) -> {
             if (plugins.isEmpty() == false) {
-                List<String> pluginIds = plugins.stream().map(PluginDescriptor::getId).toList();
+                List<String> pluginIds = plugins.stream().map(InstallablePlugin::getId).toList();
                 this.terminal.errorPrintln(String.format(Locale.ROOT, "Plugins to be %s: %s", action, pluginIds));
             }
         };
@@ -331,11 +329,11 @@ public class SyncPluginsAction implements PluginsSynchronizer {
 
     // @VisibleForTesting
     static class PluginChanges {
-        final List<PluginDescriptor> remove;
-        final List<PluginDescriptor> install;
-        final List<PluginDescriptor> upgrade;
+        final List<InstallablePlugin> remove;
+        final List<InstallablePlugin> install;
+        final List<InstallablePlugin> upgrade;
 
-        PluginChanges(List<PluginDescriptor> remove, List<PluginDescriptor> install, List<PluginDescriptor> upgrade) {
+        PluginChanges(List<InstallablePlugin> remove, List<InstallablePlugin> install, List<InstallablePlugin> upgrade) {
             this.remove = Objects.requireNonNull(remove);
             this.install = Objects.requireNonNull(install);
             this.upgrade = Objects.requireNonNull(upgrade);

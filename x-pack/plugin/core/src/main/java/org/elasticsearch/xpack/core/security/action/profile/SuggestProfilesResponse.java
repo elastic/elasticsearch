@@ -97,7 +97,7 @@ public class SuggestProfilesResponse extends ActionResponse implements ToXConten
             {
                 builder.field("uid", profile.uid());
                 profile.user().toXContent(builder, params);
-                builder.field("access", profile.access());
+                builder.field("labels", profile.labels());
                 builder.field("data", profile.applicationData());
             }
             builder.endObject();

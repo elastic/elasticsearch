@@ -42,7 +42,7 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (geoBoundingBox != null) {
             builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
-            geoBoundingBox.toXContentFragment(builder, true);
+            geoBoundingBox.toXContentFragment(builder);
             builder.endObject();
         }
         return builder;

@@ -22,7 +22,7 @@
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.5
+ARG BASE_TAG=8.6
 <% } %>
 
 ################################################################################
@@ -162,7 +162,7 @@ RUN yes no | dpkg-reconfigure dash && \\
       "      ${package_manager} update && \n" +
       "      ${package_manager} upgrade -y && \n" +
       "      ${package_manager} install -y --no-install-recommends \n" +
-      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "        ca-certificates curl netcat p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
       "      ${package_manager} clean && \n" +
       "      rm -rf /var/lib/apt/lists/*"
   ) %>

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -44,6 +45,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
@@ -54,6 +57,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
     TransportNodesListGatewayStartedShards.NodeRequest,
     TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+
+    private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
@@ -148,8 +153,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     } catch (Exception exception) {
                         final ShardPath finalShardPath = shardPath;
                         logger.trace(
-                            () -> new ParameterizedMessage(
-                                "{} can't open index for shard [{}] in path [{}]",
+                            () -> format(
+                                "%s can't open index for shard [%s] in path [%s]",
                                 shardId,
                                 shardStateMetadata,
                                 (finalShardPath != null) ? finalShardPath.resolveIndex() : ""

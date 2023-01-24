@@ -1,0 +1,172 @@
+// tag::cloud[]
+In order to check the status of failing {slm} policies we need to go to Kibana and retrieve the
+<<slm-api-get-policy, Snapshot Lifecycle Policy information>>.
+
+**Use {kib}**
+
+//tag::kibana-api-ex[]
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment.
++
+
+NOTE: If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is
+{cloud}/ec-access-kibana.html[enable it first].
+
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Dev Tools > Console**.
++
+[role="screenshot"]
+image::images/kibana-console.png[{kib} Console,align="center"]
+
+. <<slm-api-get-policy, Retrieve>> the {slm} policy:
++
+[source,console]
+----
+GET _slm/policy/<affected-policy-name>
+----
+// TEST[skip:These policies do not exist]
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "affected-policy-name": { <1>
+    "version": 1,
+    "modified_date": "2099-05-06T01:30:00.000Z",
+    "modified_date_millis": 4081757400000,
+    "policy" : {
+      "schedule": "0 30 1 * * ?",
+      "name": "<daily-snap-{now/d}>",
+      "repository": "my_repository",
+      "config": {
+        "indices": ["data-*", "important"],
+        "ignore_unavailable": false,
+        "include_global_state": false
+      },
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
+    },
+    "last_success" : {
+      "snapshot_name" : "daily-snap-2099.05.30-tme_ivjqswgkpryvnao2lg",
+      "start_time" : 4083782400000,
+      "time" : 4083782400000
+    },
+    "last_failure" : { <2>
+      "snapshot_name" : "daily-snap-2099.06.16-ywe-kgh5rfqfrpnchvsujq",
+      "time" : 4085251200000, <3>
+      "details" : """{"type":"snapshot_exception","reason":"[daily-snap-2099.06.16-ywe-kgh5rfqfrpnchvsujq] failed to create snapshot successfully, 5 out of 149 total shards failed"}""" <4>
+    },
+    "stats": {
+      "policy": "daily-snapshots",
+      "snapshots_taken": 0,
+      "snapshots_failed": 0,
+      "snapshots_deleted": 0,
+      "snapshot_deletion_failures": 0
+    },
+    "next_execution": "2099-06-17T01:30:00.000Z",
+    "next_execution_millis": 4085343000000
+  }
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+<1> The affected snapshot lifecycle policy.
+<2> The information about the last failure for the policy.
+<3> The time when the failure occurred in millis. Use the `human=true` request parameter to see a formatted timestamp.
+<4> Error details containing the reason for the snapshot failure.
++
+
+Snapshots can fail for a variety reasons. If the failures are due to configuration errors, consult the
+documentation for the repository that the automated snapshots are using. Refer to the
+https://www.elastic.co/guide/en/cloud-enterprise/current/ece-manage-repositories.html[guide on managing repositories in ECE]
+if you are using such a deployment.
+
+One common failure scenario is repository corruption. This occurs most often when multiple instances of {es} write to
+the same repository location. There is a <<add-repository, separate troubleshooting guide>> to fix this problem.
+
+In the event that snapshots are failing for other reasons check the logs on the elected master node during the snapshot
+execution period for more information.
+
+
+//end::kibana-api-ex[]
+// end::cloud[]
+
+// tag::self-managed[]
+<<slm-api-get-policy, Retrieve>> the {slm} policy:
+
+[source,console]
+----
+GET _slm/policy/<affected-policy-name>
+----
+// TEST[skip:These policies do not exist]
+
+The response will look like this:
+
+[source,console-result]
+----
+{
+  "affected-policy-name": { <1>
+    "version": 1,
+    "modified_date": "2099-05-06T01:30:00.000Z",
+    "modified_date_millis": 4081757400000,
+    "policy" : {
+      "schedule": "0 30 1 * * ?",
+      "name": "<daily-snap-{now/d}>",
+      "repository": "my_repository",
+      "config": {
+        "indices": ["data-*", "important"],
+        "ignore_unavailable": false,
+        "include_global_state": false
+      },
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
+    },
+    "last_success" : {
+      "snapshot_name" : "daily-snap-2099.05.30-tme_ivjqswgkpryvnao2lg",
+      "start_time" : 4083782400000,
+      "time" : 4083782400000
+    },
+    "last_failure" : { <2>
+      "snapshot_name" : "daily-snap-2099.06.16-ywe-kgh5rfqfrpnchvsujq",
+      "time" : 4085251200000, <3>
+      "details" : """{"type":"snapshot_exception","reason":"[daily-snap-2099.06.16-ywe-kgh5rfqfrpnchvsujq] failed to create snapshot successfully, 5 out of 149 total shards failed"}""" <4>
+    },
+    "stats": {
+      "policy": "daily-snapshots",
+      "snapshots_taken": 0,
+      "snapshots_failed": 0,
+      "snapshots_deleted": 0,
+      "snapshot_deletion_failures": 0
+    },
+    "next_execution": "2099-06-17T01:30:00.000Z",
+    "next_execution_millis": 4085343000000
+  }
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+<1> The affected snapshot lifecycle policy.
+<2> The information about the last failure for the policy.
+<3> The time when the failure occurred in millis. Use the `human=true` request parameter to see a formatted timestamp.
+<4> Error details containing the reason for the snapshot failure.
+
+Snapshots can fail for a variety reasons. If the failures are due to configuration errors, consult the
+documentation for the repository that the automated snapshots are using.
+
+One common failure scenario is repository corruption. This occurs most often when multiple instances of {es} write to
+the same repository location. There is a <<add-repository, separate troubleshooting guide>> to fix this problem.
+
+In the event that snapshots are failing for other reasons check the logs on the elected master node during the snapshot
+execution period for more information.
+
+// end::self-managed[]
+

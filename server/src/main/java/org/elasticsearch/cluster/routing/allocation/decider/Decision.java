@@ -339,10 +339,7 @@ public abstract class Decision implements ToXContent, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(true); // flag indicating it is a multi decision
-            out.writeVInt(getDecisions().size());
-            for (Decision d : getDecisions()) {
-                d.writeTo(out);
-            }
+            out.writeCollection(getDecisions());
         }
     }
 }

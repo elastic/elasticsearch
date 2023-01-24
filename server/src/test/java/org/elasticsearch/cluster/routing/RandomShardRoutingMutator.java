@@ -42,7 +42,7 @@ public final class RandomShardRoutingMutator {
                 break;
             case 2:
                 if (shardRouting.initializing()) {
-                    shardRouting = shardRouting.moveToStarted();
+                    shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 }
                 break;
         }

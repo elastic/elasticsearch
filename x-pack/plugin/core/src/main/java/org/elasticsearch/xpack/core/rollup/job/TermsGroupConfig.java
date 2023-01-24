@@ -88,19 +88,19 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
                     if (key.equals(KeywordFieldMapper.CONTENT_TYPE) || key.equals(TextFieldMapper.CONTENT_TYPE)) {
                         if (value.isAggregatable() == false) {
                             validationException.addValidationError(
-                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                                "The field [" + field + "] must be aggregatable across all indices, but is not."
                             );
                         }
                     } else if (FLOAT_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
                             validationException.addValidationError(
-                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                                "The field [" + field + "] must be aggregatable across all indices, but is not."
                             );
                         }
                     } else if (NATURAL_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
                             validationException.addValidationError(
-                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                                "The field [" + field + "] must be aggregatable across all indices, but is not."
                             );
                         }
                     } else {

@@ -646,18 +646,12 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (customAnalyzer) {
                 tokenizer.writeTo(out);
                 if (charfilters != null) {
-                    out.writeVInt(charfilters.length);
-                    for (CharFilteredText charfilter : charfilters) {
-                        charfilter.writeTo(out);
-                    }
+                    out.writeArray(charfilters);
                 } else {
                     out.writeVInt(0);
                 }
                 if (tokenfilters != null) {
-                    out.writeVInt(tokenfilters.length);
-                    for (AnalyzeTokenList tokenfilter : tokenfilters) {
-                        tokenfilter.writeTo(out);
-                    }
+                    out.writeArray(tokenfilters);
                 } else {
                     out.writeVInt(0);
                 }

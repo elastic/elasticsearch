@@ -266,7 +266,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }
 
-            IndexNumericFieldData fieldData = context.getForField(msmFieldType);
+            IndexNumericFieldData fieldData = context.getForField(msmFieldType, MappedFieldType.FielddataOperation.SEARCH);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
             TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript, TermsSetQueryScript.CONTEXT);

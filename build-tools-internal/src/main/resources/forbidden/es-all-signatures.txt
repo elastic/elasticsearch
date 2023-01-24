@@ -54,3 +54,14 @@ java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int)
 java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int, java.util.concurrent.ThreadFactory)
 java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int, java.util.concurrent.RejectedExecutionHandler)
 java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int, java.util.concurrent.ThreadFactory, java.util.concurrent.RejectedExecutionHandler)
+
+
+@defaultMessage use java.util.Supplier<String> with String.format instead of ParameterizedMessage
+org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.String[], java.lang.Throwable)
+org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object[], java.lang.Throwable)
+org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object[])
+org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object)
+org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, java.lang.Object, java.lang.Object)
+
+@defaultMessage Use WriteLoadForecaster#getForecastedWriteLoad instead
+org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()

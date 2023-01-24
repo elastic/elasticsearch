@@ -42,6 +42,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestCase {
 
     @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateOldLuceneVersions.class, TestRepositoryPlugin.class, MockRepository.Plugin.class);
     }

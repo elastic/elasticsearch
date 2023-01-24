@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'apm'
+  description 'Provides APM integration for Elasticsearch'
+  classname 'org.elasticsearch.tracing.apm.APM'
+}
+
+def otelVersion = '1.17.0'
+
+dependencies {
+  implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-semconv:${otelVersion}-alpha"
+  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.33.0"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+}

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -24,7 +23,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,6 +46,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
@@ -67,8 +68,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client,
-        IngestService ingestService
+        Client client
     ) {
         super(
             PutTransformAction.NAME,
@@ -92,54 +92,61 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-
-        // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
-            threadPool.getThreadContext(),
-            clusterService.state()
-        );
-
-        TransformConfig config = request.getConfig().setHeaders(filteredHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);
-
-        String transformId = config.getId();
-        // quick check whether a transform has already been created under that name
-        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {
-            listener.onFailure(
-                new ResourceAlreadyExistsException(TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId))
+        useSecondaryAuthIfAvailable(securityContext, () -> {
+            // set headers to run transform as calling user
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                threadPool.getThreadContext(),
+                clusterService.state()
             );
-            return;
-        }
 
-        // <3> Create the transform
-        ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            validationResponse -> { putTransform(request, listener); },
-            listener::onFailure
-        );
+            TransformConfig config = request.getConfig()
+                .setHeaders(filteredHeaders)
+                .setCreateTime(Instant.now())
+                .setVersion(Version.CURRENT);
 
-        // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
-            client.execute(
-                ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
-                validateTransformListener
+            String transformId = config.getId();
+            // quick check whether a transform has already been created under that name
+            if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {
+                listener.onFailure(
+                    new ResourceAlreadyExistsException(
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId)
+                    )
+                );
+                return;
+            }
+
+            // <3> Create the transform
+            ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
+                validationResponse -> putTransform(request, listener),
+                listener::onFailure
             );
-        }, listener::onFailure);
 
-        // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
-            TransformPrivilegeChecker.checkPrivileges(
-                "create",
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                client,
-                config,
-                true,
-                checkPrivilegesListener
+            // <2> Validate source and destination indices
+            ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
+                aVoid -> client.execute(
+                    ValidateTransformAction.INSTANCE,
+                    new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
+                    validateTransformListener
+                ),
+                listener::onFailure
             );
-        } else { // No security enabled, just move on
-            checkPrivilegesListener.onResponse(null);
-        }
+
+            // <1> Early check to verify that the user can create the destination index and can read from the source
+            if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
+                TransformPrivilegeChecker.checkPrivileges(
+                    "create",
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    client,
+                    config,
+                    true,
+                    checkPrivilegesListener
+                );
+            } else { // No security enabled, just move on
+                checkPrivilegesListener.onResponse(null);
+            }
+        });
     }
 
     @Override
@@ -159,7 +166,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             auditor.info(config.getId(), "Created transform.");
             List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
             for (String warning : warnings) {
-                logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+                logger.warn(() -> format("[%s] %s", config.getId(), warning));
                 auditor.warning(config.getId(), warning);
             }
             listener.onResponse(AcknowledgedResponse.TRUE);

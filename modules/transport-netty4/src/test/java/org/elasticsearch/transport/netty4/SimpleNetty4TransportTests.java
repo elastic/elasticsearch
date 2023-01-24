@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,8 +18,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.net.NetUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         return new Netty4Transport(
             settings,
@@ -64,12 +64,12 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 DiscoveryNode node,
                 TcpChannel channel,
                 ConnectionProfile profile,
-                ActionListener<Version> listener
+                ActionListener<TransportVersion> listener
             ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(version.minimumCompatibilityVersion());
+                    listener.onResponse(version.calculateMinimumCompatVersion());
                 }
             }
         };
@@ -126,12 +126,12 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         assertThat(nettyChannel.getNettyChannel(), instanceOf(Netty4NioSocketChannel.class));
         Netty4NioSocketChannel netty4NioSocketChannel = (Netty4NioSocketChannel) nettyChannel.getNettyChannel();
         SocketChannel socketChannel = netty4NioSocketChannel.javaChannel();
-        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOptionOrNull()));
-        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOptionOrNull());
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOption()));
+        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOption());
         assertNotNull(keepIdle);
         assertThat(keepIdle, lessThanOrEqualTo(500));
-        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOptionOrNull()));
-        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOptionOrNull());
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOption()));
+        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOption());
         assertNotNull(keepInterval);
         assertThat(keepInterval, lessThanOrEqualTo(500));
     }

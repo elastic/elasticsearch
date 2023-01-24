@@ -131,3 +131,36 @@ The following parameters are accepted by `wildcard` fields:
 * `wildcard` fields are untokenized like keyword fields, so do not support queries that rely on word positions such as phrase queries.
 * When running `wildcard` queries any `rewrite` parameter is ignored. The scoring is always a constant score.
 
+[[wildcard-synthetic-source]]
+==== Synthetic `_source`
+`wildcard` fields support <<synthetic-source,synthetic `_source`>> so long as they don't
+declare <<copy-to,`copy_to`>>.
+
+Synthetic source always sorts `wildcard` fields. For example:
+[source,console,id=synthetic-source-wildcard-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "card": { "type": "wildcard" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "card": ["king", "ace", "ace", "jack"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "card": ["ace", "jack", "king"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

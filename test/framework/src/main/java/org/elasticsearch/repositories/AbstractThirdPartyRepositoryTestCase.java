@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -136,7 +136,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             repo,
             repo.basePath().add("foo"),
             "nest",
-            Collections.singletonMap("nested-blob", new PlainBlobMetadata("nested-blob", testBlobLen))
+            Collections.singletonMap("nested-blob", new BlobMetadata("nested-blob", testBlobLen))
         );
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
         if (randomBoolean()) {

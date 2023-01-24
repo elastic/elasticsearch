@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class ShardChangesAction extends ActionType<ShardChangesAction.Response> {
@@ -91,7 +91,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             shardId = new ShardId(in);
             expectedHistoryUUID = in.readString();
             pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
+            maxBatchSize = ByteSizeValue.readFrom(in);
 
             // Starting the clock in order to know how much time is spent on fetching operations:
             relativeStartNanos = System.nanoTime();
@@ -214,55 +214,53 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     public static final class Response extends ActionResponse {
 
-        private long mappingVersion;
+        private final long mappingVersion;
 
         public long getMappingVersion() {
             return mappingVersion;
         }
 
-        private long settingsVersion;
+        private final long settingsVersion;
 
         public long getSettingsVersion() {
             return settingsVersion;
         }
 
-        private long aliasesVersion;
+        private final long aliasesVersion;
 
         public long getAliasesVersion() {
             return aliasesVersion;
         }
 
-        private long globalCheckpoint;
+        private final long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
             return globalCheckpoint;
         }
 
-        private long maxSeqNo;
+        private final long maxSeqNo;
 
         public long getMaxSeqNo() {
             return maxSeqNo;
         }
 
-        private long maxSeqNoOfUpdatesOrDeletes;
+        private final long maxSeqNoOfUpdatesOrDeletes;
 
         public long getMaxSeqNoOfUpdatesOrDeletes() {
             return maxSeqNoOfUpdatesOrDeletes;
         }
 
-        private Translog.Operation[] operations;
+        private final Translog.Operation[] operations;
 
         public Translog.Operation[] getOperations() {
             return operations;
         }
 
-        private long tookInMillis;
+        private final long tookInMillis;
 
         public long getTookInMillis() {
             return tookInMillis;
         }
-
-        Response() {}
 
         Response(StreamInput in) throws IOException {
             super(in);
@@ -464,11 +462,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final IndexShard indexShard
         ) {
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "{} exception waiting for global checkpoint advancement to [{}]",
-                    shardId,
-                    request.getFromSeqNo()
-                ),
+                () -> format("%s exception waiting for global checkpoint advancement to [%s]", shardId, request.getFromSeqNo()),
                 e
             );
             if (e instanceof TimeoutException) {

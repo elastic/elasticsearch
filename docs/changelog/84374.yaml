@@ -1,5 +1,0 @@
-pr: 84374
-summary: Batch add index block cluster state updates
-area: Indices APIs
-type: enhancement
-issues: []

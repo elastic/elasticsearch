@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.logstash.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.xcontent.XContentType;
@@ -46,7 +46,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
                 @Override
                 protected void processResponse(DeletePipelineResponse deletePipelineResponse) {
                     final RestStatus status = deletePipelineResponse.isDeleted() ? RestStatus.OK : RestStatus.NOT_FOUND;
-                    channel.sendResponse(new BytesRestResponse(status, XContentType.JSON.mediaType(), BytesArray.EMPTY));
+                    channel.sendResponse(new RestResponse(status, XContentType.JSON.mediaType(), BytesArray.EMPTY));
                 }
             }
         );

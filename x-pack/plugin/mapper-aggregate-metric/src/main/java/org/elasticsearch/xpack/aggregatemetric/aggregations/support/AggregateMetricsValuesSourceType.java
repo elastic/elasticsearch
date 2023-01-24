@@ -10,6 +10,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -22,6 +23,12 @@ import java.util.Locale;
 public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
 
     AGGREGATE_METRIC() {
+
+        @Override
+        public RuntimeException getUnregisteredException(String message) {
+            return new UnsupportedAggregationOnDownsampledIndex(message);
+        }
+
         @Override
         public ValuesSource getEmpty() {
             throw new IllegalArgumentException("Can't deal with unmapped AggregateMetricsValuesSource type " + this.value());
@@ -33,7 +40,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if ((indexFieldData instanceof IndexAggregateDoubleMetricFieldData) == false) {

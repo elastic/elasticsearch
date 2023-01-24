@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -38,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
 import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
@@ -181,8 +181,8 @@ class SamlAuthenticator extends SamlResponseHandler {
             return decrypter.decrypt(encrypted);
         } catch (DecryptionException e) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "Failed to decrypt SAML assertion [{}] with [{}]",
+                () -> format(
+                    "Failed to decrypt SAML assertion [%s] with [%s]",
                     text(encrypted, 512),
                     describe(getSpConfiguration().getEncryptionCredentials())
                 ),

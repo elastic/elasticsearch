@@ -11,11 +11,10 @@ package org.elasticsearch.common.hashing;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 
 public class MurmurHash3Tests extends ESTestCase {
-    public void testKnownValues() throws UnsupportedEncodingException {
+    public void testKnownValues() {
         assertHash(0x629942693e10f867L, 0x92db0b82baeb5347L, "hell", 0);
         assertHash(0xa78ddff5adae8d10L, 0x128900ef20900135L, "hello", 1);
         assertHash(0x8a486b23f422e826L, 0xf962a2c58947765fL, "hello ", 2);

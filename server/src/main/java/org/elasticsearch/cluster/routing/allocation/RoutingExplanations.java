@@ -68,10 +68,7 @@ public class RoutingExplanations implements ToXContentFragment {
      * Write the RoutingExplanations object
      */
     public static void writeTo(RoutingExplanations explanations, StreamOutput out) throws IOException {
-        out.writeVInt(explanations.explanations.size());
-        for (RerouteExplanation explanation : explanations.explanations) {
-            RerouteExplanation.writeTo(explanation, out);
-        }
+        out.writeCollection(explanations.explanations, (o, v) -> RerouteExplanation.writeTo(v, o));
     }
 
     @Override

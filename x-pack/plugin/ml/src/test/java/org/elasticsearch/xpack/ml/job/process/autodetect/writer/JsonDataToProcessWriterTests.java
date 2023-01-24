@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -135,15 +134,10 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The "." field is the control field; "..." is the pre-tokenized tokens field
-        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA) {
-            expectedRecords.add(new String[] { "time", "message", "...", "." });
-            expectedRecords.add(new String[] { "1", "Node 1 started", "Node,started", "" });
-            expectedRecords.add(new String[] { "2", "Node 2 started", "Node,started", "" });
-        } else {
-            expectedRecords.add(new String[] { "time", "message", "." });
-            expectedRecords.add(new String[] { "1", "Node 1 started", "" });
-            expectedRecords.add(new String[] { "2", "Node 2 started", "" });
-        }
+        expectedRecords.add(new String[] { "time", "message", "...", "." });
+        expectedRecords.add(new String[] { "1", "Node 1 started", "Node,started", "" });
+        expectedRecords.add(new String[] { "2", "Node 2 started", "Node,started", "" });
+
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter).finishReporting();
@@ -411,8 +405,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     private JsonDataToProcessWriter createWriter() {
-        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && analysisConfig.getCategorizationFieldName() != null;
+        boolean includeTokensField = analysisConfig.getCategorizationFieldName() != null;
         return new JsonDataToProcessWriter(
             true,
             includeTokensField,

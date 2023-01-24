@@ -1,6 +1,0 @@
-pr: 84427
-summary: "Aggs: no filter-by-filter if `_doc_count` field"
-area: "Aggregations"
-type: enhancement
-issues:
- - 84048

@@ -182,7 +182,7 @@ Failing to set this will result in unauthorized messages when starting Elasticse
 See <<discovery-gce-usage-tips-permissions>>.
 ==============================================
 
-Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
+Once connected,  {ref}/install-elasticsearch.html[install {es}].
 
 [[discovery-gce-usage-long-install-plugin]]
 ===== Install Elasticsearch discovery gce plugin

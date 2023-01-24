@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,12 +31,13 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * {@code SnapshotLifecycleService} manages snapshot policy scheduling and triggering of the
@@ -98,11 +98,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     cancelSnapshotJobs();
                 }
                 if (slmStopping(state)) {
-                    clusterService.submitStateUpdateTask(
-                        "slm_operation_mode_update[stopped]",
-                        OperationModeUpdateTask.slmMode(OperationMode.STOPPED),
-                        newExecutor()
-                    );
+                    submitUnbatchedTask("slm_operation_mode_update[stopped]", OperationModeUpdateTask.slmMode(OperationMode.STOPPED));
                 }
                 return;
             }
@@ -113,8 +109,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     // Only used for testing
@@ -126,20 +122,16 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * Returns true if SLM is in the stopping or stopped state
      */
     static boolean slmStoppedOrStopping(ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
-            .map(SnapshotLifecycleMetadata::getOperationMode)
-            .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
-            .orElse(false);
+        OperationMode mode = currentSLMMode(state);
+        return OperationMode.STOPPING == mode || OperationMode.STOPPED == mode;
     }
 
     /**
      * Returns true if SLM is in the stopping state
      */
     static boolean slmStopping(ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
-            .map(SnapshotLifecycleMetadata::getOperationMode)
-            .map(mode -> OperationMode.STOPPING == mode)
-            .orElse(false);
+        OperationMode mode = currentSLMMode(state);
+        return OperationMode.STOPPING == mode;
     }
 
     /**

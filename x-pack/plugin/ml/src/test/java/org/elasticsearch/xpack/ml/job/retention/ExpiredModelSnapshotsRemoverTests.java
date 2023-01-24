@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -337,13 +336,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     ) {
 
         doAnswer(new Answer<Void>() {
-            AtomicInteger callCount = new AtomicInteger();
+            final AtomicInteger callCount = new AtomicInteger();
 
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
 
-                SearchRequest searchRequest = (SearchRequest) invocationOnMock.getArguments()[1];
                 // Only the last search request should fail
                 if (shouldSearchRequestsSucceed || callCount.get() < (searchResponses.size() + snapshots.size())) {
                     SearchResponse response = searchResponses.get(callCount.getAndIncrement());
@@ -368,13 +366,13 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         for (Map.Entry<String, List<ModelSnapshot>> snapshot : snapshots.entrySet()) {
             doAnswer(new Answer<Void>() {
-                AtomicInteger callCount = new AtomicInteger();
+                final AtomicInteger callCount = new AtomicInteger();
 
                 @Override
-                public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                public Void answer(InvocationOnMock invocationOnMock) {
                     capturedJobIds.add((String) invocationOnMock.getArguments()[0]);
-                    Consumer<QueryPage<ModelSnapshot>> listener = (Consumer<QueryPage<ModelSnapshot>>) invocationOnMock.getArguments()[8];
-                    Consumer<Exception> failure = (Consumer<Exception>) invocationOnMock.getArguments()[9];
+                    Consumer<QueryPage<ModelSnapshot>> listener = (Consumer<QueryPage<ModelSnapshot>>) invocationOnMock.getArguments()[9];
+                    Consumer<Exception> failure = (Consumer<Exception>) invocationOnMock.getArguments()[10];
                     if (shouldSearchRequestsSucceed || callCount.get() < snapshots.size()) {
                         callCount.incrementAndGet();
                         listener.accept(new QueryPage<>(snapshot.getValue(), 10, new ParseField("snapshots")));
@@ -384,7 +382,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                     return null;
                 }
             }).when(resultsProvider)
-                .modelSnapshots(eq(snapshot.getKey()), anyInt(), anyInt(), any(), any(), any(), anyBoolean(), any(), any(), any());
+                .modelSnapshots(eq(snapshot.getKey()), anyInt(), anyInt(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
         }
 
     }

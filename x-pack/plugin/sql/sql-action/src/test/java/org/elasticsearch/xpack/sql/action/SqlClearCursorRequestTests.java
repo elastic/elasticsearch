@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
-public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<TestSqlClearCursorRequest> {
+public class SqlClearCursorRequestTests extends AbstractXContentSerializingTestCase<TestSqlClearCursorRequest> {
 
     public RequestInfo requestInfo;
 

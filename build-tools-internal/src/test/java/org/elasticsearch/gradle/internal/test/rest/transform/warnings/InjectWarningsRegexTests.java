@@ -19,6 +19,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+
 public class InjectWarningsRegexTests extends InjectFeatureTests {
 
     private static final String WARNINGS_REGEX = "warnings_regex";
@@ -34,7 +37,7 @@ public class InjectWarningsRegexTests extends InjectFeatureTests {
         validateSetupDoesNotExist(tests);
         assertEquals(
             "inject warnings is only supported for named tests",
-            expectThrows(
+            assertThrows(
                 NullPointerException.class,
                 () -> transformTests(tests, Collections.singletonList(new InjectWarnings(new ArrayList<>(addWarnings), null)))
             ).getMessage()

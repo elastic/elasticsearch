@@ -225,7 +225,6 @@ public class TransformNodesTests extends ESTestCase {
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false), isEmpty());
 
         nodes = DiscoveryNodes.builder()
-            .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
             .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
             .build();
@@ -233,7 +232,6 @@ public class TransformNodesTests extends ESTestCase {
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(equalTo("node-2")));
 
         nodes = DiscoveryNodes.builder()
-            .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
             .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-4", Version.V_7_13_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))

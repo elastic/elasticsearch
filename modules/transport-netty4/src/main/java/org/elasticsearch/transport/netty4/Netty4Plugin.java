@@ -9,7 +9,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -24,6 +24,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -77,7 +78,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             NETTY_TRANSPORT_NAME,
             () -> new Netty4Transport(
                 settings,
-                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 networkService,
                 pageCacheRecycler,
@@ -98,19 +99,22 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
-                getSharedGroupFactory(settings)
+                getSharedGroupFactory(settings),
+                tracer,
+                TLSConfig.noTLS(),
+                null
             )
         );
     }

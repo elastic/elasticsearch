@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.h3.H3;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -17,7 +17,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoHexAggregationBuilderTests extends AbstractSerializingTestCase<GeoHexGridAggregationBuilder> {
+public class GeoHexAggregationBuilderTests extends AbstractXContentSerializingTestCase<GeoHexGridAggregationBuilder> {
 
     @Override
     protected GeoHexGridAggregationBuilder doParseInstance(XContentParser parser) throws IOException {

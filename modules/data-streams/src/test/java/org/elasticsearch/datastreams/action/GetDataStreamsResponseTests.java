@@ -11,8 +11,10 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,12 +30,22 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         int numDataStreams = randomIntBetween(0, 8);
         List<Response.DataStreamInfo> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
+            List<Tuple<Instant, Instant>> timeSeries = null;
+            if (randomBoolean()) {
+                timeSeries = new ArrayList<>();
+                int numTimeSeries = randomIntBetween(0, 3);
+                for (int j = 0; j < numTimeSeries; j++) {
+                    timeSeries.add(new Tuple<>(Instant.now(), Instant.now()));
+                }
+            }
+
             dataStreams.add(
                 new Response.DataStreamInfo(
                     DataStreamTestHelper.randomInstance(),
                     ClusterHealthStatus.GREEN,
                     randomAlphaOfLengthBetween(2, 10),
-                    randomAlphaOfLengthBetween(2, 10)
+                    randomAlphaOfLengthBetween(2, 10),
+                    timeSeries != null ? new Response.TimeSeries(timeSeries) : null
                 )
             );
         }

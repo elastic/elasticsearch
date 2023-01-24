@@ -31,7 +31,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -60,7 +59,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -122,6 +121,11 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             );
         }
         return hqb;
+    }
+
+    @Override
+    protected HasParentQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new HasParentQueryBuilder("type", queryBuilder, randomBoolean());
     }
 
     @Override
@@ -193,8 +197,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },
@@ -218,8 +221,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },
@@ -235,8 +237,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },

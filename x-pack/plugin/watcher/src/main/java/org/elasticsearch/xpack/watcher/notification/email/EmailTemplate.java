@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -128,7 +128,7 @@ public class EmailTemplate implements ToXContentObject {
             builder.subject(engine.render(subject, model));
         }
 
-        Set<String> warnings = new HashSet<>(1);
+        Set<String> warnings = Sets.newHashSetWithExpectedSize(1);
         if (attachments != null) {
             for (Attachment attachment : attachments.values()) {
                 builder.attach(attachment);

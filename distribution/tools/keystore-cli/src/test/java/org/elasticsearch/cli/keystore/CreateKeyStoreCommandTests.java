@@ -8,8 +8,11 @@
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
@@ -17,7 +20,6 @@ import org.elasticsearch.env.Environment;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -27,7 +29,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new CreateKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -94,12 +96,15 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
-        terminal.addTextInput("y"); // overwrite
+        terminal.reset();
         // Sometimes (rarely) test with explicit empty password
         final boolean withPassword = password.length() > 0 || rarely();
         if (withPassword) {
             terminal.addSecretInput(password);
             terminal.addSecretInput(password);
+        }
+        terminal.addTextInput("y"); // overwrite
+        if (withPassword) {
             execute(randomFrom("-p", "--password"));
         } else {
             execute();

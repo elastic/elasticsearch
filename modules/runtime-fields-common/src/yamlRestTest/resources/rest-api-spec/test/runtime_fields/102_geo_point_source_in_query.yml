@@ -53,7 +53,7 @@ setup:
           sort: timestamp
           fields: [location]
   - match: {hits.total.value: 11}
-  - match: {hits.hits.0.fields.location: ["13.499999991618097, 34.889999935403466"] }
+  - match: {hits.hits.0.fields.location: [{type: Point, coordinates: [34.89, 13.5]}] }
 
 ---
 "exists query":

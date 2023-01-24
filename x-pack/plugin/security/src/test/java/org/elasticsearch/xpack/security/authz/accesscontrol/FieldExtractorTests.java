@@ -14,7 +14,7 @@ import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -106,7 +106,7 @@ public class FieldExtractorTests extends ESTestCase {
 
     public void testFieldValue() {
         Set<String> fields = new HashSet<>();
-        FieldExtractor.extractFields(new DocValuesFieldExistsQuery("foo"), fields);
+        FieldExtractor.extractFields(new FieldExistsQuery("foo"), fields);
         assertEquals(asSet("foo"), fields);
     }
 

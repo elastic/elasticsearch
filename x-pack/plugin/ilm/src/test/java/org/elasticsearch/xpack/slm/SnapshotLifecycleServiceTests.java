@@ -12,9 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -459,16 +456,12 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             )
         );
         final SetOnce<ClusterStateUpdateTask> task = new SetOnce<>();
-        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool) {
+        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null) {
             @Override
-            public <T extends ClusterStateTaskConfig & ClusterStateTaskListener> void submitStateUpdateTask(
-                String source,
-                T updateTask,
-                ClusterStateTaskExecutor<T> executor
-            ) {
+            public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
                 if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set((OperationModeUpdateTask) updateTask);
+                    task.set(updateTask);
                 }
             }
         };

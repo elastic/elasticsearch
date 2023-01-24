@@ -1,6 +1,0 @@
-pr: 84899
-summary: Adding impacts block to the health info API response
-area: Health
-type: feature
-issues:
- - 84773

@@ -10,13 +10,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 
 import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request for checking a user's privileges
@@ -25,8 +23,10 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     private String username;
     private String[] clusterPrivileges;
-    private RoleDescriptor.IndicesPrivileges[] indexPrivileges;
+    private IndicesPrivileges[] indexPrivileges;
     private ApplicationResourcePrivileges[] applicationPrivileges;
+    // this is hard-coded for now, but it doesn't have to be
+    private final boolean runDetailedCheck = true;
 
     public HasPrivilegesRequest() {}
 
@@ -35,42 +35,21 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         this.username = in.readString();
         this.clusterPrivileges = in.readStringArray();
         int indexSize = in.readVInt();
-        indexPrivileges = new RoleDescriptor.IndicesPrivileges[indexSize];
+        indexPrivileges = new IndicesPrivileges[indexSize];
         for (int i = 0; i < indexSize; i++) {
-            indexPrivileges[i] = new RoleDescriptor.IndicesPrivileges(in);
+            indexPrivileges[i] = new IndicesPrivileges(in);
         }
         applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
     }
 
+    public AuthorizationEngine.PrivilegesToCheck getPrivilegesToCheck() {
+        return new AuthorizationEngine.PrivilegesToCheck(clusterPrivileges, indexPrivileges, applicationPrivileges, runDetailedCheck);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (clusterPrivileges == null) {
-            validationException = addValidationError("clusterPrivileges must not be null", validationException);
-        }
-        if (indexPrivileges == null) {
-            validationException = addValidationError("indexPrivileges must not be null", validationException);
-        }
-        if (applicationPrivileges == null) {
-            validationException = addValidationError("applicationPrivileges must not be null", validationException);
-        } else {
-            for (ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
-                try {
-                    ApplicationPrivilege.validateApplicationName(applicationPrivilege.getApplication());
-                } catch (IllegalArgumentException e) {
-                    validationException = addValidationError(e.getMessage(), validationException);
-                }
-            }
-        }
-        if (clusterPrivileges != null
-            && clusterPrivileges.length == 0
-            && indexPrivileges != null
-            && indexPrivileges.length == 0
-            && applicationPrivileges != null
-            && applicationPrivileges.length == 0) {
-            validationException = addValidationError("must specify at least one privilege", validationException);
-        }
-        return validationException;
+        assert getPrivilegesToCheck().runDetailedCheck();
+        return getPrivilegesToCheck().validate(null);
     }
 
     /**
@@ -92,7 +71,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         return new String[] { username };
     }
 
-    public RoleDescriptor.IndicesPrivileges[] indexPrivileges() {
+    public IndicesPrivileges[] indexPrivileges() {
         return indexPrivileges;
     }
 
@@ -104,7 +83,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         return applicationPrivileges;
     }
 
-    public void indexPrivileges(RoleDescriptor.IndicesPrivileges... privileges) {
+    public void indexPrivileges(IndicesPrivileges... privileges) {
         this.indexPrivileges = privileges;
     }
 
@@ -116,16 +95,22 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         this.applicationPrivileges = appPrivileges;
     }
 
+    public void privilegesToCheck(AuthorizationEngine.PrivilegesToCheck privilegesToCheck) {
+        assert privilegesToCheck.runDetailedCheck() == runDetailedCheck;
+        clusterPrivileges(privilegesToCheck.cluster());
+        indexPrivileges(privilegesToCheck.index());
+        applicationPrivileges(privilegesToCheck.application());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
         out.writeStringArray(clusterPrivileges);
         out.writeVInt(indexPrivileges.length);
-        for (RoleDescriptor.IndicesPrivileges priv : indexPrivileges) {
+        for (IndicesPrivileges priv : indexPrivileges) {
             priv.writeTo(out);
         }
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
     }
-
 }

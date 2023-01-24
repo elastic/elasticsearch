@@ -500,6 +500,51 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_expired_database")));
     }
 
+    public void testNoDatabase() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            () -> null,
+            () -> true,
+            "target_field",
+            EnumSet.allOf(GeoIpProcessor.Property.class),
+            false,
+            false,
+            "GeoLite2-City"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "8.8.8.8");
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City")));
+    }
+
+    public void testNoDatabase_ignoreMissing() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            () -> null,
+            () -> true,
+            "target_field",
+            EnumSet.allOf(GeoIpProcessor.Property.class),
+            true,
+            false,
+            "GeoLite2-City"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "8.8.8.8");
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+    }
+
     private CheckedSupplier<DatabaseReaderLazyLoader, IOException> loader(final String path) {
         final Supplier<InputStream> databaseInputStreamSupplier = () -> GeoIpProcessor.class.getResourceAsStream(path);
         final CheckedSupplier<DatabaseReader, IOException> loader = () -> new DatabaseReader.Builder(databaseInputStreamSupplier.get())

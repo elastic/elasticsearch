@@ -190,7 +190,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
     private static SearchHit[] createSearchHits(int from, int to, String index) {
         SearchHit[] hits = new SearchHit[to + 1 - from];
         for (int i = from; i <= to; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;

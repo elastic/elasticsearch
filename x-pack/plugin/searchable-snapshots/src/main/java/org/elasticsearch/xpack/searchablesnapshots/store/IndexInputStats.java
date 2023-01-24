@@ -250,8 +250,8 @@ public class IndexInputStats {
         void add(final long value) {
             count.increment();
             total.add(value);
-            min.updateAndGet(prev -> Math.min(prev, value));
-            max.updateAndGet(prev -> Math.max(prev, value));
+            min.accumulateAndGet(value, Math::min);
+            max.accumulateAndGet(value, Math::max);
         }
 
         public long count() {

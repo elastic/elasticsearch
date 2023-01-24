@@ -40,16 +40,19 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     private final String serialNumber;
     private final boolean hasPrivateKey;
     private final ZonedDateTime expiry;
+    private final String issuer;
 
     public CertificateInfo(String path, String format, String alias, boolean hasPrivateKey, X509Certificate certificate) {
         Objects.requireNonNull(certificate, "Certificate cannot be null");
         this.path = path;
         this.format = Objects.requireNonNull(format, "Certificate format cannot be null");
         this.alias = alias;
-        this.subjectDn = Objects.requireNonNull(extractSubjectDn(certificate));
+        this.subjectDn = Objects.requireNonNull(extractSubjectDn(certificate), "subject can not be null");
         this.serialNumber = certificate.getSerialNumber().toString(16);
         this.hasPrivateKey = hasPrivateKey;
         this.expiry = certificate.getNotAfter().toInstant().atZone(ZoneOffset.UTC);
+        // note: using X500Principal#toString instead of the more canonical X500Principal#getName to match extractSubjectDn
+        this.issuer = Objects.requireNonNull(certificate.getIssuerX500Principal().toString(), "issuer can not be null");
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
@@ -64,6 +67,11 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.serialNumber = in.readString();
         this.hasPrivateKey = in.readBoolean();
         this.expiry = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            this.issuer = in.readString();
+        } else {
+            this.issuer = "";
+        }
     }
 
     @Override
@@ -79,6 +87,9 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         out.writeString(serialNumber);
         out.writeBoolean(hasPrivateKey);
         out.writeLong(expiry.toInstant().toEpochMilli());
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeString(issuer);
+        }
     }
 
     @Nullable
@@ -110,17 +121,24 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         return hasPrivateKey;
     }
 
+    public String issuer() {
+        return issuer;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
+        builder.startObject()
             .field("path", path)
             .field("format", format)
             .field("alias", alias)
             .field("subject_dn", subjectDn)
             .field("serial_number", serialNumber)
             .field("has_private_key", hasPrivateKey)
-            .timeField("expiry", expiry)
-            .endObject();
+            .timeField("expiry", expiry);
+        if (Strings.hasLength(issuer)) {
+            builder.field("issuer", issuer);
+        }
+        return builder.endObject();
     }
 
     @Override
@@ -129,30 +147,23 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-
-        final CertificateInfo that = (CertificateInfo) other;
-        return Objects.equals(this.path, that.path)
-            && this.format.equals(that.format)
-            && this.hasPrivateKey == that.hasPrivateKey
-            && Objects.equals(this.alias, that.alias)
-            && Objects.equals(this.serialNumber, that.serialNumber)
-            && Objects.equals(this.subjectDn, that.subjectDn)
-            && Objects.equals(this.expiry, that.expiry);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CertificateInfo that = (CertificateInfo) o;
+        return hasPrivateKey == that.hasPrivateKey
+            && Objects.equals(path, that.path)
+            && Objects.equals(format, that.format)
+            && Objects.equals(alias, that.alias)
+            && Objects.equals(subjectDn, that.subjectDn)
+            && Objects.equals(serialNumber, that.serialNumber)
+            && Objects.equals(expiry, that.expiry)
+            && Objects.equals(issuer, that.issuer);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hashCode(path);
-        result = 31 * result + (alias != null ? alias.hashCode() : 0);
-        result = 31 * result + (serialNumber != null ? serialNumber.hashCode() : 0);
-        return result;
+        return Objects.hash(path, format, alias, subjectDn, serialNumber, hasPrivateKey, expiry, issuer);
     }
 
     @Override

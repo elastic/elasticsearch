@@ -17,12 +17,14 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -43,7 +45,11 @@ public final class NoOpEngine extends ReadOnlyEngine {
     private final DocsStats docsStats;
 
     public NoOpEngine(EngineConfig config) {
-        super(config, null, null, true, Function.identity(), true, true);
+        this(config, null);
+    }
+
+    public NoOpEngine(EngineConfig config, @Nullable TranslogStats translogStats) {
+        super(config, null, translogStats, true, Function.identity(), true, true);
         this.segmentsStats = new SegmentsStats();
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {

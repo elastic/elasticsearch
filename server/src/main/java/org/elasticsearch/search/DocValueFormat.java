@@ -704,24 +704,17 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder();
+            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String f = entry.getKey().toString();
                 Object v = entry.getValue();
 
                 if (v instanceof String s) {
                     builder.addString(f, s);
-                } else if (v instanceof Long || v instanceof Integer) {
-                    Long l = Long.valueOf(v.toString());
-                    // For a long encoded number, we must check if the number can be the encoded value
-                    // of an unsigned_long.
-                    Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);
-                    if (l == ul) {
-                        builder.addLong(f, l);
-                    } else {
-                        long ll = UNSIGNED_LONG_SHIFTED.parseLong(String.valueOf(l), false, () -> 0L);
-                        builder.addUnsignedLong(f, ll);
-                    }
+                } else if (v instanceof Long l) {
+                    builder.addLong(f, l);
+                } else if (v instanceof Integer i) {
+                    builder.addLong(f, i.longValue());
                 } else if (v instanceof BigInteger ul) {
                     long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
                     builder.addUnsignedLong(f, ll);

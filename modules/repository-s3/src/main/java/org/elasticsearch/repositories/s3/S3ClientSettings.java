@@ -263,6 +263,12 @@ final class S3ClientSettings {
             normalizedSettings,
             disableChunkedEncoding
         );
+        final S3BasicCredentials newCredentials;
+        if (checkDeprecatedCredentials(repositorySettings)) {
+            newCredentials = loadDeprecatedCredentials(repositorySettings);
+        } else {
+            newCredentials = credentials;
+        }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
         if (Objects.equals(endpoint, newEndpoint)
@@ -272,6 +278,7 @@ final class S3ClientSettings {
             && newReadTimeoutMillis == readTimeoutMillis
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
+            && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion)
@@ -279,7 +286,7 @@ final class S3ClientSettings {
             return this;
         }
         return new S3ClientSettings(
-            credentials,
+            newCredentials,
             newEndpoint,
             newProtocol,
             newProxyHost,
@@ -313,6 +320,41 @@ final class S3ClientSettings {
             clients.put("default", getClientSettings(settings, "default"));
         }
         return Collections.unmodifiableMap(clients);
+    }
+
+    static boolean checkDeprecatedCredentials(Settings repositorySettings) {
+        if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
+            if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
+                throw new IllegalArgumentException(
+                    "Repository setting ["
+                        + S3Repository.ACCESS_KEY_SETTING.getKey()
+                        + " must be accompanied by setting ["
+                        + S3Repository.SECRET_KEY_SETTING.getKey()
+                        + "]"
+                );
+            }
+            return true;
+        } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
+            throw new IllegalArgumentException(
+                "Repository setting ["
+                    + S3Repository.SECRET_KEY_SETTING.getKey()
+                    + " must be accompanied by setting ["
+                    + S3Repository.ACCESS_KEY_SETTING.getKey()
+                    + "]"
+            );
+        }
+        return false;
+    }
+
+    // backcompat for reading keys out of repository settings (clusterState)
+    private static S3BasicCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+        assert checkDeprecatedCredentials(repositorySettings);
+        try (
+            SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
+            SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)
+        ) {
+            return new S3BasicCredentials(key.toString(), secret.toString());
+        }
     }
 
     private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {

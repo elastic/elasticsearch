@@ -118,19 +118,19 @@ public final class BasicTokenFilter extends TokenFilter {
         }
         current = null; // not really needed, but for safety
         if (input.incrementToken()) {
-            if (isStripAccents) {
-                stripAccent();
-            }
             if (neverSplitSet.contains(termAtt)) {
                 return true;
             }
             // split punctuation and maybe cjk chars!!!
             LinkedList<DelimitedToken> splits = split();
-            // There is nothing to merge, nothing to store, simply return
-            if (splits.size() == 1) {
-                return true;
+            LinkedList<DelimitedToken> delimitedTokens = mergeSplits(splits);
+            if (isStripAccents) {
+                for (DelimitedToken token : delimitedTokens) {
+                    tokens.add(stripAccent(token));
+                }
+            } else {
+                tokens.addAll(delimitedTokens);
             }
-            tokens.addAll(mergeSplits(splits));
             this.current = captureState();
             DelimitedToken token = tokens.removeFirst();
             termAtt.setEmpty().append(token.charSequence());
@@ -140,24 +140,29 @@ public final class BasicTokenFilter extends TokenFilter {
         return false;
     }
 
-    void stripAccent() {
+    private DelimitedToken stripAccent(DelimitedToken token) {
         accentBuffer.setLength(0);
-        if (normalizer.quickCheck(termAtt) != Normalizer.YES) {
-            normalizer.normalize(termAtt, accentBuffer);
+        boolean changed = false;
+        if (normalizer.quickCheck(token.charSequence()) != Normalizer.YES) {
+            normalizer.normalize(token.charSequence(), accentBuffer);
+            changed = true;
+        } else {
+            accentBuffer.append(token.charSequence());
         }
         List<Integer> badIndices = new ArrayList<>();
         List<Integer> charCount = new ArrayList<>();
         int index = 0;
+        int deletedIndices = 0;
         for (PrimitiveIterator.OfInt it = accentBuffer.codePoints().iterator(); it.hasNext();) {
             int cp = it.next();
             if (Character.getType(cp) == Character.NON_SPACING_MARK) {
-                badIndices.add(index);
+                // When we iterate to delete accents, we need to account for previously deleted ones
+                badIndices.add(index - deletedIndices);
                 charCount.add(Character.charCount(cp));
+                deletedIndices++;
+                changed = true;
             }
             index++;
-        }
-        if (badIndices.isEmpty()) {
-            return;
         }
         for (int i = 0; i < badIndices.size(); i++) {
             int badIndex = badIndices.get(i);
@@ -166,12 +171,15 @@ public final class BasicTokenFilter extends TokenFilter {
                 accentBuffer.deleteCharAt(badIndex);
             }
         }
-        termAtt.setEmpty().append(accentBuffer);
+        if (changed) {
+            return new DelimitedToken(accentBuffer.toString(), token.startOffset(), token.endOffset());
+        }
+        return token;
     }
 
     private LinkedList<DelimitedToken> split() {
         LinkedList<DelimitedToken> splits = new LinkedList<>();
-        int startOffset = offsetAtt.startOffset();
+        final int startOffset = offsetAtt.startOffset();
         int charIndex = 0;
         int lastCharSplit = 0;
         for (PrimitiveIterator.OfInt it = termAtt.codePoints().iterator(); it.hasNext();) {
@@ -203,6 +211,9 @@ public final class BasicTokenFilter extends TokenFilter {
     }
 
     private LinkedList<DelimitedToken> mergeSplits(LinkedList<DelimitedToken> splits) {
+        if (splits.size() == 1) {
+            return splits;
+        }
         LinkedList<DelimitedToken> mergedTokens = new LinkedList<>();
         List<DelimitedToken> matchingTokens = new ArrayList<>();
         CharSeqTokenTrieNode current = neverSplit;

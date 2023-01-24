@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -34,10 +34,10 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        registerTestTask(project, yamlTestSourceSet);
+        registerTestTask(project, yamlTestSourceSet, SOURCE_SET_NAME, StandaloneRestIntegTestTask.class);
 
         // setup the dependencies
-        setupYamlRestTestDependenciesDefaults(project, yamlTestSourceSet);
+        setupYamlRestTestDependenciesDefaults(project, yamlTestSourceSet, true);
 
         // setup the copy for the rest resources
         project.getTasks().withType(CopyRestApiTask.class).configureEach(copyRestApiTask -> {

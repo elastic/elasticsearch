@@ -286,7 +286,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         }
 
         public Result(StreamInput in) throws IOException {
-            this.actualClasses = Collections.unmodifiableList(in.readList(ActualClass::new));
+            this.actualClasses = in.readImmutableList(ActualClass::new);
             this.otherActualClassCount = in.readVLong();
         }
 
@@ -382,7 +382,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         public ActualClass(StreamInput in) throws IOException {
             this.actualClass = in.readString();
             this.actualClassDocCount = in.readVLong();
-            this.predictedClasses = Collections.unmodifiableList(in.readList(PredictedClass::new));
+            this.predictedClasses = in.readImmutableList(PredictedClass::new);
             this.otherPredictedClassDocCount = in.readVLong();
         }
 

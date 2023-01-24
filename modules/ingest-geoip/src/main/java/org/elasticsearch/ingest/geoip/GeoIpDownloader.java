@@ -10,14 +10,15 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -120,12 +121,24 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     public void setPollInterval(TimeValue pollInterval) {
         this.pollInterval = pollInterval;
         if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(new TimeValue(1));
+            scheduleNextRun(TimeValue.ZERO);
         }
     }
 
     // visible for testing
     void updateDatabases() throws IOException {
+        var clusterState = clusterService.state();
+        var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        if (geoipIndex != null) {
+            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
+            }
+            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            if (blockException != null) {
+                throw blockException;
+            }
+        }
+
         logger.debug("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
@@ -173,7 +186,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error downloading geoip database [{}]", name), e);
+            logger.error((Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
     }
 

@@ -110,6 +110,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             PageParams.defaultParams(),
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
+            null,
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -117,7 +118,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         String inferenceModelId = ids.v2().keySet().iterator().next();
 
         PlainActionFuture<TrainedModelConfig> getTrainedModelFuture = new PlainActionFuture<>();
-        trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), getTrainedModelFuture);
+        trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), null, getTrainedModelFuture);
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
         assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
@@ -128,7 +129,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         assertThat(storedConfig.getMetadata(), hasKey("hyperparameters"));
 
         PlainActionFuture<Map<String, TrainedModelMetadata>> getTrainedMetadataFuture = new PlainActionFuture<>();
-        trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), getTrainedMetadataFuture);
+        trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), null, getTrainedMetadataFuture);
 
         TrainedModelMetadata storedMetadata = getTrainedMetadataFuture.actionGet().get(inferenceModelId);
         assertThat(storedMetadata.getModelId(), startsWith(modelId));

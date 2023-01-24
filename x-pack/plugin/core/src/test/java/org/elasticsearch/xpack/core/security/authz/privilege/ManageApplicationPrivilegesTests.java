@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRe
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 
@@ -40,7 +41,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class ManageApplicationPrivilegesTests extends ESTestCase {
 
@@ -99,7 +99,7 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         assertThat(kibanaAndLogstashPermission, notNullValue());
         assertThat(cloudAndSwiftypePermission, notNullValue());
 
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         final GetPrivilegesRequest getKibana1 = new GetPrivilegesRequest();
         getKibana1.application("kibana-1");
         assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", getKibana1, authentication));
@@ -128,7 +128,7 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
     }
 
     public void testSecurityForGetAllApplicationPrivileges() {
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         final GetPrivilegesRequest getAll = new GetPrivilegesRequest();
         getAll.application(null);
         getAll.privileges(new String[0]);

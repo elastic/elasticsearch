@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
@@ -89,8 +87,7 @@ public class AutodetectCommunicator implements Closeable {
         this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
-        this.includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        this.includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
     public void restoreState(ModelSnapshot modelSnapshot) {
@@ -183,6 +180,7 @@ public class AutodetectCommunicator implements Closeable {
         try {
             future.get();
             autodetectWorkerExecutor.shutdown();
+            dataCountsReporter.writeUnreportedCounts();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
@@ -212,7 +210,7 @@ public class AutodetectCommunicator implements Closeable {
                 try {
                     autodetectResultProcessor.awaitCompletion();
                 } catch (TimeoutException e) {
-                    logger.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
+                    logger.warn(() -> "[" + job.getId() + "] Timed out waiting for killed job", e);
                 }
             }
         } finally {
@@ -259,6 +257,11 @@ public class AutodetectCommunicator implements Closeable {
     public void flushJob(FlushJobParams params, BiConsumer<FlushAcknowledgement, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
+            try {
+                dataCountsReporter.writeUnreportedCounts();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             return waitFlushToCompletion(flushId, params.isWaitForNormalization());
         }, handler);
     }
@@ -382,7 +385,7 @@ public class AutodetectCommunicator implements Closeable {
                         )
                     );
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                    logger.error(() -> "[" + job.getId() + "] Unexpected exception writing to process", e);
                     handler.accept(null, e);
                 }
             }
@@ -414,5 +417,9 @@ public class AutodetectCommunicator implements Closeable {
             );
         }
         categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, categorizationAnalyzerConfig);
+    }
+
+    public void setVacating(boolean vacating) {
+        autodetectResultProcessor.setVacating(vacating);
     }
 }

@@ -14,17 +14,21 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -96,6 +100,10 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         return Collections.unmodifiableMap(this.snapshotConfigurations);
     }
 
+    /**
+     * @deprecated use {@link LifecycleOperationMetadata#getSLMOperationMode()} instead. This may be incorrect.
+     */
+    @Deprecated(since = "8.7.0")
     public OperationMode getOperationMode() {
         return operationMode;
     }
@@ -132,11 +140,15 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations);
-        builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
-        builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentValuesMap(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations),
+            Iterators.single((builder, params) -> {
+                builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
+                builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
+                return builder;
+            })
+        );
     }
 
     @Override

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -70,6 +69,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";
+                assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
                 tokenService.createOAuth2Tokens(
@@ -90,7 +90,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     }, listener::onFailure)
                 );
             }, e -> {
-                logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);
+                logger.debug(() -> "SamlToken [" + saml + "] could not be authenticated", e);
                 listener.onFailure(e);
             }));
         }

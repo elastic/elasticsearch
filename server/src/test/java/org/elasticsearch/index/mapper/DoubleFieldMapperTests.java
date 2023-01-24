@@ -9,6 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -86,5 +89,54 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == DoubleFieldScript.CONTEXT) {
+                    return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            protected DoubleFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new DoubleFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected DoubleFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new DoubleFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        emit(1.0);
+                    }
+                };
+            }
+        };
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
     }
 }

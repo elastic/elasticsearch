@@ -19,13 +19,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.shards.ShardCounts;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -47,6 +48,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
+            counts.getShardsPerNode(),
             group
         );
 
@@ -75,6 +77,14 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + " shards open",
             errorMessage.get()
         );
+        assertFalse(
+            ShardLimitValidator.canAddShardsToCluster(
+                counts.getFailingIndexShards(),
+                counts.getFailingIndexReplicas(),
+                state,
+                ShardLimitValidator.FROZEN_GROUP.equals(group)
+            )
+        );
     }
 
     public void testUnderShardLimit() {
@@ -87,6 +97,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
+            counts.getShardsPerNode(),
             group
         );
 
@@ -101,6 +112,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         );
 
         assertFalse(errorMessage.isPresent());
+        assertTrue(ShardLimitValidator.canAddShardsToCluster(shardsToAdd, 0, state, ShardLimitValidator.FROZEN_GROUP.equals(group)));
     }
 
     public void testValidateShardLimitOpenIndices() {
@@ -182,7 +194,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
         return state;
     }
 
-    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas, String group) {
+    public static ClusterState createClusterForShardLimitTest(
+        int nodesInCluster,
+        int shardsInIndex,
+        int replicas,
+        int maxShardsPerNode,
+        String group
+    ) {
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
 
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
@@ -195,10 +213,15 @@ public class ShardLimitValidatorTests extends ESTestCase {
             .numberOfShards(shardsInIndex)
             .numberOfReplicas(replicas);
         Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
+        Settings.Builder clusterSettings = Settings.builder()
+            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNode)
+            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode);
         if (randomBoolean()) {
             metadata.transientSettings(Settings.EMPTY);
+            metadata.persistentSettings(clusterSettings.build());
         } else {
             metadata.persistentSettings(Settings.EMPTY);
+            metadata.transientSettings(clusterSettings.build());
         }
 
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).build();
@@ -231,12 +254,12 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, String group) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
+        Map<String, DiscoveryNode> dataNodes = new HashMap<>();
         for (int i = 0; i < nodesInCluster; i++) {
             dataNodes.put(randomAlphaOfLengthBetween(5, 15), createNode(group));
         }
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
+        when(nodes.getDataNodes()).thenReturn(dataNodes);
         return nodes;
     }
 

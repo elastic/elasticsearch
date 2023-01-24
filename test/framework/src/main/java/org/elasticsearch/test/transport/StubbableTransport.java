@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -148,6 +149,11 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
+    public BoundTransportAddress boundRemoteIngressAddress() {
+        return delegate.boundRemoteIngressAddress();
+    }
+
+    @Override
     public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
         return delegate.addressesFromString(address);
     }
@@ -196,11 +202,6 @@ public class StubbableTransport implements Transport {
     @Override
     public void addLifecycleListener(LifecycleListener listener) {
         delegate.addLifecycleListener(listener);
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        delegate.removeLifecycleListener(listener);
     }
 
     @Override
@@ -266,6 +267,11 @@ public class StubbableTransport implements Transport {
         @Override
         public Version getVersion() {
             return connection.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return connection.getTransportVersion();
         }
 
         @Override

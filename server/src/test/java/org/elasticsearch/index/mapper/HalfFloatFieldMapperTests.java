@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,5 +44,18 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected Number randomNumber() {
         return randomBoolean() ? randomFloat() : randomDoubleBetween(-65504, 65504, true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(
+            n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())),
+            ignoreMalformed
+        );
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

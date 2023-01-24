@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -79,9 +80,9 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
               "combined_fields" : {
                 "query" : "quick brown fox",
                 "fields" : [ "abstract^1.0", "body^1.0", "title^1.0" ],
-                "operator" : "OR",
-                "zero_terms_query" : "NONE",
-                "auto_generate_synonyms_phrase_query" : true,
+                "operator" : "AND",
+                "zero_terms_query" : "ALL",
+                "auto_generate_synonyms_phrase_query" : false,
                 "boost" : 2.0
               }
             }""";
@@ -91,7 +92,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
 
         assertEquals(json, "quick brown fox", parsed.value());
         assertEquals(json, 3, parsed.fields().size());
-        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, Operator.AND, parsed.operator());
         assertEquals(json, 2.0, parsed.boost, 1e-6);
     }
 
@@ -103,13 +104,13 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         Object[] expectedValues = new Object[] { "2", "2", "2%", null };
         int i = 0;
         for (Object value : testValues) {
-            String json = """
+            String json = Strings.format("""
                 {
                   "combined_fields" : {
                     "query" : "quick brown fox",
                     "minimum_should_match" : %s
                   }
-                }""".formatted(value);
+                }""", value);
 
             CombinedFieldsQueryBuilder parsed = (CombinedFieldsQueryBuilder) parseQuery(json);
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -72,20 +71,20 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
     @Override
     protected EmptyResult readShardResult(final StreamInput in) {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override
-    protected BroadcastResponse newResponse(
-        final ForgetFollowerAction.Request request,
-        final int totalShards,
-        final int successfulShards,
-        final int failedShards,
-        List<EmptyResult> emptyResults,
-        final List<DefaultShardOperationFailedException> shardFailures,
-        final ClusterState clusterState
+    protected ResponseFactory<BroadcastResponse, EmptyResult> getResponseFactory(
+        ForgetFollowerAction.Request request,
+        ClusterState clusterState
     ) {
-        return new BroadcastResponse(totalShards, successfulShards, failedShards, shardFailures);
+        return (totalShards, successfulShards, failedShards, emptyResults, shardFailures) -> new BroadcastResponse(
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override

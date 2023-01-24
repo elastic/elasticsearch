@@ -101,7 +101,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
      * Set keep alive for the point in time
      */
     public OpenPointInTimeRequest keepAlive(TimeValue keepAlive) {
-        this.keepAlive = Objects.requireNonNull(keepAlive, "[keep_alive] parameter must be non null");
+        this.keepAlive = keepAlive;
         return this;
     }
 

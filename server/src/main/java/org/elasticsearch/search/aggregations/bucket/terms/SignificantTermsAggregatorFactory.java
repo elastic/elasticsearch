@@ -62,60 +62,56 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * including those that need global ordinals
      */
     private static SignificantTermsAggregatorSupplier bytesSupplier() {
-        return new SignificantTermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                DocValueFormat format,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                String executionHint,
-                AggregationContext context,
-                Aggregator parent,
-                SignificanceHeuristic significanceHeuristic,
-                SignificanceLookup lookup,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (
+            name,
+            factories,
+            valuesSourceConfig,
+            format,
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata) -> {
 
-                ExecutionMode execution = null;
-                if (executionHint != null) {
-                    execution = ExecutionMode.fromString(executionHint, deprecationLogger);
-                }
-                if (valuesSourceConfig.hasOrdinals() == false) {
-                    execution = ExecutionMode.MAP;
-                }
-                if (execution == null) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
+            ExecutionMode execution = null;
+            if (executionHint != null) {
+                execution = ExecutionMode.fromString(executionHint, deprecationLogger);
+            }
+            if (valuesSourceConfig.hasOrdinals() == false) {
+                execution = ExecutionMode.MAP;
+            }
+            if (execution == null) {
+                execution = ExecutionMode.GLOBAL_ORDINALS;
+            }
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                    throw new IllegalArgumentException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression style "
-                            + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
-                            + "include/exclude clauses"
-                    );
-                }
-
-                return execution.create(
-                    name,
-                    factories,
-                    valuesSourceConfig,
-                    format,
-                    bucketCountThresholds,
-                    includeExclude,
-                    context,
-                    parent,
-                    significanceHeuristic,
-                    lookup,
-                    cardinality,
-                    metadata
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression style "
+                        + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
+                        + "include/exclude clauses"
                 );
             }
+
+            return execution.create(
+                name,
+                factories,
+                valuesSourceConfig,
+                format,
+                bucketCountThresholds,
+                includeExclude,
+                context,
+                parent,
+                significanceHeuristic,
+                lookup,
+                cardinality,
+                metadata
+            );
         };
     }
 
@@ -124,60 +120,56 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * This includes floating points, and formatted types that use numerics internally for storage (date, boolean, etc)
      */
     private static SignificantTermsAggregatorSupplier numericSupplier() {
-        return new SignificantTermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                DocValueFormat format,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                String executionHint,
-                AggregationContext context,
-                Aggregator parent,
-                SignificanceHeuristic significanceHeuristic,
-                SignificanceLookup lookup,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (
+            name,
+            factories,
+            valuesSourceConfig,
+            format,
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata) -> {
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                    throw new IllegalArgumentException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression style include/exclude "
-                            + "settings as they can only be applied to string fields. Use an array of numeric "
-                            + "values for include/exclude clauses used to filter numeric fields"
-                    );
-                }
-
-                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
-                if (numericValuesSource.isFloatingPoint()) {
-                    throw new UnsupportedOperationException("No support for examining floating point numerics");
-                }
-
-                IncludeExclude.LongFilter longFilter = null;
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToLongFilter(format);
-                }
-
-                return new NumericTermsAggregator(
-                    name,
-                    factories,
-                    agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, cardinality),
-                    numericValuesSource,
-                    format,
-                    null,
-                    bucketCountThresholds,
-                    context,
-                    parent,
-                    SubAggCollectionMode.BREADTH_FIRST,
-                    longFilter,
-                    cardinality,
-                    metadata
+            if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression style include/exclude "
+                        + "settings as they can only be applied to string fields. Use an array of numeric "
+                        + "values for include/exclude clauses used to filter numeric fields"
                 );
             }
+
+            ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+            if (numericValuesSource.isFloatingPoint()) {
+                throw new UnsupportedOperationException("No support for examining floating point numerics");
+            }
+
+            IncludeExclude.LongFilter longFilter = null;
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(format);
+            }
+
+            return new NumericTermsAggregator(
+                name,
+                factories,
+                agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, cardinality),
+                numericValuesSource,
+                format,
+                null,
+                bucketCountThresholds,
+                context,
+                parent,
+                SubAggCollectionMode.BREADTH_FIRST,
+                longFilter,
+                cardinality,
+                metadata
+            );
         };
     }
 

@@ -520,7 +520,7 @@
             }
           }
   - match: { job_id: "jobs-crud-update-job" }
-  - length: { analysis_config.categorization_analyzer.filter: 1 }
+  - length: { analysis_config.categorization_analyzer.filter: 2 }
   - match: { analysis_config.categorization_analyzer.tokenizer: "ml_standard" }
   - length: { analysis_config.categorization_analyzer.char_filter: 3 }
   - match: { analysis_config.categorization_analyzer.char_filter.0: "first_line_with_letters" }
@@ -1238,6 +1238,7 @@
   - is_true: datafeed_config
   - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
   - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config.authorization.roles
   - is_true: create_time
 
   - do:
@@ -1669,3 +1670,35 @@
           {
             "allow_no_match" : true
           }
+
+---
+"Test job with rule referencing missing filter":
+
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-rule-missing-filter
+        body:  >
+          {
+            "analysis_config": {
+              "detectors": [
+                {
+                  "function": "count",
+                  "by_field_name": "country",
+                  "custom_rules": [
+                    {
+                      "actions": ["skip_result"],
+                      "scope": {
+                        "country": {"filter_id": "safe_countries"}
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      catch: /Unable to find filter \[safe_countries\]/
+      ml.open_job:
+        job_id: jobs-crud-rule-missing-filter

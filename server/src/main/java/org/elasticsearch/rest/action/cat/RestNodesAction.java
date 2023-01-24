@@ -33,10 +33,12 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -132,7 +134,6 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
-        table.addCell("flavor", "default:false;alias:f;desc:es distribution flavor");
         table.addCell("type", "default:false;alias:t;desc:es distribution type");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
@@ -240,7 +241,7 @@ public class RestNodesAction extends AbstractCatAction {
         );
         table.addCell(
             "refresh.listeners",
-            "alias:rli,refreshListeners;default:false;text-align:right;" + "desc:number of pending refresh listeners"
+            "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners"
         );
 
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");
@@ -303,6 +304,18 @@ public class RestNodesAction extends AbstractCatAction {
             "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk"
         );
 
+        table.addCell(
+            "shard_stats.total_count",
+            "alias:sstc,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
+        );
+
+        table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");
+        table.addCell(
+            "mappings.total_estimated_overhead_in_bytes",
+            "alias:mteo,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
+                + " overhead in bytes of mappings"
+        );
+
         table.endHeaders();
         return table;
     }
@@ -345,7 +358,6 @@ public class RestNodesAction extends AbstractCatAction {
             }
 
             table.addCell(node.getVersion().toString());
-            table.addCell(info == null ? null : info.getBuild().flavor().displayName());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
@@ -357,7 +369,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (fsInfo != null) {
                 diskTotal = fsInfo.getTotal().getTotal();
                 diskAvailable = fsInfo.getTotal().getAvailable();
-                diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
+                diskUsed = ByteSizeValue.ofBytes(diskTotal.getBytes() - diskAvailable.getBytes());
 
                 double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
                 diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
@@ -486,7 +498,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
+            table.addCell(segmentsStats == null ? null : ByteSizeValue.ZERO);
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());
@@ -501,6 +513,13 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
             table.addCell(bulkStats == null ? null : bulkStats.getAvgTime());
             table.addCell(bulkStats == null ? null : bulkStats.getAvgSizeInBytes());
+
+            ShardCountStats shardCountStats = indicesStats == null ? null : indicesStats.getShardCount();
+            table.addCell(shardCountStats == null ? null : shardCountStats.getTotalCount());
+
+            NodeMappingStats nodeMappingStats = indicesStats == null ? null : indicesStats.getNodeMappingStats();
+            table.addCell(nodeMappingStats == null ? null : nodeMappingStats.getTotalCount());
+            table.addCell(nodeMappingStats == null ? null : nodeMappingStats.getTotalEstimatedOverhead());
 
             table.endRow();
         }

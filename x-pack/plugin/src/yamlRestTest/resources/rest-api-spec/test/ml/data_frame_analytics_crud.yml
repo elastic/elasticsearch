@@ -64,6 +64,7 @@ setup:
   - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - is_true: create_time
   - is_true: version
+  - is_true: authorization.roles
 
   - do:
       ml.get_data_frame_analytics:
@@ -83,6 +84,9 @@ setup:
   - match: { data_frame_analytics.0.analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - is_true: data_frame_analytics.0.create_time
   - is_true: data_frame_analytics.0.version
+  # We cannot assert an exact role here because this test is run by
+  # different users in the main REST tests and ML-with-security tests
+  - is_true: data_frame_analytics.0.authorization.roles
 
 ---
 "Test put config with security headers in the body":
@@ -2055,6 +2059,7 @@ setup:
   - match: { model_memory_limit: "30mb" }
   - match: { allow_lazy_start: true }
   - match: { max_num_threads: 2 }
+  - is_true: authorization.roles
 
 ---
 "Test update given missing analytics":

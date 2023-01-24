@@ -4,20 +4,22 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -113,7 +115,7 @@ public class CacheFile {
                 fileChannel.close();
             } catch (IOException e) {
                 // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-                logger.warn(() -> new ParameterizedMessage("Failed to close [{}]", file), e);
+                logger.warn(() -> "Failed to close [" + file + "]", e);
             } finally {
                 decrementRefCount();
             }
@@ -169,7 +171,7 @@ public class CacheFile {
     }
 
     // Only used in tests
-    SortedSet<ByteRange> getCompletedRanges() {
+    public SortedSet<ByteRange> getCompletedRanges() {
         return tracker.getCompletedRanges();
     }
 
@@ -530,7 +532,7 @@ public class CacheFile {
             Files.deleteIfExists(file);
         } catch (IOException e) {
             // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-            logger.warn(() -> new ParameterizedMessage("Failed to delete [{}]", file), e);
+            logger.warn(() -> "Failed to delete [" + file + "]", e);
         } finally {
             listener.onCacheFileDelete(CacheFile.this);
         }

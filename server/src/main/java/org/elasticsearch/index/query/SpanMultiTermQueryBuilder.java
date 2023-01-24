@@ -69,7 +69,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         builder.startObject(NAME);
         builder.field(MATCH_FIELD.getPreferredName());
         multiTermQueryBuilder.toXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

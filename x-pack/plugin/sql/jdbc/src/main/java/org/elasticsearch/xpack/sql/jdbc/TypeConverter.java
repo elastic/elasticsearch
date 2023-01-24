@@ -255,8 +255,8 @@ final class TypeConverter {
             case GEO_POINT:
             case GEO_SHAPE:
             case SHAPE:
-                return v.toString();
             case IP:
+            case VERSION:
                 return v.toString();
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");

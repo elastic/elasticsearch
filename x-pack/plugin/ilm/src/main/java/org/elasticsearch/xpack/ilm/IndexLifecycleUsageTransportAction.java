@@ -119,8 +119,14 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 RolloverAction rolloverAction = (RolloverAction) action;
                 consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
                 consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
+                consumer.setRolloverMaxPrimaryShardDocs(rolloverAction.getMaxPrimaryShardDocs());
                 consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
                 consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
+                consumer.setRolloverMinAge(rolloverAction.getMinAge());
+                consumer.setRolloverMinDocs(rolloverAction.getMinDocs());
+                consumer.setRolloverMinPrimaryShardDocs(rolloverAction.getMinPrimaryShardDocs());
+                consumer.setRolloverMinPrimaryShardSize(rolloverAction.getMinPrimaryShardSize());
+                consumer.setRolloverMinSize(rolloverAction.getMinSize());
             }
             case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;

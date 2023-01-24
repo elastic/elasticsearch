@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
@@ -172,7 +171,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Closing server1");
         // kill the first server
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(server_1));
+        internalCluster().stopNode(server_1);
         // verify health
         logger.info("Running Cluster Health");
         clusterHealth = client().admin()

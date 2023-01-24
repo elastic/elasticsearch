@@ -11,7 +11,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.Channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.CompletableContext;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
@@ -22,7 +22,7 @@ import java.net.SocketAddress;
 public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;
@@ -54,7 +54,7 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override

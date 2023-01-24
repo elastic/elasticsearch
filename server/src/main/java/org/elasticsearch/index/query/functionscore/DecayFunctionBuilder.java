@@ -79,9 +79,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (scale == null) {
             throw new IllegalArgumentException("decay function: scale must not be null");
         }
-        if (decay <= 0 || decay >= 1.0) {
-            throw new IllegalStateException("decay function: decay must be in range 0..1!");
-        }
+        validateDecay(decay);
         this.fieldName = fieldName;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -110,6 +108,15 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
         this.fieldName = fieldName;
         this.functionBytes = functionBytes;
+    }
+
+    /**
+    * Override this function if you have different validation rules per score function
+    */
+    protected void validateDecay(double decay) {
+        if (decay <= 0 || decay >= 1.0) {
+            throw new IllegalStateException("decay function: decay must be in range (0..1)!");
+        }
     }
 
     /**
@@ -260,7 +267,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 DecayFunctionBuilder.ORIGIN
             );
         }
-        IndexNumericFieldData numericFieldData = context.getForField(fieldType);
+        IndexNumericFieldData numericFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
@@ -300,7 +307,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
-        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
+        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
 
     }
@@ -350,7 +357,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         double scale = val.getMillis();
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24), DecayFunctionParser.class.getSimpleName() + ".offset");
         double offset = val.getMillis();
-        IndexNumericFieldData numericFieldData = context.getForField(dateFieldType);
+        IndexNumericFieldData numericFieldData = context.getForField(dateFieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
@@ -382,7 +389,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
-            final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
+            final MultiGeoPointValues geoPointValues = fieldData.load(context).getPointValues();
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
@@ -413,7 +420,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
             StringBuilder values = new StringBuilder(mode.name());
             values.append(" of: [");
-            final MultiGeoPointValues geoPointValues = fieldData.load(ctx).getGeoPointValues();
+            final MultiGeoPointValues geoPointValues = fieldData.load(ctx).getPointValues();
             if (geoPointValues.advanceExact(docId)) {
                 final int num = geoPointValues.docValueCount();
                 for (int i = 0; i < num; i++) {

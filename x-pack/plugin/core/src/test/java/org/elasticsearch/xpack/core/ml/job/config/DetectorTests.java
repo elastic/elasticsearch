@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -25,7 +25,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DetectorTests extends AbstractSerializingTestCase<Detector> {
+public class DetectorTests extends AbstractXContentSerializingTestCase<Detector> {
 
     public void testEquals_GivenEqual() {
         Detector.Builder builder = new Detector.Builder("mean", "field");

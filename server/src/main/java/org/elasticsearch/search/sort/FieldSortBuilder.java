@@ -362,7 +362,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             fieldType = resolveUnmappedType(context);
         }
 
-        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         if (fieldData instanceof IndexNumericFieldData == false
             && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
@@ -462,7 +462,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             fieldType = resolveUnmappedType(context);
         }
 
-        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         if (fieldData instanceof IndexNumericFieldData == false
             && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");

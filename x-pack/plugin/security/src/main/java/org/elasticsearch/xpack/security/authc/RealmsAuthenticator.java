@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -36,6 +35,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.core.Strings.format;
 
 class RealmsAuthenticator implements Authenticator {
 
@@ -166,8 +167,8 @@ class RealmsAuthenticator implements Authenticator {
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                             if (result.getException() != null) {
                                 logger.info(
-                                    new ParameterizedMessage(
-                                        "Authentication of [{}] was terminated by realm [{}] - {}",
+                                    () -> format(
+                                        "Authentication of [%s] was terminated by realm [%s] - %s",
                                         authenticationToken.principal(),
                                         realm.name(),
                                         result.getMessage()
@@ -192,8 +193,8 @@ class RealmsAuthenticator implements Authenticator {
                     }
                 }, (ex) -> {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "An error occurred while attempting to authenticate [{}] against realm [{}]",
+                        () -> format(
+                            "An error occurred while attempting to authenticate [%s] against realm [%s]",
                             authenticationToken.principal(),
                             realm.name()
                         ),
@@ -233,8 +234,8 @@ class RealmsAuthenticator implements Authenticator {
             authenticatingListener.run();
         } catch (Exception e) {
             logger.debug(
-                new ParameterizedMessage(
-                    "Authentication of [{}] with token [{}] failed",
+                () -> format(
+                    "Authentication of [%s] with token [%s] failed",
                     authenticationToken.principal(),
                     authenticationToken.getClass().getName()
                 ),
@@ -275,10 +276,14 @@ class RealmsAuthenticator implements Authenticator {
      * names of users that exist using a timing attack
      */
     public void lookupRunAsUser(Context context, Authentication authentication, ActionListener<Tuple<User, Realm>> listener) {
-        assert authentication.getLookedUpBy() == null : "authentication already has a lookup realm";
+        assert false == authentication.isRunAs() : "authentication already has run-as";
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
         if (runAsUsername != null && runAsUsername.isEmpty() == false) {
-            logger.trace("Looking up run-as user [{}] for authenticated user [{}]", runAsUsername, authentication.getUser().principal());
+            logger.trace(
+                "Looking up run-as user [{}] for authenticated user [{}]",
+                runAsUsername,
+                authentication.getAuthenticatingSubject().getUser().principal()
+            );
             final RealmUserLookup lookup = new RealmUserLookup(getRealmList(context, runAsUsername), context.getThreadContext());
             final long startInvalidationNum = numInvalidation.get();
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
@@ -286,7 +291,7 @@ class RealmsAuthenticator implements Authenticator {
                     logger.debug(
                         "Cannot find run-as user [{}] for authenticated user [{}]",
                         runAsUsername,
-                        authentication.getUser().principal()
+                        authentication.getAuthenticatingSubject().getUser().principal()
                     );
                     listener.onResponse(null);
                 } else {
@@ -297,14 +302,21 @@ class RealmsAuthenticator implements Authenticator {
                         // this might provide a valid hint
                         lastSuccessfulAuthCache.computeIfAbsent(runAsUsername, s -> realm);
                     }
-                    logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
+                    logger.trace(
+                        "Using run-as user [{}] with authenticated user [{}]",
+                        foundUser,
+                        authentication.getAuthenticatingSubject().getUser().principal()
+                    );
                     listener.onResponse(tuple);
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {
-            logger.debug("user [{}] attempted to runAs with an empty username", authentication.getUser().principal());
+            logger.debug(
+                "user [{}] attempted to runAs with an empty username",
+                authentication.getAuthenticatingSubject().getUser().principal()
+            );
             listener.onFailure(
                 context.getRequest()
                     .runAsDenied(authentication.runAs(new User(runAsUsername), null), context.getMostRecentAuthenticationToken())

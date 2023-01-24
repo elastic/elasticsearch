@@ -9,7 +9,7 @@ package org.elasticsearch.watcher;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedWriter;

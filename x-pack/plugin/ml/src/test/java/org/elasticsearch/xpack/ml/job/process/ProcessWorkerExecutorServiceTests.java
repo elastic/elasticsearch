@@ -42,11 +42,17 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         threadPool.generic().execute(executor::start);
         executor.shutdown();
         AtomicBoolean rejected = new AtomicBoolean(false);
-        executor.execute(new AbstractRunnable() {
+        AtomicBoolean initialized = new AtomicBoolean(false);
+        executor.execute(new AbstractInitializableRunnable() {
             @Override
             public void onRejection(Exception e) {
                 assertThat(e, isA(EsRejectedExecutionException.class));
                 rejected.set(true);
+            }
+
+            @Override
+            public void init() {
+                initialized.set(true);
             }
 
             @Override
@@ -61,6 +67,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         });
 
         assertTrue(rejected.get());
+        assertTrue(initialized.get());
     }
 
     public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown() throws Exception {

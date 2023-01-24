@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -30,14 +32,13 @@ import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_LITERAL_USERNAME_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_SUFFIX_SETTING;
 
 /**
  * A container for xpack setting constants.
  */
 public class XPackSettings {
-
-    public static final boolean USER_PROFILE_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
-        || "true".equals(System.getProperty("es.user_profile_feature_flag_enabled"));
 
     private static final boolean IS_DARWIN_AARCH64;
     static {
@@ -180,45 +181,27 @@ public class XPackSettings {
 
     public static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
 
-    /*
-     * Do not allow insecure hashing algorithms to be used for password hashing
-     */
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
+        "xpack.security.authc.password_hashing.algorithm",
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
                 return Hasher.PBKDF2_STRETCH.name();
             } else {
                 return Hasher.BCRYPT.name();
             }
-        },
-        Function.identity(),
-        v -> {
-            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
-                );
-            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
-                try {
-                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                } catch (NoSuchAlgorithmException e) {
-                    throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.",
-                        e
-                    );
-                }
-            }
-        },
-        Property.NodeScope
+        }
     );
 
-    // TODO: This setting of hashing algorithm can share code with the one for password when pbkdf2_stretch is the default for both
-    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = new Setting<>(
-        new Setting.SimpleKey("xpack.security.authc.service_token_hashing.algorithm"),
-        (s) -> "PBKDF2_STRETCH",
-        Function.identity(),
-        v -> {
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
+        "xpack.security.authc.service_token_hashing.algorithm",
+        (s) -> Hasher.PBKDF2_STRETCH.name()
+    );
+
+    /*
+     * Do not allow insecure hashing algorithms to be used for password hashing
+     */
+    public static Setting<String> defaultStoredHashAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
+        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
@@ -228,15 +211,15 @@ public class XPackSettings {
                     SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
                 } catch (NoSuchAlgorithmException e) {
                     throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.service_token_hashing.algorithm] setting.",
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the PBKDF2 algorithms for the ["
+                            + key
+                            + "] setting.",
                         e
                     );
                 }
             }
-        },
-        Property.NodeScope
-    );
+        }, Property.NodeScope);
+    }
 
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
 
@@ -264,11 +247,21 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
+    public static final String REMOTE_CLUSTER_SSL_PREFIX = SecurityField.setting(RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX + "ssl.");
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_SSL_PREFIX,
+        false
+    );
+
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.addAll(REMOTE_CLUSTER_SSL.getEnabledSettings());
+        }
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
@@ -284,9 +277,9 @@ public class XPackSettings {
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
         settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
-        if (USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
-        }
+        settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
+        settings.add(DOMAIN_UID_LITERAL_USERNAME_SETTING);
+        settings.add(DOMAIN_UID_SUFFIX_SETTING);
         return Collections.unmodifiableList(settings);
     }
 

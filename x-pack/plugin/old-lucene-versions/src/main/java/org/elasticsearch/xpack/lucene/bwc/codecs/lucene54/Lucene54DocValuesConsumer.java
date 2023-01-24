@@ -38,7 +38,7 @@ import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicBlockPackedWriter;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacyDocValuesIterables;
 
 import java.io.Closeable;

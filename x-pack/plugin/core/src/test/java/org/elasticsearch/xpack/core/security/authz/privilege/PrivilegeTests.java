@@ -7,7 +7,14 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -15,7 +22,42 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
@@ -43,14 +85,14 @@ public class PrivilegeTests extends ESTestCase {
     private void verifyClusterActionAllowed(ClusterPrivilege clusterPrivilege, String... actions) {
         ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         for (String action : actions) {
-            assertTrue(clusterPermission.check(action, mock(TransportRequest.class), mock(Authentication.class)));
+            assertTrue(clusterPermission.check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()));
         }
     }
 
     private void verifyClusterActionDenied(ClusterPrivilege clusterPrivilege, String... actions) {
         ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         for (String action : actions) {
-            assertFalse(clusterPermission.check(action, mock(TransportRequest.class), mock(Authentication.class)));
+            assertFalse(clusterPermission.check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()));
         }
     }
 
@@ -190,6 +232,101 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_AUTOSCALING, "cluster:admin/autoscaling/get_decision");
     }
 
+    public void testReadSecurityPrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.READ_SECURITY,
+            GetApiKeyAction.NAME,
+            QueryApiKeyAction.NAME,
+            GetBuiltinPrivilegesAction.NAME,
+            GetPrivilegesAction.NAME,
+            GetProfilesAction.NAME,
+            ProfileHasPrivilegesAction.NAME,
+            SuggestProfilesAction.NAME,
+            GetRolesAction.NAME,
+            GetRoleMappingsAction.NAME,
+            GetServiceAccountAction.NAME,
+            GetServiceAccountCredentialsAction.NAME,
+            GetUsersAction.NAME,
+            HasPrivilegesAction.NAME,
+            GetUserPrivilegesAction.NAME
+        );
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.READ_SECURITY,
+            GetServiceAccountNodesCredentialsAction.NAME,
+            GetServiceAccountCredentialsAction.NAME + randomFrom("", "whatever")
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.READ_SECURITY,
+            PutUserAction.NAME,
+            DeleteUserAction.NAME,
+            PutRoleAction.NAME,
+            DeleteRoleAction.NAME,
+            PutRoleMappingAction.NAME,
+            DeleteRoleMappingAction.NAME,
+            CreateServiceAccountTokenAction.NAME,
+            CreateApiKeyAction.NAME,
+            InvalidateApiKeyAction.NAME,
+            ClusterHealthAction.NAME,
+            ClusterStateAction.NAME,
+            ClusterStatsAction.NAME,
+            NodeEnrollmentAction.NAME,
+            KibanaEnrollmentAction.NAME,
+            PutIndexTemplateAction.NAME,
+            GetIndexTemplatesAction.NAME,
+            ClusterRerouteAction.NAME,
+            ClusterUpdateSettingsAction.NAME,
+            ClearRealmCacheAction.NAME,
+            ClearSecurityCacheAction.NAME,
+            ClearRolesCacheAction.NAME,
+            UpdateApiKeyAction.NAME,
+            BulkUpdateApiKeyAction.NAME,
+            DelegatePkiAuthenticationAction.NAME,
+            ActivateProfileAction.NAME,
+            SetProfileEnabledAction.NAME,
+            UpdateProfileDataAction.NAME
+        );
+    }
+
+    public void testManageUserProfilePrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/profile/has_privileges",
+            "cluster:admin/xpack/security/profile/get",
+            "cluster:admin/xpack/security/profile/activate",
+            "cluster:admin/xpack/security/profile/set_enabled",
+            "cluster:admin/xpack/security/profile/suggest",
+            "cluster:admin/xpack/security/profile/put/data"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/role/put",
+            "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/role/put",
+            "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/user/put",
+            "cluster:admin/xpack/security/user/get",
+            "cluster:admin/xpack/security/user/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            ClusterHealthAction.NAME,
+            ClusterStateAction.NAME,
+            ClusterStatsAction.NAME,
+            PutIndexTemplateAction.NAME,
+            GetIndexTemplatesAction.NAME,
+            ClusterRerouteAction.NAME,
+            ClusterUpdateSettingsAction.NAME
+        );
+    }
+
     public void testManageCcrPrivilege() {
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.MANAGE_CCR,
@@ -198,7 +335,6 @@ public class PrivilegeTests extends ESTestCase {
             "cluster:admin/xpack/ccr/brand_new_api"
         );
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_CCR, "cluster:admin/xpack/whatever");
-
     }
 
     public void testManageEnrichPrivilege() {

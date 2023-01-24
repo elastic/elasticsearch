@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
+import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -53,6 +54,16 @@ public class TestWithSslPlugin implements Plugin<Project> {
             );
         project.getPlugins().withType(StandaloneRestTestPlugin.class).configureEach(restTestPlugin -> {
             SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
+            testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
+            project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(exportKeyStore));
+            project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
+            // Tell the tests we're running with ssl enabled
+            project.getTasks()
+                .withType(RestIntegTestTask.class)
+                .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
+        });
+        project.getPlugins().withType(LegacyJavaRestTestPlugin.class).configureEach(restTestPlugin -> {
+            SourceSet testSourceSet = Util.getJavaSourceSets(project).getByName(LegacyJavaRestTestPlugin.SOURCE_SET_NAME);
             testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
             project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(exportKeyStore));
             project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));

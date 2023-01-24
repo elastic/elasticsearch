@@ -57,7 +57,7 @@ public class NodeInfo extends BaseNodeResponse {
         version = Version.readVersion(in);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
-            totalIndexingBuffer = new ByteSizeValue(in.readLong());
+            totalIndexingBuffer = ByteSizeValue.ofBytes(in.readLong());
         } else {
             totalIndexingBuffer = null;
         }
@@ -183,7 +183,7 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            Settings.writeSettingsToStream(settings, out);
+            settings.writeTo(out);
         }
         out.writeOptionalWriteable(getInfo(OsInfo.class));
         out.writeOptionalWriteable(getInfo(ProcessInfo.class));

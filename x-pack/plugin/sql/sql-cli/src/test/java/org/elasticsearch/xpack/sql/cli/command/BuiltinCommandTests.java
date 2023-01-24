@@ -115,4 +115,21 @@ public class BuiltinCommandTests extends SqlCliTestCase {
         testTerminal.clear();
     }
 
+    public void testAllowPartialSearchResults() {
+        TestTerminal testTerminal = new TestTerminal();
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
+        AllowPartialResultsCliCommand cliCommand = new AllowPartialResultsCliCommand();
+        assertFalse(cliCommand.handle(testTerminal, cliSession, "allow_partial_search_results"));
+        assertEquals(false, cliSession.cfg().allowPartialResults());
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "allow_partial_search_results = true"));
+        assertEquals(true, cliSession.cfg().allowPartialResults());
+        assertEquals("allow_partial_search_results set to <em>true</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "allow_partial_search_results = false"));
+        assertEquals(false, cliSession.cfg().allowPartialResults());
+        assertEquals("allow_partial_search_results set to <em>false</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
+    }
+
 }

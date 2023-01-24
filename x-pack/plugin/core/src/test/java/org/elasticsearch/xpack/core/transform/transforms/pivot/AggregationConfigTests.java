@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -134,9 +135,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testDeprecation() throws IOException {
-        String source = """
+        String source = Strings.format("""
             {"dep_agg": {"%s" : {}}}
-            """.formatted(MockDeprecatedAggregationBuilder.NAME);
+            """, MockDeprecatedAggregationBuilder.NAME);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
             assertNull(agg.validate(null));

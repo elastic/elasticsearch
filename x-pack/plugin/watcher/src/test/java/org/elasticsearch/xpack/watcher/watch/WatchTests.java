@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.DataAttachment;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
@@ -153,6 +154,7 @@ public class WatchTests extends ESTestCase {
     private Client client;
     private HttpClient httpClient;
     private EmailService emailService;
+    private WebhookService webhookService;
     private TextTemplateEngine templateEngine;
     private HtmlSanitizer htmlSanitizer;
     private XPackLicenseState licenseState;
@@ -166,6 +168,7 @@ public class WatchTests extends ESTestCase {
         client = mock(Client.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
+        webhookService = mock(WebhookService.class);
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         licenseState = mock(XPackLicenseState.class);
@@ -658,7 +661,7 @@ public class WatchTests extends ESTestCase {
                     randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),
                     randomTransform(),
-                    new ExecutableWebhookAction(action, logger, httpClient, templateEngine),
+                    new ExecutableWebhookAction(action, logger, webhookService, templateEngine),
                     null,
                     null
                 )
@@ -676,7 +679,7 @@ public class WatchTests extends ESTestCase {
                     new EmailActionFactory(settings, emailService, templateEngine, new EmailAttachmentsParser(Collections.emptyMap()))
                 );
                 case IndexAction.TYPE -> parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
-                case WebhookAction.TYPE -> parsers.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
+                case WebhookAction.TYPE -> parsers.put(WebhookAction.TYPE, new WebhookActionFactory(webhookService, templateEngine));
                 case LoggingAction.TYPE -> parsers.put(LoggingAction.TYPE, new LoggingActionFactory(new MockTextTemplateEngine()));
             }
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -79,7 +80,7 @@ public class TransformResetIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -103,7 +104,7 @@ public class TransformResetIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
+            }""", transformDest, REVIEWS_INDEX_NAME);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));

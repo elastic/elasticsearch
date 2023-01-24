@@ -58,7 +58,9 @@ A `serial_diff` aggregation looks like this in isolation:
 |`lag` |The historical bucket to subtract from the current value. E.g. a lag of 7 will subtract the current value from
  the value 7 buckets ago. Must be a positive, non-zero integer |Optional |`1`
 |`gap_policy` |Determines what should happen when a gap in the data is encountered. |Optional |`insert_zeros`
-|`format` |Format to apply to the output value of this aggregation |Optional | `null`
+|`format` |{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property |Optional | `null`
 |===
 
 `serial_diff` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation:

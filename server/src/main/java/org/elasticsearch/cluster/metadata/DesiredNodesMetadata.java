@@ -12,16 +12,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 
 public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
@@ -50,7 +52,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     public DesiredNodesMetadata(StreamInput in) throws IOException {
-        this.latestDesiredNodes = new DesiredNodes(in);
+        this.latestDesiredNodes = DesiredNodes.readFrom(in);
     }
 
     @Override
@@ -67,13 +69,12 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single((builder, params) -> builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes, params));
     }
 
-    public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(TYPE, EMPTY).getLatestDesiredNodes();
+    public static DesiredNodesMetadata fromClusterState(ClusterState clusterState) {
+        return clusterState.metadata().custom(TYPE, EMPTY);
     }
 
     @Nullable
@@ -83,7 +84,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+        return Metadata.API_AND_GATEWAY;
     }
 
     @Override

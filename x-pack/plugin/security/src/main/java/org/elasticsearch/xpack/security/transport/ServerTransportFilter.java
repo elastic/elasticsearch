@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -23,7 +24,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
-import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -94,18 +94,19 @@ final class ServerTransportFilter {
 
         if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
             TcpChannel tcpChannel = ((TcpTransportChannel) unwrappedChannel).getChannel();
-            if (tcpChannel instanceof Netty4TcpChannel || tcpChannel instanceof NioTcpChannel) {
+            if (tcpChannel instanceof Netty4TcpChannel) {
                 if (tcpChannel.isOpen()) {
                     SSLEngineUtils.extractClientCertificates(logger, threadContext, tcpChannel);
                 }
             }
         }
 
-        final Version version = transportChannel.getVersion();
+        TransportVersion version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
-                    securityContext.executeAsSystemUser(version, original -> {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
+                    && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
+                    securityContext.executeAsSystemUser(Version.fromId(version.id), original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
                     });

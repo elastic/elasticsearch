@@ -63,7 +63,10 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
@@ -92,20 +95,22 @@ public class SystemIndicesTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testBuiltInSystemIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of());
+        SystemIndices systemIndices = new SystemIndices(List.of());
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
-        Map<String, SystemIndices.Feature> pluginMap = Map.of(
-            TASKS_FEATURE_NAME,
+        List<SystemIndices.Feature> pluginMap = List.of(
             new SystemIndices.Feature(
                 TASKS_FEATURE_NAME,
                 "test",
@@ -119,8 +124,7 @@ public class SystemIndicesTests extends ESTestCase {
     public void testPatternWithSimpleRange() {
 
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -141,8 +145,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -160,8 +163,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithComplexRange() {
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",

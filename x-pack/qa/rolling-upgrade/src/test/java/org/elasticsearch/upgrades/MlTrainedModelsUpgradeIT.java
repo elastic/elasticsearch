@@ -12,7 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +40,11 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
     static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
+
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
 
     @Override
     protected Collection<String> templatesToWaitFor() {
@@ -147,7 +154,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createAndRunRegressionJob() throws Exception {
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -161,12 +168,12 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 }
               },
               "model_memory_limit": "18mb"
-            }""".formatted(INDEX_NAME, NUMERICAL_FIELD);
+            }""", INDEX_NAME, NUMERICAL_FIELD);
         putAndStartDFAAndWaitForFinish(config, "regression");
     }
 
     void createAndRunClassificationJob() throws Exception {
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -180,7 +187,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 }
               },
               "model_memory_limit": "18mb"
-            }""".formatted(INDEX_NAME, KEYWORD_FIELD);
+            }""", INDEX_NAME, KEYWORD_FIELD);
         putAndStartDFAAndWaitForFinish(config, "classification");
     }
 
@@ -199,7 +206,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createPipeline(String id, String modelType, String modelId) throws Exception {
-        String body = """
+        String body = Strings.format("""
             {
               "processors": [
                 {
@@ -212,14 +219,14 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId, modelType);
+            }""", modelId, modelType);
         Request putRequest = new Request("PUT", "_ingest/pipeline/" + id);
         putRequest.setJsonEntity(body);
         client().performRequest(putRequest);
     }
 
     void createIndexWithName(String index) throws IOException {
-        String mapping = """
+        String mapping = Strings.format("""
             "properties": {
                 "%s": {
                   "type": "boolean"
@@ -233,7 +240,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 "%s": {
                   "type": "keyword"
                 }
-            }""".formatted(BOOLEAN_FIELD, NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD, KEYWORD_FIELD);
+            }""", BOOLEAN_FIELD, NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD, KEYWORD_FIELD);
         createIndex(index, Settings.EMPTY, mapping);
     }
 

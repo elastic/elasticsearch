@@ -31,13 +31,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -48,7 +48,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -61,6 +60,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ShrinkIndexIT extends ESIntegTestCase {
 
@@ -85,13 +86,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
                 .get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         String mergeNode = discoveryNodes[0].getName();
@@ -176,6 +171,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        assertNoResizeSourceIndexSettings("first_shrink");
+        assertNoResizeSourceIndexSettings("second_shrink");
     }
 
     public void testShrinkIndexPrimaryTerm() throws Exception {
@@ -184,13 +182,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 
-        final ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
         final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         final String mergeNode = discoveryNodes[0].getName();
@@ -253,6 +245,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
             assertThat(afterShrinkIndexMetadata.primaryTerm(shardId), equalTo(beforeShrinkPrimaryTerm + 1));
         }
+        assertNoResizeSourceIndexSettings("target");
     }
 
     private static IndexMetadata indexMetadata(final Client client, final String index) {
@@ -270,13 +263,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -323,6 +310,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .get()
         );
         ensureGreen();
+
+        assertNoResizeSourceIndexSettings("target");
 
         // resolve true merge node - this is not always the node we required as all shards may be on another node
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -400,13 +389,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         String spareNode = discoveryNodes[0].getName();
@@ -477,6 +460,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertNoResizeSourceIndexSettings("target");
     }
 
     public void testCreateShrinkWithIndexSort() throws Exception {
@@ -498,13 +482,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
                 .get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         String mergeNode = discoveryNodes[0].getName();
@@ -556,6 +534,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .get()
         );
         ensureGreen();
+        assertNoResizeSourceIndexSettings("target");
+
         flushAndRefresh();
         GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("target").execute().actionGet();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
@@ -578,13 +558,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         client().admin().indices().prepareFlush("source").get();
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -612,56 +586,61 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             )
             .get();
+        try {
+            // now merge source into a single shard index
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareResizeIndex("source", "target")
+                    .setSettings(Settings.builder().put("index.number_of_replicas", 0).build())
+                    .get()
+            );
+            ensureGreen();
+            assertNoResizeSourceIndexSettings("target");
 
-        // now merge source into a single shard index
-        assertAcked(
+            ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+            IndexMetadata target = clusterStateResponse.getState().getMetadata().index("target");
+            client().admin().indices().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
+            IndicesSegmentResponse targetSegStats = client().admin().indices().prepareSegments("target").get();
+            ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).shards()[0];
+            assertTrue(segmentsStats.getNumberOfCommitted() > 0);
+            assertNotEquals(segmentsStats.getSegments(), segmentsStats.getNumberOfCommitted());
+
+            Iterable<IndicesService> dataNodeInstances = internalCluster().getDataNodeInstances(IndicesService.class);
+            for (IndicesService service : dataNodeInstances) {
+                if (service.hasIndex(target.getIndex())) {
+                    IndexService indexShards = service.indexService(target.getIndex());
+                    IndexShard shard = indexShards.getShard(0);
+                    assertTrue(shard.isActive());
+                    shard.flushOnIdle(0);
+                    assertFalse(shard.isActive());
+                }
+            }
+            assertBusy(() -> {
+                IndicesSegmentResponse targetStats = client().admin().indices().prepareSegments("target").get();
+                ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).shards()[0];
+                Map<Integer, IndexShardSegments> source = sourceStats.getIndices().get("source").getShards();
+                int numSourceSegments = 0;
+                for (IndexShardSegments s : source.values()) {
+                    numSourceSegments += s.getAt(0).getNumberOfCommitted();
+                }
+                assertTrue(targetShardSegments.getSegments().size() < numSourceSegments);
+                assertEquals(targetShardSegments.getNumberOfCommitted(), targetShardSegments.getNumberOfSearch());
+                assertEquals(targetShardSegments.getNumberOfCommitted(), targetShardSegments.getSegments().size());
+                assertEquals(1, targetShardSegments.getSegments().size());
+            });
+        } finally {
+
+            // clean up
             client().admin()
-                .indices()
-                .prepareResizeIndex("source", "target")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 0).build())
-                .get()
-        );
-        ensureGreen();
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        IndexMetadata target = clusterStateResponse.getState().getMetadata().index("target");
-        client().admin().indices().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
-        IndicesSegmentResponse targetSegStats = client().admin().indices().prepareSegments("target").get();
-        ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).shards()[0];
-        assertTrue(segmentsStats.getNumberOfCommitted() > 0);
-        assertNotEquals(segmentsStats.getSegments(), segmentsStats.getNumberOfCommitted());
-
-        Iterable<IndicesService> dataNodeInstances = internalCluster().getDataNodeInstances(IndicesService.class);
-        for (IndicesService service : dataNodeInstances) {
-            if (service.hasIndex(target.getIndex())) {
-                IndexService indexShards = service.indexService(target.getIndex());
-                IndexShard shard = indexShards.getShard(0);
-                assertTrue(shard.isActive());
-                shard.flushOnIdle(0);
-                assertFalse(shard.isActive());
-            }
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+                )
+                .get();
         }
-        assertBusy(() -> {
-            IndicesSegmentResponse targetStats = client().admin().indices().prepareSegments("target").get();
-            ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).shards()[0];
-            Map<Integer, IndexShardSegments> source = sourceStats.getIndices().get("source").getShards();
-            int numSourceSegments = 0;
-            for (IndexShardSegments s : source.values()) {
-                numSourceSegments += s.getAt(0).getNumberOfCommitted();
-            }
-            assertTrue(targetShardSegments.getSegments().size() < numSourceSegments);
-            assertEquals(targetShardSegments.getNumberOfCommitted(), targetShardSegments.getNumberOfSearch());
-            assertEquals(targetShardSegments.getNumberOfCommitted(), targetShardSegments.getSegments().size());
-            assertEquals(1, targetShardSegments.getSegments().size());
-        });
 
-        // clean up
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
-            )
-            .get();
     }
 
     public void testShrinkThenSplitWithFailedNode() throws Exception {
@@ -705,7 +684,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ensureGreen();
 
         final int nodeCount = cluster().size();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(shrinkNode));
+        internalCluster().stopNode(shrinkNode);
         ensureStableCluster(nodeCount - 1);
 
         // demonstrate that the index.routing.allocation.initial_recovery setting from the shrink doesn't carry over into the split index,
@@ -726,5 +705,39 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setResizeType(ResizeType.SPLIT)
         );
         ensureGreen("splitagain");
+        assertNoResizeSourceIndexSettings("splitagain");
+    }
+
+    static void assertNoResizeSourceIndexSettings(final String index) {
+        ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .clear()
+            .setMetadata(true)
+            .setRoutingTable(true)
+            .execute()
+            .actionGet();
+        IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().routingTable().index(index);
+        assertThat("Index " + index + " should have all primaries started", indexRoutingTable.allPrimaryShardsActive(), equalTo(true));
+        IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(index);
+        assertThat("Index " + index + " should have index metadata", indexMetadata, notNullValue());
+        assertThat("Index " + index + " should have index metadata", indexMetadata, notNullValue());
+        assertThat("Index " + index + " should not have resize source index", indexMetadata.getResizeSourceIndex(), nullValue());
+        assertThat(
+            "Index " + index + " should not have resize source name setting",
+            IndexMetadata.INDEX_RESIZE_SOURCE_UUID.exists(indexMetadata.getSettings()),
+            equalTo(false)
+        );
+        assertThat(
+            "Index " + index + " should not have resize source UUID setting",
+            IndexMetadata.INDEX_RESIZE_SOURCE_NAME.exists(indexMetadata.getSettings()),
+            equalTo(false)
+        );
+        assertThat(
+            "Index " + index + " should not have initial recovery setting",
+            indexMetadata.getSettings().get(IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY),
+            nullValue()
+        );
     }
 }

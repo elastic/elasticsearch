@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -153,7 +152,7 @@ public class Exporters extends AbstractLifecycleComponent {
             try {
                 exporter.close();
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
+                logger.error((Supplier<?>) () -> "failed to close exporter [" + exporter.name() + "]", e);
             }
         }
     }
@@ -358,7 +357,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
+            LOGGER.error((Supplier<?>) () -> "exporter [" + name + "] failed to open exporting bulk", e);
 
             delegateIfComplete();
         }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -27,10 +25,12 @@ import org.apache.lucene.util.StringHelper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Set;
 
 public class MultiPhrasePrefixQuery extends Query {
 
@@ -146,7 +146,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        ObjectHashSet<Term> terms = new ObjectHashSet<>();
+        Set<Term> terms = new HashSet<>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -169,11 +169,11 @@ public class MultiPhrasePrefixQuery extends Query {
                 )
                 .build();
         }
-        query.add(terms.toArray(Term.class), position);
+        query.add(terms.toArray(new Term[0]), position);
         return query.build();
     }
 
-    private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         List<LeafReaderContext> leaves = reader.leaves();
@@ -299,7 +299,29 @@ public class MultiPhrasePrefixQuery extends Query {
     @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
-            visitor.visitLeaf(this);    // TODO implement term visiting
+            visitor = visitor.getSubVisitor(BooleanClause.Occur.MUST, this);
+            for (int i = 0; i < termArrays.size() - 1; i++) {
+                if (termArrays.get(i).length == 1) {
+                    visitor.consumeTerms(this, termArrays.get(i)[0]);
+                } else {
+                    QueryVisitor shouldVisitor = visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this);
+                    shouldVisitor.consumeTerms(this, termArrays.get(i));
+                }
+            }
+            /* We don't report automata here because this breaks the unified highlighter,
+               which extracts automata separately from phrases. MPPQ gets rewritten to a
+               SpanMTQQuery by the PhraseHelper in any case, so highlighting is taken
+               care of there instead.  If we extract automata here then the trailing prefix
+               word will be highlighted wherever it appears in the document, instead of only
+               as part of a phrase. This can be re-instated once we switch to using Matches
+               to highlight.
+            for (Term prefixTerm : termArrays.get(termArrays.size() - 1)) {
+                visitor.consumeTermsMatching(this, field, () -> {
+                    CompiledAutomaton ca = new CompiledAutomaton(PrefixQuery.toAutomaton(prefixTerm.bytes()));
+                    return ca.runAutomaton;
+                });
+            }
+            */
         }
     }
 }

@@ -53,13 +53,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `false`.
-    
+
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
 // tag::tasks-api-404[]
 `404` (Missing resources)::
-If `<task_id>` is specified but not found, this code indicates that there 
+If `<task_id>` is specified but not found, this code indicates that there
 are no resources that match the request.
 // end::tasks-api-404[]
 
@@ -117,7 +117,7 @@ The API returns the following result:
 
 ===== Retrieve information from a particular task
 
-It is also possible to retrieve information for a particular task. The following 
+It is also possible to retrieve information for a particular task. The following
 example retrieves information about task `oTUltX4IQMOUUVeiohTt8A:124`:
 
 [source,console]
@@ -141,8 +141,8 @@ If the parent isn't found, the API does not return a 404.
 ===== Get more information about tasks
 
 You can also use the `detailed` request parameter to get more information about
-the running tasks. This is useful for telling one task from another but is more
-costly to execute. For example, fetching all searches using the `detailed`
+the running tasks. This is useful to distinguish tasks from each other but
+is more costly to execute. For example, fetching all searches using the `detailed`
 request parameter:
 
 [source,console]
@@ -183,8 +183,8 @@ The API returns the following result:
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search
 request being performed by a search task like the example above. Other kinds of
-task have different descriptions, like <<docs-reindex,`_reindex`>> which
-has the search and the destination, or <<docs-bulk,`_bulk`>> which just has the
+tasks have different descriptions, like <<docs-reindex,`_reindex`>> which
+has the source and the destination, or <<docs-bulk,`_bulk`>> which just has the
 number of requests and the destination indices. Many requests will only have an
 empty description because more detailed information about the request is not
 easily available or particularly helpful in identifying the request.
@@ -215,7 +215,7 @@ GET _tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // TEST[catch:missing]
 
-You can also wait for all tasks for certain action types to finish. This command 
+You can also wait for all tasks for certain action types to finish. This command
 will wait for all `reindex` tasks to finish:
 
 [source,console]
@@ -226,7 +226,7 @@ GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
 [[task-cancellation]]
 ===== Task Cancellation
 
-If a long-running task supports cancellation, it can be cancelled with the cancel 
+If a long-running task supports cancellation, it can be cancelled with the cancel
 tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 
 [source,console]
@@ -234,9 +234,9 @@ tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 POST _tasks/oTUltX4IQMOUUVeiohTt8A:12345/_cancel
 --------------------------------------------------
 
-The task cancellation command supports the same task selection parameters as the 
-list tasks command, so multiple tasks can be cancelled at the same time. For 
-example, the following command will cancel all reindex tasks running on the 
+The task cancellation command supports the same task selection parameters as the
+list tasks command, so multiple tasks can be cancelled at the same time. For
+example, the following command will cancel all reindex tasks running on the
 nodes `nodeId1` and `nodeId2`.
 
 [source,console]
@@ -253,8 +253,8 @@ possible.
 
 ===== Task Grouping
 
-The task lists returned by task API commands can be grouped either by nodes 
-(default) or by parent tasks using the `group_by` parameter. The following 
+The task lists returned by task API commands can be grouped either by nodes
+(default) or by parent tasks using the `group_by` parameter. The following
 command will change the grouping to parent tasks:
 
 [source,console]
@@ -272,9 +272,9 @@ GET _tasks?group_by=none
 
 ===== Identifying running tasks
 
-The `X-Opaque-Id` header, when provided on the HTTP request header, is going to 
-be returned as a header in the response as well as in the `headers` field for in 
-the task information. This allows to track certain calls, or associate certain 
+The `X-Opaque-Id` header, when provided on the HTTP request header, is going to
+be returned as a header in the response as well as in the `headers` field for in
+the task information. This allows to track certain calls, or associate certain
 tasks with the client that started them:
 
 [source,sh]

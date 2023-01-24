@@ -26,6 +26,24 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerConfigUpdate> {
 
+    public static NerConfigUpdate randomUpdate() {
+        NerConfigUpdate.Builder builder = new NerConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static NerConfigUpdate mutateForVersion(NerConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new NerConfigUpdate(instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
     @Override
     Tuple<Map<String, Object>, NerConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
         NerConfigUpdate expected = new NerConfigUpdate("ml-results", expectedTokenization);
@@ -86,22 +104,12 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
 
     @Override
     protected NerConfigUpdate createTestInstance() {
-        NerConfigUpdate.Builder builder = new NerConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
     protected NerConfigUpdate mutateInstanceForVersion(NerConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new NerConfigUpdate(instance.getResultsField(), null);
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override

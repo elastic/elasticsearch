@@ -119,10 +119,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             // all corners are valid after above checks - make sure they are in the right relation
             if (top < bottom) {
                 throw new IllegalArgumentException("top is below bottom corner: " + top + " vs. " + bottom);
-            } else if (top == bottom) {
-                throw new IllegalArgumentException("top cannot be the same as bottom: " + top + " == " + bottom);
-            } else if (left == right) {
-                throw new IllegalArgumentException("left cannot be the same as right: " + left + " == " + right);
             }
 
             // we do not check longitudes as the query generation code can deal with flipped left/right values
@@ -303,7 +299,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             luceneTopLeft.getLat(),
             luceneBottomRight.getLat()
         );
-        return geoShapeQueryable.geoShapeQuery(rectangle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
+        return geoShapeQueryable.geoShapeQuery(context, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, rectangle);
     }
 
     @Override
@@ -311,7 +307,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        geoBoundingBox.toXContentFragment(builder, false);
+        geoBoundingBox.toXContentFragmentWithArray(builder);
         builder.endObject();
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);

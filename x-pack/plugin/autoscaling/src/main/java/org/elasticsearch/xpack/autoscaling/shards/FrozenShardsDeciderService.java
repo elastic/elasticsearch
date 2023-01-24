@@ -38,7 +38,7 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
     static final ByteSizeValue DEFAULT_MEMORY_PER_SHARD = ByteSizeValue.ofBytes(MAX_MEMORY.getBytes() / 2000);
     public static final Setting<ByteSizeValue> MEMORY_PER_SHARD = Setting.byteSizeSetting(
         "memory_per_shard",
-        (ignored) -> DEFAULT_MEMORY_PER_SHARD.getStringRep(),
+        DEFAULT_MEMORY_PER_SHARD,
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Long.MAX_VALUE)
     );
@@ -53,7 +53,10 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
         // we assume that nodes do not grow beyond 64GB here.
         int shards = countFrozenShards(context.state().metadata());
         long memory = shards * MEMORY_PER_SHARD.get(configuration).getBytes();
-        return new AutoscalingDeciderResult(AutoscalingCapacity.builder().total(null, memory).build(), new FrozenShardsReason(shards));
+        return new AutoscalingDeciderResult(
+            AutoscalingCapacity.builder().total(null, memory, null).build(),
+            new FrozenShardsReason(shards)
+        );
     }
 
     static int countFrozenShards(Metadata metadata) {

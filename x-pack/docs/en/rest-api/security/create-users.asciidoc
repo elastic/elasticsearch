@@ -41,7 +41,7 @@ For more information about the native realm, see
 +
 --
 [[username-validation]]
-NOTE: Usernames must be at least 1 and no more than 1024 characters. They can
+NOTE: Usernames must be at least 1 and no more than 507 characters. They can
 contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
 printable symbols in the {wikipedia}/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. Leading or trailing whitespace is not allowed.
 

@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.StepKeyTests;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
 import org.junit.Before;
 
-public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request> {
+public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String index;
     private static final StepKeyTests stepKeyTests = new StepKeyTests();
@@ -64,7 +64,7 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
     private static Request.PartialStepKey randomStepSpecification() {
         if (randomBoolean()) {
             StepKey key = stepKeyTests.createTestInstance();
-            return new Request.PartialStepKey(key.getPhase(), key.getAction(), key.getName());
+            return new Request.PartialStepKey(key.phase(), key.action(), key.name());
         } else {
             String phase = randomAlphaOfLength(10);
             String action = randomBoolean() ? null : randomAlphaOfLength(6);

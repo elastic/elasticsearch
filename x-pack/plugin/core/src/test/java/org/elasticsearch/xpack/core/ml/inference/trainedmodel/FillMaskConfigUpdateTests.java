@@ -25,6 +25,27 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<FillMaskConfigUpdate> {
 
+    public static FillMaskConfigUpdate randomUpdate() {
+        FillMaskConfigUpdate.Builder builder = new FillMaskConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setNumTopClasses(randomIntBetween(1, 4));
+        }
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static FillMaskConfigUpdate mutateForVersion(FillMaskConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
     @Override
     Tuple<Map<String, Object>, FillMaskConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
         int topClasses = randomIntBetween(1, 10);
@@ -103,25 +124,12 @@ public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<F
 
     @Override
     protected FillMaskConfigUpdate createTestInstance() {
-        FillMaskConfigUpdate.Builder builder = new FillMaskConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setNumTopClasses(randomIntBetween(1, 4));
-        }
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
     protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override

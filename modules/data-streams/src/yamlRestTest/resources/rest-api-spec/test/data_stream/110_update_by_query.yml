@@ -75,7 +75,7 @@
           query:
             range:
               number:
-                - gte: 4
+                gte: 4
 
   - match: {updated: 2}
   - match: {version_conflicts: 0}
@@ -103,4 +103,92 @@
   - do:
       indices.delete_data_stream:
         name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Update by query for multiple data streams":
+  - skip:
+      features: allowed_warnings
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-stream*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-stream*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:   simple-stream1
+        id:      "1"
+        op_type: create
+        body:    { "number": 4, '@timestamp': '2020-12-12' }
+
+  - do:
+      index:
+        index:   simple-stream2
+        id:      "2"
+        op_type: create
+        body:    { "number": 4, '@timestamp': '2020-12-12' }
+
+  - do:
+      index:
+        index:   simple-stream2
+        id:      "3"
+        op_type: create
+        body:    { "number": 6, '@timestamp': '2020-12-12' }
+
+  - do:
+      indices.refresh:
+        index: simple-stream1,simple-stream2
+
+  # increment by one any docs with number <= 4
+  - do:
+      update_by_query:
+        index: simple-stream*
+        body:
+          script:
+            source: "ctx._source.number++"
+            lang: "painless"
+          query:
+            range:
+              number:
+                lte: 4
+
+  - match: {updated: 2}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {noops: 0}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+  - do:
+      indices.refresh:
+        index: simple-stream1,simple-stream2
+
+  # verify that both numbers originally <= 4 have been incremented by one
+  - do:
+      search:
+        index: simple-stream*
+        body: { query: { range: { number: { lte: 5 } } } }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-stream2
   - is_true: acknowledged

@@ -42,7 +42,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
         licenseService.registerLicense(request, responseFuture);
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
+        verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
 
         inetAddress = TransportAddress.META_ADDRESS;
         settings = Settings.builder()
@@ -54,7 +54,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);
-        verify(clusterService, times(2)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
+        verify(clusterService, times(2)).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
     @Override

@@ -18,8 +18,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -384,5 +386,16 @@ public class DocValueFormatTests extends ESTestCase {
             () -> { throw new UnsupportedOperationException("don't use now"); }
         );
         assertEquals(expected, actualMillis);
+    }
+
+    public void testParseTsid() throws IOException {
+        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder(null);
+        timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
+        timeSeriesIdBuilder.addLong("long", randomLong());
+        timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
+        BytesRef tsidBytes = timeSeriesIdBuilder.build().toBytesRef();
+        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(tsidBytes);
+        BytesRef tsidParse = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);
+        assertEquals(tsidBytes, tsidParse);
     }
 }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
@@ -15,7 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 
-public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
+public class TreeNodeTests extends AbstractXContentSerializingTestCase<TreeNode> {
 
     private boolean lenient;
 

@@ -7,17 +7,22 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -26,6 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A publication can succeed and complete before all nodes have applied the published state and acknowledged it; however we need every node
@@ -142,7 +150,7 @@ public class LagDetector {
         }
 
         void increaseAppliedVersion(long appliedVersion) {
-            long maxAppliedVersion = this.appliedVersion.updateAndGet(v -> Math.max(v, appliedVersion));
+            long maxAppliedVersion = this.appliedVersion.accumulateAndGet(appliedVersion, Math::max);
             logger.trace("{} applied version {}, max now {}", this, appliedVersion, maxAppliedVersion);
         }
 
@@ -196,11 +204,13 @@ public class LagDetector {
         private final TransportService transportService;
         private final Client client;
         private final LagListener delegate;
+        private final PrioritizedThrottledTaskRunner<HotThreadsLoggingTask> loggingTaskRunner;
 
         HotThreadsLoggingLagListener(TransportService transportService, Client client, LagListener delegate) {
             this.transportService = transportService;
             this.client = client;
             this.delegate = delegate;
+            this.loggingTaskRunner = new PrioritizedThrottledTaskRunner<>("hot_threads", 1, transportService.getThreadPool().generic());
         }
 
         @Override
@@ -224,21 +234,22 @@ public class LagDetector {
                             return;
                         }
 
-                        logger.debug(
-                            "hot threads from node [{}] lagging at version [{}] despite commit of cluster state version [{}]:\n{}",
-                            discoveryNode.descriptionWithoutAttributes(),
-                            appliedVersion,
-                            expectedVersion,
-                            nodesHotThreadsResponse.getNodes().get(0).getHotThreads()
+                        loggingTaskRunner.enqueueTask(
+                            new HotThreadsLoggingTask(
+                                discoveryNode,
+                                appliedVersion,
+                                expectedVersion,
+                                nodesHotThreadsResponse.getNodes().get(0).getHotThreads()
+                            )
                         );
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(
-                            new ParameterizedMessage(
-                                "failed to get hot threads from node [{}] lagging at version {} "
-                                    + "despite commit of cluster state version [{}]",
+                            () -> format(
+                                "failed to get hot threads from node [%s] lagging at version %s "
+                                    + "despite commit of cluster state version [%s]",
                                 discoveryNode.descriptionWithoutAttributes(),
                                 appliedVersion,
                                 expectedVersion
@@ -278,6 +289,44 @@ public class LagDetector {
                 // call delegate after transportService#connectToNode to keep existing connection open
                 delegate.onLagDetected(discoveryNode, appliedVersion, expectedVersion);
             }
+        }
+    }
+
+    static class HotThreadsLoggingTask extends AbstractRunnable implements Comparable<HotThreadsLoggingTask> {
+
+        private final String nodeHotThreads;
+        private final String prefix;
+
+        HotThreadsLoggingTask(DiscoveryNode discoveryNode, long appliedVersion, long expectedVersion, String nodeHotThreads) {
+            this.nodeHotThreads = nodeHotThreads;
+            this.prefix = Strings.format(
+                "hot threads from node [%s] lagging at version [%d] despite commit of cluster state version [%d]",
+                discoveryNode.descriptionWithoutAttributes(),
+                appliedVersion,
+                expectedVersion
+            );
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error(Strings.format("unexpected exception reporting %s", prefix), e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            try (
+                var writer = new OutputStreamWriter(
+                    ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING),
+                    StandardCharsets.UTF_8
+                )
+            ) {
+                writer.write(nodeHotThreads);
+            }
+        }
+
+        @Override
+        public int compareTo(HotThreadsLoggingTask o) {
+            return 0;
         }
     }
 

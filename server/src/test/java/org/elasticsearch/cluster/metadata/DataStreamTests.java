@@ -12,12 +12,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,8 +39,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
+public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStream> {
 
     @Override
     protected DataStream doParseInstance(XContentParser parser) throws IOException {
@@ -59,7 +61,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
-        final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null);
+        final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
@@ -85,7 +87,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         }
 
         final Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(builder.build());
-        final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null);
+        final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + numConflictingIndices + 1));
@@ -95,7 +97,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndexMode(), equalTo(ds.getIndexMode()));
     }
 
-    public void testRolloverIndexMode() {
+    public void testRolloverUpgradeToTsdbDataStream() {
         IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         // Unsure index_mode=null
@@ -112,7 +114,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
-        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES);
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), true);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
@@ -122,7 +124,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
-    public void testRolloverIndexMode_keepIndexMode() {
+    public void testRolloverDowngradeToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         ds = new DataStream(
             ds.getName(),
@@ -137,15 +139,14 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
-        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
-        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), indexMode);
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(rolledDs.getIndexMode(), nullValue());
     }
 
     public void testRemoveBackingIndex() {
@@ -183,7 +184,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(indexToRemove));
         assertThat(
             e.getMessage(),
-            equalTo(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
+            equalTo(Strings.format("index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
         );
     }
 
@@ -398,7 +399,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
-        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
+        String expectedBackingIndexName = Strings.format(".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
     }
 
@@ -653,6 +654,92 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                         + "]"
                 )
             );
+        }
+        {
+            Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+
+            // These ranges are on the edge of each other temporal boundaries.
+            Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+            Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+            Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+            Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+            String dataStreamName = "logs_my-app_prod";
+            var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+                dataStreamName,
+                List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+            );
+            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+            {
+                // IndexMetadata not found case:
+                var e = expectThrows(IllegalStateException.class, () -> dataStream.validate((index) -> null));
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        "index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                            + "] is not found in the index metadata supplier"
+                    )
+                );
+            }
+
+            {
+                // index is not time_series index:
+                dataStream.validate(
+                    (index) -> IndexMetadata.builder(index)
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .build()
+                        )
+                        .build()
+                );
+            }
+
+            {
+                // invalid IndexMetadata result
+                Instant start3 = currentTime.minus(6, ChronoUnit.HOURS);
+                Instant end3 = currentTime.plus(2, ChronoUnit.HOURS);
+                var e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> dataStream.validate(
+                        (index) -> IndexMetadata.builder(index)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
+                                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
+                                    .build()
+                            )
+                            .build()
+                    )
+                );
+                var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        "backing index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                            + "] with range ["
+                            + formatter.format(start3)
+                            + " TO "
+                            + formatter.format(end3)
+                            + "] is overlapping with backing index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())
+                            + "] with range ["
+                            + formatter.format(start3)
+                            + " TO "
+                            + formatter.format(end3)
+                            + "]"
+                    )
+                );
+            }
         }
     }
 

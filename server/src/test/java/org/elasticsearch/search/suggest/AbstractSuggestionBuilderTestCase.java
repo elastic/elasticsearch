@@ -266,7 +266,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     protected MappedFieldType mockFieldType(String fieldName) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn(fieldName);
+        when(fieldType.name()).thenReturn(fieldName.intern()); // intern field name to not trip assertions that ensure all field names are
+                                                               // interned
         NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
         TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
         when(fieldType.getTextSearchInfo()).thenReturn(tsi);

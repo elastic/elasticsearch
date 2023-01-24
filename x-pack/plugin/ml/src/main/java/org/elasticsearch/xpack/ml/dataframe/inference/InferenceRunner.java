@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -47,6 +46,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InferenceRunner {
 
@@ -113,7 +114,7 @@ public class InferenceRunner {
                 inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
             }
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error running inference on model [{}]", config.getId(), modelId), e);
+            LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
 
             if (e instanceof ElasticsearchException) {
                 Throwable rootCause = ((ElasticsearchException) e).getRootCause();
@@ -160,8 +161,8 @@ public class InferenceRunner {
         Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
         if (lastIncrementalId != null) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] Resuming inference; last incremental id [{}]; processed test doc count [{}]",
+                () -> format(
+                    "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
                     config.getId(),
                     lastIncrementalId,
                     processedTestDocCount

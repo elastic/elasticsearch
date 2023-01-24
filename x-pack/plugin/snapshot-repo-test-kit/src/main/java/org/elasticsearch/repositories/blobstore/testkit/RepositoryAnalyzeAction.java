@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,19 +20,19 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -47,9 +46,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -69,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.blobstore.testkit.BlobAnalyzeAction.MAX_ATOMIC_WRITE_SIZE;
 import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
@@ -362,8 +360,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private final Queue<VerifyBlobTask> queue = ConcurrentCollections.newQueue();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final Semaphore innerFailures = new Semaphore(5); // limit the number of suppressed failures
-        private final int workerCount;
-        private final CountDown workerCountdown;
+        private final RefCountingRunnable requestRefs = new RefCountingRunnable(this::runCleanUp);
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
         private final List<BlobAnalyzeAction.Response> responses;
         private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
@@ -385,9 +382,6 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             this.currentTimeMillisSupplier = currentTimeMillisSupplier;
             this.timeoutTimeMillis = currentTimeMillisSupplier.getAsLong() + request.getTimeout().millis();
             this.listener = listener;
-
-            this.workerCount = request.getConcurrency();
-            this.workerCountdown = new CountDown(workerCount);
 
             responses = new ArrayList<>(request.blobCount);
         }
@@ -440,7 +434,6 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         public void run() {
             assert queue.isEmpty() : "must only run action once";
             assert failure.get() == null : "must only run action once";
-            assert workerCountdown.isCountedDown() == false : "must only run action once";
 
             logger.info("running analysis of repository [{}] using path [{}]", request.getRepositoryName(), blobPath);
 
@@ -477,8 +470,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 queue.add(verifyBlobTask);
             }
 
-            for (int i = 0; i < workerCount; i++) {
-                processNextTask();
+            try (var ignored = requestRefs) {
+                for (int i = 0; i < request.getConcurrency(); i++) {
+                    processNextTask();
+                }
             }
         }
 
@@ -488,9 +483,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private void processNextTask() {
             final VerifyBlobTask thisTask = queue.poll();
-            if (isRunning() == false || thisTask == null) {
-                onWorkerCompletion();
-            } else {
+            if (isRunning() && thisTask != null) {
                 logger.trace("processing [{}]", thisTask);
                 // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
                 // about local requests resulting in a stack overflow here
@@ -503,9 +496,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     thisTask.request,
                     task,
                     transportRequestOptions,
-                    new TransportResponseHandler<BlobAnalyzeAction.Response>() {
+                    new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
-                        public void handleResponse(BlobAnalyzeAction.Response response) {
+                        public void onResponse(BlobAnalyzeAction.Response response) {
                             logger.trace("finished [{}]", thisTask);
                             if (thisTask.request.getAbortWrite() == false) {
                                 expectedBlobs.add(thisTask.request.getBlobName()); // each task cleans up its own mess on failure
@@ -520,17 +513,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         }
 
                         @Override
-                        public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("failed [{}]", thisTask), exp);
+                        public void onFailure(Exception exp) {
+                            logger.debug(() -> "failed [" + thisTask + "]", exp);
                             fail(exp);
-                            onWorkerCompletion();
                         }
-
-                        @Override
-                        public BlobAnalyzeAction.Response read(StreamInput in) throws IOException {
-                            return new BlobAnalyzeAction.Response(in);
-                        }
-                    }
+                    }, requestRefs.acquire()), BlobAnalyzeAction.Response::new)
                 );
             }
 
@@ -540,16 +527,14 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             return repository.blobStore().blobContainer(repository.basePath().add(blobPath));
         }
 
-        private void onWorkerCompletion() {
-            if (workerCountdown.countDown()) {
-                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-                    final long listingStartTimeNanos = System.nanoTime();
-                    ensureConsistentListing();
-                    final long deleteStartTimeNanos = System.nanoTime();
-                    deleteContainer();
-                    sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
-                }));
-            }
+        private void runCleanUp() {
+            transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                final long listingStartTimeNanos = System.nanoTime();
+                ensureConsistentListing();
+                final long deleteStartTimeNanos = System.nanoTime();
+                deleteContainer();
+                sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
+            }));
         }
 
         private void ensureConsistentListing() {
@@ -584,7 +569,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         fail(repositoryVerificationException);
                     }
                 } catch (Exception e) {
-                    logger.debug(new ParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath), e);
+                    logger.debug(() -> format("failure during cleanup of [%s:%s]", request.getRepositoryName(), blobPath), e);
                     fail(e);
                 }
             }
@@ -639,7 +624,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     )
                 );
             } else {
-                logger.debug(new ParameterizedMessage("analysis of repository [{}] failed", request.repositoryName), exception);
+                logger.debug(() -> "analysis of repository [" + request.repositoryName + "] failed", exception);
                 listener.onFailure(
                     new RepositoryVerificationException(
                         request.getRepositoryName(),
@@ -650,20 +635,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
         }
 
-        private static class VerifyBlobTask {
-            final DiscoveryNode node;
-            final BlobAnalyzeAction.Request request;
-
-            VerifyBlobTask(DiscoveryNode node, BlobAnalyzeAction.Request request) {
-                this.node = node;
-                this.request = request;
-            }
-
-            @Override
-            public String toString() {
-                return "VerifyBlobTask{" + "node=" + node + ", request=" + request + '}';
-            }
-        }
+        private record VerifyBlobTask(DiscoveryNode node, BlobAnalyzeAction.Request request) {}
     }
 
     public static class Request extends ActionRequest {
@@ -697,8 +669,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
-            maxBlobSize = new ByteSizeValue(in);
-            maxTotalDataSize = new ByteSizeValue(in);
+            maxBlobSize = ByteSizeValue.readFrom(in);
+            maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
             if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
@@ -973,8 +945,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             concurrency = in.readVInt();
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
-            maxBlobSize = new ByteSizeValue(in);
-            maxTotalDataSize = new ByteSizeValue(in);
+            maxBlobSize = ByteSizeValue.readFrom(in);
+            maxTotalDataSize = ByteSizeValue.readFrom(in);
             seed = in.readLong();
             rareActionProbability = in.readDouble();
             blobPath = in.readString();

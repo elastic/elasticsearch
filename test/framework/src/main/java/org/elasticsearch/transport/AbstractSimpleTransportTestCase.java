@@ -10,12 +10,12 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -36,11 +36,11 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -86,6 +86,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -120,7 +121,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract Transport build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+    protected abstract Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake);
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
@@ -206,7 +207,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
-        Transport transport = build(updatedSettings, version, clusterSettings, doHandshake);
+        Transport transport = build(updatedSettings, version.transportVersion, clusterSettings, doHandshake);
         MockTransportService service = MockTransportService.createNewService(
             updatedSettings,
             transport,
@@ -902,10 +903,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         try {
                             listener.actionGet();
                         } catch (Exception e) {
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
-                                e
-                            );
+                            logger.trace(() -> format("caught exception while sending to node %s", nodeA), e);
                         }
                     }
                 }
@@ -945,10 +943,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             } catch (ConnectTransportException e) {
                                 // ok!
                             } catch (Exception e) {
-                                logger.error(
-                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
-                                    e
-                                );
+                                logger.error(() -> format("caught exception while sending to node %s", node), e);
                                 sendingErrors.add(e);
                             }
                         } catch (NodeNotConnectedException ex) {
@@ -1472,7 +1467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(version1)) {
+            if (in.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 value2 = in.readInt();
             }
         }
@@ -1480,7 +1475,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(version1)) {
+            if (out.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 out.writeInt(value2);
             }
         }
@@ -1515,7 +1510,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(version1)) {
+            if (in.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 value2 = in.readInt();
             } else {
                 value2 = 0;
@@ -1525,7 +1520,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(version1)) {
+            if (out.getTransportVersion().onOrAfter(version1.transportVersion)) {
                 out.writeInt(value2);
             }
         }
@@ -1537,7 +1532,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(0)); // not set, coming from service A
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version0Request version0Request = new Version0Request();
@@ -1574,7 +1569,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1615,7 +1610,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value2, equalTo(2));
             Version1Response response = new Version1Response(1, 2);
             channel.sendResponse(response);
-            assertEquals(version1, channel.getVersion());
+            assertEquals(version1.transportVersion, channel.getVersion());
         });
 
         Version1Request version1Request = new Version1Request();
@@ -1655,7 +1650,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(request.value1, equalTo(1));
             Version0Response response = new Version0Response(1);
             channel.sendResponse(response);
-            assertEquals(version0, channel.getVersion());
+            assertEquals(version0.transportVersion, channel.getVersion());
         });
 
         Version0Request version0Request = new Version0Request();
@@ -2106,7 +2101,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug((Supplier<?>) () -> "---> received exception for id " + id, exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);
@@ -2264,7 +2259,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             try (Transport.Connection connection = openConnection(serviceA, node, builder.build())) {
-                assertEquals(connection.getVersion(), version);
+                assertEquals(version.transportVersion, connection.getTransportVersion());
             }
         }
     }
@@ -2309,7 +2304,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                assertEquals(TransportVersion.CURRENT, connection.getTransportVersion());
             }
         }
     }
@@ -2381,7 +2376,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 ConnectTransportException.class,
                 () -> connectToNode(serviceA, dummy, builder.build())
             );
-            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
+            assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }
@@ -2767,7 +2762,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportException exception = receivedException.get();
             assertNotNull(exception);
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(version0);
+            streamOutput.setTransportVersion(version0.transportVersion);
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             // 53 bytes are the non-exception message bytes that have been received. It should include the initial
@@ -3182,11 +3177,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
         responseListener.addListener(future);
-        try {
-            transportService.sendRequest(node, action, request, options, futureHandler);
-        } catch (NodeNotConnectedException ex) {
-            futureHandler.handleException(ex);
-        }
+        transportService.sendRequest(node, action, request, options, futureHandler);
         return future;
     }
 }

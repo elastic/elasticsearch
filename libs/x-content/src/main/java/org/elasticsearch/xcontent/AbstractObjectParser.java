@@ -250,7 +250,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     }
 
     /**
-     * Declare a double field that parses explicit {@code null}s in the json to a default value.
+     * Declare an integer field that parses explicit {@code null}s in the json to a default value.
      */
     public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
         declareField(

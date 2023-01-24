@@ -253,7 +253,7 @@ public class NotificationServiceTests extends ESTestCase {
             }
 
             @Override
-            public SecureString getString(String setting) throws GeneralSecurityException {
+            public SecureString getString(String setting) {
                 return new SecureString(secureSettingsMap.get(setting));
             }
 

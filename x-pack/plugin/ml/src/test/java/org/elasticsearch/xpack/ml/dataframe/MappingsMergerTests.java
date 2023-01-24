@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
@@ -32,11 +31,9 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
 
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
@@ -53,11 +50,8 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "different_field_1_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
@@ -76,11 +70,8 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
@@ -104,11 +95,8 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("runtime", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
@@ -125,11 +113,8 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("runtime", Map.of("field_1", "different_field_1_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
@@ -148,11 +133,8 @@ public class MappingsMergerTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("runtime", Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
@@ -194,11 +176,8 @@ public class MappingsMergerTests extends ESTestCase {
         }
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
@@ -229,10 +208,8 @@ public class MappingsMergerTests extends ESTestCase {
         indexMappings.put("runtime", runtime);
         MappingMetadata indexMappingMetadata = new MappingMetadata("_doc", indexMappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index", indexMappingMetadata);
-
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("index", indexMappingMetadata);
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(
             newSourceWithExcludes("field_1", "runtime_field_2"),

@@ -1,6 +1,0 @@
-pr: 84584
-summary: "Make rollover cancellable #81763"
-area: ILM+SLM
-type: enhancement
-issues:
- - 81763

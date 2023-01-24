@@ -13,7 +13,6 @@ import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -47,13 +46,13 @@ public class RestMainAction extends BaseRestHandler {
         });
     }
 
-    static BytesRestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
+    static RestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
         // Default to pretty printing, but allow ?pretty=false to disable
         if (request.hasParam("pretty") == false) {
             builder.prettyPrint().lfAtEnd();
         }
         response.toXContent(builder, request);
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
 
     @Override

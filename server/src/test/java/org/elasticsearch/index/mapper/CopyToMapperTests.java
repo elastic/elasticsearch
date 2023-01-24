@@ -744,4 +744,52 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             );
         }
     }
+
+    public void testCopyToMultipleNested() throws IOException {
+
+        // Don't copy values beyond a single step
+
+        DocumentMapper documentMapper = createDocumentMapper("""
+            { "_doc" : { "properties" : {
+                "_all" : { "type" : "text" },
+                "du" : {
+                    "type" : "nested",
+                    "include_in_root" : "true",
+                    "properties" : {
+                        "_all" : { "type" : "text" },
+                        "bc" : {
+                            "type" : "nested",
+                            "include_in_parent" : "true",
+                            "properties" : {
+                                "_all" : { "type" : "text" },
+                                "bc4" : {
+                                    "type" : "nested",
+                                    "include_in_parent" : "true",
+                                    "properties" : {
+                                        "_all" : { "type" : "text" },
+                                        "area" : {
+                                            "type" : "text",
+                                            "copy_to" : [
+                                                "_all",
+                                                "du._all",
+                                                "du.bc._all",
+                                                "du.bc.bc4._all"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }}}""");
+
+        ParsedDocument doc = documentMapper.parse(source("""
+            { "du" : { "bc" : [ { "bc4": { "area" : "foo" } }, { "bc4" : { "area" : "bar" } } ] } }
+            """));
+
+        assertEquals(1, doc.rootDoc().getFields("_id").length);
+        assertEquals(2, doc.rootDoc().getFields("du._all").length);
+
+    }
 }

@@ -91,15 +91,16 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
     }
 
     public void testCalculateTargetShardsNumberInShrink() {
-        assertEquals(calculateAcceptableNumberOfShards(0, 0), 1);
-        assertEquals(calculateAcceptableNumberOfShards(10, 0), 1);
-        assertEquals(calculateAcceptableNumberOfShards(10, 1), 1);
-        assertEquals(calculateAcceptableNumberOfShards(10, 2), 2);
-        assertEquals(calculateAcceptableNumberOfShards(10, 3), 5);
-        assertEquals(calculateAcceptableNumberOfShards(10, 6), 10);
-        assertEquals(calculateAcceptableNumberOfShards(10, 11), 10);
-        assertEquals(calculateAcceptableNumberOfShards(59, 21), 59);
-        assertEquals(calculateAcceptableNumberOfShards(60, 21), 30);
-        assertEquals(calculateAcceptableNumberOfShards(60, 31), 60);
+        assertEquals(1, calculateAcceptableNumberOfShards(0, 0));
+        assertEquals(3, calculateAcceptableNumberOfShards(9, 2));
+        assertEquals(1, calculateAcceptableNumberOfShards(10, 0));
+        assertEquals(1, calculateAcceptableNumberOfShards(10, 1));
+        assertEquals(2, calculateAcceptableNumberOfShards(10, 2));
+        assertEquals(5, calculateAcceptableNumberOfShards(10, 3));
+        assertEquals(10, calculateAcceptableNumberOfShards(10, 6));
+        assertEquals(10, calculateAcceptableNumberOfShards(10, 11));
+        assertEquals(59, calculateAcceptableNumberOfShards(59, 21));
+        assertEquals(30, calculateAcceptableNumberOfShards(60, 21));
+        assertEquals(60, calculateAcceptableNumberOfShards(60, 31));
     }
 }

@@ -15,6 +15,7 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -155,7 +156,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         };
     }
 
-    private final Map<RestApiVersion, Map<String, FieldParser>> fieldParserMap = new HashMap<>();
+    private final Map<RestApiVersion, Map<String, FieldParser>> fieldParserMap = new EnumMap<>(RestApiVersion.class);
     private final String name;
     private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
@@ -275,9 +276,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             }
         }
 
-        FieldParser fieldParser = null;
-        String currentFieldName = null;
-        XContentLocation currentPosition = null;
         final List<String[]> requiredFields = this.requiredFieldSets.isEmpty() ? null : new ArrayList<>(this.requiredFieldSets);
         final List<List<String>> exclusiveFields;
         if (exclusiveFieldSets.isEmpty()) {
@@ -289,36 +287,32 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             }
         }
 
+        FieldParser fieldParser;
+        String currentFieldName;
+        XContentLocation currentPosition;
         final Map<String, FieldParser> parsers = fieldParserMap.getOrDefault(parser.getRestApiVersion(), Collections.emptyMap());
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-                currentPosition = parser.getTokenLocation();
-                fieldParser = parsers.get(currentFieldName);
+        while ((currentFieldName = parser.nextFieldName()) != null) {
+            currentPosition = parser.getTokenLocation();
+            fieldParser = parsers.get(currentFieldName);
+            token = parser.nextToken();
+            if (fieldParser == null) {
+                unknownFieldParser.acceptUnknownField(this, currentFieldName, currentPosition, parser, value, context);
             } else {
-                if (currentFieldName == null) {
-                    throwNoFieldFound(parser);
+                fieldParser.assertSupports(name, parser, token, currentFieldName);
+
+                if (requiredFields != null) {
+                    // Check to see if this field is a required field, if it is we can
+                    // remove the entry as the requirement is satisfied
+                    maybeMarkRequiredField(currentFieldName, requiredFields);
                 }
-                if (fieldParser == null) {
-                    unknownFieldParser.acceptUnknownField(this, currentFieldName, currentPosition, parser, value, context);
-                } else {
-                    fieldParser.assertSupports(name, parser, currentFieldName);
 
-                    if (requiredFields != null) {
-                        // Check to see if this field is a required field, if it is we can
-                        // remove the entry as the requirement is satisfied
-                        maybeMarkRequiredField(currentFieldName, requiredFields);
-                    }
-
-                    if (exclusiveFields != null) {
-                        // Check if this field is in an exclusive set, if it is then mark
-                        // it as seen.
-                        maybeMarkExclusiveField(currentFieldName, exclusiveFields);
-                    }
-
-                    parseSub(parser, fieldParser, currentFieldName, value, context);
+                if (exclusiveFields != null) {
+                    // Check if this field is in an exclusive set, if it is then mark
+                    // it as seen.
+                    maybeMarkExclusiveField(currentFieldName, exclusiveFields);
                 }
-                fieldParser = null;
+
+                parseSub(parser, fieldParser, token, currentFieldName, value, context);
             }
         }
 
@@ -334,10 +328,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     private void throwExpectedStartObject(XContentParser parser, XContentParser.Token token) {
         throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] Expected START_OBJECT but was: " + token);
-    }
-
-    private void throwNoFieldFound(XContentParser parser) {
-        throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] no field found");
     }
 
     private static void throwMissingRequiredFields(List<String[]> requiredFields) {
@@ -626,8 +616,14 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] failed to parse field [" + currentFieldName + "]", ex);
     }
 
-    private void parseSub(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context) {
-        final XContentParser.Token token = parser.currentToken();
+    private void parseSub(
+        XContentParser parser,
+        FieldParser fieldParser,
+        XContentParser.Token token,
+        String currentFieldName,
+        Value value,
+        Context context
+    ) {
         switch (token) {
             case START_OBJECT -> {
                 parseValue(parser, fieldParser, currentFieldName, value, context);
@@ -689,7 +685,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             this.type = type;
         }
 
-        void assertSupports(String parserName, XContentParser xContentParser, String currentFieldName) {
+        void assertSupports(String parserName, XContentParser xContentParser, XContentParser.Token currentToken, String currentFieldName) {
             boolean match = parseField.match(
                 parserName,
                 xContentParser::getTokenLocation,
@@ -705,7 +701,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             if (supportedTokens.contains(xContentParser.currentToken()) == false) {
                 throw new XContentParseException(
                     xContentParser.getTokenLocation(),
-                    "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + xContentParser.currentToken()
+                    "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + currentToken
                 );
             }
         }
@@ -756,7 +752,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         OBJECT_ARRAY_OR_NULL(START_OBJECT, START_ARRAY, VALUE_NULL),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
-        OBJECT_OR_LONG(START_OBJECT, VALUE_NUMBER),
+        OBJECT_OR_NUMBER(START_OBJECT, VALUE_NUMBER),
         OBJECT_ARRAY_BOOLEAN_OR_STRING(START_OBJECT, START_ARRAY, VALUE_BOOLEAN, VALUE_STRING),
         OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         OBJECT_ARRAY_STRING_OR_NUMBER(START_OBJECT, START_ARRAY, VALUE_STRING, VALUE_NUMBER),

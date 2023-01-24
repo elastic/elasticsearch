@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -528,7 +531,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        final ImmutableOpenMap<String, String> loaded = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readString);
 
         assertThat(expected, equalTo(loaded));
     }
@@ -544,7 +547,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         out.writeMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
+        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableOpenMap(TestWriteable::new, TestWriteable::new);
 
         assertThat(expected, equalTo(loaded));
     }
@@ -977,5 +980,53 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertThat(newEx, instanceOf(IOException.class));
         assertThat(newEx.getMessage(), equalTo("disk broken"));
         assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+    }
+
+    public void testOverflow() {
+        final var pageSize = randomFrom(ByteSizeUnit.MB.toIntBytes(1L), ByteSizeUnit.KB.toIntBytes(16)) + between(-1024, 1024);
+        final var pagesAllocated = new AtomicLong();
+
+        try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new Recycler<>() {
+            private final V<BytesRef> page = new V<>() {
+                private final BytesRef bytesRef = new BytesRef(new byte[pageSize]);
+
+                @Override
+                public BytesRef v() {
+                    return bytesRef;
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return false;
+                }
+
+                @Override
+                public void close() {
+                    pagesAllocated.decrementAndGet();
+                }
+            };
+
+            @Override
+            public V<BytesRef> obtain() {
+                pagesAllocated.incrementAndGet();
+                return page;
+            }
+        })) {
+            var bytesAllocated = 0;
+            while (bytesAllocated < Integer.MAX_VALUE) {
+                var thisAllocation = between(1, Integer.MAX_VALUE - bytesAllocated);
+                bytesAllocated += thisAllocation;
+                final var expectedPages = ((long) bytesAllocated + pageSize - 1) / pageSize;
+                try {
+                    output.skip(thisAllocation);
+                    assertThat(pagesAllocated.get(), equalTo(expectedPages));
+                } catch (IllegalArgumentException e) {
+                    assertThat(expectedPages * pageSize, greaterThan((long) Integer.MAX_VALUE));
+                    return;
+                }
+            }
+        } finally {
+            assertThat(pagesAllocated.get(), equalTo(0L));
+        }
     }
 }

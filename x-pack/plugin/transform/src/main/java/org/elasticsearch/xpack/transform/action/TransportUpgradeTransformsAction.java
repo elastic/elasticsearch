@@ -211,7 +211,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TimeValue timeout,
         ActionListener<Map<UpdateResult.Status, Long>> listener
     ) {
-        transformConfigManager.getAllOutdatedTransformIds(ActionListener.wrap(totalAndIds -> {
+        transformConfigManager.getAllOutdatedTransformIds(timeout, ActionListener.wrap(totalAndIds -> {
 
             // exit quickly if there is nothing to do
             if (totalAndIds.v2().isEmpty()) {

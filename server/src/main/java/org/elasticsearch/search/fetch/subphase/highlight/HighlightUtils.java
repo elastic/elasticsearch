@@ -51,7 +51,7 @@ public final class HighlightUtils {
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());
-        return fetcher.fetchValues(hitContext.sourceLookup(), new ArrayList<Object>());
+        return fetcher.fetchValues(hitContext.source(), hitContext.docId(), new ArrayList<>());
     }
 
     public static class Encoders {

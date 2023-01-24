@@ -16,16 +16,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * Condition for maximum shard docs. Evaluates to <code>true</code>
+ * when a primary shard in the index has at least {@link #value} docs
+ */
 public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     public static final String NAME = "max_primary_shard_docs";
 
     public MaxPrimaryShardDocsCondition(Long value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxPrimaryShardDocsCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = in.readLong();
     }
 
@@ -53,7 +57,7 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
         if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
             return new MaxPrimaryShardDocsCondition(parser.longValue());
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 

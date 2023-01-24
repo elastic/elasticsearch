@@ -72,26 +72,25 @@ public final class FieldPermissionsCache {
     }
 
     /**
-     * Returns a field permissions object that corresponds to the merging of the given field permissions and caches the instance if one was
-     * not found in the cache.
+     * Returns a field permissions object that corresponds to the union of the given field permissions.
+     * Union means a field is granted if it is granted by any of the FieldPermissions from the given
+     * collection.
+     * The returned instance is cached if one was not found in the cache.
      */
-    FieldPermissions getFieldPermissions(Collection<FieldPermissions> fieldPermissionsCollection) {
+    FieldPermissions union(Collection<FieldPermissions> fieldPermissionsCollection) {
         Optional<FieldPermissions> allowAllFieldPermissions = fieldPermissionsCollection.stream()
             .filter(((Predicate<FieldPermissions>) (FieldPermissions::hasFieldLevelSecurity)).negate())
             .findFirst();
         return allowAllFieldPermissions.orElseGet(() -> {
             final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = new HashSet<>();
             for (FieldPermissions fieldPermissions : fieldPermissionsCollection) {
-                final FieldPermissionsDefinition definition = fieldPermissions.getFieldPermissionsDefinition();
-                final FieldPermissionsDefinition limitedByDefinition = fieldPermissions.getLimitedByFieldPermissionsDefinition();
-                if (definition == null) {
-                    throw new IllegalArgumentException("Expected field permission definition, but found null");
-                } else if (limitedByDefinition != null) {
+                final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = fieldPermissions.getFieldPermissionsDefinitions();
+                if (fieldPermissionsDefinitions.size() != 1) {
                     throw new IllegalArgumentException(
-                        "Expected no limited-by field permission definition, but found [" + limitedByDefinition + "]"
+                        "Expected a single field permission definition, but found [" + fieldPermissionsDefinitions + "]"
                     );
                 }
-                fieldGrantExcludeGroups.addAll(definition.getFieldGrantExcludeGroups());
+                fieldGrantExcludeGroups.addAll(fieldPermissionsDefinitions.get(0).getFieldGrantExcludeGroups());
             }
             final FieldPermissionsDefinition combined = new FieldPermissionsDefinition(fieldGrantExcludeGroups);
             try {

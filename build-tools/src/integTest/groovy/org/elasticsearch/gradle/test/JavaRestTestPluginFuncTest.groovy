@@ -14,6 +14,11 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class JavaRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
+        configurationCacheCompatible = false
+    }
+
     def "declares default dependencies"() {
         given:
         buildFile << """

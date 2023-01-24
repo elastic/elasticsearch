@@ -183,8 +183,8 @@ can't shadow metrics:
 # Test that _tsid field is not added if an index is not a time-series index
 no _tsid in standard indices:
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.4.99"
+      reason: time series params only on time series indices introduced in 8.5.0
 
   - do:
       indices.create:
@@ -209,11 +209,11 @@ no _tsid in standard indices:
 
   - match: {fields.metricset.keyword.searchable:            true}
   - match: {fields.metricset.keyword.aggregatable:          true}
-  - match: {fields.metricset.keyword.time_series_dimension: true}
   - is_false: fields.metricset.keyword.indices
   - is_false: fields.metricset.keyword.non_searchable_indices
   - is_false: fields.metricset.keyword.non_aggregatable_indices
   - is_false: fields._tsid  # _tsid metadata field must not exist in non-time-series indices
+  - is_false: fields.metricset.keyword.time_series_dimension # time_series_dimension param is ignored in non-time-series indices
 
 ---
 no nested dimensions:

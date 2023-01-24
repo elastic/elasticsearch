@@ -68,7 +68,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
@@ -116,10 +116,12 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(newMetadata).build();
 
-        terminal.println(
-            Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
-        );
+        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+            );
+        }
 
         confirm(terminal, CONFIRMATION_MSG);
 

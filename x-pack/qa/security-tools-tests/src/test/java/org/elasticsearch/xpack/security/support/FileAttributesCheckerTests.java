@@ -27,7 +27,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
     public void testNonExistentFile() throws Exception {
         Path path = createTempDir().resolve("dne");
         FileAttributesChecker checker = new FileAttributesChecker(path);
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         checker.check(terminal);
         assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
         assertTrue(terminal.getErrorOutput(), terminal.getErrorOutput().isEmpty());
@@ -38,7 +38,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
         try (FileSystem fs = Jimfs.newFileSystem(conf)) {
             Path path = fs.getPath("temp");
             FileAttributesChecker checker = new FileAttributesChecker(path);
-            MockTerminal terminal = new MockTerminal();
+            MockTerminal terminal = MockTerminal.create();
             checker.check(terminal);
             assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
             assertTrue(terminal.getErrorOutput(), terminal.getErrorOutput().isEmpty());
@@ -52,7 +52,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
             Files.createFile(path);
             FileAttributesChecker checker = new FileAttributesChecker(path);
 
-            MockTerminal terminal = new MockTerminal();
+            MockTerminal terminal = MockTerminal.create();
             checker.check(terminal);
             assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
             assertTrue(terminal.getErrorOutput(), terminal.getErrorOutput().isEmpty());
@@ -74,7 +74,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
             perms.add(PosixFilePermission.GROUP_READ);
             attrs.setPermissions(perms);
 
-            MockTerminal terminal = new MockTerminal();
+            MockTerminal terminal = MockTerminal.create();
             checker.check(terminal);
             String output = terminal.getErrorOutput();
             assertTrue(output, output.contains("permissions of [" + path + "] have changed"));
@@ -92,7 +92,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
             PosixFileAttributeView attrs = Files.getFileAttributeView(path, PosixFileAttributeView.class);
             attrs.setOwner(newOwner);
 
-            MockTerminal terminal = new MockTerminal();
+            MockTerminal terminal = MockTerminal.create();
             checker.check(terminal);
             String output = terminal.getErrorOutput();
             assertTrue(output, output.contains("Owner of file [" + path + "] used to be"));
@@ -110,7 +110,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
             PosixFileAttributeView attrs = Files.getFileAttributeView(path, PosixFileAttributeView.class);
             attrs.setGroup(newGroup);
 
-            MockTerminal terminal = new MockTerminal();
+            MockTerminal terminal = MockTerminal.create();
             checker.check(terminal);
             String output = terminal.getErrorOutput();
             assertTrue(output, output.contains("Group of file [" + path + "] used to be"));

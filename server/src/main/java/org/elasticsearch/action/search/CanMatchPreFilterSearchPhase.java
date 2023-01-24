@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
@@ -50,6 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -129,9 +129,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     private static boolean assertSearchCoordinationThread() {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH_COORDINATION)
-            : "not called from the right thread " + Thread.currentThread().getName();
-        return true;
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
     }
 
     @Override
@@ -344,7 +342,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         @Override
         public void onFailure(Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
             }
             onPhaseFailure("round", e);
         }
@@ -378,7 +376,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             phaseFactory.apply(getIterator(results, shardsIts)).start();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
             }
             onPhaseFailure("finish", e);
         }
@@ -449,7 +447,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                    logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
                 }
                 onPhaseFailure("start", e);
             }

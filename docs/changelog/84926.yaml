@@ -1,5 +1,0 @@
-pr: 84926
-summary: '`TransportBroadcastAction` should always set response for each shard'
-area: Search
-type: bug
-issues: []

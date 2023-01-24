@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 apply plugin: 'application'
 
 group = 'org.elasticsearch.client'
@@ -17,9 +17,6 @@ tasks.named("assemble").configure {  enabled = true }
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
 
-// never try to invoke tests on the benchmark project - there aren't any
-tasks.named("test").configure {enabled = false }
-
 dependencies {
   api 'org.apache.commons:commons-math3:3.2'
 
@@ -28,7 +25,3 @@ dependencies {
   // bottleneck should be the client, not Elasticsearch
   api project(path: ':client:client-benchmark-noop-api-plugin')
 }
-
-// No licenses for our benchmark deps (we don't ship benchmarks)
-tasks.named("dependencyLicenses").configure { enabled = false }
-tasks.named("dependenciesInfo").configure{enabled = false }

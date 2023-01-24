@@ -40,7 +40,7 @@ import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
     @Inject
     public TransportClusterStateAction(
@@ -60,7 +60,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
     }
 
@@ -175,12 +175,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
                         DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
-                        mdBuilder.put(dataStream);
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {
                             mdBuilder.put(currentState.metadata().index(backingIndex), false);
                         }
+                        mdBuilder.put(dataStream);
                     } else {
                         IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                         if (indexMetadata != null) {

@@ -16,11 +16,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -67,7 +65,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     static RestResponse buildRestResponse(
         boolean aliasesExplicitlyRequested,
         String[] requestedAliases,
-        ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+        Map<String, List<AliasMetadata>> responseAliasMap,
         Map<String, List<DataStreamAlias>> dataStreamAliases,
         XContentBuilder builder
     ) throws Exception {
@@ -170,8 +168,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
                             if (entry.getKey().equals(alias.getWriteDataStream())) {
                                 builder.field("is_write_index", true);
                             }
-                            if (alias.getFilter() != null) {
-                                builder.field("filter", XContentHelper.convertToMap(alias.getFilter().uncompressed(), true).v2());
+                            if (alias.getFilter(entry.getKey()) != null) {
+                                builder.field(
+                                    "filter",
+                                    XContentHelper.convertToMap(alias.getFilter(entry.getKey()).uncompressed(), true).v2()
+                                );
                             }
                             builder.endObject();
                         }
@@ -182,7 +183,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
         }
         builder.endObject();
-        return new BytesRestResponse(status, builder);
+        return new RestResponse(status, builder);
     }
 
     @Override

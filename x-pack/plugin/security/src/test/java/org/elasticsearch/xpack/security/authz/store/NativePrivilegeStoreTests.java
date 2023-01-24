@@ -37,6 +37,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -81,6 +82,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class NativePrivilegeStoreTests extends ESTestCase {
@@ -713,6 +715,42 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(map.get("app2"), contains("all"));
     }
 
+    public void testRetrieveActionNamePatternsInsteadOfPrivileges() throws Exception {
+        // test disabling caching
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        for (List<String> applications : List.<List<String>>of(
+            List.of("myapp"),
+            List.of("myapp*"),
+            List.of("myapp", "myapp*"),
+            List.of(),
+            List.of("*"),
+            List.of("myapp-2", "*")
+        )) {
+            Collection<String> actions = randomList(1, 4, () -> {
+                String actionName = randomAlphaOfLengthBetween(0, 3) + randomFrom("*", "/", ":") + randomAlphaOfLengthBetween(0, 3)
+                    + randomFrom("*", "/", ":", "");
+                ApplicationPrivilege.validateActionName(actionName);
+                return actionName;
+            });
+            Client mockClient = mock(Client.class);
+            SecurityIndexManager mockSecurityIndexManager = mock(SecurityIndexManager.class);
+            Settings settings = randomFrom(
+                Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build(),
+                Settings.EMPTY
+            );
+            NativePrivilegeStore store1 = new NativePrivilegeStore(
+                settings,
+                mockClient,
+                mockSecurityIndexManager,
+                new CacheInvalidatorRegistry()
+            );
+            store1.getPrivileges(applications, actions, future);
+            assertResult(emptyList(), future);
+            verifyNoInteractions(mockClient);
+            verifyNoInteractions(mockSecurityIndexManager);
+        }
+    }
+
     public void testDeletePrivileges() throws Exception {
         final List<String> privilegeNames = Arrays.asList("p1", "p2", "p3");
 
@@ -868,7 +906,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         final SearchHit[] hits = new SearchHit[sourcePrivileges.size()];
         for (int i = 0; i < hits.length; i++) {
             final ApplicationPrivilegeDescriptor p = sourcePrivileges.get(i);
-            hits[i] = new SearchHit(i, "application-privilege_" + p.getApplication() + ":" + p.getName(), null, null);
+            hits[i] = new SearchHit(i, "application-privilege_" + p.getApplication() + ":" + p.getName());
             hits[i].sourceRef(new BytesArray(Strings.toString(p)));
         }
         return hits;

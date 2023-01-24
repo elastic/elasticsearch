@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -26,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -85,7 +84,11 @@ import static org.junit.Assert.fail;
 public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
-        assertAcked(builder.get());
+        assertAcked(builder, TimeValue.timeValueSeconds(30));
+    }
+
+    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder, TimeValue timeValue) {
+        assertAcked(builder.get(timeValue));
     }
 
     public static void assertNoTimeout(ClusterHealthRequestBuilder requestBuilder) {
@@ -98,10 +101,6 @@ public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedResponse response) {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
-    }
-
-    public static void assertAcked(DeleteIndexRequestBuilder builder) {
-        assertAcked(builder.get());
     }
 
     /**
@@ -131,7 +130,7 @@ public class ElasticsearchAssertions {
      * @param replicatedBroadcastResponse the response that should only contain failed shard responses
      *
      * */
-    public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
+    public static void assertBlocked(BaseBroadcastResponse replicatedBroadcastResponse) {
         assertThat(
             "all shard requests should have failed",
             replicatedBroadcastResponse.getFailedShards(),
@@ -201,7 +200,7 @@ public class ElasticsearchAssertions {
         return true;
     }
 
-    public static String formatShardStatus(BroadcastResponse response) {
+    public static String formatShardStatus(BaseBroadcastResponse response) {
         StringBuilder msg = new StringBuilder();
         msg.append(" Total shards: ")
             .append(response.getTotalShards())
@@ -348,7 +347,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertNoFailures(BroadcastResponse response) {
+    public static void assertNoFailures(BaseBroadcastResponse response) {
         if (response.getFailedShards() != 0) {
             final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
 
@@ -360,7 +359,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertAllSuccessful(BroadcastResponse response) {
+    public static void assertAllSuccessful(BaseBroadcastResponse response) {
         assertNoFailures(response);
         assertThat("Expected all shards successful", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
     }

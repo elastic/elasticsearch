@@ -42,6 +42,7 @@ Other mapping options are also respected, including
 The `fields` option returns values in the way that matches how {es} indexes
 them. For standard fields, this means that the `fields` option looks in
 `_source` to find the values, then parses and formats them using the mappings.
+Selected fields that can't be found in `_source` are skipped.
 
 [discrete]
 [[search-fields-request]]

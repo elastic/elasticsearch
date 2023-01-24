@@ -28,11 +28,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 
 import java.io.ByteArrayInputStream;
@@ -103,7 +104,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
             .build();
         assertThat(writeProfileDataPermission, notNullValue());
 
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         // request application name matches privilege wildcard
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? newUpdateProfileDataRequest(Set.of(prefix + randomAlphaOfLengthBetween(0, 2)), Set.of())
@@ -121,7 +122,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
         // different action name
         assertFalse(
             writeProfileDataPermission.check(
-                randomFrom(ActivateProfileAction.NAME, GetProfileAction.NAME, SuggestProfilesAction.NAME),
+                randomFrom(ActivateProfileAction.NAME, GetProfilesAction.NAME, SuggestProfilesAction.NAME),
                 updateProfileDataRequest,
                 authentication
             )
@@ -180,7 +181,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
                 ? newUpdateProfileDataRequest(Set.of(randomAlphaOfLengthBetween(0, 2)), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), Set.of(randomAlphaOfLengthBetween(0, 2)));
             ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
-            assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, mock(Authentication.class)));
+            assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, AuthenticationTestHelper.builder().build()));
         }
         final String aNullApplication = "{\"write\":{\"applications\":[null]}}";
         try (
@@ -217,12 +218,18 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
                 ? newUpdateProfileDataRequest(Set.of(randomAlphaOfLengthBetween(1, 2)), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), Set.of(randomAlphaOfLengthBetween(1, 2)));
             ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
-            assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, mock(Authentication.class)));
+            assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, AuthenticationTestHelper.builder().build()));
             updateProfileDataRequest = randomBoolean()
                 ? newUpdateProfileDataRequest(Set.of(""), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), Set.of(""));
             perm = priv.buildPermission(ClusterPermission.builder()).build();
-            assertTrue(perm.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, mock(Authentication.class)));
+            assertTrue(
+                perm.check(
+                    "cluster:admin/xpack/security/profile/put/data",
+                    updateProfileDataRequest,
+                    AuthenticationTestHelper.builder().build()
+                )
+            );
         }
     }
 

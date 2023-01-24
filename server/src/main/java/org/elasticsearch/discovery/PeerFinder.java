@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
@@ -39,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class PeerFinder {
 
@@ -407,7 +407,7 @@ public abstract class PeerFinder {
                     if (verboseFailureLogging) {
                         if (logger.isDebugEnabled()) {
                             // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
-                            logger.warn(new ParameterizedMessage("{} discovery result", Peer.this), e);
+                            logger.warn(() -> format("%s discovery result", Peer.this), e);
                         } else {
                             final StringBuilder messageBuilder = new StringBuilder();
                             Throwable cause = e;
@@ -421,7 +421,7 @@ public abstract class PeerFinder {
                             logger.warn("{} discovery result{}", Peer.this, message);
                         }
                     } else {
-                        logger.debug(new ParameterizedMessage("{} discovery result", Peer.this), e);
+                        logger.debug(() -> format("%s discovery result", Peer.this), e);
                     }
                     synchronized (mutex) {
                         assert probeConnectionResult.get() == null
@@ -483,7 +483,7 @@ public abstract class PeerFinder {
                 @Override
                 public void handleException(TransportException exp) {
                     peersRequestInFlight = false;
-                    logger.warn(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
+                    logger.warn(() -> format("%s peers request failed", Peer.this), exp);
                 }
 
                 @Override

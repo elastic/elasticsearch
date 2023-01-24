@@ -144,7 +144,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = locationRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && roomForListener(maxRefreshes, listeners, checkpointRefreshListeners)) {
-                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
+                ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         storedContext.restore();

@@ -28,6 +28,35 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextClassificationConfigUpdate> {
 
+    public static TextClassificationConfigUpdate randomUpdate() {
+        TextClassificationConfigUpdate.Builder builder = new TextClassificationConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setNumTopClasses(randomIntBetween(1, 4));
+        }
+        if (randomBoolean()) {
+            builder.setClassificationLabels(randomList(1, 3, () -> randomAlphaOfLength(4)));
+        }
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static TextClassificationConfigUpdate mutateForVersion(TextClassificationConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new TextClassificationConfigUpdate(
+                instance.getClassificationLabels(),
+                instance.getNumTopClasses(),
+                instance.getResultsField(),
+                null
+            );
+        }
+        return instance;
+    }
+
     @Override
     Tuple<Map<String, Object>, TextClassificationConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
         int numClasses = randomIntBetween(1, 10);
@@ -159,33 +188,12 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
 
     @Override
     protected TextClassificationConfigUpdate createTestInstance() {
-        TextClassificationConfigUpdate.Builder builder = new TextClassificationConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setNumTopClasses(randomIntBetween(1, 4));
-        }
-        if (randomBoolean()) {
-            builder.setClassificationLabels(randomList(1, 3, () -> randomAlphaOfLength(4)));
-        }
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
     protected TextClassificationConfigUpdate mutateInstanceForVersion(TextClassificationConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new TextClassificationConfigUpdate(
-                instance.getClassificationLabels(),
-                instance.getNumTopClasses(),
-                instance.getResultsField(),
-                null
-            );
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override

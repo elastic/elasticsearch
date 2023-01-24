@@ -292,16 +292,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (Map.Entry<String, List<String>> entry : stringContent.entrySet()) {
             String value = entry.getValue().stream().collect(Collectors.joining(" "));
             document.add(new TextField(entry.getKey(), value, Field.Store.NO));
         }
         for (Integer intValue : intValues) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields("int_field", intValue, true, true, false);
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
         }
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         duelRun(queryStore, memoryIndex, shardSearcher);
@@ -413,7 +410,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (String value : stringValues) {
             document.add(new TextField("string_field", value, Field.Store.NO));
             logger.info("Test with document: {}" + document);
@@ -422,16 +419,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         for (int[] range : ranges) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields(
-                "int_field",
-                between(range[0], range[1]),
-                true,
-                true,
-                false
-            );
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
             logger.info("Test with document: {}" + document);
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);

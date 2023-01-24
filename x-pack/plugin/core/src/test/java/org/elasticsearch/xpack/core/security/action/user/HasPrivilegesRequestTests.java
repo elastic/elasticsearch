@@ -94,6 +94,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
                 ClusterPrivilegeResolver.MANAGE,
                 ClusterPrivilegeResolver.MANAGE_ML,
                 ClusterPrivilegeResolver.MANAGE_SECURITY,
+                ClusterPrivilegeResolver.READ_SECURITY,
                 ClusterPrivilegeResolver.MANAGE_PIPELINE,
                 ClusterPrivilegeResolver.ALL
             )

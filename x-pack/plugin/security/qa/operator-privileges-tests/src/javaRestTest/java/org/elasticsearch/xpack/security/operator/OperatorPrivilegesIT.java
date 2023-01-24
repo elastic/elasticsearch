@@ -245,6 +245,18 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         }
     }
 
+    public void testOperatorUserCallsDesiredNodesAPI() throws IOException {
+        var request = new Request("DELETE", "/_internal/desired_nodes");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        client().performRequest(request);
+    }
+
+    public void testNonOperatorUserWillFailToCallDesiredNodesAPI() throws IOException {
+        var request = new Request("DELETE", "/_internal/desired_nodes");
+        var responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
     private void createSnapshotRepo(String repoName) throws IOException {
         Request request = new Request("PUT", "/_snapshot/" + repoName);
         request.setJsonEntity(

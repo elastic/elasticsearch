@@ -31,7 +31,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Request for an update index settings action
@@ -182,7 +181,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeBoolean(preserveExisting);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeString(origin);

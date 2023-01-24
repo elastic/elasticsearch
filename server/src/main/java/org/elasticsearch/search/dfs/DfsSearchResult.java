@@ -19,9 +19,11 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class DfsSearchResult extends SearchPhaseResult {
@@ -31,7 +33,9 @@ public class DfsSearchResult extends SearchPhaseResult {
     private Term[] terms;
     private TermStatistics[] termStatistics;
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+    private List<DfsKnnResults> knnResults;
     private int maxDoc;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
@@ -51,6 +55,17 @@ public class DfsSearchResult extends SearchPhaseResult {
         maxDoc = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+                knnResults = in.readOptionalList(DfsKnnResults::new);
+            } else {
+                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
+                knnResults = results != null ? List.of(results) : List.of();
+            }
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
 
@@ -80,6 +95,16 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public DfsSearchResult knnResults(List<DfsKnnResults> knnResults) {
+        this.knnResults = knnResults;
+        return this;
+    }
+
+    public DfsSearchResult profileResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
+        return this;
+    }
+
     public Term[] terms() {
         return terms;
     }
@@ -92,42 +117,59 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
+    public List<DfsKnnResults> knnResults() {
+        return knnResults;
+    }
+
+    public SearchProfileDfsPhaseResult searchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
-        out.writeVInt(terms.length);
-        for (Term term : terms) {
-            out.writeString(term.field());
-            out.writeBytesRef(term.bytes());
-        }
+        out.writeArray((o, term) -> {
+            o.writeString(term.field());
+            o.writeBytesRef(term.bytes());
+        }, terms);
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
         }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+                out.writeOptionalCollection(knnResults);
+            } else {
+                if (knnResults != null && knnResults.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Versions before 8.7.0 don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
+            }
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
-        out.writeVInt(fieldStatistics.size());
-
-        for (var entry : fieldStatistics.entrySet()) {
-            out.writeString(entry.getKey());
-            CollectionStatistics statistics = entry.getValue();
+        out.writeMap(fieldStatistics, StreamOutput::writeString, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
-            out.writeVLong(statistics.maxDoc());
+            o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
-            out.writeVLong(statistics.docCount());
-            out.writeVLong(statistics.sumTotalTermFreq());
-            out.writeVLong(statistics.sumDocFreq());
-        }
+            o.writeVLong(statistics.docCount());
+            o.writeVLong(statistics.sumTotalTermFreq());
+            o.writeVLong(statistics.sumDocFreq());
+        });
     }
 
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
-        out.writeVInt(termStatistics.length);
-        for (TermStatistics termStatistic : termStatistics) {
-            writeSingleTermStats(out, termStatistic);
-        }
+        out.writeArray(DfsSearchResult::writeSingleTermStats, termStatistics);
     }
 
     public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {

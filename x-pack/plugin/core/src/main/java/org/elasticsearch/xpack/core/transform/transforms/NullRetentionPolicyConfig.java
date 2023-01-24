@@ -38,7 +38,7 @@ public class NullRetentionPolicyConfig implements RetentionPolicyConfig {
 
     @Override
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
-        throw new UnsupportedOperationException();
+        return null;
     }
 
     @Override

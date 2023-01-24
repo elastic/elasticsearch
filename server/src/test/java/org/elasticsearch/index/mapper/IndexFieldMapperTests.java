@@ -16,13 +16,25 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IndexFieldMapperTests extends MapperServiceTestCase {
+public class IndexFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return IndexFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testDefaultDisabledIndexMapper() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
@@ -43,18 +55,17 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         String index = mapperService.index().getName();
         withLuceneIndex(mapperService, iw -> {
-            SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", Map.of());
+            SourceToParse source = source(b -> b.field("field", "value"));
             iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
         }, iw -> {
             IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(mapperService), (ctx, doc) -> null);
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
+            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.getSource(context, 0), 0, Collections.emptyList()));
         });
     }
 

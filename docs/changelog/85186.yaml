@@ -1,6 +1,0 @@
-pr: 85186
-summary: Allow yaml values for dynamic node settings
-area: Infra/Core
-type: enhancement
-issues:
- - 65577

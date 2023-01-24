@@ -9,9 +9,11 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.GradleException;
+import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
+import org.gradle.api.specs.NotSpec;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -20,11 +22,8 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
-import org.gradle.util.GradleVersion;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -44,6 +43,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
+        Spec<Task> taskSpec = t -> getProject().getTasks()
+            .withType(StandaloneRestIntegTestTask.class)
+            .stream()
+            .filter(task -> task != this)
+            .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false);
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
@@ -53,13 +57,9 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
                  * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
                  * multiple tasks.
                  */
-                t -> getProject().getTasks()
-                    .withType(StandaloneRestIntegTestTask.class)
-                    .stream()
-                    .filter(task -> task != this)
-                    .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
+                taskSpec
             );
-
+        this.getOutputs().upToDateWhen(new NotSpec(taskSpec));
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it is configured to preserve data directory",
@@ -71,11 +71,6 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebugServer(boolean enabled) {
         this.debugServer = enabled;
-    }
-
-    @Override
-    public int getMaxParallelForks() {
-        return 1;
     }
 
     @Nested
@@ -94,30 +89,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(getResourceLock(resource, nodeCount));
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+                locks.add(resource.getResourceLock());
+            }
         }
         return Collections.unmodifiableList(locks);
-    }
-
-    /**
-     * SharedResource#getResourceLock has changed its parameters with Gradle 7.5.
-     * We resolve this via reflection for now to be compatible with Gradle before and after 7.5.
-     * This makes migration easier and allows gradle benchmark tests across gradle versions easier.
-     * Likely will be removed in future version.
-     * */
-    private ResourceLock getResourceLock(SharedResource resource, int nodeCount) {
-        try {
-            Method getResourceLock = Arrays.stream(resource.getClass().getMethods())
-                .filter(p -> p.getName().equals("getResourceLock"))
-                .findFirst()
-                .get();
-            getResourceLock.setAccessible(true);
-            return (ResourceLock) (GradleVersion.current().compareTo(GradleVersion.version("7.5.0")) < 0
-                ? getResourceLock.invoke(resource, Math.min(nodeCount, resource.getMaxUsages()))
-                : getResourceLock.invoke(resource));
-        } catch (Exception e) {
-            throw new GradleException("Unable to get ResourceLock", e);
-        }
     }
 
     public WorkResult delete(Object... objects) {

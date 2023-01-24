@@ -26,7 +26,7 @@ public interface SecureSettings extends Closeable {
     Set<String> getSettingNames();
 
     /** Return a string setting. The {@link SecureString} should be closed once it is used. */
-    SecureString getString(String setting) throws GeneralSecurityException;
+    SecureString getString(String setting);
 
     /** Return a file setting. The {@link InputStream} should be closed once it is used. */
     InputStream getFile(String setting) throws GeneralSecurityException;

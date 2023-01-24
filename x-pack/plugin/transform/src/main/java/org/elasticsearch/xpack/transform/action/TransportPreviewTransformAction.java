@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,11 +26,12 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -64,11 +65,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.DUMMY_DEST_INDEX_FOR_PREVIEW;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
-    private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
@@ -80,7 +81,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @Inject
     public TransportPreviewTransformAction(
-        XPackLicenseState licenseState,
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -91,7 +91,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         IngestService ingestService
     ) {
         super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new);
-        this.licenseState = licenseState;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -116,59 +115,64 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
 
-        // Redirection can only be performed between nodes that are at least 7.13.
-        if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
-            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
-            if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                clusterState,
-                nodeSettings,
-                requiresRemote,
-                transportService,
-                actionName,
-                request,
-                Response::new,
-                listener
-            )) {
-                return;
-            }
+        boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
+        if (TransformNodes.redirectToAnotherNodeIfNeeded(
+            clusterState,
+            nodeSettings,
+            requiresRemote,
+            transportService,
+            actionName,
+            request,
+            Response::new,
+            listener
+        )) {
+            return;
         }
 
         final TransformConfig config = request.getConfig();
         final Function function = FunctionFactory.create(config);
 
         // <4> Validate transform query
-        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(validateConfigResponse -> {
-            getPreview(
-                config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                function,
-                config.getSource(),
-                config.getDestination().getPipeline(),
-                config.getDestination().getIndex(),
-                config.getSyncConfig(),
-                listener
-            );
-        }, listener::onFailure);
+        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
+            validateConfigResponse -> useSecondaryAuthIfAvailable(
+                securityContext,
+                () -> getPreview(
+                    parentTaskId,
+                    request.timeout(),
+                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                    function,
+                    config.getSource(),
+                    config.getDestination().getPipeline(),
+                    config.getDestination().getIndex(),
+                    config.getSyncConfig(),
+                    listener
+                )
+            ),
+            listener::onFailure
+        );
 
         // <3> Validate transform function config
         ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> { function.validateConfig(validateConfigListener); },
+            validateSourceDestResponse -> function.validateConfig(validateConfigListener),
             listener::onFailure
         );
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
-            sourceDestValidator.validate(
+        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
+            aVoid -> sourceDestValidator.validate(
                 clusterState,
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 config.getDestination().getPipeline(),
                 SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
                 validateSourceDestListener
-            );
-        }, listener::onFailure);
+            ),
+            listener::onFailure
+        );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
         if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
@@ -177,7 +181,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
-                client,
+                new ParentTaskAssigningClient(client, parentTaskId),
                 config,
                 // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
                 // early in the REST action so the only possibility we have here is string comparison.
@@ -191,6 +195,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @SuppressWarnings("unchecked")
     private void getPreview(
+        TaskId parentTaskId,
+        TimeValue timeout,
         String transformId,
         Function function,
         SourceConfig source,
@@ -199,6 +205,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SyncConfig syncConfig,
         ActionListener<Response> listener
     ) {
+        Client parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
+
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
@@ -228,7 +236,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
 
             List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-            warnings.forEach(warning -> HeaderWarning.addWarning(warning));
+            warnings.forEach(HeaderWarning::addWarning);
             listener.onResponse(new Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
 
@@ -240,7 +248,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     Clock.systemUTC()
                 );
                 List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-                warnings.forEach(warning -> HeaderWarning.addWarning(warning));
+                warnings.forEach(HeaderWarning::addWarning);
                 listener.onResponse(new Response(docs, generatedDestIndexSettings));
             } else {
                 List<Map<String, Object>> results = docs.stream().map(doc -> {
@@ -258,7 +266,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     builder.endObject();
                     var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                     pipelineRequest.setId(pipeline);
-                    client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+                    parentTaskAssigningClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }
             }
         }, listener::onFailure);
@@ -266,7 +274,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
             function.preview(
-                client,
+                parentTaskAssigningClient,
+                timeout,
                 ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()),
                 source,
                 deducedMappings,
@@ -275,6 +284,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         }, listener::onFailure);
 
-        function.deduceMappings(client, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskAssigningClient, source, deduceMappingsListener);
     }
 }

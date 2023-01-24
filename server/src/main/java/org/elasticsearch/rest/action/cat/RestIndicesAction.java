@@ -41,8 +41,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,12 +48,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
 
+    private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "local", "health");
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
     @Override
@@ -218,7 +217,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final int size,
         final ActionListener<Table> listener
     ) {
-        return new GroupedActionListener<>(new ActionListener.Delegating<>(listener) {
+        return new GroupedActionListener<>(size, new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
@@ -243,15 +242,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     onFailure(e);
                 }
             }
-        }, size);
-    }
-
-    private static final Set<String> RESPONSE_PARAMS;
-
-    static {
-        final Set<String> responseParams = new HashSet<>(asList("local", "health"));
-        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+        });
     }
 
     @Override
@@ -835,8 +826,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 
-            table.addCell(totalStats.getSegments() == null ? null : new ByteSizeValue(0));
-            table.addCell(primaryStats.getSegments() == null ? null : new ByteSizeValue(0));
+            table.addCell(totalStats.getSegments() == null ? null : ByteSizeValue.ZERO);
+            table.addCell(primaryStats.getSegments() == null ? null : ByteSizeValue.ZERO);
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());

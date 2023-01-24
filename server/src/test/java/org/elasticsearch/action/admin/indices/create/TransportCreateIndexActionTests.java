@@ -29,7 +29,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,19 +43,28 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         .metadata(Metadata.builder().build())
         .build();
 
-    private static final String SYSTEM_INDEX_NAME = ".my-system";
+    private static final String UNMANAGED_SYSTEM_INDEX_NAME = ".my-system";
+    private static final String MANAGED_SYSTEM_INDEX_NAME = ".my-managed";
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of(
-            "test-feature",
+        List.of(
             new SystemIndices.Feature(
                 "test-feature",
                 "a test feature",
                 List.of(
                     SystemIndexDescriptor.builder()
-                        .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                        .setIndexPattern(UNMANAGED_SYSTEM_INDEX_NAME + "*")
                         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
                         .setAliasName(SYSTEM_ALIAS_NAME)
+                        .build(),
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(MANAGED_SYSTEM_INDEX_NAME + "*")
+                        .setPrimaryIndex(MANAGED_SYSTEM_INDEX_NAME + "-primary")
+                        .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                        .setSettings(SystemIndexDescriptor.DEFAULT_SETTINGS)
+                        .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
+                        .setVersionMetaKey("version")
+                        .setOrigin("origin")
                         .build()
                 )
             )
@@ -87,7 +95,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     public void testSystemIndicesCannotBeCreatedUnhidden() {
         CreateIndexRequest request = new CreateIndexRequest();
         request.settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
-        request.index(SYSTEM_INDEX_NAME);
+        request.index(UNMANAGED_SYSTEM_INDEX_NAME);
 
         @SuppressWarnings("unchecked")
         ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
@@ -105,7 +113,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
     public void testSystemIndicesCreatedHiddenByDefault() {
         CreateIndexRequest request = new CreateIndexRequest();
-        request.index(SYSTEM_INDEX_NAME);
+        request.index(UNMANAGED_SYSTEM_INDEX_NAME);
 
         @SuppressWarnings("unchecked")
         ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
@@ -124,7 +132,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
     public void testSystemAliasCreatedHiddenByDefault() {
         CreateIndexRequest request = new CreateIndexRequest();
-        request.index(SYSTEM_INDEX_NAME);
+        request.index(UNMANAGED_SYSTEM_INDEX_NAME);
         request.alias(new Alias(SYSTEM_ALIAS_NAME));
 
         @SuppressWarnings("unchecked")
@@ -140,6 +148,21 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.aliases().contains(new Alias(SYSTEM_ALIAS_NAME).isHidden(true)));
+    }
+
+    public void testErrorWhenCreatingNonPrimarySystemIndex() {
+        CreateIndexRequest request = new CreateIndexRequest();
+        request.index(MANAGED_SYSTEM_INDEX_NAME + "-alternate");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.masterOperation(mock(Task.class), request, CLUSTER_STATE, ActionListener.noop())
+        );
+
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot create system index with name .my-managed-alternate; descriptor primary index is .my-managed-primary")
+        );
     }
 
 }

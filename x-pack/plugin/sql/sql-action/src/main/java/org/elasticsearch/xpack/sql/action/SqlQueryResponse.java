@@ -285,6 +285,8 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             // use the SQL format for intervals when sending back the response for CLI
             // all other clients will receive ISO 8601 formatted intervals
             builder.value(value.toString());
+        } else if (value instanceof org.elasticsearch.xpack.versionfield.Version) {
+            builder.value(value.toString());
         } else {
             builder.value(value);
         }

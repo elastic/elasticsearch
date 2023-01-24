@@ -63,7 +63,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        DocumentParser documentParser = new DocumentParser(null, null);
         DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent());
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
@@ -125,14 +125,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.field("search_analyzer", "whitespace");
         }));
 
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("whitespace"));
 
         merge(mapperService, fieldMapping(b -> {
             b.field("type", "text");
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }));
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("keyword"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("keyword"));
     }
 
     public void testChangeSearchAnalyzerToDefault() throws Exception {
@@ -143,14 +143,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.field("search_analyzer", "whitespace");
         }));
 
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("whitespace"));
 
         merge(mapperService, fieldMapping(b -> {
             b.field("type", "text");
             b.field("analyzer", "default");
         }));
 
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("default"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("default"));
     }
 
     public void testConcurrentMergeTest() throws Throwable {

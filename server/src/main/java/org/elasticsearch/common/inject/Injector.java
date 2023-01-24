@@ -56,14 +56,6 @@ public interface Injector {
     <T> Provider<T> getProvider(Key<T> key);
 
     /**
-     * Returns the provider used to obtain instances for the given type. When feasible, avoid
-     * using this method, in favor of having Guice inject your dependencies ahead of time.
-     *
-     * @throws ConfigurationException if this injector cannot find or create the provider.
-     */
-    <T> Provider<T> getProvider(Class<T> type);
-
-    /**
      * Returns the appropriate instance for the given injection key; equivalent to {@code
      * getProvider(key).get()}. When feasible, avoid using this method, in favor of having Guice
      * inject your dependencies ahead of time.

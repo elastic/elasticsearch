@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
@@ -63,7 +63,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     @Before
     public void setUpMasterNode() {
         // Ensure that master nodes cannot hold any data
-        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();
     }
 
@@ -497,7 +496,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .putList("node.roles", Arrays.asList("master", "data", "ingest"))
             .put("node.attr.box", "all")
             .build();
-        startNodeAndWait(nodeSettings);
+        internalCluster().startNode(nodeSettings);
     }
 
     public void startContentOnlyNode() {
@@ -505,7 +504,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .putList("node.roles", Arrays.asList("master", "data_content", "ingest"))
             .put("node.attr.box", "content")
             .build();
-        startNodeAndWait(nodeSettings);
+        internalCluster().startNode(nodeSettings);
     }
 
     public void startHotOnlyNode() {
@@ -521,7 +520,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
 
-        startNodeAndWait(nodeSettings.build());
+        internalCluster().startNode(nodeSettings.build());
     }
 
     public void startWarmOnlyNode() {
@@ -536,7 +535,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         if (externalId != null) {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
-        return startNodeAndWait(nodeSettings.build());
+        return internalCluster().startNode(nodeSettings.build());
     }
 
     public void startColdOnlyNode() {
@@ -552,7 +551,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
 
-        return startNodeAndWait(nodeSettings.build());
+        return internalCluster().startNode(nodeSettings.build());
     }
 
     public void startFrozenOnlyNode() {
@@ -560,13 +559,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
             .put("node.attr.box", "frozen")
             .build();
-        startNodeAndWait(nodeSettings);
-    }
-
-    public String startNodeAndWait(Settings settings) {
-        var node = internalCluster().startNode(settings);
-        internalCluster().validateClusterFormed(); // autoManageMasterNodes is false so we must wait explicitly
-        return node;
+        internalCluster().startNode(nodeSettings);
     }
 
     private DesiredNode desiredNode(String externalId, DiscoveryNodeRole... roles) {

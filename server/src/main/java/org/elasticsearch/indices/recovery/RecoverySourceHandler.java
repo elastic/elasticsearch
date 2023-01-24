@@ -121,7 +121,8 @@ public class RecoverySourceHandler {
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
-    private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
+    private final Consumer<ActionListener<RecoveryResponse>> listenerSubscriber;
+    private final ActionListener<RecoveryResponse> responseListener;
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -147,6 +148,10 @@ public class RecoverySourceHandler {
         this.maxConcurrentOperations = maxConcurrentOperations;
         this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
         this.useSnapshots = useSnapshots;
+
+        final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
+        this.listenerSubscriber = future::addListener;
+        this.responseListener = ActionListener.notifyOnce(future);
     }
 
     public StartRecoveryRequest getRequest() {
@@ -154,7 +159,7 @@ public class RecoverySourceHandler {
     }
 
     public void addListener(ActionListener<RecoveryResponse> listener) {
-        future.addListener(listener);
+        listenerSubscriber.accept(listener);
     }
 
     /**
@@ -174,12 +179,12 @@ public class RecoverySourceHandler {
                 if (beforeCancelEx != null) {
                     e.addSuppressed(beforeCancelEx);
                 }
-                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> responseListener.onFailure(e));
                 throw e;
             });
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[onFailure]");
-                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> responseListener.onFailure(e));
             };
 
             final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
@@ -386,13 +391,13 @@ public class RecoverySourceHandler {
                     sendSnapshotResult.tookTime.millis()
                 );
                 try {
-                    future.onResponse(response);
+                    responseListener.onResponse(response);
                 } finally {
                     IOUtils.close(resources);
                 }
             }, onFailure);
         } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+            IOUtils.closeWhileHandlingException(releaseResources, () -> responseListener.onFailure(e));
         }
     }
 

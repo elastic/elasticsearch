@@ -99,6 +99,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -287,27 +288,15 @@ public class TranslogTests extends ESTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        if (listener != null) {
-            return new TranslogConfig(
-                shardId,
-                path,
-                indexSettings,
-                NON_RECYCLING_INSTANCE,
-                bufferSize,
-                randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
-                listener
-            );
-
-        } else {
-            return new TranslogConfig(
-                shardId,
-                path,
-                indexSettings,
-                NON_RECYCLING_INSTANCE,
-                bufferSize,
-                randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
-            );
-        }
+        return new TranslogConfig(
+            shardId,
+            path,
+            indexSettings,
+            NON_RECYCLING_INSTANCE,
+            bufferSize,
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
+            Objects.requireNonNullElse(listener, (d, s, l) -> {})
+        );
     }
 
     private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -1618,31 +1607,24 @@ public class TranslogTests extends ESTestCase {
 
         };
         TranslogConfig config = getTranslogConfig(tempDir, settings, listener);
-        Translog translog = createTranslog(config);
 
-        Location location1 = translog.add(indexOp(randomAlphaOfLength(10), 0, primaryTerm.get()));
-        Location location2 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 1, primaryTerm.get()));
-        long firstGeneration = translog.getGeneration().translogFileGeneration;
-        assertThat(location1.generation, equalTo(firstGeneration));
-        assertThat(location2.generation, equalTo(firstGeneration));
+        try (Translog translog = createTranslog(config)) {
+            Location location1 = translog.add(indexOp(randomAlphaOfLength(10), 0, primaryTerm.get()));
+            Location location2 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 1, primaryTerm.get()));
+            long firstGeneration = translog.getGeneration().translogFileGeneration;
+            assertThat(location1.generation, equalTo(firstGeneration));
+            assertThat(location2.generation, equalTo(firstGeneration));
 
-        translog.rollGeneration();
+            translog.rollGeneration();
 
-        Location location3 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 3, primaryTerm.get()));
-        Location location4 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 2, primaryTerm.get()));
-        long secondGeneration = translog.getGeneration().translogFileGeneration;
-        assertThat(location3.generation, equalTo(secondGeneration));
-        assertThat(location4.generation, equalTo(secondGeneration));
+            Location location3 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 3, primaryTerm.get()));
+            Location location4 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 2, primaryTerm.get()));
+            long secondGeneration = translog.getGeneration().translogFileGeneration;
+            assertThat(location3.generation, equalTo(secondGeneration));
+            assertThat(location4.generation, equalTo(secondGeneration));
 
-        try {
-            assertThat(seqNos.get(0), equalTo(0L));
-            assertThat(seqNos.get(1), equalTo(1L));
-            assertThat(seqNos.get(2), equalTo(3L));
-            assertThat(seqNos.get(3), equalTo(2L));
-            assertThat(locations.get(0), equalTo(location1));
-            assertThat(locations.get(1), equalTo(location2));
-            assertThat(locations.get(2), equalTo(location3));
-            assertThat(locations.get(3), equalTo(location4));
+            assertThat(seqNos, equalTo(List.of(0L, 1L, 3L, 2L)));
+            assertThat(locations, equalTo(List.of(location1, location2, location3, location4)));
 
             for (int i = 0; i < 4; ++i) {
                 try (BufferedChecksumStreamInput stream = new BufferedChecksumStreamInput(datas.get(i).streamInput(), "test")) {
@@ -1650,8 +1632,6 @@ public class TranslogTests extends ESTestCase {
                     assertThat(operation, equalTo(translog.readOperation(locations.get(i))));
                 }
             }
-        } finally {
-            translog.close();
         }
     }
 

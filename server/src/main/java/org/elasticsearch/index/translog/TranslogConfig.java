@@ -45,16 +45,6 @@ public final class TranslogConfig {
         this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, DiskIoBufferPool.INSTANCE);
     }
 
-    public TranslogConfig(
-        ShardId shardId,
-        Path translogPath,
-        IndexSettings indexSettings,
-        BigArrays bigArrays,
-        OperationListener operationListener
-    ) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, DiskIoBufferPool.INSTANCE, operationListener);
-    }
-
     TranslogConfig(
         ShardId shardId,
         Path translogPath,

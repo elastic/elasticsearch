@@ -127,12 +127,12 @@ public final class RemoteAccessAuthentication {
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
     }
 
-    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> metadata) {
-        assert false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> authenticationMetadata) {
+        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
             : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
-        assert false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
+        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
             : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
-        final Map<String, Object> copy = new HashMap<>(metadata);
+        final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
         try {
             copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authentication.encode());
         } catch (IOException e) {

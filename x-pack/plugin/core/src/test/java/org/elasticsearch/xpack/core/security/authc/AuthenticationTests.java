@@ -249,13 +249,11 @@ public class AuthenticationTests extends ESTestCase {
 
         if (isRemoteAccess) {
             assertThat(authentication.isRemoteAccess(), is(true));
-            assertThat(authentication.isAuthenticatedAsRemoteAccess(), is(true));
             // Also validate that this does not clash with API keys
             assertThat(authentication.isApiKey(), is(false));
             assertThat(authentication.isAuthenticatedAsApiKey(), is(false));
         } else {
             assertThat(authentication.isRemoteAccess(), is(false));
-            assertThat(authentication.isAuthenticatedAsRemoteAccess(), is(false));
         }
     }
 
@@ -456,7 +454,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication.getEffectiveSubject().getUser(),
             equalTo(AuthenticationTestHelper.stripRoles(authentication.getEffectiveSubject().getUser()))
         );
-        assertThat(authentication.isAuthenticatedAsRemoteAccess(), is(true));
+        assertThat(authentication.isRemoteAccess(), is(true));
         assertThat(
             authentication.getAuthenticatingSubject().getRealm(),
             equalTo(

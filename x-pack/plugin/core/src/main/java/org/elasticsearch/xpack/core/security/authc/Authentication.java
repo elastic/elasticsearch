@@ -371,10 +371,6 @@ public final class Authentication implements ToXContentObject {
         return authenticatingSubject.getType() == Subject.Type.API_KEY;
     }
 
-    public boolean isAuthenticatedAsRemoteAccess() {
-        return authenticatingSubject.getType() == Subject.Type.REMOTE_ACCESS;
-    }
-
     // TODO: this is not entirely accurate if anonymous user can create a token
     private boolean isAuthenticatedAnonymously() {
         return AuthenticationType.ANONYMOUS.equals(getAuthenticationType());
@@ -645,10 +641,9 @@ public final class Authentication implements ToXContentObject {
             || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
-        assert (false == isAuthenticatedAsRemoteAccess())
-            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
+        assert (false == isRemoteAccess()) || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "Remote access authentication requires metadata to contain API KEY id, and the value must be non-null.";
-        assert (false == isAuthenticatedAsRemoteAccess())
+        assert (false == isRemoteAccess())
             || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY) != null)
             : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
                 + "and the value must be non-null.";

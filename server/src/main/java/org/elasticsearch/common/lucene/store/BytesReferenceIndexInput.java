@@ -9,6 +9,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -23,8 +24,13 @@ public class BytesReferenceIndexInput extends IndexInput {
     private StreamInput streamInput;
 
     public BytesReferenceIndexInput(String resourceDescription, BytesReference bytesReference) {
+        this(resourceDescription, bytesReference, 0);
+    }
+
+    private BytesReferenceIndexInput(String resourceDescription, BytesReference bytesReference, int filePointer) {
         super(resourceDescription);
         this.bytesReference = bytesReference;
+        this.filePointer = filePointer;
     }
 
     @Override
@@ -71,16 +77,14 @@ public class BytesReferenceIndexInput extends IndexInput {
             return new BytesReferenceIndexInput(sliceDescription, bytesReference.slice((int) offset, (int) length));
         } else {
             throw new IllegalArgumentException(
-                "slice() "
-                    + sliceDescription
-                    + " out of bounds: offset="
-                    + offset
-                    + ",length="
-                    + length
-                    + ",fileLength="
-                    + bytesReference.length()
-                    + ": "
-                    + this
+                Strings.format(
+                    "slice() %s out of bounds: offset=%d,length=%d,fileLength=%d: %s",
+                    sliceDescription,
+                    offset,
+                    length,
+                    bytesReference.length(),
+                    this
+                )
             );
         }
     }
@@ -127,10 +131,9 @@ public class BytesReferenceIndexInput extends IndexInput {
         }
     }
 
+    @SuppressWarnings("MethodDoesntCallSuperMethod")
     @Override
     public IndexInput clone() {
-        final var clone = new BytesReferenceIndexInput(toString(), bytesReference);
-        clone.filePointer = filePointer;
-        return clone;
+        return new BytesReferenceIndexInput(toString(), bytesReference, filePointer);
     }
 }

@@ -73,6 +73,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                 null,
                 false,
                 new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND),
+                null,
                 null
             )
         );

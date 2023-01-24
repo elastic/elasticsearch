@@ -58,6 +58,7 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
             field = fieldPrefix + randomAlphaOfLengthBetween(1, 20);
         }
         boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
+        Long offset = version.onOrAfter(Version.V_8_7_0) ? randomOffset() : null;
 
         DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {
@@ -66,7 +67,8 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
                 scriptConfig,
                 missingBucket,
                 new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(randomTimeValue(1, 100, "d", "h", "ms", "s", "m"))),
-                randomBoolean() ? randomZone() : null
+                randomBoolean() ? randomZone() : null,
+                randomBoolean() ? offset : null
             );
         } else {
             dateHistogramGroupSource = new DateHistogramGroupSource(
@@ -76,7 +78,8 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
                 new DateHistogramGroupSource.CalendarInterval(
                     new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w", "M", "q", "y"))
                 ),
-                randomBoolean() ? randomZone() : null
+                randomBoolean() ? randomZone() : null,
+                randomBoolean() ? offset : null
             );
         }
 
@@ -122,7 +125,8 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
             null,
             randomBoolean(),
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
-            null
+            null,
+            randomBoolean() ? randomOffset() : null
         );
 
         // not meant to be complete rounding tests, see {@link RoundingTests} for more
@@ -145,7 +149,8 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
             null,
             randomBoolean(),
             new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval("1w")),
-            null
+            null,
+            randomBoolean() ? randomOffset() : null
         );
 
         // not meant to be complete rounding tests, see {@link RoundingTests} for more
@@ -168,5 +173,9 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
     private static long time(String time) {
         TemporalAccessor accessor = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC).parse(time);
         return DateFormatters.from(accessor).toInstant().toEpochMilli();
+    }
+
+    private static long randomOffset() {
+        return randomLongBetween(-1_000_000, 1_000_000);
     }
 }

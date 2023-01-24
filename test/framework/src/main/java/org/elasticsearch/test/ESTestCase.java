@@ -1452,7 +1452,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
      * a {@link Version} argument which will be used to write and read back the object.
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated
     public static <T extends Writeable> T copyWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -1493,7 +1493,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return
      */
     @SuppressWarnings("unchecked")
-    @Deprecated(forRemoval = true)
+    @Deprecated
     public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -1524,7 +1524,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
-    @Deprecated(forRemoval = true)
+    @Deprecated
     protected static <T> T copyInstance(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,

@@ -638,13 +638,11 @@ public final class Authentication implements ToXContentObject {
         }
 
         // Assert API key metadata
-        assert (false == isAuthenticatedAsApiKey())
+        assert (false == (isAuthenticatedAsApiKey() || isRemoteAccess()))
             || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
         if (isRemoteAccess()) {
-            assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null
-                : "Remote access authentication requires metadata to contain API KEY id, and the value must be non-null.";
             assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY) != null
                 : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
                     + "and the value must be non-null.";
@@ -903,6 +901,7 @@ public final class Authentication implements ToXContentObject {
         );
         assert false == authentication.isServiceAccount();
         assert false == authentication.isApiKey();
+        assert false == authentication.isRemoteAccess();
         assert false == authentication.isAuthenticatedInternally();
         assert false == authentication.isAuthenticatedAnonymously();
         return authentication;

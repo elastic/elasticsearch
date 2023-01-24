@@ -29,11 +29,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
@@ -73,7 +75,7 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
 
     private volatile CurrentState currentState;
     // TODO: ensure we release the listeners when the search shard is relocated.
-    private List<SegmentGenerationListener> segmentGenerationListeners = new ArrayList<>();
+    private Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
 
     public StatelessReaderManager(
         ObjectStoreService objectStoreService,
@@ -335,22 +337,30 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         }
     }
 
-    public synchronized void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
         try {
             if (closed.get()) {
                 throw new AlreadyClosedException("Stateless reader manager is closed");
             }
             incRef();
             try {
-                // we consider that the current generation is 0 when the currentState is unknown, either because it is not yet downloaded
-                // or the last reload failed. We should improve this.
-                // TODO https://elasticco.atlassian.net/browse/ES-5301
-                var currentGeneration = currentState != null ? currentState.newIndexCommit().getGeneration() : 0L;
-                assert minGeneration > 0 : minGeneration;
-                if (minGeneration > currentGeneration) {
-                    segmentGenerationListeners.add(new SegmentGenerationListener(minGeneration, listener));
-                } else {
-                    listener.onResponse(currentGeneration);
+                // check current state first - not strictly necessary, but a little more efficient than what happens next
+                final long preFlightGeneration = getCurrentGeneration();
+                if (preFlightGeneration >= minGeneration) {
+                    listener.onResponse(preFlightGeneration);
+                    return;
+                }
+
+                // register this listener before checking current state again
+                segmentGenerationListeners.computeIfAbsent(minGeneration, ignored -> new ListenableActionFuture<>()).addListener(listener);
+
+                // current state may have moved forwards in the meantime, in which case we must undo what we just did
+                final long currentGeneration = currentState.newIndexCommit().getGeneration();
+                if (currentGeneration >= minGeneration) {
+                    final var listeners = segmentGenerationListeners.remove(minGeneration);
+                    if (listeners != null) {
+                        listeners.onResponse(currentGeneration);
+                    }
                 }
             } finally {
                 decRef();
@@ -360,45 +370,51 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         }
     }
 
+    private long getCurrentGeneration() {
+        // We consider that the current generation is 0 when the currentState is unknown, either because it is not yet downloaded or the
+        // last reload failed. We should improve this.
+        // TODO https://elasticco.atlassian.net/browse/ES-5301
+        return currentState != null ? currentState.newIndexCommit().getGeneration() : 0L;
+    }
+
     private void callSegmentGenerationListeners(long currentGen) {
-        List<SegmentGenerationListener> pendingListeners = new ArrayList<>();
-        List<SegmentGenerationListener> listenersToCall = new ArrayList<>();
-        synchronized (this) {
-            for (SegmentGenerationListener listener : segmentGenerationListeners) {
-                if (listener.minGeneration() <= currentGen) {
-                    listenersToCall.add(listener);
-                } else {
-                    pendingListeners.add(listener);
+        final var iterator = segmentGenerationListeners.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            if (entry.getKey() <= currentGen) {
+                iterator.remove();
+                try {
+                    entry.getValue().onResponse(currentGen);
+                } catch (Exception e) {
+                    logger.warn(() -> "segment generation listener [" + entry.getKey() + "] failed", e);
+                    assert false : e;
                 }
-            }
-            segmentGenerationListeners = pendingListeners;
-        }
-        for (SegmentGenerationListener listener : listenersToCall) {
-            try {
-                listener.listener().onResponse(currentGen);
-            } catch (Exception e) {
-                logger.warn(() -> "segment generation listener [" + listener.minGeneration() + "][" + listener + "] failed", e);
-                assert false : e;
             }
         }
     }
 
+    private boolean assertClosed() {
+        var closedVal = closed.get();
+        var hasRefs = hasReferences();
+        assert closedVal && hasRefs == false : "stateless reader manager for " + shardId + ": hasRefs=" + hasRefs + ", closed=" + closedVal;
+        return true;
+    }
+
     private void failSegmentGenerationListeners(Exception e) {
-        assert closed.get() : "stateless reader manager for " + shardId + " should be closed";
-        final List<SegmentGenerationListener> listeners;
-        synchronized (this) {
-            listeners = List.copyOf(segmentGenerationListeners);
-            this.segmentGenerationListeners = List.of();
-        }
-        for (SegmentGenerationListener listener : listeners) {
+        assert assertClosed();
+        final var iterator = segmentGenerationListeners.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            iterator.remove();
             try {
-                listener.listener().onFailure(e);
+                entry.getValue().onFailure(e);
             } catch (Exception e2) {
                 e2.addSuppressed(e);
-                logger.warn(() -> "segment generation listener [" + listener.minGeneration() + "][" + listener + "] failed", e2);
+                logger.warn(() -> "segment generation listener [" + entry.getKey() + "] failed", e2);
                 assert false : e2;
             }
         }
+        assert segmentGenerationListeners.isEmpty();
     }
 
     private record SegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {}

@@ -18,7 +18,7 @@ import java.util.Arrays;
 import static org.elasticsearch.test.ESTestCase.between;
 
 /**
- * Inserts nulls into the last block.
+ * Inserts nulls into blocks
  */
 public class NullInsertingSourceOperator extends MappingSourceOperator {
     public NullInsertingSourceOperator(SourceOperator delegate) {
@@ -46,10 +46,14 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         }
         for (int position = 0; position < page.getPositionCount(); position++) {
             for (int nulls = between(0, 3); nulls > 0; nulls--) {
-                for (int b = 0; b < builders.length - 1; b++) {
-                    copyValues(page.getBlock(b), position, builders[b]);
+                int nullIndex = between(0, builders.length - 1);
+                for (int b = 0; b < builders.length; b++) {
+                    if (b == nullIndex) {
+                        builders[b].appendNull();
+                    } else {
+                        copyValues(page.getBlock(b), position, builders[b]);
+                    }
                 }
-                builders[builders.length - 1].appendNull();
             }
             for (int b = 0; b < builders.length; b++) {
                 copyValues(page.getBlock(b), position, builders[b]);

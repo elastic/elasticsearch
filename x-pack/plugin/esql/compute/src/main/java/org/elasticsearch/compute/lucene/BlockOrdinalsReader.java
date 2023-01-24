@@ -9,8 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.LongBlock;
 
 import java.io.IOException;
 
@@ -23,26 +22,21 @@ public final class BlockOrdinalsReader {
         this.creationThread = Thread.currentThread();
     }
 
-    public LongVector readOrdinals(IntVector docs) throws IOException {
+    public LongBlock readOrdinals(IntVector docs) throws IOException {
         final int positionCount = docs.getPositionCount();
-        final long[] ordinals = new long[positionCount];
-        int lastDoc = -1;
-        for (int i = 0; i < docs.getPositionCount(); i++) {
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
+        for (int i = 0; i < positionCount; i++) {
             int doc = docs.getInt(i);
-            // docs within same block must be in order
-            if (lastDoc >= doc) {
-                throw new IllegalStateException("docs within same block must be in order");
+            if (sortedSetDocValues.advanceExact(doc)) {
+                if (sortedSetDocValues.docValueCount() != 1) {
+                    throw new IllegalStateException("multi-values not supported for now, could not read doc [" + doc + "]");
+                }
+                builder.appendLong(sortedSetDocValues.nextOrd());
+            } else {
+                builder.appendNull();
             }
-            if (sortedSetDocValues.advanceExact(doc) == false) {
-                throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
-            }
-            if (sortedSetDocValues.docValueCount() != 1) {
-                throw new IllegalStateException("multi-values not supported for now, could not read doc [" + doc + "]");
-            }
-            ordinals[i] = sortedSetDocValues.nextOrd();
-            lastDoc = doc;
         }
-        return new LongArrayVector(ordinals, positionCount);
+        return builder.build();
     }
 
     public int docID() {

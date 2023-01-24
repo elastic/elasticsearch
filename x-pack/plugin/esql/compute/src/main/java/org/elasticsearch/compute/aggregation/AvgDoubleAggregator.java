@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.core.Releasables;
 
@@ -61,11 +60,17 @@ class AvgDoubleAggregator {
 
     public static Block evaluateFinal(GroupingAvgState state) {
         int positions = state.largestGroupId + 1;
-        double[] result = new double[positions];
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
-            result[i] = state.values.get(i) / state.counts.get(i);
+            final long count = state.counts.get(i);
+            if (count > 0) {
+                builder.appendDouble(state.values.get(i) / count);
+            } else {
+                assert state.values.get(i) == 0.0;
+                builder.appendNull();
+            }
         }
-        return new DoubleArrayVector(result, positions).asBlock();
+        return builder.build();
     }
 
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)
@@ -193,12 +198,7 @@ class AvgDoubleAggregator {
         }
 
         void add(double valueToAdd, double deltaToAdd, int groupId, long increment) {
-            if (groupId > largestGroupId) {
-                largestGroupId = groupId;
-                values = bigArrays.grow(values, groupId + 1);
-                deltas = bigArrays.grow(deltas, groupId + 1);
-                counts = bigArrays.grow(counts, groupId + 1);
-            }
+            ensureCapacity(groupId);
             add(valueToAdd, deltaToAdd, groupId);
             counts.increment(groupId, increment);
         }
@@ -221,6 +221,20 @@ class AvgDoubleAggregator {
             double updatedValue = value + correctedSum;
             deltas.set(position, correctedSum - (updatedValue - value));
             values.set(position, updatedValue);
+        }
+
+        void putNull(int position) {
+            // counts = 0 is for nulls
+            ensureCapacity(position);
+        }
+
+        private void ensureCapacity(int groupId) {
+            if (groupId > largestGroupId) {
+                largestGroupId = groupId;
+                values = bigArrays.grow(values, groupId + 1);
+                deltas = bigArrays.grow(deltas, groupId + 1);
+                counts = bigArrays.grow(counts, groupId + 1);
+            }
         }
 
         @Override

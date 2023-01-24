@@ -13,7 +13,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayVector;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
@@ -95,18 +95,36 @@ public class HashAggregationOperator implements Operator {
         requireNonNull(page, "page is null");
 
         Block block = page.getBlock(groupByChannel);
-        long[] groups = new long[block.getPositionCount()];
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            long bucketOrd = blockHash.add(block, i);
-            if (bucketOrd < 0) { // already seen
-                bucketOrd = -1 - bucketOrd;
+        int positionCount = block.getPositionCount();
+        final LongBlock groupIdBlock;
+        if (block.asVector() != null) {
+            long[] groups = new long[positionCount];
+            for (int i = 0; i < positionCount; i++) {
+                long bucketOrd = blockHash.add(block, i);
+                if (bucketOrd < 0) { // already seen
+                    bucketOrd = -1 - bucketOrd;
+                }
+                groups[i] = bucketOrd;
             }
-            groups[i] = bucketOrd;
+            groupIdBlock = new LongArrayVector(groups, positionCount).asBlock();
+        } else {
+            final LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
+            for (int i = 0; i < positionCount; i++) {
+                if (block.isNull(i)) {
+                    builder.appendNull();
+                } else {
+                    long bucketOrd = blockHash.add(block, i);
+                    if (bucketOrd < 0) { // already seen
+                        bucketOrd = -1 - bucketOrd;
+                    }
+                    builder.appendLong(bucketOrd);
+                }
+            }
+            groupIdBlock = builder.build();
         }
-        LongVector groupIdVector = new LongArrayVector(groups, groups.length);
 
         for (GroupingAggregator aggregator : aggregators) {
-            aggregator.processPage(groupIdVector, page);
+            aggregator.processPage(groupIdBlock, page);
         }
     }
 

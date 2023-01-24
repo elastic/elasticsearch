@@ -10,7 +10,6 @@ import java.lang.StringBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -35,29 +34,57 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addRawInput(LongVector groupIdVector, Page page) {
-    assert channel >= 0;
-    LongBlock block = page.getBlock(channel);
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(groupIdVector, vector);
+  public void addRawInput(LongVector groups, Page page) {
+    LongBlock valuesBlock = page.getBlock(channel);
+    LongVector valuesVector = valuesBlock.asVector();
+    if (valuesVector != null) {
+      int positions = groups.getPositionCount();
+      for (int position = 0; position < groups.getPositionCount(); position++) {
+        int groupId = Math.toIntExact(groups.getLong(position));
+        state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), valuesVector.getLong(position)), groupId);
+      }
     } else {
-      addRawBlock(groupIdVector, block);
+      // move the cold branch out of this method to keep the optimized case vector/vector as small as possible
+      addRawInputWithBlockValues(groups, valuesBlock);
     }
   }
 
-  private void addRawVector(LongVector groupIdVector, LongVector vector) {
-    for (int position = 0; position < vector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), vector.getLong(position)), groupId);
+  private void addRawInputWithBlockValues(LongVector groups, LongBlock valuesBlock) {
+    int positions = groups.getPositionCount();
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groups.getLong(position));
+      if (valuesBlock.isNull(position)) {
+        state.putNull(groupId);
+      } else {
+        state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), valuesBlock.getLong(position)), groupId);
+      }
     }
   }
 
-  private void addRawBlock(LongVector groupIdVector, LongBlock block) {
-    for (int offset = 0; offset < block.getTotalValueCount(); offset++) {
-      if (block.isNull(offset) == false) {
-        int groupId = Math.toIntExact(groupIdVector.getLong(offset));
-        state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), block.getLong(offset)), groupId);
+  @Override
+  public void addRawInput(LongBlock groups, Page page) {
+    assert channel >= 0;
+    LongBlock valuesBlock = page.getBlock(channel);
+    LongVector valuesVector = valuesBlock.asVector();
+    int positions = groups.getPositionCount();
+    if (valuesVector != null) {
+      for (int position = 0; position < groups.getPositionCount(); position++) {
+        if (groups.isNull(position) == false) {
+          int groupId = Math.toIntExact(groups.getLong(position));
+          state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), valuesVector.getLong(position)), groupId);
+        }
+      }
+    } else {
+      for (int position = 0; position < groups.getPositionCount(); position++) {
+        if (groups.isNull(position)) {
+          continue;
+        }
+        int groupId = Math.toIntExact(groups.getLong(position));
+        if (valuesBlock.isNull(position)) {
+          state.putNull(groupId);
+        } else {
+          state.set(MaxLongAggregator.combine(state.getOrDefault(groupId), valuesBlock.getLong(position)), groupId);
+        }
       }
     }
   }
@@ -99,12 +126,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public Block evaluateFinal() {
-    int positions = state.largestIndex + 1;
-    long[] values = new long[positions];
-    for (int i = 0; i < positions; i++) {
-      values[i] = state.get(i);
-    }
-    return new LongArrayVector(values, positions).asBlock();
+    return state.toValuesBlock();
   }
 
   @Override

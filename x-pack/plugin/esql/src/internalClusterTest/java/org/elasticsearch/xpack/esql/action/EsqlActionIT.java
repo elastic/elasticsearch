@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -320,6 +321,52 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(expectedValues, actualValues);
     }
 
+    public void testFromGroupingByNumericFieldWithNulls() {
+        for (int i = 0; i < 5; i++) {
+            client().prepareBulk()
+                .add(new IndexRequest("test").id("no_count_old_" + i).source("data", between(1, 2), "data_d", 1d))
+                .add(new IndexRequest("test").id("no_count_new_" + i).source("data", 99, "data_d", 1d))
+                .add(new IndexRequest("test").id("no_data_" + i).source("count", between(0, 100), "count_d", between(0, 100)))
+                .get();
+            if (randomBoolean()) {
+                client().admin().indices().prepareRefresh("test").get();
+            }
+        }
+        client().admin().indices().prepareRefresh("test").get();
+        EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(3, results.values().size());
+
+        // assert column metadata
+        assertEquals("avg(count)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals("data", results.columns().get(1).name());
+        assertEquals("long", results.columns().get(1).type());
+
+        record Group(Long data, Double avg) {
+
+        }
+
+        List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null));
+
+        // assert column values
+        List<Group> actualGroups = results.values()
+            .stream()
+            .map(l -> new Group((Long) l.get(1), (Double) l.get(0)))
+            .sorted(Comparator.comparing(c -> c.data))
+            .toList();
+        assertEquals(expectedGroups, actualGroups);
+        for (int i = 0; i < 5; i++) {
+            client().prepareBulk()
+                .add(new DeleteRequest("test").id("no_color_" + i))
+                .add(new DeleteRequest("test").id("no_count_red_" + i))
+                .add(new DeleteRequest("test").id("no_count_yellow_" + i))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+    }
+
     public void testFromStatsGroupingByKeyword() {
         EsqlQueryResponse results = run("from test | stats avg(count) by color");
         logger.info(results);
@@ -341,6 +388,55 @@ public class EsqlActionIT extends ESIntegTestCase {
             .sorted(Comparator.comparing(c -> c.color))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));
+    }
+
+    public void testFromStatsGroupingByKeywordWithNulls() {
+        for (int i = 0; i < 5; i++) {
+            client().prepareBulk()
+                .add(new IndexRequest("test").id("no_color_" + i).source("data", 12, "count", 120, "data_d", 2d, "count_d", 120d))
+                .add(new IndexRequest("test").id("no_count_red_" + i).source("data", 2, "data_d", 2d, "color", "red"))
+                .add(new IndexRequest("test").id("no_count_yellow_" + i).source("data", 2, "data_d", 2d, "color", "yellow"))
+                .get();
+            if (randomBoolean()) {
+                client().admin().indices().prepareRefresh("test").get();
+            }
+        }
+        client().admin().indices().prepareRefresh("test").get();
+        for (String field : List.of("count", "count_d")) {
+            EsqlQueryResponse results = run("from test | stats avg = avg(" + field + ") by color");
+            logger.info(results);
+            Assert.assertEquals(2, results.columns().size());
+            Assert.assertEquals(4, results.values().size());
+
+            // assert column metadata
+            assertEquals("avg", results.columns().get(0).name());
+            assertEquals("double", results.columns().get(0).type());
+            assertEquals("color", results.columns().get(1).name());
+            assertEquals("keyword", results.columns().get(1).type());
+            record Group(String color, Double avg) {
+
+            }
+            List<Group> expectedGroups = List.of(
+                new Group("blue", 42.0),
+                new Group("green", 44.0),
+                new Group("red", 43.0),
+                new Group("yellow", null)
+            );
+            List<Group> actualGroups = results.values()
+                .stream()
+                .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
+                .sorted(Comparator.comparing(c -> c.color))
+                .toList();
+            assertThat(actualGroups, equalTo(expectedGroups));
+        }
+        for (int i = 0; i < 5; i++) {
+            client().prepareBulk()
+                .add(new DeleteRequest("test").id("no_color_" + i))
+                .add(new DeleteRequest("test").id("no_count_red_" + i))
+                .add(new DeleteRequest("test").id("no_count_yellow_" + i))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
     }
 
     public void testSortWithKeywordField() {

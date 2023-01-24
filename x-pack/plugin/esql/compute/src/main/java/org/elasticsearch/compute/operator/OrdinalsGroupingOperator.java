@@ -24,7 +24,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.LuceneDocRef;
@@ -306,10 +306,12 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
-                final LongVector ordinals = currentReader.readOrdinals(docs);
+                final LongBlock ordinals = currentReader.readOrdinals(docs);
                 for (int i = 0; i < ordinals.getPositionCount(); i++) {
-                    long ord = ordinals.getLong(i);
-                    visitedOrds.set(ord);
+                    if (ordinals.isNull(i) == false) {
+                        long ord = ordinals.getLong(i);
+                        visitedOrds.set(ord);
+                    }
                 }
                 for (GroupingAggregator aggregator : aggregators) {
                     aggregator.processPage(ordinals, page);

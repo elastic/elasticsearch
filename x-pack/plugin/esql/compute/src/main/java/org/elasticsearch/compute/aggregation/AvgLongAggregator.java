@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.core.Releasables;
 
@@ -60,11 +59,17 @@ class AvgLongAggregator {
 
     public static Block evaluateFinal(GroupingAvgState state) {
         int positions = state.largestGroupId + 1;
-        double[] result = new double[positions];
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
-            result[i] = (double) state.values.get(i) / state.counts.get(i);
+            final long count = state.counts.get(i);
+            if (count > 0) {
+                builder.appendDouble((double) state.values.get(i) / count);
+            } else {
+                assert state.values.get(i) == 0;
+                builder.appendNull();
+            }
         }
-        return new DoubleArrayVector(result, positions).asBlock();
+        return builder.build();
     }
 
     static class AvgState implements AggregatorState<AvgLongAggregator.AvgState> {
@@ -158,13 +163,21 @@ class AvgLongAggregator {
         }
 
         void add(long valueToAdd, int groupId, long increment) {
+            ensureCapacity(groupId);
+            values.set(groupId, Math.addExact(values.get(groupId), valueToAdd));
+            counts.increment(groupId, increment);
+        }
+
+        void putNull(int position) {
+            ensureCapacity(position);
+        }
+
+        private void ensureCapacity(int groupId) {
             if (groupId > largestGroupId) {
                 largestGroupId = groupId;
                 values = bigArrays.grow(values, groupId + 1);
                 counts = bigArrays.grow(counts, groupId + 1);
             }
-            values.set(groupId, Math.addExact(values.get(groupId), valueToAdd));
-            counts.increment(groupId, increment);
         }
 
         @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
@@ -31,9 +32,11 @@ import static org.elasticsearch.compute.aggregation.AggregationType.longs;
 @Experimental
 public interface GroupingAggregatorFunction extends Releasable {
 
-    void addRawInput(LongVector groupIdBlock, Page page);
+    void addRawInput(LongBlock groupIdBlock, Page page);
 
-    void addIntermediateInput(LongVector groupIdBlock, Block block);
+    void addRawInput(LongVector groupIdVector, Page page);
+
+    void addIntermediateInput(LongVector groupIdVector, Block block);
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId

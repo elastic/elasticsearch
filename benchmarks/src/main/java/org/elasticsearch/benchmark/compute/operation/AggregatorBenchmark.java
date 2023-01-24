@@ -126,7 +126,7 @@ public class AggregatorBenchmark {
                     long group = g;
                     long sum = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).sum();
                     long count = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % GROUPS == group).count();
-                    double expected = sum / count;
+                    double expected = (double) sum / count;
                     if (dValues.getDouble(g) != expected) {
                         throw new AssertionError(prefix + "expected [" + expected + "] but was [" + dValues.getDouble(g) + "]");
                     }

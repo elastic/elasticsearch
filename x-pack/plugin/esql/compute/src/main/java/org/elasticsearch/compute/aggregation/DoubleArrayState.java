@@ -8,8 +8,13 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -26,6 +31,7 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     private DoubleArray values;
     // total number of groups; <= values.length
     int largestIndex;
+    private BitArray nonNulls;
 
     private final DoubleArrayStateSerializer serializer;
 
@@ -52,6 +58,49 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
             largestIndex = index;
         }
         values.set(index, value);
+        if (nonNulls != null) {
+            nonNulls.set(index);
+        }
+    }
+
+    void putNull(int index) {
+        if (index > largestIndex) {
+            largestIndex = index;
+        }
+        ensureCapacity(index);
+        if (nonNulls == null) {
+            nonNulls = new BitArray(index + 1, bigArrays);
+            for (int i = 0; i < index; i++) {
+                nonNulls.set(i);
+            }
+        } else {
+            nonNulls.ensureCapacity(index + 1);
+        }
+    }
+
+    boolean hasValue(int index) {
+        return nonNulls == null || nonNulls.get(index);
+    }
+
+    Block toValuesBlock() {
+        final int positions = largestIndex + 1;
+        if (nonNulls == null) {
+            final double[] vs = new double[positions];
+            for (int i = 0; i < positions; i++) {
+                vs[i] = values.get(i);
+            }
+            return new DoubleArrayVector(vs, positions).asBlock();
+        } else {
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
+            for (int i = 0; i < positions; i++) {
+                if (hasValue(i)) {
+                    builder.appendDouble(values.get(i));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     private void ensureCapacity(int position) {
@@ -64,12 +113,12 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
     @Override
     public long getEstimatedSize() {
-        return Long.BYTES + (largestIndex + 1) * Double.BYTES;
+        return Long.BYTES + (largestIndex + 1L) * Double.BYTES + LongArrayState.estimateSerializeSize(nonNulls);
     }
 
     @Override
     public void close() {
-        values.close();
+        Releasables.close(values, nonNulls);
     }
 
     @Override
@@ -98,7 +147,9 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
                 doubleHandle.set(ba, offset, state.values.get(i));
                 offset += BYTES_SIZE;
             }
-            return Long.BYTES + (BYTES_SIZE * positions); // number of bytes written
+            final int valuesBytes = Long.BYTES + (BYTES_SIZE * positions);
+            return valuesBytes + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
+
         }
 
         @Override
@@ -111,6 +162,7 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
                 offset += BYTES_SIZE;
             }
             state.largestIndex = positions - 1;
+            state.nonNulls = LongArrayState.deseralizeBitArray(state.bigArrays, ba, offset);
         }
     }
 }

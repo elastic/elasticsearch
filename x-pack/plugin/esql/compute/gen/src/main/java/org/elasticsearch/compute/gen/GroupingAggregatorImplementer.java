@@ -30,11 +30,9 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_ARRAY_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
-import static org.elasticsearch.compute.gen.Types.LONG_ARRAY_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
@@ -138,9 +136,9 @@ public class GroupingAggregatorImplementer {
 
         builder.addMethod(create());
         builder.addMethod(ctor());
-        builder.addMethod(addRawInput());
-        builder.addMethod(addRawVector());
-        builder.addMethod(addRawBlock());
+        builder.addMethod(addRawInputVector());
+        builder.addMethod(addRawInputWithBlockValues());
+        builder.addMethod(addRawInputBlock());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
@@ -177,40 +175,89 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec addRawInput() {
+    private MethodSpec addRawInputVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(LONG_VECTOR, "groupIdVector").addParameter(PAGE, "page");
-        builder.addStatement("assert channel >= 0");
-        builder.addStatement("$T block = page.getBlock(channel)", valueBlockType());
-        builder.addStatement("$T vector = block.asVector()", valueVectorType());
-        builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(groupIdVector, vector)");
-        builder.nextControlFlow("else").addStatement("addRawBlock(groupIdVector, block)").endControlFlow();
-        return builder.build();
-    }
-
-    private MethodSpec addRawVector() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(LONG_VECTOR, "groupIdVector").addParameter(valueVectorType(), "vector");
-        builder.beginControlFlow("for (int position = 0; position < vector.getPositionCount(); position++)");
+        builder.addParameter(LONG_VECTOR, "groups").addParameter(PAGE, "page");
+        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType());
+        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType());
+        builder.beginControlFlow("if (valuesVector != null)");
         {
-            builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(position))");
-            combineRawInput(builder, "vector", "position");
+            builder.addStatement("int positions = groups.getPositionCount()");
+            builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
+            {
+                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+                combineRawInput(builder, "valuesVector", "position");
+            }
+            builder.endControlFlow();
+        }
+        builder.nextControlFlow("else");
+        {
+            builder.addComment("move the cold branch out of this method to keep the optimized case vector/vector as small as possible");
+            builder.addStatement("addRawInputWithBlockValues(groups, valuesBlock)");
         }
         builder.endControlFlow();
         return builder.build();
     }
 
-    private MethodSpec addRawBlock() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(LONG_VECTOR, "groupIdVector").addParameter(valueBlockType(), "block");
-
-        builder.beginControlFlow("for (int offset = 0; offset < block.getTotalValueCount(); offset++)");
+    private MethodSpec addRawInputWithBlockValues() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInputWithBlockValues");
+        builder.addModifiers(Modifier.PRIVATE);
+        builder.addParameter(LONG_VECTOR, "groups").addParameter(valueBlockType(), "valuesBlock");
+        builder.addStatement("int positions = groups.getPositionCount()");
+        builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
-            builder.beginControlFlow("if (block.isNull(offset) == false)");
+            builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+            builder.beginControlFlow("if (valuesBlock.isNull(position))");
             {
-                builder.addStatement("int groupId = Math.toIntExact(groupIdVector.getLong(offset))");
-                combineRawInput(builder, "block", "offset");
+                builder.addStatement("state.putNull(groupId)");
+            }
+            builder.nextControlFlow("else");
+            {
+                combineRawInput(builder, "valuesBlock", "position");
+            }
+            builder.endControlFlow();
+        }
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    private MethodSpec addRawInputBlock() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(LONG_BLOCK, "groups").addParameter(PAGE, "page");
+        builder.addStatement("assert channel >= 0");
+        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType());
+        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType());
+        builder.addStatement("int positions = groups.getPositionCount()");
+        builder.beginControlFlow("if (valuesVector != null)");
+        {
+            builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
+            {
+                builder.beginControlFlow("if (groups.isNull(position) == false)");
+                {
+                    builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+                    combineRawInput(builder, "valuesVector", "position");
+                }
+                builder.endControlFlow();
+            }
+            builder.endControlFlow();
+        }
+        builder.nextControlFlow("else");
+        {
+            builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
+            {
+                builder.beginControlFlow("if (groups.isNull(position))").addStatement("continue").endControlFlow();
+                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+                builder.beginControlFlow("if (valuesBlock.isNull(position))");
+                {
+                    builder.addStatement("state.putNull(groupId)");
+                }
+                builder.nextControlFlow("else");
+                {
+                    combineRawInput(builder, "valuesBlock", "position");
+                }
+                builder.endControlFlow();
             }
             builder.endControlFlow();
         }
@@ -338,36 +385,11 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateFinal");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(BLOCK);
         if (evaluateFinal == null) {
-            primitiveStateToResult(builder);
+            builder.addStatement("return state.toValuesBlock()");
         } else {
             builder.addStatement("return $T.evaluateFinal(state)", declarationType);
         }
         return builder.build();
-    }
-
-    private void primitiveStateToResult(MethodSpec.Builder builder) {
-        TypeName vectorType;
-        TypeName elementType;
-        switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.LongArrayState":
-                vectorType = LONG_ARRAY_VECTOR;
-                elementType = TypeName.get(long.class);
-                break;
-            case "org.elasticsearch.compute.aggregation.DoubleArrayState":
-                vectorType = DOUBLE_ARRAY_VECTOR;
-                elementType = TypeName.get(double.class);
-                break;
-            default:
-                throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);
-        }
-        builder.addStatement("int positions = state.largestIndex + 1");
-        builder.addStatement("$T[] values = new $T[positions]", elementType, elementType);
-        builder.beginControlFlow("for (int i = 0; i < positions; i++)");
-        {
-            builder.addStatement("values[i] = state.get(i)");
-        }
-        builder.endControlFlow();
-        builder.addStatement("return new $T(values, positions).asBlock()", vectorType);
     }
 
     private MethodSpec toStringMethod() {

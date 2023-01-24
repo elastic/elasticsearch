@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
@@ -64,11 +65,19 @@ public class GroupingAggregator implements Releasable {
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
     }
 
-    public void processPage(LongVector groupIdVector, Page page) {
+    public void processPage(LongBlock groupIdBlock, Page page) {
+        final LongVector groupIdVector = groupIdBlock.asVector();
         if (mode.isInputPartial()) {
+            if (groupIdVector == null) {
+                throw new IllegalStateException("Intermediate group id must not have nulls");
+            }
             aggregatorFunction.addIntermediateInput(groupIdVector, page.getBlock(intermediateChannel));
         } else {
-            aggregatorFunction.addRawInput(groupIdVector, page);
+            if (groupIdVector != null) {
+                aggregatorFunction.addRawInput(groupIdVector, page);
+            } else {
+                aggregatorFunction.addRawInput(groupIdBlock, page);
+            }
         }
     }
 

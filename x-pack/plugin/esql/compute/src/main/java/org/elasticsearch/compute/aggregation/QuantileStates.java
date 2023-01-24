@@ -12,7 +12,6 @@ import com.tdunning.math.stats.Centroid;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
@@ -147,6 +146,10 @@ final class QuantileStates {
             return qs;
         }
 
+        void putNull(int groupId) {
+            getOrAddGroup(groupId);
+        }
+
         void add(int groupId, double v) {
             getOrAddGroup(groupId).add(v);
         }
@@ -161,20 +164,30 @@ final class QuantileStates {
 
         Block evaluateMedianAbsoluteDeviation() {
             final int positions = Math.toIntExact(largestGroupId + 1);
-            double[] result = new double[positions];
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
             for (int i = 0; i < positions; i++) {
-                result[i] = digests.get(i).computeMedianAbsoluteDeviation();
+                final TDigestState digest = digests.get(i);
+                if (digest != null && digest.size() > 0) {
+                    builder.appendDouble(digest.computeMedianAbsoluteDeviation());
+                } else {
+                    builder.appendNull();
+                }
             }
-            return new DoubleArrayVector(result, positions).asBlock();
+            return builder.build();
         }
 
         Block evaluateMedian() {
             final int positions = Math.toIntExact(largestGroupId + 1);
-            double[] result = new double[positions];
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
             for (int i = 0; i < positions; i++) {
-                result[i] = digests.get(i).quantile(0.5);
+                final TDigestState digest = digests.get(i);
+                if (digest != null && digest.size() > 0) {
+                    builder.appendDouble(digest.quantile(0.5));
+                } else {
+                    builder.appendNull();
+                }
             }
-            return new DoubleArrayVector(result, positions).asBlock();
+            return builder.build();
         }
 
         @Override

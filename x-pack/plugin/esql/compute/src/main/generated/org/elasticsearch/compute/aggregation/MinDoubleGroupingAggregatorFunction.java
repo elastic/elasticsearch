@@ -10,9 +10,9 @@ import java.lang.StringBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -36,29 +36,57 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addRawInput(LongVector groupIdVector, Page page) {
-    assert channel >= 0;
-    DoubleBlock block = page.getBlock(channel);
-    DoubleVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(groupIdVector, vector);
+  public void addRawInput(LongVector groups, Page page) {
+    DoubleBlock valuesBlock = page.getBlock(channel);
+    DoubleVector valuesVector = valuesBlock.asVector();
+    if (valuesVector != null) {
+      int positions = groups.getPositionCount();
+      for (int position = 0; position < groups.getPositionCount(); position++) {
+        int groupId = Math.toIntExact(groups.getLong(position));
+        state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesVector.getDouble(position)), groupId);
+      }
     } else {
-      addRawBlock(groupIdVector, block);
+      // move the cold branch out of this method to keep the optimized case vector/vector as small as possible
+      addRawInputWithBlockValues(groups, valuesBlock);
     }
   }
 
-  private void addRawVector(LongVector groupIdVector, DoubleVector vector) {
-    for (int position = 0; position < vector.getPositionCount(); position++) {
-      int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), vector.getDouble(position)), groupId);
+  private void addRawInputWithBlockValues(LongVector groups, DoubleBlock valuesBlock) {
+    int positions = groups.getPositionCount();
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groups.getLong(position));
+      if (valuesBlock.isNull(position)) {
+        state.putNull(groupId);
+      } else {
+        state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(position)), groupId);
+      }
     }
   }
 
-  private void addRawBlock(LongVector groupIdVector, DoubleBlock block) {
-    for (int offset = 0; offset < block.getTotalValueCount(); offset++) {
-      if (block.isNull(offset) == false) {
-        int groupId = Math.toIntExact(groupIdVector.getLong(offset));
-        state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), block.getDouble(offset)), groupId);
+  @Override
+  public void addRawInput(LongBlock groups, Page page) {
+    assert channel >= 0;
+    DoubleBlock valuesBlock = page.getBlock(channel);
+    DoubleVector valuesVector = valuesBlock.asVector();
+    int positions = groups.getPositionCount();
+    if (valuesVector != null) {
+      for (int position = 0; position < groups.getPositionCount(); position++) {
+        if (groups.isNull(position) == false) {
+          int groupId = Math.toIntExact(groups.getLong(position));
+          state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesVector.getDouble(position)), groupId);
+        }
+      }
+    } else {
+      for (int position = 0; position < groups.getPositionCount(); position++) {
+        if (groups.isNull(position)) {
+          continue;
+        }
+        int groupId = Math.toIntExact(groups.getLong(position));
+        if (valuesBlock.isNull(position)) {
+          state.putNull(groupId);
+        } else {
+          state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(position)), groupId);
+        }
       }
     }
   }
@@ -100,12 +128,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public Block evaluateFinal() {
-    int positions = state.largestIndex + 1;
-    double[] values = new double[positions];
-    for (int i = 0; i < positions; i++) {
-      values[i] = state.get(i);
-    }
-    return new DoubleArrayVector(values, positions).asBlock();
+    return state.toValuesBlock();
   }
 
   @Override

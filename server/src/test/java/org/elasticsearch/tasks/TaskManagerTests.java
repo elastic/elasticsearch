@@ -8,7 +8,7 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -184,7 +184,7 @@ public class TaskManagerTests extends ESTestCase {
                             threadPool,
                             "action-" + i,
                             randomIntBetween(0, 1000),
-                            Version.CURRENT
+                            TransportVersion.CURRENT
                         );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
@@ -233,7 +233,7 @@ public class TaskManagerTests extends ESTestCase {
                     threadPool,
                     "action",
                     randomIntBetween(1, 10000),
-                    Version.CURRENT
+                    TransportVersion.CURRENT
                 )
             );
         }

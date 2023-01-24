@@ -22,6 +22,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -121,8 +122,7 @@ public class RecoverySourceHandler {
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
-    private final Consumer<ActionListener<RecoveryResponse>> listenerSubscriber;
-    private final ActionListener<RecoveryResponse> responseListener;
+    private final ListenableActionFuture<RecoveryResponse> future = new ListenableActionFuture<>();
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -148,10 +148,6 @@ public class RecoverySourceHandler {
         this.maxConcurrentOperations = maxConcurrentOperations;
         this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
         this.useSnapshots = useSnapshots;
-
-        final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
-        this.listenerSubscriber = future::addListener;
-        this.responseListener = ActionListener.notifyOnce(future);
     }
 
     public StartRecoveryRequest getRequest() {
@@ -159,7 +155,7 @@ public class RecoverySourceHandler {
     }
 
     public void addListener(ActionListener<RecoveryResponse> listener) {
-        listenerSubscriber.accept(listener);
+        future.addListener(listener);
     }
 
     /**
@@ -179,12 +175,12 @@ public class RecoverySourceHandler {
                 if (beforeCancelEx != null) {
                     e.addSuppressed(beforeCancelEx);
                 }
-                IOUtils.closeWhileHandlingException(releaseResources, () -> responseListener.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
                 throw e;
             });
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[onFailure]");
-                IOUtils.closeWhileHandlingException(releaseResources, () -> responseListener.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
             };
 
             final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
@@ -391,13 +387,13 @@ public class RecoverySourceHandler {
                     sendSnapshotResult.tookTime.millis()
                 );
                 try {
-                    responseListener.onResponse(response);
+                    future.onResponse(response);
                 } finally {
                     IOUtils.close(resources);
                 }
             }, onFailure);
         } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(releaseResources, () -> responseListener.onFailure(e));
+            IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
         }
     }
 

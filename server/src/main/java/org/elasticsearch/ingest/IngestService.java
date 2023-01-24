@@ -886,6 +886,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
                 try {
                     updateIndexRequestSource(indexRequest, ingestDocument);
+                    cacheRawTimestamp(indexRequest, ingestDocument);
+                    handler.accept(null);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include which pipeline failed.
@@ -895,7 +897,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             ex
                         )
                     );
-                    return;
                 } catch (Exception ex) {
                     // If anything goes wrong here, we want to know, and cannot proceed with normal execution. For example,
                     // *rarely*, a ConcurrentModificationException could be thrown if a pipeline leaks a reference to a shared mutable
@@ -904,11 +905,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     handler.accept(
                         new RuntimeException("Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]", ex)
                     );
-                    return;
                 }
-                cacheRawTimestamp(indexRequest, ingestDocument);
-
-                handler.accept(null);
             }
         });
     }

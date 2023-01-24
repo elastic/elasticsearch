@@ -480,20 +480,16 @@ public class AuthenticationTestHelper {
                         // User associated to API key authentication has empty roles
                         user = stripRoles(user);
                         prepareApiKeyMetadata();
+                        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
+                            AuthenticationResult.success(user, metadata),
+                            ESTestCase.randomAlphaOfLengthBetween(3, 8)
+                        );
                         // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
-                        // so we detect if metadata includes a remote access specific field, and construct an authentication instance based
-                        // on that
-                        if (remoteAccessAuthentication != null) {
-                            authentication = Authentication.newApiKeyAuthentication(
-                                AuthenticationResult.success(user, metadata),
-                                ESTestCase.randomAlphaOfLengthBetween(3, 8)
-                            ).toRemoteAccess(remoteAccessAuthentication);
-                        } else {
-                            authentication = Authentication.newApiKeyAuthentication(
-                                AuthenticationResult.success(user, metadata),
-                                ESTestCase.randomAlphaOfLengthBetween(3, 8)
-                            );
-                        }
+                        // so if remoteAccessAuthentication is set, we transform the API key authentication instance into a remote access
+                        // authentication instance
+                        authentication = remoteAccessAuthentication != null
+                            ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
+                            : apiKeyAuthentication;
                     }
                     case TOKEN -> {
                         if (isServiceAccount != null && isServiceAccount) {

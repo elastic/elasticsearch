@@ -23,14 +23,17 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Update a job's dataCounts
- * i.e. the number of processed records, fields etc.
+ * Updates job data counts, i.e. the number of processed records, fields etc.
+ * One instance of this class handles updates for all jobs.
  */
 public class JobDataCountsPersister {
 
@@ -39,6 +42,8 @@ public class JobDataCountsPersister {
     private final ResultsPersisterService resultsPersisterService;
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
+
+    private final Map<String, CountDownLatch> ongoingPersists = new ConcurrentHashMap<>();
 
     public JobDataCountsPersister(Client client, ResultsPersisterService resultsPersisterService, AnomalyDetectionAuditor auditor) {
         this.resultsPersisterService = resultsPersisterService;
@@ -52,12 +57,27 @@ public class JobDataCountsPersister {
     }
 
     /**
-     * Update the job's data counts stats and figures.
-     * NOTE: This call is synchronous and pauses the calling thread.
-     * @param jobId Job to update
-     * @param counts The counts
+     * Update a job's data counts stats and figures.
+     * If the previous call for the same job is still in progress
+     * @param jobId Job to update.
+     * @param counts The counts.
+     * @param mustWait Whether to wait for the counts to be persisted.
+     *                 This will involve waiting for the supplied counts
+     *                 and also potentially the previous counts to be
+     *                 persisted if that previous persist is still ongoing.
+     * @return <code>true</code> if the counts were sent for persistence, or <code>false</code>
+     *         if the previous persist was still in progress.
      */
-    public void persistDataCounts(String jobId, DataCounts counts) {
+    public boolean persistDataCounts(String jobId, DataCounts counts, boolean mustWait) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch previousLatch = ongoingPersists.putIfAbsent(jobId, latch);
+        while (previousLatch != null) {
+            if (mustWait == false) {
+                return false;
+            }
+            previousLatch.await();
+            previousLatch = ongoingPersists.putIfAbsent(jobId, latch);
+        }
         counts.setLogTime(Instant.now());
         try {
             resultsPersisterService.indexWithRetry(
@@ -69,21 +89,29 @@ public class JobDataCountsPersister {
                 DataCounts.documentId(jobId),
                 true,
                 () -> true,
-                retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage)
+                retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage),
+                ActionListener.wrap(r -> ongoingPersists.remove(jobId).countDown(), e -> {
+                    ongoingPersists.remove(jobId).countDown();
+                    logger.error(() -> "[" + jobId + "] Failed persisting data_counts stats", e);
+                    auditor.error(jobId, "Failed persisting data_counts stats: " + e.getMessage());
+                })
             );
-        } catch (IOException ioe) {
-            logger.error(() -> "[" + jobId + "] Failed writing data_counts stats", ioe);
-        } catch (Exception ex) {
-            logger.error(() -> "[" + jobId + "] Failed persisting data_counts stats", ex);
-            auditor.error(jobId, "Failed persisting data_counts stats: " + ex.getMessage());
+        } catch (IOException e) {
+            // An exception caught here basically means toXContent() failed, which should never happen
+            logger.error(() -> "[" + jobId + "] Failed writing data_counts stats", e);
+            return false;
         }
+        if (mustWait) {
+            latch.await();
+        }
+        return true;
     }
 
     /**
-     * The same as {@link JobDataCountsPersister#persistDataCounts(String, DataCounts)} but done Asynchronously.
-     *
+     * Very similar to {@link JobDataCountsPersister#persistDataCounts(String, DataCounts, boolean)}.
+     * <p>
      * Two differences are:
-     *  - The listener is notified on persistence failure
+     *  - The caller is notified on persistence failure
      *  - If the persistence fails, it is not automatically retried
      * @param jobId Job to update
      * @param counts The counts

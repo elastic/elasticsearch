@@ -89,6 +89,7 @@ class ServerCli extends EnvironmentAwareCommand {
                 secrets = secureSettingsLoader.bootstrap(env, password);
             }
 
+            // we should have a loaded or bootstrapped secure settings at this point
             if (secrets == null) {
                 throw new UserException(ExitCodes.CONFIG, "Elasticsearch secure settings not configured");
             }

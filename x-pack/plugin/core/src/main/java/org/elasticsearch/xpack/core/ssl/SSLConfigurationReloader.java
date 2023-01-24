@@ -41,7 +41,12 @@ public final class SSLConfigurationReloader {
 
     private static final Logger logger = LogManager.getLogger(SSLConfigurationReloader.class);
 
-    private final PlainActionFuture<SSLService> sslServiceFuture = new PlainActionFuture<>();
+    private final PlainActionFuture<SSLService> sslServiceFuture = new PlainActionFuture<>() {
+        @Override
+        protected boolean blockingAllowed() {
+            return true; // waits on the scheduler thread, once, and not for long
+        }
+    };
 
     public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
         startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);

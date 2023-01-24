@@ -119,7 +119,7 @@ public class SlimConfig implements NlpConfig {
 
     @Override
     public boolean isTargetTypeSupported(TargetType targetType) {
-        // TargetType relates to boost tree models
+        // TargetType relates to boosted tree models
         return false;
     }
 

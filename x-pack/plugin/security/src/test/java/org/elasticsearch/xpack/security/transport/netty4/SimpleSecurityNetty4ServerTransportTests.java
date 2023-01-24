@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.handler.ssl.SslHandshakeTimeoutException;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -89,7 +90,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTransportTestCase {
     @Override
-    protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder().put(settings).put("xpack.security.transport.ssl.enabled", true).build();
@@ -111,12 +112,12 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 DiscoveryNode node,
                 TcpChannel channel,
                 ConnectionProfile profile,
-                ActionListener<Version> listener
+                ActionListener<TransportVersion> listener
             ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(version.minimumCompatibilityVersion());
+                    listener.onResponse(version.calculateMinimumCompatVersion());
                 }
             }
         };
@@ -195,7 +196,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                assertEquals(TransportVersion.CURRENT, connection.getTransportVersion());
             }
         }
     }

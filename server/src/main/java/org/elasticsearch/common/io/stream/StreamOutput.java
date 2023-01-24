@@ -78,26 +78,35 @@ public abstract class StreamOutput extends OutputStream {
 
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
-    private Version version = Version.CURRENT;
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
      * The version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public Version getVersion() {
-        return this.version;
+        return Version.fromId(this.version.id);
     }
 
     /**
      * The transport version to serialize the data as.
      */
     public TransportVersion getTransportVersion() {
-        return this.version.transportVersion;
+        return this.version;
     }
 
     /**
      * Set the version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public void setVersion(Version version) {
+        this.version = version.transportVersion;
+    }
+
+    /**
+     * Set the transport version of the data in this stream.
+     */
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 
@@ -155,7 +164,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        tmp.setVersion(version);
+        tmp.setTransportVersion(version);
         writeable.writeTo(tmp);
         writeBytesReference(tmp.bytes());
     }

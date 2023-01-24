@@ -73,6 +73,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -1273,15 +1274,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     private DiskThresholdDecider createDiskThresholdDecider(Settings settings) {
-        return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return new DiskThresholdDecider(settings, createBuiltInClusterSettings(settings));
     }
 
     private SameShardAllocationDecider createSameShardAllocationDecider(Settings settings) {
-        return new SameShardAllocationDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return new SameShardAllocationDecider(createBuiltInClusterSettings(settings));
     }
 
     private EnableAllocationDecider createEnableAllocationDecider(Settings settings) {
-        return new EnableAllocationDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return new EnableAllocationDecider(createBuiltInClusterSettings(settings));
     }
 
     /**

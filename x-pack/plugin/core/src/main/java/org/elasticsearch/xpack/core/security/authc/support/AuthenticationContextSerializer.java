@@ -62,7 +62,8 @@ public class AuthenticationContextSerializer {
 
     public static Authentication decode(String header) throws IOException {
         try {
-            StreamInput input = StreamInput.wrap(Base64.getDecoder().decode(header));
+            byte[] bytes = Base64.getDecoder().decode(header);
+            StreamInput input = StreamInput.wrap(bytes);
             Version version = Version.readVersion(input);
             input.setVersion(version);
             return new Authentication(input);

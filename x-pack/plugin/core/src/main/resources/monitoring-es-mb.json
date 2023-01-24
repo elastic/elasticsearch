@@ -1894,11 +1894,11 @@
                     },
                     "type": {
                       "ignore_above": 1024,
-                      "type": "wildcard"
+                      "type": "keyword"
                     },
                     "type_tag": {
                       "ignore_above": 1024,
-                      "type": "wildcard"
+                      "type": "keyword"
                     },
                   }
                 },

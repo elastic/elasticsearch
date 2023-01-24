@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -455,6 +456,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 InferenceConfigUpdate.class,
+                new ParseField(SlimConfigUpdate.NAME),
+                SlimConfigUpdate::fromXContentStrict
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                InferenceConfigUpdate.class,
                 new ParseField(TextClassificationConfigUpdate.NAME),
                 TextClassificationConfigUpdate::fromXContentStrict
             )
@@ -676,6 +684,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, ResultsFieldUpdate.NAME, ResultsFieldUpdate::new)
         );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, SlimConfigUpdate.NAME, SlimConfigUpdate::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceConfigUpdate.class,

@@ -235,12 +235,12 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
      * parent cells, since child cells can exceed the bounds of their parent. We inflate the bounds
      * by half of the width and half of the height.
      */
-    private static class BoundedGeoHexGridTiler extends GeoHexGridTiler {
+    static class BoundedGeoHexGridTiler extends GeoHexGridTiler {
         private final GeoBoundingBox[] inflatedBboxes;
         private final GeoBoundingBox bbox;
         private final GeoHexVisitor visitor;
         private final int resolution;
-        private static final double FACTOR = 0.5;
+        private static final double FACTOR = 0.35;
 
         BoundedGeoHexGridTiler(int resolution, GeoBoundingBox bbox) {
             super(resolution);
@@ -249,20 +249,22 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
             this.resolution = resolution;
             inflatedBboxes = new GeoBoundingBox[resolution];
             for (int i = 0; i < resolution; i++) {
-                inflatedBboxes[i] = inflateBbox(i, bbox);
+                inflatedBboxes[i] = inflateBbox(i, bbox, FACTOR);
             }
         }
 
-        private static GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox) {
-            /*
-             * Here is the tricky part of this approach. We need to be able to filter cells at higher precisions
-             * because they are not in bounds, but we need to make sure we don't filter too much.
-             *
-             * We use h3 bins at the given resolution to check the height ands width at that level, and we add half of it.
-             *
-             * The values have been tune using test GeoHexTilerTests#testLargeShapeWithBounds
-             */
-            final double factor = FACTOR;
+        /**
+         * Since H3 cells do not fully contain their child cells, we need to take care that when
+         * filtering cells at a lower precision than the final precision, we must not exclude
+         * parents that do not match the filter, but their own children or descendents might match.
+         * For this reason the filter needs to be expanded to cover all descendent cells.
+         *
+         * This is done by taking the H3 cells at two corners, and expanding the filter width
+         * by 35% of the max width of those cells, and filter height by 35% of the max height of those cells.
+         *
+         * The inflation factor of 35% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
+         */
+        static GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox, double factor) {
             final Rectangle minMin = H3CartesianUtil.toBoundingBox(H3.geoToH3(bbox.bottom(), bbox.left(), precision));
             final Rectangle maxMax = H3CartesianUtil.toBoundingBox(H3.geoToH3(bbox.top(), bbox.right(), precision));
             // compute height and width at the given precision
@@ -281,11 +283,11 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
             }
         }
 
-        private static double height(Rectangle rectangle) {
+        static double height(Rectangle rectangle) {
             return rectangle.getMaxY() - rectangle.getMinY();
         }
 
-        private static double width(Rectangle rectangle) {
+        static double width(Rectangle rectangle) {
             if (rectangle.getMinX() > rectangle.getMaxX()) {
                 return 360d + rectangle.getMaxX() - rectangle.getMinX();
             } else {
@@ -293,7 +295,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
             }
         }
 
-        private static double width(GeoBoundingBox bbox) {
+        static double width(GeoBoundingBox bbox) {
             if (bbox.left() > bbox.right()) {
                 return 360d + bbox.right() - bbox.left();
             } else {

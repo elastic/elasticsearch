@@ -99,7 +99,7 @@ public class ByteArrayIndexInput extends IndexInput {
     @Override
     public short readShort() throws IOException {
         try {
-            return (short) BitUtil.VH_LE_SHORT.get(bytes, pos);
+            return (short) BitUtil.VH_LE_SHORT.get(bytes, pos + offset);
         } finally {
             pos += Short.BYTES;
         }
@@ -108,7 +108,7 @@ public class ByteArrayIndexInput extends IndexInput {
     @Override
     public int readInt() throws IOException {
         try {
-            return (int) BitUtil.VH_LE_INT.get(bytes, pos);
+            return (int) BitUtil.VH_LE_INT.get(bytes, pos + offset);
         } finally {
             pos += Integer.BYTES;
         }
@@ -117,7 +117,7 @@ public class ByteArrayIndexInput extends IndexInput {
     @Override
     public long readLong() throws IOException {
         try {
-            return (long) BitUtil.VH_LE_LONG.get(bytes, pos);
+            return (long) BitUtil.VH_LE_LONG.get(bytes, pos + offset);
         } finally {
             pos += Long.BYTES;
         }

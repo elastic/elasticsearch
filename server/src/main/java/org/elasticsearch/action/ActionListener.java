@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -258,7 +260,7 @@ public interface ActionListener<Response> {
      * Creates a listener which releases the given resource on completion (whether success or failure)
      */
     static <Response> ActionListener<Response> releasing(Releasable releasable) {
-        return wrap(runnableFromReleasable(releasable));
+        return assertOnce(wrap(runnableFromReleasable(releasable)));
     }
 
     /**
@@ -368,7 +370,7 @@ public interface ActionListener<Response> {
      * callback when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
     static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
-        return new RunAfterActionListener<>(delegate, runAfter);
+        return assertOnce(new RunAfterActionListener<>(delegate, runAfter));
     }
 
     /**
@@ -376,13 +378,12 @@ public interface ActionListener<Response> {
      * resource when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
     static <Response> ActionListener<Response> releaseAfter(ActionListener<Response> delegate, Releasable releaseAfter) {
-        return new RunAfterActionListener<>(delegate, runnableFromReleasable(releaseAfter));
+        return assertOnce(new RunAfterActionListener<>(delegate, runnableFromReleasable(releaseAfter)));
     }
 
     final class RunAfterActionListener<T> extends Delegating<T, T> {
 
         private final Runnable runAfter;
-        private boolean executed; // used when assertions are enabled
 
         protected RunAfterActionListener(ActionListener<T> delegate, Runnable runAfter) {
             super(delegate);
@@ -394,7 +395,6 @@ public interface ActionListener<Response> {
             try {
                 delegate.onResponse(response);
             } finally {
-                assert assertNotExecuted();
                 runAfter.run();
             }
         }
@@ -404,15 +404,8 @@ public interface ActionListener<Response> {
             try {
                 super.onFailure(e);
             } finally {
-                assert assertNotExecuted();
                 runAfter.run();
             }
-        }
-
-        private boolean assertNotExecuted() {
-            assert executed == false : "listener already executed";
-            executed = true;
-            return true;
         }
 
         @Override
@@ -428,13 +421,12 @@ public interface ActionListener<Response> {
      * not be executed.
      */
     static <Response> ActionListener<Response> runBefore(ActionListener<Response> delegate, CheckedRunnable<?> runBefore) {
-        return new RunBeforeActionListener<>(delegate, runBefore);
+        return assertOnce(new RunBeforeActionListener<>(delegate, runBefore));
     }
 
     final class RunBeforeActionListener<T> extends Delegating<T, T> {
 
         private final CheckedRunnable<?> runBefore;
-        private boolean executed; // used when assertions are enabled
 
         protected RunBeforeActionListener(ActionListener<T> delegate, CheckedRunnable<?> runBefore) {
             super(delegate);
@@ -443,7 +435,6 @@ public interface ActionListener<Response> {
 
         @Override
         public void onResponse(T response) {
-            assert assertNotExecuted();
             try {
                 runBefore.run();
             } catch (Exception ex) {
@@ -455,19 +446,12 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
-            assert assertNotExecuted();
             try {
                 runBefore.run();
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
             super.onFailure(e);
-        }
-
-        private boolean assertNotExecuted() {
-            assert executed == false : "listener already executed";
-            executed = true;
-            return true;
         }
 
         @Override
@@ -547,4 +531,32 @@ public interface ActionListener<Response> {
             }
         };
     }
+
+    private static <Response> ActionListener<Response> assertOnce(ActionListener<Response> delegate) {
+        if (Assertions.ENABLED) {
+            return new ActionListener<>() {
+                private final AtomicBoolean alreadyRan = new AtomicBoolean();
+
+                @Override
+                public void onResponse(Response response) {
+                    assert alreadyRan.compareAndSet(false, true) : "already executed: " + this;
+                    delegate.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert alreadyRan.compareAndSet(false, true) : "already executed: " + this;
+                    delegate.onFailure(e);
+                }
+
+                @Override
+                public String toString() {
+                    return delegate.toString();
+                }
+            };
+        } else {
+            return delegate;
+        }
+    }
+
 }

@@ -883,30 +883,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
-
-                // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(metadata.getIndex());
-                indexRequest.id(metadata.getId());
-                indexRequest.routing(metadata.getRouting());
-                indexRequest.version(metadata.getVersion());
-                if (metadata.getVersionType() != null) {
-                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
-                }
-                Number number;
-                if ((number = metadata.getIfSeqNo()) != null) {
-                    indexRequest.setIfSeqNo(number.longValue());
-                }
-                if ((number = metadata.getIfPrimaryTerm()) != null) {
-                    indexRequest.setIfPrimaryTerm(number.longValue());
-                }
-                Map<String, String> map;
-                if ((map = metadata.getDynamicTemplates()) != null) {
-                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    mergedDynamicTemplates.putAll(map);
-                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
-                }
+                updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
                     indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
@@ -946,6 +923,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.versionType(),
             request.sourceAsMap()
         );
+    }
+
+    private static void updateIndexRequestMetadata(final IndexRequest request, final org.elasticsearch.script.Metadata metadata) {
+        // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+        // before ingestion, which might also get modified during ingestion.
+        request.index(metadata.getIndex());
+        request.id(metadata.getId());
+        request.routing(metadata.getRouting());
+        request.version(metadata.getVersion());
+        if (metadata.getVersionType() != null) {
+            request.versionType(VersionType.fromString(metadata.getVersionType()));
+        }
+        Number number;
+        if ((number = metadata.getIfSeqNo()) != null) {
+            request.setIfSeqNo(number.longValue());
+        }
+        if ((number = metadata.getIfPrimaryTerm()) != null) {
+            request.setIfPrimaryTerm(number.longValue());
+        }
+        Map<String, String> map;
+        if ((map = metadata.getDynamicTemplates()) != null) {
+            Map<String, String> mergedDynamicTemplates = new HashMap<>(request.getDynamicTemplates());
+            mergedDynamicTemplates.putAll(map);
+            request.setDynamicTemplates(mergedDynamicTemplates);
+        }
     }
 
     private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {

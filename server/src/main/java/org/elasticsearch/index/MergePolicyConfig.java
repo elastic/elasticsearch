@@ -114,13 +114,13 @@ public final class MergePolicyConfig {
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     /**
-     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 20. This default value differs from the Lucene default of 10 in
+     * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 16. This default value differs from the Lucene default of 10 in
      * order to account for the fact that Elasticsearch uses {@link LogByteSizeMergePolicy} for time-based data, where it usually makes
      * sense to merge data less aggressively, and because {@link LogByteSizeMergePolicy} merges segments more aggressively than
      * {@link TieredMergePolicy} for the same number of segments per tier / merge factor because {@link TieredMergePolicy} makes decisions
      * at the whole index level, while {@link LogByteSizeMergePolicy} makes decisions on a per-tier basis.
      */
-    public static final int DEFAULT_MERGE_FACTOR = 20;
+    public static final int DEFAULT_MERGE_FACTOR = 16;
     public static final double DEFAULT_DELETES_PCT_ALLOWED = 33.0d;
     private static final String INDEX_COMPOUND_FORMAT_SETTING_KEY = "index.compound_format";
     public static final Setting<CompoundFileThreshold> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
@@ -225,7 +225,7 @@ public final class MergePolicyConfig {
     );
     public static final Setting<Integer> INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING = Setting.intSetting(
         "index.merge.policy.merge_factor",
-        20,
+        DEFAULT_MERGE_FACTOR,
         2,
         Property.Dynamic,
         Property.IndexScope

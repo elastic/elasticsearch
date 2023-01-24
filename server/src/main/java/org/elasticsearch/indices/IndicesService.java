@@ -1018,12 +1018,14 @@ public class IndicesService extends AbstractLifecycleComponent
             logger.debug("{} deleting index store reason [{}]", index, reason);
             if (predicate.apply(index, indexSettings)) {
                 // its safe to delete all index metadata and shard data
-                nodeEnv.deleteIndexDirectorySafe(
-                    index,
-                    0,
-                    indexSettings,
-                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
-                );
+                try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                    nodeEnv.deleteIndexDirectorySafe(
+                        index,
+                        0,
+                        indexSettings,
+                        paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
+                    );
+                }
             }
             success = true;
         } catch (ShardLockObtainFailedException ex) {
@@ -1051,11 +1053,13 @@ public class IndicesService extends AbstractLifecycleComponent
     public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
-        nodeEnv.deleteShardDirectoryUnderLock(
-            lock,
-            indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
-        );
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            nodeEnv.deleteShardDirectoryUnderLock(
+                lock,
+                indexSettings,
+                paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
+            );
+        }
     }
 
     /**

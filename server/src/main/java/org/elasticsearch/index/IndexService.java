@@ -436,7 +436,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             ShardPath path;
-            try {
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);

@@ -198,15 +198,16 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         assertThat(plugin.canAllocateAttempts, equalTo(0));
     }
 
-    private static AllocationService createAllocationService(Settings.Builder settings, ClusterPlugin plugin) {
-        final ClusterSettings emptyClusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private static AllocationService createAllocationService(Settings.Builder settingsBuilder, ClusterPlugin plugin) {
+        var settings = settingsBuilder.build();
+        var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings.build(), emptyClusterSettings, Collections.singletonList(plugin))
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.singletonList(plugin))
         );
         return new MockAllocationService(
             new AllocationDeciders(deciders),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
+            new BalancedShardsAllocator(clusterSettings),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );

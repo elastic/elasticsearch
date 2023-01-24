@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -29,7 +30,6 @@ import java.util.function.Function;
 import javax.crypto.SecretKeyFactory;
 import javax.net.ssl.SSLContext;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX;
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_LITERAL_USERNAME_SETTING;
@@ -246,6 +246,8 @@ public class XPackSettings {
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
+
+    public static final String REMOTE_CLUSTER_SSL_PREFIX = SecurityField.setting(RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX + "ssl.");
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_SSL_PREFIX,

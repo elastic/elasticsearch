@@ -971,7 +971,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        try {
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             innerUpdatePipelines(newIngestMetadata);
         } catch (ElasticsearchParseException e) {
             logger.warn("failed to update ingest pipelines", e);

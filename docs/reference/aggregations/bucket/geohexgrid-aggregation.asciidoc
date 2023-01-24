@@ -230,8 +230,10 @@ Aggregating on <<geo-shape>> fields works almost as it does for points. There ar
 * When aggregating over `geo_point` data, points are considered within a hexagonal tile if they lie
 within the edges defined by great circles. In other words the calculation is done using spherical coordinates.
 However, when aggregating over `geo_shape` data, the shapes are considered within a hexagon if they lie
-within the edges defined as straight lines on an equirectangular projection. The reason for this is that
-visualizing aggregation results in a map application will show surprising results when zoomed out.
+within the edges defined as straight lines on an equirectangular projection.
+The reason is that Elasticsearch and Lucene treat edges using the equirectangular projection at index and search time.
+In order to ensure that search results and aggregation results are aligned, we therefor also use equirectangular
+projection in aggregations.
 For most data, the difference is subtle or not noticed.
 However, for low zoom levels (low precision), especially far from the equator,  this can be noticeable.
 For example, if the same point data is indexed as `geo_point` and `geo_shape`, it is possible  to get

@@ -634,9 +634,6 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.highlightFilter(randomBoolean());
         }
         if (randomBoolean()) {
-            highlightBuilder.forceSource(randomBoolean());
-        }
-        if (randomBoolean()) {
             if (randomBoolean()) {
                 highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()));
             } else {
@@ -717,8 +714,6 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.highlightFilter(toggleOrSet(highlightBuilder.highlightFilter()));
                 break;
             case 10:
-                highlightBuilder.forceSource(toggleOrSet(highlightBuilder.forceSource()));
-                break;
             case 11:
                 highlightBuilder.boundaryMaxScan(randomIntBetween(11, 20));
                 break;

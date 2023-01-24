@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
 // TODO: Add unit level tests for the commit download process
@@ -68,6 +69,7 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
     private final ThreadPool threadPool;
     private final LongSupplier globalCheckpointSupplier;
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicInteger pendingReloadCount = new AtomicInteger();
 
     private volatile CurrentState currentState;
     // TODO: ensure we release the listeners when the search shard is relocated.
@@ -89,53 +91,74 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         this.store.incRef();
     }
 
-    synchronized void reloadReaderManager() throws IOException {
-        incRef();
-        try {
-            Directory directory = store.directory();
-            ElasticsearchReaderManager readerManager;
-            if (currentState != null) {
-                readerManager = currentState.readerManager;
-            } else {
-                ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.wrap(
-                    new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory), Lucene.SOFT_DELETES_FIELD),
-                    shardId
-                );
-                readerManager = new ElasticsearchReaderManager(reader);
-            }
+    // NB this may return before the reload is complete, if there's already a reload in progress on another thread
+    void reloadReaderManager() throws IOException {
+        if (pendingReloadCount.incrementAndGet() == 1) {
+            doReload();
+        }
+    }
 
-            boolean success = false;
-            SegmentInfos newLastCommittedSegmentInfos;
-            SeqNoStats newSeqNoStats;
-            SafeCommitInfo newSafeCommitInfo;
-            IndexCommit newIndexCommit;
+    private void doReload() throws IOException {
+        while (true) {
+            final var currentBatchSize = pendingReloadCount.get();
+            assert currentBatchSize > 0;
+            incRef();
             try {
-                readerManager.maybeRefresh();
-                newLastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                assert currentState == null
-                    || newLastCommittedSegmentInfos.getGeneration() >= currentState.lastCommittedSegmentInfos.getGeneration();
-                final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                    newLastCommittedSegmentInfos.userData.entrySet()
-                );
-                long maxSeqNo = seqNoStats.maxSeqNo;
-                long localCheckpoint = seqNoStats.localCheckpoint;
-                newSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpointSupplier.getAsLong());
-                newSafeCommitInfo = new SafeCommitInfo(newSeqNoStats.getLocalCheckpoint(), newLastCommittedSegmentInfos.totalMaxDoc());
-                newIndexCommit = Lucene.getIndexCommit(newLastCommittedSegmentInfos, directory);
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.close(readerManager);
-                    // Here we drop the currentState if we failed to reload the latest one, we should improve this.
-                    // TODO https://elasticco.atlassian.net/browse/ES-5301
-                    currentState = null;
+                Directory directory = store.directory();
+                ElasticsearchReaderManager readerManager;
+                if (currentState != null) {
+                    readerManager = currentState.readerManager;
+                } else {
+                    ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+                        new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory), Lucene.SOFT_DELETES_FIELD),
+                        shardId
+                    );
+                    readerManager = new ElasticsearchReaderManager(reader);
                 }
+
+                boolean success = false;
+                SegmentInfos newLastCommittedSegmentInfos;
+                SeqNoStats newSeqNoStats;
+                SafeCommitInfo newSafeCommitInfo;
+                IndexCommit newIndexCommit;
+                try {
+                    readerManager.maybeRefresh();
+                    newLastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                    assert currentState == null
+                        || newLastCommittedSegmentInfos.getGeneration() >= currentState.lastCommittedSegmentInfos.getGeneration();
+                    final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                        newLastCommittedSegmentInfos.userData.entrySet()
+                    );
+                    long maxSeqNo = seqNoStats.maxSeqNo;
+                    long localCheckpoint = seqNoStats.localCheckpoint;
+                    newSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpointSupplier.getAsLong());
+                    newSafeCommitInfo = new SafeCommitInfo(newSeqNoStats.getLocalCheckpoint(), newLastCommittedSegmentInfos.totalMaxDoc());
+                    newIndexCommit = Lucene.getIndexCommit(newLastCommittedSegmentInfos, directory);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        IOUtils.close(readerManager);
+                        // Here we drop the currentState if we failed to reload the latest one, we should improve this.
+                        // TODO https://elasticco.atlassian.net/browse/ES-5301
+                        currentState = null;
+                    }
+                }
+                logger.debug("{} refreshing current directory reader with generation [{}]", shardId, newIndexCommit.getGeneration());
+                currentState = new CurrentState(
+                    newLastCommittedSegmentInfos,
+                    newSeqNoStats,
+                    newIndexCommit,
+                    readerManager,
+                    newSafeCommitInfo
+                );
+                callSegmentGenerationListeners(newIndexCommit.getGeneration());
+
+                if (pendingReloadCount.addAndGet(-currentBatchSize) == 0) {
+                    return;
+                }
+            } finally {
+                decRef();
             }
-            logger.debug("{} refreshing current directory reader with generation [{}]", shardId, newIndexCommit.getGeneration());
-            currentState = new CurrentState(newLastCommittedSegmentInfos, newSeqNoStats, newIndexCommit, readerManager, newSafeCommitInfo);
-            callSegmentGenerationListeners(newIndexCommit.getGeneration());
-        } finally {
-            decRef();
         }
     }
 
@@ -338,17 +361,18 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
     }
 
     private void callSegmentGenerationListeners(long currentGen) {
-        assert Thread.holdsLock(this);
         List<SegmentGenerationListener> pendingListeners = new ArrayList<>();
         List<SegmentGenerationListener> listenersToCall = new ArrayList<>();
-        for (SegmentGenerationListener listener : segmentGenerationListeners) {
-            if (listener.minGeneration() <= currentGen) {
-                listenersToCall.add(listener);
-            } else {
-                pendingListeners.add(listener);
+        synchronized (this) {
+            for (SegmentGenerationListener listener : segmentGenerationListeners) {
+                if (listener.minGeneration() <= currentGen) {
+                    listenersToCall.add(listener);
+                } else {
+                    pendingListeners.add(listener);
+                }
             }
+            segmentGenerationListeners = pendingListeners;
         }
-        segmentGenerationListeners = pendingListeners;
         for (SegmentGenerationListener listener : listenersToCall) {
             try {
                 listener.listener().onResponse(currentGen);

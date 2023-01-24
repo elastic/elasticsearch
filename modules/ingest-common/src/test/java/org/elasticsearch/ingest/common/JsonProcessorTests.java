@@ -238,7 +238,7 @@ public class JsonProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("cannot add non-map fields to root of document"));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testApply() {
         {
             Object result = JsonProcessor.apply("{\"foo\":\"bar\"}", true, true);

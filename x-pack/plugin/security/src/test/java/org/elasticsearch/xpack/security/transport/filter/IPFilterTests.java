@@ -306,6 +306,23 @@ public class IPFilterTests extends ESTestCase {
         }
     }
 
+    public void testRemoteAccessCanBeFilteredSeparately() throws Exception {
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
+        Settings settings = Settings.builder()
+            .put("xpack.security.transport.filter.allow", "192.168.0.2")
+            .put("xpack.security.transport.filter.deny", "192.168.0.1")
+            .put("xpack.security.remote_cluster.filter.allow", "192.168.0.1")
+            .put("xpack.security.remote_cluster.filter.deny", "_all")
+            .put(REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
+            .build();
+        ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
+        ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
+        assertAddressIsAllowed("192.168.0.2");
+        assertAddressIsDenied("192.168.0.1");
+        assertAddressIsAllowedForProfile(REMOTE_CLUSTER_PROFILE, "192.168.0.1");
+        assertAddressIsDeniedForProfile(REMOTE_CLUSTER_PROFILE, randomNonLocalIPv4Address());
+    }
+
     /**
      * Checks that if the Remote Cluster port is enabled, it uses the IP filters configured for transport in general if the specific
      * remote_cluster filters are not set.

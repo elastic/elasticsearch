@@ -28,7 +28,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -122,6 +125,21 @@ public final class RemoteAccessAuthentication {
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
+    }
+
+    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> metadata) {
+        assert false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
+        assert false == metadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
+            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
+        final Map<String, Object> copy = new HashMap<>(metadata);
+        try {
+            copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authentication.encode());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        copy.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
+        return Collections.unmodifiableMap(copy);
     }
 
     public static final class RoleDescriptorsBytes extends AbstractBytesReference {

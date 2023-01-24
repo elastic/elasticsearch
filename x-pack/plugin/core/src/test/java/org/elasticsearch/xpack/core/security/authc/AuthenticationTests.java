@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -128,13 +127,12 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // No resource sharing for remote access authentication for now
-        final Authentication randomAuthentication = randomAuthentication(user1, realm1);
+        final RemoteAccessAuthentication randomRemoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
         final Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder()
-            .remoteAccess(apiKeyId1, randomAuthentication)
-            .build();
+            .remoteAccess(apiKeyId1, randomRemoteAccessAuthentication)
+            .build(false);
         assertCannotAccessResources(remoteAccessAuthentication, remoteAccessAuthentication);
-        assertCannotAccessResources(remoteAccessAuthentication, randomAuthentication);
-        assertCannotAccessResources(remoteAccessAuthentication, randomApiKeyAuthentication(user1, apiKeyId1));
+        assertCannotAccessResources(remoteAccessAuthentication, randomRemoteAccessAuthentication.getAuthentication());
     }
 
     public void testTokenAccessResourceOf() {
@@ -241,7 +239,7 @@ public class AuthenticationTests extends ESTestCase {
         final boolean isRemoteAccess = randomBoolean();
         final Authentication authentication;
         if (isRemoteAccess) {
-            authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+            authentication = AuthenticationTestHelper.builder().remoteAccess().build(false);
         } else {
             authentication = randomValueOtherThanMany(
                 authc -> AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
@@ -278,7 +276,7 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
-        Authentication remoteAccessAuthentication = randomRemoteAccessAuthentication();
+        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build();
         assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
         assertThat(remoteAccessAuthentication.getDomain(), nullValue());
     }
@@ -447,12 +445,9 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testRemoteAccessAuthentication() throws IOException {
         final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
-        final Authentication authenticationFromRemoteCluster = ESTestCase.randomFrom(
-            AuthenticationTestHelper.builder().realm(),
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
-        ).build();
+        final RemoteAccessAuthentication remoteAccessAuthenticationInfo = AuthenticationTestHelper.randomRemoteAccessAuthentication();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(remoteAccessApiKeyId, authenticationFromRemoteCluster)
+            .remoteAccess(remoteAccessApiKeyId, remoteAccessAuthenticationInfo)
             .build(false);
 
         assertThat(authentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.API_KEY));
@@ -478,7 +473,11 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromRemoteCluster.toVersionedBytes())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthenticationInfo.getAuthentication().encode())
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthenticationInfo.getRoleDescriptorsBytesList())
         );
     }
 
@@ -512,6 +511,9 @@ public class AuthenticationTests extends ESTestCase {
         // Neither anonymous user nor its token can run-as
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().supportsRunAs(anonymousUser), is(false));
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token().supportsRunAs(anonymousUser), is(false));
+
+        // Remote access cannot run-as
+        assertThat(AuthenticationTestHelper.builder().remoteAccess().build(false).supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -539,7 +541,9 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testToXContentWithRemoteAccess() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
-        final Authentication authentication1 = randomRemoteAccessAuthentication(apiKeyId, randomUser());
+        final Authentication authentication1 = AuthenticationTestHelper.builder()
+            .remoteAccess(apiKeyId, AuthenticationTestHelper.randomRemoteAccessAuthentication())
+            .build(false);
         final String apiKeyName = (String) authentication1.getAuthenticatingSubject()
             .getMetadata()
             .get(AuthenticationField.API_KEY_NAME_KEY);
@@ -709,16 +713,6 @@ public class AuthenticationTests extends ESTestCase {
 
     public static Authentication randomAnonymousAuthentication() {
         return AuthenticationTestHelper.builder().anonymous().build();
-    }
-
-    public static Authentication randomRemoteAccessAuthentication(final String remoteAccessApiKeyId, final User user) {
-        return AuthenticationTestHelper.builder()
-            .remoteAccess(remoteAccessApiKeyId, AuthenticationTestHelper.builder().user(user).build())
-            .build(false);
-    }
-
-    public static Authentication randomRemoteAccessAuthentication() {
-        return randomRemoteAccessAuthentication(ESTestCase.randomAlphaOfLength(20), randomUser());
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

@@ -929,20 +929,18 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication newRemoteAccessAuthentication(
-        AuthenticationResult<User> remoteAccessApiKeyAuthcResult,
-        Authentication authenticationFromRemoteCluster,
-        String nodeName
-    ) {
-        assert remoteAccessApiKeyAuthcResult.isAuthenticated() : "Remote access authentication result must be successful";
-
-        final User remoteAccessApiKeyUser = remoteAccessApiKeyAuthcResult.getValue();
-        assert remoteAccessApiKeyUser.roles().length == 0
-            : "The user associated with a remote access API key authentication must have no role";
-
+    public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
+        assert isApiKey() : "can only convert API key authentication to remote access";
+        final Authentication authenticationFromRemoteCluster = remoteAccessAuthentication.getAuthentication();
+        final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
+        final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
+        assert apiKeyId != null;
+        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(
+            apiKeyId,
+            getAuthenticatingSubject().getRealm().getNodeName()
+        );
         final User userFromRemoteCluster = authenticationFromRemoteCluster.getEffectiveSubject().getUser();
         assert userFromRemoteCluster.enabled() : "The user received from a remote cluster must be enabled";
-
         final User userWithoutRoles = new User(
             userFromRemoteCluster.principal(),
             EMPTY_ARRAY,
@@ -951,10 +949,14 @@ public final class Authentication implements ToXContentObject {
             userFromRemoteCluster.metadata(),
             userFromRemoteCluster.enabled()
         );
-        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(remoteAccessApiKeyUser.principal(), nodeName);
         final Authentication authentication = new Authentication(
-            new Subject(userWithoutRoles, authenticatedBy, Version.CURRENT, remoteAccessApiKeyAuthcResult.getMetadata()),
-            AuthenticationType.API_KEY
+            new Subject(
+                userWithoutRoles,
+                authenticatedBy,
+                Version.CURRENT,
+                remoteAccessAuthentication.copyWithRemoteAccessEntries(metadata)
+            ),
+            getAuthenticationType()
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;

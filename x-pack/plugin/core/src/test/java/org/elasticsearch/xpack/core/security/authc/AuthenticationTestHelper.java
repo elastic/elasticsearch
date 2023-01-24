@@ -484,7 +484,7 @@ public class AuthenticationTestHelper {
                         // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
                         // instance into a remote access authentication instance.
                         // This means the builder only produces remote access authentication instances if `remoteAccess()` was called.
-                        // TODO generalize the builder to randomly build remote access authentication instance, when viable
+                        // TODO generalize the builder to randomly build remote access authentication instances, when viable
                         authentication = remoteAccessAuthentication != null
                             ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
                             : apiKeyAuthentication;

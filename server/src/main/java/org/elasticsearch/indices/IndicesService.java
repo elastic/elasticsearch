@@ -619,14 +619,17 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService(
-            CREATE_INDEX,
-            indexMetadata,
-            indicesQueryCache,
-            indicesFieldDataCache,
-            finalListeners,
-            indexingMemoryController
-        );
+        IndexService indexService;
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            indexService = createIndexService(
+                CREATE_INDEX,
+                indexMetadata,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController
+            );
+        }
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {
@@ -698,7 +701,26 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexEventListener> builtInListeners,
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
-        final IndexModule indexModule = createIndexModule(indexCreationContext, indexMetadata);
+        final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
+        // we ignore private settings since they are not registered settings
+        indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
+        logger.debug(
+            "creating Index [{}], shards [{}]/[{}] - reason [{}]",
+            indexMetadata.getIndex(),
+            idxSettings.getNumberOfShards(),
+            idxSettings.getNumberOfReplicas(),
+            indexCreationContext
+        );
+
+        final IndexModule indexModule = new IndexModule(
+            idxSettings,
+            analysisRegistry,
+            getEngineFactory(idxSettings),
+            directoryFactories,
+            () -> allowExpensiveQueries,
+            indexNameExpressionResolver,
+            recoveryStateFactories
+        );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -721,36 +743,11 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            idFieldMappers.apply(indexModule.indexSettings().getMode()),
+            idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers
         );
-    }
-
-    private IndexModule createIndexModule(IndexService.IndexCreationContext indexCreationContext, IndexMetadata indexMetadata) {
-        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
-            final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-            // we ignore private settings since they are not registered settings
-            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
-            logger.debug(
-                "creating Index [{}], shards [{}]/[{}] - reason [{}]",
-                indexMetadata.getIndex(),
-                idxSettings.getNumberOfShards(),
-                idxSettings.getNumberOfReplicas(),
-                indexCreationContext
-            );
-
-            return new IndexModule(
-                idxSettings,
-                analysisRegistry,
-                getEngineFactory(idxSettings),
-                directoryFactories,
-                () -> allowExpensiveQueries,
-                indexNameExpressionResolver,
-                recoveryStateFactories
-            );
-        }
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {

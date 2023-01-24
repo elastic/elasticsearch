@@ -167,7 +167,7 @@ public class JsonProcessorTests extends ESTestCase {
 
     public void testDuplicateKeys() throws Exception {
         String processorTag = randomAlphaOfLength(3);
-        JsonProcessor lenientJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, true, true);
+        JsonProcessor lenientJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, true);
 
         Map<String, Object> document = new HashMap<>();
         String json = "{\"a\": 1, \"a\": 2}";
@@ -191,7 +191,7 @@ public class JsonProcessorTests extends ESTestCase {
 
     public void testAddToRootRecursiveMerge() throws Exception {
         String processorTag = randomAlphaOfLength(3);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, MERGE, false, true);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, MERGE, false);
 
         Map<String, Object> document = new HashMap<>();
         String json = """
@@ -277,6 +277,7 @@ public class JsonProcessorTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testApplyWithInvalidJson() {
         /*
          * The following fail whether strictJsonParsing is set to true or false. The reason is that even the first token cannot be parsed

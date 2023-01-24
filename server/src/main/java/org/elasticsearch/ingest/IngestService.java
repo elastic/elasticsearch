@@ -885,8 +885,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             } else {
                 updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
                 try {
-                    boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    updateIndexRequestSource(indexRequest, ingestDocument);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include which pipeline failed.
@@ -948,6 +947,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             mergedDynamicTemplates.putAll(map);
             request.setDynamicTemplates(mergedDynamicTemplates);
         }
+    }
+
+    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
+        boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
+        request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
     }
 
     private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {

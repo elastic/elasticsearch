@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -97,7 +98,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
-            SharedBlobCacheService sharedBlobCacheService = new SharedBlobCacheService(nodeEnvironment, settings, threadPool);
+            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool);
             CacheService cacheService = randomCacheService();
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(
                 sharedBlobCacheService,
@@ -127,7 +128,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     private class TestSearchableSnapshotDirectory extends SearchableSnapshotDirectory {
 
         TestSearchableSnapshotDirectory(
-            SharedBlobCacheService service,
+            SharedBlobCacheService<CacheKey> service,
             CacheService cacheService,
             FileInfo fileInfo,
             SnapshotId snapshotId,

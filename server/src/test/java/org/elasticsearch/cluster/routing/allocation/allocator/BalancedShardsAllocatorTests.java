@@ -105,7 +105,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             yesAllocationDeciders(),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(
-                Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 TEST_WRITE_LOAD_FORECASTER
             ),

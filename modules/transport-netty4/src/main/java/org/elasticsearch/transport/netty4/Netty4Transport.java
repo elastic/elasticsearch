@@ -26,7 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -98,7 +98,7 @@ public class Netty4Transport extends TcpTransport {
 
     public Netty4Transport(
         Settings settings,
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         NetworkService networkService,
         PageCacheRecycler pageCacheRecycler,

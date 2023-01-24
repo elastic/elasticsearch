@@ -153,7 +153,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             () -> new ClusterModule(Settings.EMPTY, clusterService, Collections.<ClusterPlugin>singletonList(new ClusterPlugin() {
                 @Override
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-                    return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
+                    return Collections.singletonList(new EnableAllocationDecider(clusterSettings));
                 }
             }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, WriteLoadForecaster.DEFAULT)
         );

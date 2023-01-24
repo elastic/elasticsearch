@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
@@ -846,7 +847,7 @@ public class RBACEngine implements AuthorizationEngine {
         Map<String, IndexAbstraction> lookup,
         Supplier<Consumer<Collection<String>>> timerSupplier
     ) {
-        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+        IsResourceAuthorizedPredicate predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
@@ -880,19 +881,15 @@ public class RBACEngine implements AuthorizationEngine {
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
-                return false;
-            }
-            if (includeDataStreams) {
+                // test access (by name) to a resource that does not currently exist
+                // the action handler must handle the case of accessing resources that do not exist
+                return predicate.test(name, null);
+            } else {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
-                if (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream())) {
-                    return true;
-                } else {
-                    return predicate.test(indexAbstraction);
-                }
-            } else {
-                return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
+                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
+                    || predicate.test(indexAbstraction);
             }
         });
     }

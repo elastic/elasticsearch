@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -415,8 +414,7 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
-        // TODO we must ensure that the engine is still opened here
-        statelessReaderManager.addSegmentGenerationListener(minGeneration, consumer);
+    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        statelessReaderManager.addSegmentGenerationListener(minGeneration, listener);
     }
 }

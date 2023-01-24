@@ -365,6 +365,7 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.query.SparseTermsQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -538,6 +539,12 @@ public class MachineLearning extends Plugin
     private static final LicensedFeature.Momentary BUCKET_COUNT_KS_TEST_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
         "bucket-count-ks-test-agg",
+        License.OperationMode.PLATINUM
+    );
+
+    private static final LicensedFeature.Momentary SPARSE_TERMS_QUERY_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "sparse-terms-query",
         License.OperationMode.PLATINUM
     );
 
@@ -1578,6 +1585,21 @@ public class MachineLearning extends Plugin
                 checkAggLicense(FrequentItemSetsAggregationBuilder.PARSER, FREQUENT_ITEM_SETS_AGG_FEATURE)
             ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
                 .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
+        );
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return List.of(
+            new QuerySpec<>(
+                SparseTermsQueryBuilder.NAME,
+                SparseTermsQueryBuilder::new,
+                p -> {
+                    if (SPARSE_TERMS_QUERY_FEATURE.check(getLicenseState()) == false) {
+                        throw LicenseUtils.newComplianceException(SPARSE_TERMS_QUERY_FEATURE.getName());
+                    }
+                    return SparseTermsQueryBuilder.PARSER.apply(p, null);
+                })
         );
     }
 

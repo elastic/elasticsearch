@@ -241,7 +241,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         mvtRequest.setJsonEntity("{\"size\" : 100}");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
-        // 33 points, 1 polygon and two from geometry collection
+        // 33 points, 1 big polygon, 1 polygon and two from geometry collection
         assertLayer(tile, HITS_LAYER, 4096, 37, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
         assertLayer(tile, META_LAYER, 4096, 1, 13);

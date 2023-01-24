@@ -1864,47 +1864,67 @@
                 }
               }
             },
-            "ingest": {
+            "ingest_pipeline": {
               "properties": {
-                "pipeline": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "wildcard"
+                },
+                "processor": {
                   "properties": {
-                    "name": {
-                      "ignore_above": 1024,
-                      "type": "keyword"
+                    "count": {
+                      "type": "long"
                     },
-                    "processor": {
+                    "failed": {
+                      "type": "long"
+                    },
+                    "order_index": {
+                      "type": "long"
+                    },
+                    "time": {
                       "properties": {
-                        "count": {
-                          "type": "long"
+                        "total": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
                         },
-                        "failed": {
-                          "type": "long"
-                        },
-                        "order_index": {
-                          "type": "long"
-                        },
-                        "total_cpu_time": {
-                          "type": "long"
-                        },
-                        "type": {
-                          "ignore_above": 1024,
-                          "type": "keyword"
-                        }
                       }
                     },
-                    "total": {
+                    "type": {
+                      "ignore_above": 1024,
+                      "type": "wildcard"
+                    },
+                    "type_tag": {
+                      "ignore_above": 1024,
+                      "type": "wildcard"
+                    },
+                  }
+                },
+                "total": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "failed": {
+                      "type": "long"
+                    },
+                    "time": {
                       "properties": {
-                        "count": {
-                          "type": "long"
+                        "total": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
                         },
-                        "failed": {
-                          "type": "long"
-                        },
-                        "self_cpu_time": {
-                          "type": "long"
-                        },
-                        "total_cpu_time": {
-                          "type": "long"
+                        "self": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     }

@@ -92,7 +92,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
         this.role = role;
-        assert role != null;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
 
         assert assertConsistent();
@@ -100,6 +99,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     private boolean assertConsistent() {
         assert relocationFailureInfo != null : "relocation failure info must be always set";
+        assert role != null : "role must be always set";
         assert primary == false || role.isPromotableToPrimary() : "shard with unpromotable role was promoted to primary: " + this;
         switch (state) {
             case UNASSIGNED -> {

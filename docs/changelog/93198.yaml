@@ -1,0 +1,5 @@
+pr: 93198
+summary: Add new sparse scored terms mapped field
+area: "Search, Machine Learning"
+type: feature
+issues: []

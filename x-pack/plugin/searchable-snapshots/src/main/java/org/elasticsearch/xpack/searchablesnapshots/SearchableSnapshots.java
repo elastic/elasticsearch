@@ -48,6 +48,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -101,6 +102,7 @@ import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.Searchable
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotRepositoryExistsAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheMaintenanceService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
@@ -124,6 +126,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -253,7 +256,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
-    private final SetOnce<SharedBlobCacheService> frozenCacheService = new SetOnce<>();
+    private final SetOnce<SharedBlobCacheService<CacheKey>> frozenCacheService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
@@ -278,6 +281,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }
         return (BlobStoreRepository) repository;
+    }
+
+    public static Predicate<CacheKey> forceEvictPredicate(ShardId shardId, Settings indexSettings) {
+        final String snapshotUUID = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings);
+        final String snapshotIndexName = SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings);
+        return k -> shardId.equals(k.shardId()) && snapshotIndexName.equals(k.snapshotIndexName()) && snapshotUUID.equals(k.snapshotUUID());
     }
 
     @Override
@@ -332,7 +341,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final SharedBlobCacheService sharedBlobCacheService = new SharedBlobCacheService(nodeEnvironment, settings, threadPool);
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool
+            );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
@@ -708,17 +721,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     /**
      * Allows to inject the {@link SharedBlobCacheService} instance to transport actions
      */
-    public static final class FrozenCacheServiceSupplier implements Supplier<SharedBlobCacheService> {
+    public static final class FrozenCacheServiceSupplier implements Supplier<SharedBlobCacheService<CacheKey>> {
 
         @Nullable
-        private final SharedBlobCacheService sharedBlobCacheService;
+        private final SharedBlobCacheService<CacheKey> sharedBlobCacheService;
 
-        FrozenCacheServiceSupplier(@Nullable SharedBlobCacheService sharedBlobCacheService) {
+        FrozenCacheServiceSupplier(@Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService) {
             this.sharedBlobCacheService = sharedBlobCacheService;
         }
 
         @Override
-        public SharedBlobCacheService get() {
+        public SharedBlobCacheService<CacheKey> get() {
             return sharedBlobCacheService;
         }
     }

@@ -149,20 +149,28 @@ Otherwise, it defaults to `jks`.
 end::ssl-truststore-type[]
 
 tag::ssl-verification-mode-values[]
-Controls the verification of certificates.
 +
-Valid values are:
+.Valid values
+[%collapsible%open]
+=====
+`full`::
+Validates that the provided certificate: has an issue date that's
+within the `not_before` and `not_after` dates; chains to a trusted Certificate
+Authority (CA); has a `hostname` or IP address that matches the names within
+the certificate.
 
- * `full`, which verifies that the provided certificate is signed by a trusted
-authority (CA) and also verifies that the server's hostname (or IP address)
-matches the names identified within the certificate.
- * `certificate`, which verifies that the provided certificate is signed by a
-trusted authority (CA), but does not perform any hostname verification.
- * `none`, which performs _no verification_ of the server's certificate. This
-mode disables many of the security benefits of SSL/TLS and should only be used
-after very careful consideration. It is primarily intended as a temporary
-diagnostic mechanism when attempting to resolve TLS errors; its use on
-production clusters is strongly discouraged.
+`certificate`::
+Validates the provided certificate and verifies that it's signed by a 
+trusted authority (CA), but doesn't check the certificate `hostname`.
+
+`none`::
+Performs no certificate validation.
 +
-The default value is `full`.
+IMPORTANT: Setting certificate validation to `none` disables many security
+benefits of SSL/TLS, which is very dangerous. Only set this value if instructed
+by Elastic Support as a temporary diagnostic mechanism when attempting to
+resolve TLS errors.
+=====
++
+Defaults to `full`.
 end::ssl-verification-mode-values[]

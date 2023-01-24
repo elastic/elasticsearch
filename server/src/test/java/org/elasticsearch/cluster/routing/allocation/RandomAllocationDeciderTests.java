@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -41,6 +40,7 @@ import java.util.Random;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RandomAllocationDeciderTests extends ESAllocationTestCase {
@@ -55,10 +55,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             new AllocationDeciders(
                 new HashSet<>(
                     Arrays.asList(
-                        new SameShardAllocationDecider(
-                            Settings.EMPTY,
-                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                        ),
+                        new SameShardAllocationDecider(createBuiltInClusterSettings()),
                         new ReplicaAfterPrimaryActiveAllocationDecider(),
                         randomAllocationDecider
                     )

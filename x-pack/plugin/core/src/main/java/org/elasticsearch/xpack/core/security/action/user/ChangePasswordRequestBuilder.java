@@ -70,9 +70,11 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
      */
     public ChangePasswordRequestBuilder passwordHash(char[] passwordHashChars, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHashChars);
-        if (resolvedHasher.equals(configuredHasher) == false) {
+        if (resolvedHasher.equals(configuredHasher) == false && resolvedHasher == Hasher.NOOP) {
             throw new IllegalArgumentException(
-                "Provided password hash uses [" + resolvedHasher + "] but the configured hashing algorithm is [" + configuredHasher + "]"
+                "The provided password hash could not be resolved to a known hash algorithm. "
+                    + "If attempting to use a plain text hash then 'clear_text' must be explicitly configured "
+                    + "as hashing algorithm to allow plain text hashes."
             );
         }
         if (request.passwordHash() != null) {

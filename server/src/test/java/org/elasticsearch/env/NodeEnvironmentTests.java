@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -235,7 +236,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             () -> env.deleteShardDirectorySafe(
                 new ShardId(index, 0),
                 idxSettings,
-                shardPaths -> { assert false : "should not be called " + shardPaths; }
+                shardPaths -> { assert false : "should not be called " + shardPaths; },
+                new ThreadContext(Settings.EMPTY)
             )
         );
 
@@ -246,7 +248,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         {
             SetOnce<Path[]> listener = new SetOnce<>();
-            env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
+            env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set, new ThreadContext(Settings.EMPTY));
             Path[] deletedPaths = listener.get();
             for (int i = 0; i < env.dataPaths().length; i++) {
                 assertThat(deletedPaths[i], equalTo(env.dataPaths()[i].resolve(index).resolve("1")));
@@ -264,7 +266,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                 index,
                 randomIntBetween(0, 10),
                 idxSettings,
-                indexPaths -> { assert false : "should not be called " + indexPaths; }
+                indexPaths -> { assert false : "should not be called " + indexPaths; },
+                new ThreadContext(Settings.EMPTY)
             )
         );
 
@@ -307,7 +310,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         blockLatch.await();
 
         final SetOnce<Path[]> listener = new SetOnce<>();
-        env.deleteIndexDirectorySafe(index, 5000, idxSettings, listener::set);
+        env.deleteIndexDirectorySafe(index, 5000, idxSettings, listener::set, new ThreadContext(Settings.EMPTY));
         assertArrayEquals(env.indexPaths(index), listener.get());
         assertNull(threadException.get());
 

@@ -501,6 +501,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,

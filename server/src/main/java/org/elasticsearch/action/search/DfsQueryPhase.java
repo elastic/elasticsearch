@@ -136,6 +136,10 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
+        if (source.rerankBuilder() != null) {
+
+        }
+
         List<ScoreDoc> scoreDocs = new ArrayList<>();
         for (DfsKnnResults dfsKnnResults : knnResults) {
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {

@@ -262,7 +262,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
          * This is done by taking the H3 cells at two corners, and expanding the filter width
          * by 50% of the max width of those cells, and filter height by 50% of the max height of those cells.
          *
-         * The inflation factor of 50% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
+         * The inflation factor of 35% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
          */
         static GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox, double factor) {
             final Rectangle minMin = H3CartesianUtil.toBoundingBox(H3.geoToH3(bbox.bottom(), bbox.left(), precision));

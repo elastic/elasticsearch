@@ -274,7 +274,7 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
-        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build(false);
         assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
         assertThat(remoteAccessAuthentication.getDomain(), nullValue());
     }
@@ -443,9 +443,9 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testRemoteAccessAuthentication() throws IOException {
         final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
-        final RemoteAccessAuthentication remoteAccessAuthenticationInfo = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final RemoteAccessAuthentication remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(remoteAccessApiKeyId, remoteAccessAuthenticationInfo)
+            .remoteAccess(remoteAccessApiKeyId, remoteAccessAuthentication)
             .build(false);
 
         assertThat(authentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.API_KEY));
@@ -471,11 +471,11 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthenticationInfo.getAuthentication().encode())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication().encode())
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthenticationInfo.getRoleDescriptorsBytesList())
+            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
         );
     }
 
@@ -539,20 +539,18 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testToXContentWithRemoteAccess() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
-        final Authentication authentication1 = AuthenticationTestHelper.builder()
+        final Authentication authentication = AuthenticationTestHelper.builder()
             .remoteAccess(apiKeyId, AuthenticationTestHelper.randomRemoteAccessAuthentication())
             .build(false);
-        final String apiKeyName = (String) authentication1.getAuthenticatingSubject()
+        final String apiKeyName = (String) authentication.getAuthenticatingSubject()
             .getMetadata()
             .get(AuthenticationField.API_KEY_NAME_KEY);
         runWithAuthenticationToXContent(
-            authentication1,
-            m -> {
-                assertThat(
-                    m,
-                    hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
-                );
-            }
+            authentication,
+            m -> assertThat(
+                m,
+                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+            )
         );
     }
 

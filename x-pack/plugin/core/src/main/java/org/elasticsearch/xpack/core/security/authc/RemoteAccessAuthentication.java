@@ -127,6 +127,9 @@ public final class RemoteAccessAuthentication {
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
     }
 
+    /**
+     * Returns a copy of the passed-in metadata map, with the relevant remote access fields included. Does not modify the original map.
+     */
     public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> authenticationMetadata) {
         assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
             : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
@@ -134,7 +137,7 @@ public final class RemoteAccessAuthentication {
             : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
         final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
         try {
-            copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, authentication.encode());
+            copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication().encode());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

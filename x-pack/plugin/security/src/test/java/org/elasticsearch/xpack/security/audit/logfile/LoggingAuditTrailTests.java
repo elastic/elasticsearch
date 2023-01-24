@@ -2902,21 +2902,27 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-        if (authentication.isApiKey()) {
+        if (authentication.isApiKey() || authentication.isRemoteAccess()) {
             assert false == authentication.isRunAs();
-            checkedFields.put(
-                LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
-                (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-            );
+
+            String apiKeyId = (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            checkedFields.put(LoggingAuditTrail.API_KEY_ID_FIELD_NAME, apiKeyId);
             String apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName != null) {
                 checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);
             }
-            String creatorRealmName = (String) authentication.getAuthenticatingSubject()
-                .getMetadata()
-                .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-            if (creatorRealmName != null) {
-                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+            if (authentication.isApiKey()) {
+                String creatorRealmName = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+                if (creatorRealmName != null) {
+                    checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+                }
+            } else {
+                checkedFields.put(
+                    LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME,
+                    AuthenticationField.REMOTE_ACCESS_REALM_NAME_PREFIX + "_" + apiKeyId
+                );
             }
         } else {
             final RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();

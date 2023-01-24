@@ -297,6 +297,7 @@ public final class Authentication implements ToXContentObject {
             && false == anonymousUser.equals(getEffectiveSubject().getUser())
             && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
+            && false == isRemoteAccess()
             && false == isServiceAccount();
 
         if (false == shouldAddAnonymousRoleNames) {
@@ -641,12 +642,16 @@ public final class Authentication implements ToXContentObject {
             || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
 
-        assert (false == isRemoteAccess()) || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
-            : "Remote access authentication requires metadata to contain API KEY id, and the value must be non-null.";
-        assert (false == isRemoteAccess())
-            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY) != null)
-            : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
-                + "and the value must be non-null.";
+        if (isRemoteAccess()) {
+            assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null
+                : "Remote access authentication requires metadata to contain API KEY id, and the value must be non-null.";
+            assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY) != null
+                : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
+                    + "and the value must be non-null.";
+            assert getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) != null
+                : "Remote access authentication requires metadata to contain a serialized remote access role descriptors, "
+                    + "and the value must be non-null.";
+        }
 
         // Assert domain assignment
         if (isAssignedToDomain()) {
@@ -666,8 +671,14 @@ public final class Authentication implements ToXContentObject {
             .contains(realmRef.getName())) {
             return true;
         }
-        if (List.of(API_KEY_REALM_TYPE, ServiceAccountSettings.REALM_TYPE, ANONYMOUS_REALM_TYPE, FALLBACK_REALM_TYPE, ATTACH_REALM_TYPE)
-            .contains(realmRef.getType())) {
+        if (List.of(
+            API_KEY_REALM_TYPE,
+            ServiceAccountSettings.REALM_TYPE,
+            ANONYMOUS_REALM_TYPE,
+            FALLBACK_REALM_TYPE,
+            ATTACH_REALM_TYPE,
+            REMOTE_ACCESS_REALM_TYPE
+        ).contains(realmRef.getType())) {
             return true;
         }
         return false;

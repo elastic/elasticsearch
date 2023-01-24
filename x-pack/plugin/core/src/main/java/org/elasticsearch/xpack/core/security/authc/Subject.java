@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.security.authc.Subject.Type.REMOTE_AC
 
 /**
  * A subject is a more generic concept similar to user and associated to the current authentication.
- * It is more generic than user because it can also represent API keys and service accounts.
+ * It is more generic than user because it can also represent API keys, service accounts, or remote access users.
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */

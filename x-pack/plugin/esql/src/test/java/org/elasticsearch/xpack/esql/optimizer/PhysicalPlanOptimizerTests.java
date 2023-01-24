@@ -664,6 +664,74 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(topNLocal.child(), FieldExtractExec.class);
     }
 
+    public void testQueryWithLimitSort() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 1
+            | sort emp_no
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        topN = as(extract.child(), TopNExec.class);
+        extract = as(topN.child(), FieldExtractExec.class);
+        var limit = as(extract.child(), LimitExec.class);
+    }
+
+    public void testQueryWithLimitWhereSort() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 1
+            | where emp_no > 10
+            | sort emp_no
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        topN = as(extract.child(), TopNExec.class);
+        var filter = as(topN.child(), FilterExec.class);
+        extract = as(filter.child(), FieldExtractExec.class);
+        var limit = as(extract.child(), LimitExec.class);
+    }
+
+    public void testQueryWithLimitWhereEvalSort() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 3
+            | eval x = emp_no
+            | sort x
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        topN = as(extract.child(), TopNExec.class);
+        var eval = as(topN.child(), EvalExec.class);
+        extract = as(eval.child(), FieldExtractExec.class);
+        var limit = as(extract.child(), LimitExec.class);
+    }
+
+    public void testQueryJustWithLimit() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 3
+            """));
+
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        limit = as(extract.child(), LimitExec.class);
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             assertThat(exchange.getPartitioning(), is(ExchangeExec.Partitioning.FIXED_ARBITRARY_DISTRIBUTION));
@@ -675,13 +743,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan) {
+        // System.out.println("Before\n" + plan);
         var p = physicalPlanOptimizer.optimize(plan);
-        // System.out.println(p);
+        // System.out.println("After\n" + p);
         return p;
     }
 
     private PhysicalPlan physicalPlan(String query) {
-        return mapper.map(logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query))));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        // System.out.println("Logical\n" + logical);
+        return mapper.map(logical);
     }
 
 }

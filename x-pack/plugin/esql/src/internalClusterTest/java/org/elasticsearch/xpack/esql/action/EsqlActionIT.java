@@ -1152,6 +1152,14 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(43L, results.values().get(1).get(0));
     }
 
+    public void testMultiLimitProject() {
+        EsqlQueryResponse results = run("from test | limit 10 | sort time | limit 1");
+        logger.info(results);
+        assertEquals(1, results.values().size());
+        assertEquals(6, results.columns().size());
+        // assertEquals("green", results.values().get(0).get(0));
+    }
+
     public void testEmptyIndex() {
         ElasticsearchAssertions.assertAcked(
             client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get()

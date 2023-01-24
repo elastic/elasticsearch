@@ -444,6 +444,37 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(filter.child(), Limit.class);
     }
 
+    public void testEliminateHigherLimitDueToDescendantLimit() throws Exception {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | limit 10
+            | sort emp_no
+            | where emp_no > 10
+            | eval c = emp_no + 2
+            | limit 100""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var eval = as(order.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        as(filter.child(), Limit.class);
+    }
+
+    public void testDoNotEliminateHigherLimitDueToDescendantLimit() throws Exception {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | limit 10
+            | where emp_no > 10
+            | stats c = count(emp_no) by emp_no
+            | limit 100""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var filter = as(agg.child(), Filter.class);
+        as(filter.child(), Limit.class);
+    }
+
     public void testBasicNullFolding() {
         FoldNull rule = new FoldNull();
         assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
@@ -604,7 +635,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // | limit 100
         // | where salary > 1
         // | sort emp_no, first_name
-        // | limit 10000
         // | project l = salary, emp_no, first_name
         LogicalPlan plan = optimizedPlan("""
             from test

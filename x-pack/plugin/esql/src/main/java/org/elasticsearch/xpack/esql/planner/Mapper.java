@@ -46,7 +46,7 @@ public class Mapper {
         }
 
         if (p instanceof OrderBy o) {
-            return new OrderExec(o.source(), map(o.child()), o.order());
+            return map(o, map(o.child()));
         }
 
         if (p instanceof Limit limit) {
@@ -88,5 +88,9 @@ public class Mapper {
         }
 
         return new LimitExec(limit.source(), child, limit.limit());
+    }
+
+    private PhysicalPlan map(OrderBy o, PhysicalPlan child) {
+        return new OrderExec(o.source(), map(o.child()), o.order());
     }
 }

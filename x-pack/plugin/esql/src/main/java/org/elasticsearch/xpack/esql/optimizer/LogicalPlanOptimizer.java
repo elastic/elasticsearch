@@ -176,8 +176,41 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 if (unary instanceof Project || unary instanceof Eval) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
+                // check if there's a 'visible' descendant limit lower than the current one
+                // and if so, align the current limit since it adds no value
+                // this applies for cases such as | limit 1 | sort field | limit 10
+                else {
+                    Limit descendantLimit = descendantLimit(unary);
+                    if (descendantLimit != null) {
+                        var l1 = (int) limit.limit().fold();
+                        var l2 = (int) descendantLimit.limit().fold();
+                        if (l2 <= l1) {
+                            return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
+                        }
+                    }
+                }
             }
             return limit;
+        }
+
+        /**
+         * Checks the existence of another 'visible' Limit, that exists behind an operation that doesn't produce output more data than
+         * its input (that is not a relation/source nor aggregation).
+         * P.S. Typically an aggregation produces less data than the input.
+         */
+        private static Limit descendantLimit(UnaryPlan unary) {
+            UnaryPlan plan = unary;
+            while (plan instanceof Aggregate == false) {
+                if (plan instanceof Limit limit) {
+                    return limit;
+                }
+                if (plan.child()instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan;
+                } else {
+                    break;
+                }
+            }
+            return null;
         }
     }
 

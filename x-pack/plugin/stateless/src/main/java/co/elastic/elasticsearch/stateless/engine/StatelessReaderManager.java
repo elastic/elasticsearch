@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 // TODO: Add unit level tests for the commit download process
@@ -127,6 +126,8 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
             } finally {
                 if (success == false) {
                     IOUtils.close(readerManager);
+                    // Here we drop the currentState if we failed to reload the latest one, we should improve this.
+                    // TODO https://elasticco.atlassian.net/browse/ES-5301
                     currentState = null;
                 }
             }
@@ -147,8 +148,8 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         synchronized (commitsToDownload) {
             NewCommit currentlyDownloadingCommit = commitsToDownload.peek();
             if (currentlyDownloadingCommit != null && currentlyDownloadingCommit.generation >= generation) {
-                // Already downloading a newer commit. Just ignore
-                listener.onResponse(null); // TODO Delay notification of the listener once the commit is downloaded
+                // Delay notification of the listener once the commit is downloaded
+                addSegmentGenerationListener(generation, listener.map(ignored -> null));
                 return;
             } else if (closed.get()) {
                 listener.onFailure(new AlreadyClosedException("Stateless reader manager is closed"));
@@ -296,22 +297,43 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
     @Override
     protected void closeInternal() {
         try {
-            IOUtils.close(currentState.readerManager(), store::decRef);
+            final List<Closeable> closeables = new ArrayList<>();
+            if (currentState != null) {
+                closeables.add(currentState.readerManager());
+            }
+            closeables.add(() -> failSegmentGenerationListeners(new AlreadyClosedException("Stateless reader manager is closing")));
+            closeables.add(store::decRef);
+            IOUtils.close(closeables);
+            assert segmentGenerationListeners.isEmpty() : segmentGenerationListeners;
             this.currentState = null;
-            // TODO also complete any SegmentGenerationListener here
         } catch (Exception e) {
             assert false : e;
             throw new ElasticsearchException("Failed to close stateless reader manager", e);
         }
     }
 
-    public synchronized void addSegmentGenerationListener(long minGeneration, LongConsumer consumer) {
-        // TODO we must ensure that StatelessReaderManager is still opened here
-        long currentGen = currentState.newIndexCommit().getGeneration();
-        if (currentGen >= minGeneration) {
-            consumer.accept(currentGen);
-        } else {
-            segmentGenerationListeners.add(new SegmentGenerationListener(minGeneration, consumer));
+    public synchronized void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        try {
+            if (closed.get()) {
+                throw new AlreadyClosedException("Stateless reader manager is closed");
+            }
+            incRef();
+            try {
+                // we consider that the current generation is 0 when the currentState is unknown, either because it is not yet downloaded
+                // or the last reload failed. We should improve this.
+                // TODO https://elasticco.atlassian.net/browse/ES-5301
+                var currentGeneration = currentState != null ? currentState.newIndexCommit().getGeneration() : 0L;
+                assert minGeneration > 0 : minGeneration;
+                if (minGeneration > currentGeneration) {
+                    segmentGenerationListeners.add(new SegmentGenerationListener(minGeneration, listener));
+                } else {
+                    listener.onResponse(currentGeneration);
+                }
+            } finally {
+                decRef();
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -328,11 +350,34 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         }
         segmentGenerationListeners = pendingListeners;
         for (SegmentGenerationListener listener : listenersToCall) {
-            listener.consumer().accept(currentGen);
+            try {
+                listener.listener().onResponse(currentGen);
+            } catch (Exception e) {
+                logger.warn(() -> "segment generation listener [" + listener.minGeneration() + "][" + listener + "] failed", e);
+                assert false : e;
+            }
         }
     }
 
-    private record SegmentGenerationListener(long minGeneration, LongConsumer consumer) {}
+    private void failSegmentGenerationListeners(Exception e) {
+        assert closed.get() : "stateless reader manager for " + shardId + " should be closed";
+        final List<SegmentGenerationListener> listeners;
+        synchronized (this) {
+            listeners = List.copyOf(segmentGenerationListeners);
+            this.segmentGenerationListeners = List.of();
+        }
+        for (SegmentGenerationListener listener : listeners) {
+            try {
+                listener.listener().onFailure(e);
+            } catch (Exception e2) {
+                e2.addSuppressed(e);
+                logger.warn(() -> "segment generation listener [" + listener.minGeneration() + "][" + listener + "] failed", e2);
+                assert false : e2;
+            }
+        }
+    }
+
+    private record SegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {}
 
     private record NewCommit(long primaryTerm, long generation, Map<String, StoreFileMetadata> commitFiles, ActionListener<Void> listener)
         implements

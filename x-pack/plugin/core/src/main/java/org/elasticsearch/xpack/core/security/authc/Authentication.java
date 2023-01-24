@@ -922,7 +922,6 @@ public final class Authentication implements ToXContentObject {
 
     public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
         assert isApiKey() : "can only convert API key authentication to remote access";
-        final Authentication authenticationFromRemoteCluster = remoteAccessAuthentication.getAuthentication();
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert apiKeyId != null;
@@ -930,8 +929,8 @@ public final class Authentication implements ToXContentObject {
             apiKeyId,
             getAuthenticatingSubject().getRealm().getNodeName()
         );
-        final User userFromRemoteCluster = authenticationFromRemoteCluster.getEffectiveSubject().getUser();
-        assert userFromRemoteCluster.enabled() : "The user received from a remote cluster must be enabled";
+        final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
+        assert userFromRemoteCluster.enabled() : "the user received from a remote cluster must be enabled";
         final User userWithoutRoles = new User(
             userFromRemoteCluster.principal(),
             EMPTY_ARRAY,

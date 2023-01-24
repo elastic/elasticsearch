@@ -88,12 +88,12 @@ public class RerankQueryBuilder extends AbstractQueryBuilder<RerankQueryBuilder>
         boolean changed = false;
         for (QueryBuilder queryBuilder : queryBuilders) {
             QueryBuilder rewrittenQueryBuilder = queryBuilder.rewrite(queryRewriteContext);
-            rerankQueryBuilder.addQuery(rerankQueryBuilder);
+            rerankQueryBuilder.addQuery(rewrittenQueryBuilder);
             compoundQueryBuilder.should(rewrittenQueryBuilder);
             changed |= rewrittenQueryBuilder != queryBuilder;
         }
         this.compoundQueryBuilder = compoundQueryBuilder.rewrite(queryRewriteContext);
-        changed |= this.compoundQueryBuilder == compoundQueryBuilder;
+        changed |= this.compoundQueryBuilder != compoundQueryBuilder;
         if (changed) {
             rerankQueryBuilder.compoundQueryBuilder = this.compoundQueryBuilder;
             return rerankQueryBuilder;

@@ -187,7 +187,7 @@ document's `_tsid` using a <<docs-get,get document>> request. However, you can
 use the `_tsid` field in aggregations and retrieve the `_tsid` value in searches
 using the <<search-fields-param,`fields` parameter>>.
 
-WARNING: The format is the `_tsid` field shouldn't be relied upon. It may change
+WARNING: The format of the `_tsid` field shouldn't be relied upon. It may change
 from version to version.
 
 [discrete]

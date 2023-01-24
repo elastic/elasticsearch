@@ -12,13 +12,13 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.CREATE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.MONITOR;
@@ -49,7 +49,7 @@ public class PermissionTests extends ESTestCase {
     public void testAllowedIndicesMatcherForMappingUpdates() throws Exception {
         for (String mappingUpdateActionName : List.of(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
             IndexAbstraction mockIndexAbstraction = mock(IndexAbstraction.class);
-            Predicate<IndexAbstraction> indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
+            IsResourceAuthorizedPredicate indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
             // mapping updates are still permitted on indices and aliases
             when(mockIndexAbstraction.getName()).thenReturn("ingest_foo" + randomAlphaOfLength(3));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
@@ -66,8 +66,8 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testAllowedIndicesMatcherActionCaching() throws Exception {
-        Predicate<IndexAbstraction> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
-        Predicate<IndexAbstraction> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        IsResourceAuthorizedPredicate matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        IsResourceAuthorizedPredicate matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(matcher1, is(matcher2));
     }
 
@@ -88,7 +88,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     // "baz_*foo", "/fool.*bar/"
-    private void testAllowedIndicesMatcher(Predicate<IndexAbstraction> indicesMatcher) {
+    private void testAllowedIndicesMatcher(IsResourceAuthorizedPredicate indicesMatcher) {
         assertThat(indicesMatcher.test(mockIndexAbstraction("foobar")), is(false));
         assertThat(indicesMatcher.test(mockIndexAbstraction("fool")), is(false));
         assertThat(indicesMatcher.test(mockIndexAbstraction("fool2bar")), is(true));

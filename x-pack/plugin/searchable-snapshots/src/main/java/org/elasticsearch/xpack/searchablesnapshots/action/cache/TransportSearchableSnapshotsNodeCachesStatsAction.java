@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +53,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
 
-    private final Supplier<SharedBlobCacheService> frozenCacheService;
+    private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheService;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -127,14 +128,14 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         }
         return new NodeCachesStatsResponse(
             clusterService.localNode(),
-            frozenCacheStats.getNumberOfRegions(),
-            frozenCacheStats.getSize(),
-            frozenCacheStats.getRegionSize(),
-            frozenCacheStats.getWriteCount(),
-            frozenCacheStats.getWriteBytes(),
-            frozenCacheStats.getReadCount(),
-            frozenCacheStats.getReadBytes(),
-            frozenCacheStats.getEvictCount()
+            frozenCacheStats.numberOfRegions(),
+            frozenCacheStats.size(),
+            frozenCacheStats.regionSize(),
+            frozenCacheStats.writeCount(),
+            frozenCacheStats.writeBytes(),
+            frozenCacheStats.readCount(),
+            frozenCacheStats.readBytes(),
+            frozenCacheStats.evictCount()
         );
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -43,6 +42,7 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithSta
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -206,10 +206,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         } else {
             final ShardRouting unassignedShard = unassignedShards.get(0);
 
-            final SameShardAllocationDecider decider = new SameShardAllocationDecider(
-                sameHostSetting,
-                new ClusterSettings(sameHostSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
+            final SameShardAllocationDecider decider = new SameShardAllocationDecider(createBuiltInClusterSettings(sameHostSetting));
 
             final RoutingNode emptyNode = clusterState.getRoutingNodes()
                 .stream()
@@ -308,10 +305,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
     }
 
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
-        SameShardAllocationDecider decider = new SameShardAllocationDecider(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+        SameShardAllocationDecider decider = new SameShardAllocationDecider(createBuiltInClusterSettings());
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
         Index index = clusterState.getMetadata().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();

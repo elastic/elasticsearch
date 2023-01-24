@@ -22,6 +22,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -121,7 +122,7 @@ public class RecoverySourceHandler {
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
-    private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
+    private final ListenableActionFuture<RecoveryResponse> future = new ListenableActionFuture<>();
 
     public RecoverySourceHandler(
         IndexShard shard,

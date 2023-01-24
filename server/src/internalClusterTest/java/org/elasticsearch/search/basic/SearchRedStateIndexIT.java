@@ -70,7 +70,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
             assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
             assertThat(failure.getCause().getStackTrace(), emptyArray());
             // We don't write out the entire, repetitive stacktrace in the reason
-            assertThat(failure.reason(), equalTo("org.elasticsearch.action.NoShardAvailableActionException\n"));
+            assertThat(failure.reason(), equalTo("org.elasticsearch.action.NoShardAvailableActionException" + System.lineSeparator()));
         }
     }
 

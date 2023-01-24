@@ -133,6 +133,14 @@ import java.util.stream.Stream;
  */
 public final class ClusterSettings extends AbstractScopedSettings {
 
+    public static ClusterSettings createBuiltInClusterSettings() {
+        return createBuiltInClusterSettings(Settings.EMPTY);
+    }
+
+    public static ClusterSettings createBuiltInClusterSettings(Settings nodeSettings) {
+        return new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    }
+
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
         this(nodeSettings, settingsSet, Collections.emptySet());
     }

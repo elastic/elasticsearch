@@ -22,10 +22,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheFile;
-import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.FrozenCacheFile;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -56,6 +53,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInput;
@@ -135,7 +134,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
     private final boolean partial;
-    private final SharedBlobCacheService sharedBlobCacheService;
+    private final SharedBlobCacheService<CacheKey> sharedBlobCacheService;
     private final ByteSizeValue blobStoreCacheMaxLength;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
@@ -158,7 +157,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        SharedBlobCacheService sharedBlobCacheService
+        SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -423,7 +422,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(name, this, fileInfo, context, inputStats, getUncachedChunkSize());
+            return new DirectBlobContainerIndexInput(name, blobContainer(), fileInfo, context, inputStats, getUncachedChunkSize());
         }
     }
 
@@ -533,7 +532,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         if (persistentCacheLength == file.length()) {
                             recoveryState.markIndexFileAsReused(file.physicalName());
                         } else {
-                            recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.partBytes(part));
                         }
 
                         logger.trace(
@@ -548,7 +547,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         );
                     }));
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn(() -> format("%s unable to prewarm file [%s]", shardId, file.physicalName()), e);
                 if (submitted == false) {
                     completionListener.onFailure(e);
@@ -586,7 +585,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
         BlobStoreCacheService blobStoreCacheService,
-        SharedBlobCacheService sharedBlobCacheService
+        SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -712,7 +711,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         );
     }
 
-    public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
+    public SharedBlobCacheService<CacheKey>.CacheFile getFrozenCacheFile(String fileName, long length) {
         return sharedBlobCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
     }
 

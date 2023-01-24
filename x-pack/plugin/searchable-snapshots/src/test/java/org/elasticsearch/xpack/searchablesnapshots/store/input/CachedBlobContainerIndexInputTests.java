@@ -25,6 +25,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -102,7 +103,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final Path shardDir = randomShardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
-                final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
+                final SharedBlobCacheService<CacheKey> sharedBlobCacheService = defaultFrozenCacheService();
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
@@ -211,7 +212,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
-            final SharedBlobCacheService sharedBlobCacheService = defaultFrozenCacheService();
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = defaultFrozenCacheService();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
                     () -> blobContainer,

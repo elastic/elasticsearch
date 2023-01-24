@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -21,32 +22,81 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
+import org.hamcrest.MatcherAssert;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 
+import static java.util.Collections.synchronizedNavigableSet;
+import static org.elasticsearch.blobcache.BlobCacheTestUtils.mergeContiguousRanges;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public final class TestUtils {
     private TestUtils() {}
+
+    public static SortedSet<ByteRange> randomPopulateAndReads(final CacheFile cacheFile) {
+        return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
+    }
+
+    public static SortedSet<ByteRange> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
+        final SortedSet<ByteRange> ranges = synchronizedNavigableSet(new TreeSet<>());
+        final List<Future<Integer>> futures = new ArrayList<>();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        for (int i = 0; i < between(0, 10); i++) {
+            final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
+            final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
+            final ByteRange range = ByteRange.of(start, end);
+            futures.add(
+                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
+                    consumer.apply(channel, from, to);
+                    ranges.add(ByteRange.of(from, to));
+                    progressUpdater.accept(to);
+                }, deterministicTaskQueue.getThreadPool().generic())
+            );
+        }
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(futures.stream().allMatch(Future::isDone));
+        return mergeContiguousRanges(ranges);
+    }
+
+    public static void assertCacheFileEquals(CacheFile expected, CacheFile actual) {
+        MatcherAssert.assertThat(actual.getLength(), equalTo(expected.getLength()));
+        MatcherAssert.assertThat(actual.getFile(), equalTo(expected.getFile()));
+        MatcherAssert.assertThat(actual.getCacheKey(), equalTo(expected.getCacheKey()));
+        MatcherAssert.assertThat(actual.getCompletedRanges(), equalTo(expected.getCompletedRanges()));
+    }
+
+    public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
+        return cacheFile.getCompletedRanges().stream().mapToLong(ByteRange::length).sum();
+    }
 
     public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
         assertThat(counter.total(), equalTo(total));

@@ -10,6 +10,7 @@ package org.elasticsearch.test.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
@@ -106,7 +107,7 @@ public final class MockTransportService extends TransportService {
     ) {
         return createNewService(
             settings,
-            newMockTransport(settings, version, threadPool),
+            newMockTransport(settings, version.transportVersion, threadPool),
             version,
             threadPool,
             clusterSettings,
@@ -114,7 +115,7 @@ public final class MockTransportService extends TransportService {
         );
     }
 
-    public static TcpTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    public static TcpTransport newMockTransport(Settings settings, TransportVersion version, ThreadPool threadPool) {
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new Netty4Transport(

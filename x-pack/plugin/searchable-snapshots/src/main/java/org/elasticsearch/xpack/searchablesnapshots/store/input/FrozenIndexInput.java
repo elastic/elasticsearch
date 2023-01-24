@@ -11,12 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFile;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
@@ -36,7 +37,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
-    private final CacheFile cacheFile;
+    private final SharedBlobCacheService<CacheKey>.CacheFile cacheFile;
 
     public FrozenIndexInput(
         String name,
@@ -76,7 +77,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         long compoundFileOffset,
         long length,
         CacheFileReference cacheFileReference,
-        CacheFile cacheFile,
+        SharedBlobCacheService<CacheKey>.CacheFile cacheFile,
         int defaultRangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,

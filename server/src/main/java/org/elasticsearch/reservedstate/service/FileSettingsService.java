@@ -36,6 +36,8 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -43,6 +45,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 /**
  * File based settings applier service which watches an 'operator` directory inside the config directory.
  * <p>
+ * // TODO[wrb]: update javadoc
  * The service expects that the operator directory will contain a single JSON file with all the settings that
  * need to be applied to the cluster state. The name of the file is fixed to be settings.json. The operator
  * directory name can be configured by setting the 'path.config.operator_directory' in the node properties.
@@ -54,25 +57,41 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
+    // TODO[wrb]: don't hardcode these
     public static final String SETTINGS_FILE_NAME = "settings.json";
-    public static final String NAMESPACE = "file_settings";
+    public static final String NAMESPACE = "file_settings"; // TODO[wrb]: do we need multiple namespaces? Seems that one should do
     private static final int REGISTER_RETRY_COUNT = 5;
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
-    private final Path operatorSettingsDir;
 
     private WatchService watchService; // null;
     private Thread watcherThread;
-    private FileUpdateState fileUpdateState;
-    private WatchKey settingsDirWatchKey;
-    private WatchKey configDirWatchKey;
+    // TODO[wrb]: parameterize
+    // private WatchKey settingsDirWatchKey;
+    private WatchKey configDirWatchKey; // there is only one config dir
 
     private volatile boolean active = false;
 
     public static final String OPERATOR_DIRECTORY = "operator";
 
     private final List<FileSettingsChangedListener> eventListeners;
+
+    Map<String, WatchableFileSettings> fileSettingsMap = new ConcurrentHashMap<>();
+
+    // private WatchableFileSettings oss = new WatchableFileSettings();
+
+    // Settings have a path, a file update state, and a watch key
+    private class WatchableFileSettings {
+        final Path operatorSettingsDir;
+        String settingsFileName;
+        FileUpdateState fileUpdateState;
+        WatchKey settingsDirWatchKey;
+
+        WatchableFileSettings(Path operatorSettingsDir) {
+            this.operatorSettingsDir = operatorSettingsDir;
+        }
+    }
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -84,16 +103,22 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
         this.clusterService = clusterService;
         this.stateService = stateService;
-        this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
         this.eventListeners = new CopyOnWriteArrayList<>();
+        Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
+        WatchableFileSettings watchableFileSettings = new WatchableFileSettings(operatorSettings);
+        watchableFileSettings.settingsFileName = SETTINGS_FILE_NAME;
+        fileSettingsMap.put(OPERATOR_DIRECTORY, watchableFileSettings);
     }
 
+    // TODO[wrb]: refactor to interface
     public Path operatorSettingsDir() {
-        return operatorSettingsDir;
+        return fileSettingsMap.get(OPERATOR_DIRECTORY).operatorSettingsDir;
     }
 
+    // TODO[wrb]: refactor to interface
     public Path operatorSettingsFile() {
-        return operatorSettingsDir.resolve(SETTINGS_FILE_NAME);
+        WatchableFileSettings operator = fileSettingsMap.get(OPERATOR_DIRECTORY);
+        return operator.operatorSettingsDir.resolve(operator.settingsFileName);
     }
 
     // platform independent way to tell if a file changed
@@ -103,12 +128,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             return false;
         }
 
-        FileUpdateState previousUpdateState = fileUpdateState;
+        FileUpdateState previousUpdateState = fileSettingsMap.get(OPERATOR_DIRECTORY).fileUpdateState;
 
         BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
+        fileSettingsMap.get(OPERATOR_DIRECTORY).fileUpdateState = new FileUpdateState(
+            attr.lastModifiedTime().toMillis(),
+            path.toRealPath().toString(),
+            attr.fileKey()
+        );
 
-        return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
+        return (previousUpdateState == null
+            || previousUpdateState.equals(fileSettingsMap.get(OPERATOR_DIRECTORY).fileUpdateState) == false);
     }
 
     @Override
@@ -232,7 +262,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             Path settingsDirPath = operatorSettingsDir();
             this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
             if (Files.exists(settingsDirPath)) {
-                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
+                WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
+                oss.settingsDirWatchKey = enableSettingsWatcher(oss.settingsDirWatchKey, settingsDirPath);
             } else {
                 logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
             }
@@ -305,7 +336,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
-                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsPath);
+                        WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
+                        oss.settingsDirWatchKey = enableSettingsWatcher(oss.settingsDirWatchKey, settingsPath);
 
                         if (watchedFileChanged(path)) {
                             processSettingsAndNotifyListeners();
@@ -342,6 +374,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
+            WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
             try (var ws = watchService) {
                 watcherThread.interrupt();
                 watcherThread.join();
@@ -350,8 +383,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 if (configDirWatchKey != null) {
                     configDirWatchKey.cancel();
                 }
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
+                if (oss.settingsDirWatchKey != null) {
+                    oss.settingsDirWatchKey.cancel();
                 }
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
@@ -359,7 +392,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
                 watcherThread = null;
-                settingsDirWatchKey = null;
+                oss.settingsDirWatchKey = null;
                 configDirWatchKey = null;
                 watchService = null;
                 logger.info("watcher service stopped");

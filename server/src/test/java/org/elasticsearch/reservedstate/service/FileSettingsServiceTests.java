@@ -103,6 +103,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     public void testOperatorDirName() {
+        // we will need to retrieve the operator...
+        // maybe: fileSettingService.getRegisteredFiles("OPERATOR")
         Path operatorPath = fileSettingsService.operatorSettingsDir();
         assertTrue(operatorPath.startsWith(env.configFile()));
         assertTrue(operatorPath.endsWith("operator"));

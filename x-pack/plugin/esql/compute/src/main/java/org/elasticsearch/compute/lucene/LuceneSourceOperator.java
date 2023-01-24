@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Function;
@@ -418,7 +420,15 @@ public class LuceneSourceOperator extends SourceOperator {
             pagesEmitted = operator.pagesEmitted;
         }
 
-        private Status(StreamInput in) throws IOException {
+        Status(int currentLeaf, int totalLeaves, int pagesEmitted, int leafPosition, int leafSize) {
+            this.currentLeaf = currentLeaf;
+            this.totalLeaves = totalLeaves;
+            this.leafPosition = leafPosition;
+            this.leafSize = leafSize;
+            this.pagesEmitted = pagesEmitted;
+        }
+
+        Status(StreamInput in) throws IOException {
             currentLeaf = in.readVInt();
             totalLeaves = in.readVInt();
             leafPosition = in.readVInt();
@@ -448,12 +458,16 @@ public class LuceneSourceOperator extends SourceOperator {
             return totalLeaves;
         }
 
-        public int leafSize() {
-            return leafSize;
+        public int pagesEmitted() {
+            return pagesEmitted;
         }
 
         public int leafPosition() {
             return leafPosition;
+        }
+
+        public int leafSize() {
+            return leafSize;
         }
 
         @Override
@@ -465,6 +479,28 @@ public class LuceneSourceOperator extends SourceOperator {
             builder.field("leaf_size", leafSize);
             builder.field("pages_emitted", pagesEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return currentLeaf == status.currentLeaf
+                && totalLeaves == status.totalLeaves
+                && pagesEmitted == status.pagesEmitted
+                && leafPosition == status.leafPosition
+                && leafSize == status.leafSize;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(currentLeaf, totalLeaves, pagesEmitted, leafPosition, leafSize);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 }

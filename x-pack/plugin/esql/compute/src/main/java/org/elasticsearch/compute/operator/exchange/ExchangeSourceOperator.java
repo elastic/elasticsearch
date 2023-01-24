@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
@@ -85,7 +87,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(this);
+        return new Status(source.bufferSize(), pagesEmitted);
     }
 
     public static class Status implements Operator.Status {
@@ -98,12 +100,12 @@ public class ExchangeSourceOperator extends SourceOperator {
         private final int pagesWaiting;
         private final int pagesEmitted;
 
-        private Status(ExchangeSourceOperator operator) {
-            pagesWaiting = operator.source.bufferSize();
-            pagesEmitted = operator.pagesEmitted;
+        Status(int pagesWaiting, int pagesEmitted) {
+            this.pagesWaiting = pagesWaiting;
+            this.pagesEmitted = pagesEmitted;
         }
 
-        private Status(StreamInput in) throws IOException {
+        Status(StreamInput in) throws IOException {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
         }
@@ -133,6 +135,24 @@ public class ExchangeSourceOperator extends SourceOperator {
             builder.field("pages_waiting", pagesWaiting);
             builder.field("pages_emitted", pagesEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return pagesWaiting == status.pagesWaiting && pagesEmitted == status.pagesEmitted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesWaiting, pagesEmitted);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 }

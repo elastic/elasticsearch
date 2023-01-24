@@ -121,10 +121,10 @@ public class Driver implements Runnable, Releasable, Describable {
             }
         }
         if (isFinished()) {
-            status.set(new DriverStatus(DriverStatus.Status.DONE, activeOperators));  // Report status for the tasks API
+            status.set(buildStatus(DriverStatus.Status.DONE));  // Report status for the tasks API
             releasable.close();
         } else {
-            status.set(new DriverStatus(DriverStatus.Status.RUNNING, activeOperators));  // Report status for the tasks API
+            status.set(buildStatus(DriverStatus.Status.RUNNING));  // Report status for the tasks API
         }
         return Operator.NOT_BLOCKED;
     }
@@ -212,7 +212,7 @@ public class Driver implements Runnable, Releasable, Describable {
 
     public static void start(Executor executor, Driver driver, ActionListener<Void> listener) {
         int maxIterations = 10000;
-        driver.status.set(new DriverStatus(DriverStatus.Status.STARTING, driver.activeOperators));  // Report status for the tasks API
+        driver.status.set(driver.buildStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 
@@ -310,5 +310,12 @@ public class Driver implements Runnable, Releasable, Describable {
 
     public DriverStatus status() {
         return status.get();
+    }
+
+    private DriverStatus buildStatus(DriverStatus.Status status) {
+        return new DriverStatus(
+            status,
+            activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
+        );
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class DriverStatus implements Task.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -31,12 +33,12 @@ public class DriverStatus implements Task.Status {
     private final Status status;
     private final List<OperatorStatus> activeOperators;
 
-    DriverStatus(Status status, List<Operator> activeOperators) {
+    DriverStatus(Status status, List<OperatorStatus> activeOperators) {
         this.status = status;
-        this.activeOperators = activeOperators.stream().map(o -> new OperatorStatus(o.toString(), o.status())).toList();
+        this.activeOperators = activeOperators;
     }
 
-    private DriverStatus(StreamInput in) throws IOException {
+    DriverStatus(StreamInput in) throws IOException {
         status = Status.valueOf(in.readString());
         activeOperators = in.readImmutableList(OperatorStatus::new);
     }
@@ -63,6 +65,7 @@ public class DriverStatus implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("status", status.toString().toLowerCase(Locale.ROOT));
         builder.startArray("active_operators");
         for (OperatorStatus active : activeOperators) {
             builder.value(active);
@@ -71,12 +74,30 @@ public class DriverStatus implements Task.Status {
         return builder.endObject();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DriverStatus that = (DriverStatus) o;
+        return status == that.status && activeOperators.equals(that.activeOperators);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(status, activeOperators);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     public static class OperatorStatus implements Writeable, ToXContentObject {
         private final String operator;
         @Nullable
         private final Operator.Status status;
 
-        private OperatorStatus(String operator, Operator.Status status) {
+        OperatorStatus(String operator, Operator.Status status) {
             this.operator = operator;
             this.status = status;
         }
@@ -108,6 +129,24 @@ public class DriverStatus implements Task.Status {
                 builder.field("status", status);
             }
             return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            OperatorStatus that = (OperatorStatus) o;
+            return operator.equals(that.operator) && Objects.equals(status, that.status);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(operator, status);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

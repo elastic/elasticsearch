@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 /**
@@ -143,7 +145,7 @@ public class ValuesSourceReaderOperator implements Operator {
 
     @Override
     public Status status() {
-        return new Status(this);
+        return new Status(new TreeMap<>(readersBuilt), pagesProcessed);
     }
 
     public static class Status implements Operator.Status {
@@ -156,12 +158,12 @@ public class ValuesSourceReaderOperator implements Operator {
         private final Map<String, Integer> readersBuilt;
         private final int pagesProcessed;
 
-        private Status(ValuesSourceReaderOperator operator) {
-            readersBuilt = new TreeMap<>(operator.readersBuilt);
-            pagesProcessed = operator.pagesProcessed;
+        Status(Map<String, Integer> readersBuilt, int pagesProcessed) {
+            this.readersBuilt = readersBuilt;
+            this.pagesProcessed = pagesProcessed;
         }
 
-        private Status(StreamInput in) throws IOException {
+        Status(StreamInput in) throws IOException {
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
             pagesProcessed = in.readVInt();
         }
@@ -169,6 +171,7 @@ public class ValuesSourceReaderOperator implements Operator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(readersBuilt, StreamOutput::writeString, StreamOutput::writeVInt);
+            out.writeVInt(pagesProcessed);
         }
 
         @Override
@@ -194,6 +197,24 @@ public class ValuesSourceReaderOperator implements Operator {
             builder.endObject();
             builder.field("pages_processed", pagesProcessed);
             return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return pagesProcessed == status.pagesProcessed && readersBuilt.equals(status.readersBuilt);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(readersBuilt, pagesProcessed);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 }

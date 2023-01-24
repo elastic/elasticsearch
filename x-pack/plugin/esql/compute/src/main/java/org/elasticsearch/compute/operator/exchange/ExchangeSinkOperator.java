@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Sink operator implementation that pushes data to an {@link ExchangeSink}
@@ -91,7 +93,7 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     @Override
     public Status status() {
-        return new Status(this);
+        return new Status(pagesAccepted);
     }
 
     public static class Status implements Operator.Status {
@@ -103,11 +105,11 @@ public class ExchangeSinkOperator extends SinkOperator {
 
         private final int pagesAccepted;
 
-        private Status(ExchangeSinkOperator operator) {
-            pagesAccepted = operator.pagesAccepted;
+        Status(int pagesAccepted) {
+            this.pagesAccepted = pagesAccepted;
         }
 
-        private Status(StreamInput in) throws IOException {
+        Status(StreamInput in) throws IOException {
             pagesAccepted = in.readVInt();
         }
 
@@ -130,6 +132,24 @@ public class ExchangeSinkOperator extends SinkOperator {
             builder.startObject();
             builder.field("pages_accepted", pagesAccepted);
             return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return pagesAccepted == status.pagesAccepted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesAccepted);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 }

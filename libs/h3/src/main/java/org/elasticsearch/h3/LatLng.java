@@ -28,7 +28,12 @@ import java.util.Objects;
 public final class LatLng {
 
     /** Minimum Angular resolution. */
-    public static final double MINIMUM_ANGULAR_RESOLUTION = Math.PI * 1.0e-12; // taken from lucene's spatial3d
+    private static final double MINIMUM_ANGULAR_RESOLUTION = Math.PI * 1.0e-12; // taken from lucene's spatial3d
+
+    /**
+     * pi / 2.0
+     */
+    private static final double M_PI_2 = 1.5707963267948966;
 
     // lat / lon in radians
     private final double lon;
@@ -67,11 +72,57 @@ public final class LatLng {
      * @return The azimuth in radians.
      */
     double geoAzimuthRads(double lat, double lon) {
+        // algorithm from the original H3 library
         final double cosLat = FastMath.cos(lat);
         return FastMath.atan2(
             cosLat * FastMath.sin(lon - this.lon),
             FastMath.cos(this.lat) * FastMath.sin(lat) - FastMath.sin(this.lat) * cosLat * FastMath.cos(lon - this.lon)
         );
+    }
+
+    /**
+     * Computes the point on the sphere with a specified azimuth and distance from
+     * this point.
+     *
+     * @param az       The desired azimuth.
+     * @param distance The desired distance.
+     * @return The LatLng point.
+     */
+    LatLng geoAzDistanceRads(double az, double distance) {
+        // algorithm from the original H3 library
+        az = Vec2d.posAngleRads(az);
+        final double sinDistance = FastMath.sin(distance);
+        final double cosDistance = FastMath.cos(distance);
+        final double sinP1Lat = FastMath.sin(getLatRad());
+        final double cosP1Lat = FastMath.cos(getLatRad());
+        final double sinlat = Math.max(-1.0, Math.min(1.0, sinP1Lat * cosDistance + cosP1Lat * sinDistance * FastMath.cos(az)));
+        final double lat = FastMath.asin(sinlat);
+        if (Math.abs(lat - M_PI_2) < Constants.EPSILON) { // north pole
+            return new LatLng(M_PI_2, 0.0);
+        } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON) { // south pole
+            return new LatLng(-M_PI_2, 0.0);
+        } else {
+            final double cosLat = FastMath.cos(lat);
+            final double sinlng = Math.max(-1.0, Math.min(1.0, FastMath.sin(az) * sinDistance / cosLat));
+            final double coslng = Math.max(-1.0, Math.min(1.0, (cosDistance - sinP1Lat * FastMath.sin(lat)) / cosP1Lat / cosLat));
+            return new LatLng(lat, constrainLng(getLonRad() + FastMath.atan2(sinlng, coslng)));
+        }
+    }
+
+    /**
+     * constrainLng makes sure longitudes are in the proper bounds
+     *
+     * @param lng The origin lng value
+     * @return The corrected lng value
+     */
+    private static double constrainLng(double lng) {
+        while (lng > Math.PI) {
+            lng = lng - Constants.M_2PI;
+        }
+        while (lng < -Math.PI) {
+            lng = lng + Constants.M_2PI;
+        }
+        return lng;
     }
 
     /**
@@ -92,7 +143,7 @@ public final class LatLng {
         assert latLng1.lat >= latLng2.lat;
         final double az = latLng1.geoAzimuthRads(latLng2.lat, latLng2.lon);
         // the great circle contains the maximum latitude only if the azimuth is between -90 and 90 degrees.
-        if (Math.abs(az) < Math.PI / 2) {
+        if (Math.abs(az) < M_PI_2) {
             return FastMath.acos(Math.abs(FastMath.sin(az) * FastMath.cos(latLng1.lat)));
         }
         return latLng1.lat;
@@ -116,14 +167,14 @@ public final class LatLng {
         // we compute the min latitude using Clairaut's formula (https://streckenflug.at/download/formeln.pdf)
         final double az = latLng1.geoAzimuthRads(latLng2.lat, latLng2.lon);
         // the great circle contains the minimum latitude only if the azimuth is not between -90 and 90 degrees.
-        if (Math.abs(az) > Math.PI / 2) {
+        if (Math.abs(az) > M_PI_2) {
             // note the sign
             return -FastMath.acos(Math.abs(FastMath.sin(az) * FastMath.cos(latLng1.lat)));
         }
         return latLng1.lat;
     }
 
-    private boolean isNumericallyIdentical(LatLng latLng) {
+    boolean isNumericallyIdentical(LatLng latLng) {
         return Math.abs(this.lat - latLng.lat) < MINIMUM_ANGULAR_RESOLUTION && Math.abs(this.lon - latLng.lon) < MINIMUM_ANGULAR_RESOLUTION;
     }
 

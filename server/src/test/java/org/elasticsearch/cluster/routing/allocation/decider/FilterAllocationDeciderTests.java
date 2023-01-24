@@ -45,17 +45,18 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testFilterInitialRecovery() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = createBuiltInClusterSettings();
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(
                 filterAllocationDecider,
-                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new SameShardAllocationDecider(clusterSettings),
                 new ReplicaAfterPrimaryActiveAllocationDecider()
             )
         );

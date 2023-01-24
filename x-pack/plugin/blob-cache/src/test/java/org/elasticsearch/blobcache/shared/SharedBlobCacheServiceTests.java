@@ -8,8 +8,6 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheKey;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFileRegion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +21,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,17 +53,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool())
         ) {
-            final CacheKey cacheKey = generateCacheKey();
+            final var cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final CacheFileRegion region0 = cacheService.get(cacheKey, size(250), 0);
+            final var region0 = cacheService.get(cacheKey, size(250), 0);
             assertEquals(size(100), region0.tracker.getLength());
             assertEquals(4, cacheService.freeRegionCount());
-            final CacheFileRegion region1 = cacheService.get(cacheKey, size(250), 1);
+            final var region1 = cacheService.get(cacheKey, size(250), 1);
             assertEquals(size(100), region1.tracker.getLength());
             assertEquals(3, cacheService.freeRegionCount());
-            final CacheFileRegion region2 = cacheService.get(cacheKey, size(250), 2);
+            final var region2 = cacheService.get(cacheKey, size(250), 2);
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(2, cacheService.freeRegionCount());
 
@@ -101,21 +98,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool())
         ) {
-            final CacheKey cacheKey = generateCacheKey();
+            final var cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
-            final CacheFileRegion region0 = cacheService.get(cacheKey, size(250), 0);
+            final var region0 = cacheService.get(cacheKey, size(250), 0);
             assertEquals(size(100), region0.tracker.getLength());
             assertEquals(1, cacheService.freeRegionCount());
-            final CacheFileRegion region1 = cacheService.get(cacheKey, size(250), 1);
+            final var region1 = cacheService.get(cacheKey, size(250), 1);
             assertEquals(size(100), region1.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
 
             // acquire region 2, which should evict region 0 (oldest)
-            final CacheFileRegion region2 = cacheService.get(cacheKey, size(250), 2);
+            final var region2 = cacheService.get(cacheKey, size(250), 2);
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
             assertTrue(region0.isEvicted());
@@ -137,14 +134,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool())
         ) {
-            final CacheKey cacheKey1 = generateCacheKey();
-            final CacheKey cacheKey2 = generateCacheKey();
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final CacheFileRegion region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
             assertEquals(4, cacheService.freeRegionCount());
-            final CacheFileRegion region1 = cacheService.get(cacheKey2, size(250), 1);
+            final var region1 = cacheService.get(cacheKey2, size(250), 1);
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
@@ -165,14 +162,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool())
         ) {
-            final CacheKey cacheKey1 = generateCacheKey();
-            final CacheKey cacheKey2 = generateCacheKey();
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
-            final CacheFileRegion region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
             assertEquals(4, cacheService.freeRegionCount());
-            final CacheFileRegion region1 = cacheService.get(cacheKey2, size(250), 1);
+            final var region1 = cacheService.get(cacheKey2, size(250), 1);
             assertEquals(3, cacheService.freeRegionCount());
 
             assertEquals(0, cacheService.getFreq(region0));
@@ -181,7 +178,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
 
-            final CacheFileRegion region0Again = cacheService.get(cacheKey1, size(250), 0);
+            final var region0Again = cacheService.get(cacheKey1, size(250), 0);
             assertSame(region0Again, region0);
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
@@ -342,13 +339,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(SharedBlobCacheService.calculateCacheSize(settings, largeSize), equalTo(largeSize - ByteSizeValue.ofGb(100).getBytes()));
     }
 
-    private static CacheKey generateCacheKey() {
-        return new CacheKey(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(10)),
-            randomAlphaOfLength(10)
-        );
+    private static Object generateCacheKey() {
+        return new Object();
     }
 
     public void testCacheSizeChanges() throws IOException {
@@ -362,7 +354,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
+            SharedBlobCacheService<?> cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool())
         ) {
             assertEquals(val1.getBytes(), cacheService.getStats().size());
         }
@@ -374,7 +366,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .build();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            SharedBlobCacheService cacheService = new SharedBlobCacheService(environment, settings, taskQueue.getThreadPool())
+            SharedBlobCacheService<?> cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool())
         ) {
             assertEquals(val2.getBytes(), cacheService.getStats().size());
         }

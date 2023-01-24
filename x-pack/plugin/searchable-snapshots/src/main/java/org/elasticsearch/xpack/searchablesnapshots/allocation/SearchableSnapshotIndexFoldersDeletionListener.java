@@ -14,6 +14,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.nio.file.Path;
@@ -33,11 +35,11 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final Supplier<CacheService> cacheServiceSupplier;
-    private final Supplier<SharedBlobCacheService> frozenCacheServiceSupplier;
+    private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheServiceSupplier;
 
     public SearchableSnapshotIndexFoldersDeletionListener(
         Supplier<CacheService> cacheServiceSupplier,
-        Supplier<SharedBlobCacheService> frozenCacheServiceSupplier
+        Supplier<SharedBlobCacheService<CacheKey>> frozenCacheServiceSupplier
     ) {
         this.cacheServiceSupplier = Objects.requireNonNull(cacheServiceSupplier);
         this.frozenCacheServiceSupplier = Objects.requireNonNull(frozenCacheServiceSupplier);
@@ -70,12 +72,8 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        final SharedBlobCacheService sharedBlobCacheService = this.frozenCacheServiceSupplier.get();
+        final SharedBlobCacheService<CacheKey> sharedBlobCacheService = this.frozenCacheServiceSupplier.get();
         assert sharedBlobCacheService != null : "frozen cache service not initialized";
-        sharedBlobCacheService.markShardAsEvictedInCache(
-            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-            shardId
-        );
+        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
     }
 }

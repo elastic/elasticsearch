@@ -24,13 +24,16 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlComputeEngineAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -38,12 +41,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -53,12 +61,24 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class EsqlActionTaskIT extends ESIntegTestCase {
     private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
 
+    private static final String READ_DESCRIPTION = """
+        \\_LuceneSourceOperator(dataPartitioning = SHARD)
+        \\_ValuesSourceReaderOperator(field = pause_me)
+        \\_AggregationOperator(mode = INITIAL, aggs = sum of longs)
+        \\_ExchangeSinkOperator""";
+    private static final String MERGE_DESCRIPTION = """
+        \\_ExchangeSourceOperator(partitioning = SINGLE_DISTRIBUTION)
+        \\_AggregationOperator(mode = FINAL, aggs = sum of longs)
+        \\_LimitOperator(limit = 10000)
+        \\_OutputOperator (columns = sum(pause_me))""";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(EsqlPlugin.class, PausableFieldPlugin.class);
     }
 
-    public void testTask() throws Exception {
+    @Before
+    public void setupIndex() throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
         {
@@ -77,60 +97,14 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
             bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
-        ActionFuture<EsqlQueryResponse> response = new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(
-            "from test | stats sum(pause_me)"
-        ).pragmas(Settings.builder().put("data_partitioning", "shard").build()).execute();
+    }
 
-        String readDescription = """
-            \\_LuceneSourceOperator(dataPartitioning = SHARD)
-            \\_ValuesSourceReaderOperator(field = pause_me)
-            \\_AggregationOperator(mode = INITIAL, aggs = sum of longs)
-            \\_ExchangeSinkOperator""";
-        String mergeDescription = """
-            \\_ExchangeSourceOperator(partitioning = SINGLE_DISTRIBUTION)
-            \\_AggregationOperator(mode = FINAL, aggs = sum of longs)
-            \\_LimitOperator(limit = 10000)
-            \\_OutputOperator (columns = sum(pause_me))""";
-
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(EsqlComputeEngineAction.NAME)
-                .setDetailed(true)
-                .get()
-                .getTasks();
-            assertThat(tasks, hasSize(equalTo(2)));
-            for (TaskInfo task : tasks) {
-                assertThat(task.action(), equalTo(EsqlComputeEngineAction.NAME));
-                assertThat(task.description(), either(equalTo(readDescription)).or(equalTo(mergeDescription)));
-                DriverStatus status = (DriverStatus) task.status();
-                assertThat(status.status(), equalTo(DriverStatus.Status.STARTING));
-            }
-        });
+    public void testTaskContents() throws Exception {
+        ActionFuture<EsqlQueryResponse> response = startEsql();
+        getTasksStarting();
 
         start.await();
-        List<TaskInfo> foundTasks = new ArrayList<>();
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(EsqlComputeEngineAction.NAME)
-                .setDetailed(true)
-                .get()
-                .getTasks();
-            assertThat(tasks, hasSize(equalTo(2)));
-            for (TaskInfo task : tasks) {
-                assertThat(task.action(), equalTo(EsqlComputeEngineAction.NAME));
-                assertThat(task.description(), either(equalTo(readDescription)).or(equalTo(mergeDescription)));
-                DriverStatus status = (DriverStatus) task.status();
-                assertThat(
-                    status.status(),
-                    equalTo(task.description().equals(readDescription) ? DriverStatus.Status.RUNNING : DriverStatus.Status.STARTING)
-                );
-            }
-            foundTasks.addAll(tasks);
-        });
+        List<TaskInfo> foundTasks = getTasksRunning();
         int luceneSources = 0;
         int valuesSourceReaders = 0;
         int exchangeSources = 0;
@@ -175,8 +149,134 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         assertThat(response.get().values(), equalTo(List.of(List.of((long) COUNT))));
     }
 
+    public void testCancelRead() throws Exception {
+        ActionFuture<EsqlQueryResponse> response = startEsql();
+        List<TaskInfo> infos = getTasksStarting();
+        TaskInfo running = infos.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).findFirst().get();
+        client().admin().cluster().prepareCancelTasks().setTargetTaskId(running.taskId()).get();
+        start.await();
+        Exception e = expectThrows(ExecutionException.class, response::get);
+        assertThat(e.getCause().getCause(), instanceOf(TaskCancelledException.class));
+
+        assertAllComputeEngineTasksStopped();
+    }
+
+    public void testCancelMerge() throws Exception {
+        ActionFuture<EsqlQueryResponse> response = startEsql();
+        List<TaskInfo> infos = getTasksStarting();
+        TaskInfo running = infos.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).findFirst().get();
+        client().admin().cluster().prepareCancelTasks().setTargetTaskId(running.taskId()).get();
+        start.await();
+        Exception e = expectThrows(ExecutionException.class, response::get);
+        assertThat(e.getCause().getCause(), instanceOf(TaskCancelledException.class));
+
+        assertAllComputeEngineTasksStopped();
+    }
+
+    public void testCancelEsqlTask() throws Exception {
+        ActionFuture<EsqlQueryResponse> response = startEsql();
+        getTasksStarting();
+        List<TaskInfo> tasks = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(EsqlQueryAction.NAME)
+            .setDetailed(true)
+            .get()
+            .getTasks();
+        client().admin().cluster().prepareCancelTasks().setTargetTaskId(tasks.get(0).taskId()).get();
+        start.await();
+        Exception e = expectThrows(ExecutionException.class, response::get);
+        assertThat(e.getCause().getCause(), instanceOf(TaskCancelledException.class));
+
+        assertAllComputeEngineTasksStopped();
+    }
+
+    private ActionFuture<EsqlQueryResponse> startEsql() {
+        scriptPermits.set(0);
+        scriptStarted.set(false);
+        scriptDraining.set(false);
+        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("from test | stats sum(pause_me)")
+            .pragmas(Settings.builder().put("data_partitioning", "shard").build())
+            .execute();
+    }
+
+    /**
+     * Fetches tasks until it finds all of them are "starting".
+     */
+    private List<TaskInfo> getTasksStarting() throws Exception {
+        List<TaskInfo> foundTasks = new ArrayList<>();
+        assertBusy(() -> {
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(EsqlComputeEngineAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks();
+            assertThat(tasks, hasSize(equalTo(2)));
+            for (TaskInfo task : tasks) {
+                assertThat(task.action(), equalTo(EsqlComputeEngineAction.NAME));
+                assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
+                DriverStatus status = (DriverStatus) task.status();
+                assertThat(status.status(), equalTo(DriverStatus.Status.STARTING));
+            }
+            foundTasks.addAll(tasks);
+        });
+        return foundTasks;
+    }
+
+    /**
+     * Fetches tasks until it finds at least one running.
+     */
+    private List<TaskInfo> getTasksRunning() throws Exception {
+        List<TaskInfo> foundTasks = new ArrayList<>();
+        assertBusy(() -> {
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(EsqlComputeEngineAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks();
+            assertThat(tasks, hasSize(equalTo(2)));
+            for (TaskInfo task : tasks) {
+                assertThat(task.action(), equalTo(EsqlComputeEngineAction.NAME));
+                assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
+                DriverStatus status = (DriverStatus) task.status();
+                assertThat(
+                    status.status(),
+                    equalTo(task.description().equals(READ_DESCRIPTION) ? DriverStatus.Status.RUNNING : DriverStatus.Status.STARTING)
+                );
+            }
+            foundTasks.addAll(tasks);
+        });
+        return foundTasks;
+    }
+
+    private void assertAllComputeEngineTasksStopped() {
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(EsqlQueryAction.NAME, EsqlComputeEngineAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks(),
+            emptyIterable()
+        );
+    }
+
     private static final CyclicBarrier start = new CyclicBarrier(2);
     private static final CyclicBarrier drain = new CyclicBarrier(2);
+
+    /*
+     * Script state. Note that we only use a single thread to run the script
+     * and only reset it between runs. So these don't use compareAndSet. We just
+     * use the atomics for the between thread sync.
+     */
+    private static final AtomicInteger scriptPermits = new AtomicInteger(0);
+    private static final AtomicBoolean scriptStarted = new AtomicBoolean(false);
+    private static final AtomicBoolean scriptDraining = new AtomicBoolean(false);
 
     public static class PausableFieldPlugin extends Plugin implements ScriptPlugin {
         @Override
@@ -196,10 +296,6 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
                     Map<String, String> params
                 ) {
                     return (FactoryType) new LongFieldScript.Factory() {
-                        int permits = 0;
-                        boolean started = false;
-                        boolean draining = false;
-
                         @Override
                         public LongFieldScript.LeafFactory newFactory(
                             String fieldName,
@@ -210,20 +306,20 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
                             return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
                                 @Override
                                 public void execute() {
-                                    if (permits > 0) {
-                                        permits--;
+                                    if (scriptPermits.get() > 0) {
+                                        scriptPermits.decrementAndGet();
                                     } else {
                                         try {
-                                            if (false == started) {
+                                            if (false == scriptStarted.get()) {
                                                 start.await();
-                                                started = true;
-                                                permits = LuceneSourceOperator.PAGE_SIZE * 2;
+                                                scriptStarted.set(true);
+                                                scriptPermits.set(LuceneSourceOperator.PAGE_SIZE * 2);
                                                 // Sleeping so when we finish this run we'll be over the limit on this thread
                                                 Thread.sleep(Driver.DEFAULT_TIME_BEFORE_YIELDING.millis());
-                                            } else if (false == draining) {
+                                            } else if (false == scriptDraining.get()) {
                                                 drain.await();
-                                                draining = true;
-                                                permits = Integer.MAX_VALUE;
+                                                scriptDraining.set(true);
+                                                scriptPermits.set(Integer.MAX_VALUE);
                                             }
                                         } catch (InterruptedException | BrokenBarrierException e) {
                                             throw new AssertionError("ooff", e);

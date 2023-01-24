@@ -698,53 +698,55 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexEventListener> builtInListeners,
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
-        final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-        // we ignore private settings since they are not registered settings
-        indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
-        logger.debug(
-            "creating Index [{}], shards [{}]/[{}] - reason [{}]",
-            indexMetadata.getIndex(),
-            idxSettings.getNumberOfShards(),
-            idxSettings.getNumberOfReplicas(),
-            indexCreationContext
-        );
+        try (var ignored = threadPool.getThreadContext().stashContext()) {
+            final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
+            // we ignore private settings since they are not registered settings
+            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
+            logger.debug(
+                "creating Index [{}], shards [{}]/[{}] - reason [{}]",
+                indexMetadata.getIndex(),
+                idxSettings.getNumberOfShards(),
+                idxSettings.getNumberOfReplicas(),
+                indexCreationContext
+            );
 
-        final IndexModule indexModule = new IndexModule(
-            idxSettings,
-            analysisRegistry,
-            getEngineFactory(idxSettings),
-            directoryFactories,
-            () -> allowExpensiveQueries,
-            indexNameExpressionResolver,
-            recoveryStateFactories
-        );
-        for (IndexingOperationListener operationListener : indexingOperationListeners) {
-            indexModule.addIndexOperationListener(operationListener);
+            final IndexModule indexModule = new IndexModule(
+                idxSettings,
+                analysisRegistry,
+                getEngineFactory(idxSettings),
+                directoryFactories,
+                () -> allowExpensiveQueries,
+                indexNameExpressionResolver,
+                recoveryStateFactories
+            );
+            for (IndexingOperationListener operationListener : indexingOperationListeners) {
+                indexModule.addIndexOperationListener(operationListener);
+            }
+            pluginsService.forEach(p -> p.onIndexModule(indexModule));
+            for (IndexEventListener listener : builtInListeners) {
+                indexModule.addIndexEventListener(listener);
+            }
+            return indexModule.newIndexService(
+                indexCreationContext,
+                nodeEnv,
+                parserConfig,
+                this,
+                circuitBreakerService,
+                bigArrays,
+                threadPool,
+                scriptService,
+                clusterService,
+                client,
+                indicesQueryCache,
+                mapperRegistry,
+                indicesFieldDataCache,
+                namedWriteableRegistry,
+                idFieldMappers.apply(idxSettings.getMode()),
+                valuesSourceRegistry,
+                indexFoldersDeletionListeners,
+                snapshotCommitSuppliers
+            );
         }
-        pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        for (IndexEventListener listener : builtInListeners) {
-            indexModule.addIndexEventListener(listener);
-        }
-        return indexModule.newIndexService(
-            indexCreationContext,
-            nodeEnv,
-            parserConfig,
-            this,
-            circuitBreakerService,
-            bigArrays,
-            threadPool,
-            scriptService,
-            clusterService,
-            client,
-            indicesQueryCache,
-            mapperRegistry,
-            indicesFieldDataCache,
-            namedWriteableRegistry,
-            idFieldMappers.apply(idxSettings.getMode()),
-            valuesSourceRegistry,
-            indexFoldersDeletionListeners,
-            snapshotCommitSuppliers
-        );
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {

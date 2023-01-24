@@ -913,6 +913,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
+    /**
+     * Builds a new ingest document from the passed-in index request.
+     */
     private static IngestDocument newIngestDocument(final IndexRequest request) {
         return new IngestDocument(
             request.index(),
@@ -924,6 +927,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
     }
 
+    /**
+     * Updates an index request based on the metadata of an ingest document.
+     */
     private static void updateIndexRequestMetadata(final IndexRequest request, final org.elasticsearch.script.Metadata metadata) {
         // it's fine to set all metadata fields all the time, as ingest document holds their starting values
         // before ingestion, which might also get modified during ingestion.
@@ -949,11 +955,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    /**
+     * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
+     */
     private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
         request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
     }
 
+    /**
+     * Grab the @timestamp and store it on the index request so that TSDB can use it without needing to parse
+     * the source for this document.
+     */
     private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {
         if (request.getRawTimestamp() == null) {
             // cache the @timestamp from the ingest document's source map if there is one

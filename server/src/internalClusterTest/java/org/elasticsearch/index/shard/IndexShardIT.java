@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
@@ -144,7 +145,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             () -> env.deleteShardDirectoryUnderLock(
                 sLock,
                 indexSettings,
-                indexPaths -> { assert false : "should not be called " + indexPaths; }
+                indexPaths -> { assert false : "should not be called " + indexPaths; },
+                new ThreadContext(Settings.EMPTY)
             )
         );
         assertThat(exception.getMessage(), exception.getMessage(), containsString("unable to acquire write.lock"));

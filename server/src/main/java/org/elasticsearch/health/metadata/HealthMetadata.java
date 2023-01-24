@@ -191,11 +191,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         }
 
         public ByteSizeValue getFreeBytesHighWatermark(ByteSizeValue total) {
-            return getFreeBytes(total, highWatermark, ByteSizeValue.MINUS_ONE);
+            return getFreeBytes(total, highWatermark, highMaxHeadroom);
         }
 
         public ByteSizeValue getFreeBytesFloodStageWatermark(ByteSizeValue total) {
-            return getFreeBytes(total, floodStageWatermark, ByteSizeValue.MINUS_ONE);
+            return getFreeBytes(total, floodStageWatermark, floodStageMaxHeadroom);
         }
 
         public ByteSizeValue getFreeBytesFrozenFloodStageWatermark(ByteSizeValue total) {

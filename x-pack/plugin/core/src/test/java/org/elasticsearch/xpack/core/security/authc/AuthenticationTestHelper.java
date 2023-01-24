@@ -369,6 +369,8 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder user(User user) {
+            // TODO we should generalize the builder to support this
+            useRemoteAccess = false;
             if (User.isInternal(user)) {
                 return internal(user);
             } else if (user instanceof AnonymousUser) {

@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +42,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -242,7 +245,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     public void testRefresh() throws Exception {
         startIndexNode();
-        startSearchNodes(numShards * numReplicas);
+        startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -262,4 +265,29 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
+    public void testIndexWithRefreshPolicy() throws Exception {
+        startIndexNode();
+        startSearchNodes(numReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build()
+        );
+        ensureGreen(indexName);
+        var bulkRequest = client().prepareBulk();
+        int docsToIndex = randomIntBetween(1, 100);
+        for (int i = 0; i < docsToIndex; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        assertNoFailures(bulkRequest.get());
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+    }
 }

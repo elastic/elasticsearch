@@ -192,12 +192,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> outerListener) {
-        // As a work-around to support `?refresh`, explicitly make a call to the Refresh API.
+        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API.
         // TODO: Replace with a less hacky approach.
-        final ActionListener<BulkResponse> listener = DiscoveryNode.isStateless(clusterService.getSettings())
-            && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE
-                ? outerListener.delegateFailure((l, r) -> { client.admin().indices().prepareRefresh().execute(l.map(ignored -> r)); })
-                : outerListener;
+        ActionListener<BulkResponse> listener = outerListener;
+        if (DiscoveryNode.isStateless(clusterService.getSettings()) && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
+            listener = outerListener.delegateFailure((l, r) -> { client.admin().indices().prepareRefresh().execute(l.map(ignored -> r)); });
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        }
         /*
          * This is called on the Transport tread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport

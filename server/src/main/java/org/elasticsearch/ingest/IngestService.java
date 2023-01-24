@@ -901,6 +901,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if ((number = metadata.getIfPrimaryTerm()) != null) {
                     indexRequest.setIfPrimaryTerm(number.longValue());
                 }
+                Map<String, String> map;
+                if ((map = metadata.getDynamicTemplates()) != null) {
+                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
+                    mergedDynamicTemplates.putAll(map);
+                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
+                }
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
                     indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
@@ -923,12 +929,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         new RuntimeException("Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]", ex)
                     );
                     return;
-                }
-                Map<String, String> map;
-                if ((map = metadata.getDynamicTemplates()) != null) {
-                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    mergedDynamicTemplates.putAll(map);
-                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
                 cacheRawTimestamp(indexRequest, ingestDocument);
 

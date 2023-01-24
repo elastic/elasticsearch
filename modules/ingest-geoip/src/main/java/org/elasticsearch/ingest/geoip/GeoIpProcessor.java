@@ -171,28 +171,24 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> getGeoData(DatabaseReaderLazyLoader lazyLoader, String ip) throws IOException {
-        try {
-            final String databaseType = lazyLoader.getDatabaseType();
-            final InetAddress ipAddress = InetAddresses.forString(ip);
-            Map<String, Object> geoData;
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                geoData = retrieveCityGeoData(lazyLoader, ipAddress);
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
+        final String databaseType = lazyLoader.getDatabaseType();
+        final InetAddress ipAddress = InetAddresses.forString(ip);
+        Map<String, Object> geoData;
+        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+            geoData = retrieveCityGeoData(lazyLoader, ipAddress);
+        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+            geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
 
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
+        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+            geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
 
-            } else {
-                throw new ElasticsearchParseException(
-                    "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
-                    new IllegalStateException()
-                );
-            }
-            return geoData;
-        } finally {
-            lazyLoader.postLookup();
+        } else {
+            throw new ElasticsearchParseException(
+                "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
+                new IllegalStateException()
+            );
         }
+        return geoData;
     }
 
     @Override

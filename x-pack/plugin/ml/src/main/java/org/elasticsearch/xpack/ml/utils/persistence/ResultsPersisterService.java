@@ -41,8 +41,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -58,20 +56,16 @@ public class ResultsPersisterService {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                RestStatus.GONE,
-                RestStatus.NOT_IMPLEMENTED,
-                // Not found is returned when we require an alias but the index is NOT an alias.
-                RestStatus.NOT_FOUND,
-                RestStatus.BAD_REQUEST,
-                RestStatus.UNAUTHORIZED,
-                RestStatus.FORBIDDEN,
-                RestStatus.METHOD_NOT_ALLOWED,
-                RestStatus.NOT_ACCEPTABLE
-            )
-        )
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
+        RestStatus.GONE,
+        RestStatus.NOT_IMPLEMENTED,
+        // Not found is returned when we require an alias but the index is NOT an alias.
+        RestStatus.NOT_FOUND,
+        RestStatus.BAD_REQUEST,
+        RestStatus.UNAUTHORIZED,
+        RestStatus.FORBIDDEN,
+        RestStatus.METHOD_NOT_ALLOWED,
+        RestStatus.NOT_ACCEPTABLE
     );
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
@@ -161,6 +155,25 @@ public class ResultsPersisterService {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
     }
 
+    public void indexWithRetry(
+        String jobId,
+        String indexName,
+        ToXContent object,
+        ToXContent.Params params,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        String id,
+        boolean requireAlias,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        ActionListener<BulkResponse> finalListener
+    ) throws IOException {
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+        }
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, finalListener);
+    }
+
     public BulkResponse bulkIndexWithRetry(
         BulkRequest bulkRequest,
         String jobId,
@@ -168,6 +181,25 @@ public class ResultsPersisterService {
         Consumer<String> retryMsgHandler
     ) {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk);
+    }
+
+    public void bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        ActionListener<BulkResponse> finalListener
+    ) {
+        if (isShutdown || isResetMode) {
+            finalListener.onFailure(
+                new ElasticsearchException(
+                    "Bulk indexing has failed as {}",
+                    isShutdown ? "node is shutting down." : "machine learning feature is being reset."
+                )
+            );
+            return;
+        }
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk, finalListener);
     }
 
     public BulkResponse bulkIndexWithHeadersWithRetry(
@@ -206,10 +238,22 @@ public class ResultsPersisterService {
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }
-        final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
+        return getResponseFuture.actionGet();
+    }
+
+    private void bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
+        ActionListener<BulkResponse> finalListener
+    ) {
         final Object key = new Object();
         final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
-            getResponse,
+            finalListener,
             () -> onGoingRetryableBulkActions.remove(key)
         );
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
@@ -229,7 +273,6 @@ public class ResultsPersisterService {
                 )
             );
         }
-        return getResponse.actionGet();
     }
 
     public SearchResponse searchWithRetry(

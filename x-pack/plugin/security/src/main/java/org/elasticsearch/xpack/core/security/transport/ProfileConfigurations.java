@@ -10,13 +10,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -51,7 +51,7 @@ public final class ProfileConfigurations {
         profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
         if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
             assert profileConfiguration.containsKey(REMOTE_CLUSTER_PROFILE) == false;
-            profileConfiguration.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(REMOTE_CLUSTER_PREFIX + "ssl"));
+            profileConfiguration.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
         }
         return profileConfiguration;
     }

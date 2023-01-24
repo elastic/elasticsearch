@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.index.query;
+package org.elasticsearch.xpack.spatial.common;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonPoint;
@@ -27,15 +27,15 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.test.ESTestCase;
 
-public class H3LatLonGeometryTests extends ESTestCase {
+public class H3SphericalGeometryTests extends ESTestCase {
 
     private static final String FIELD_NAME = "field";
 
     public void testIndexPoints() throws Exception {
         Point queryPoint = GeometryTestUtils.randomPoint();
-        String[] hexes = new String[H3.MAX_H3_RES + 1];
+        long[] hexes = new long[H3.MAX_H3_RES + 1];
         for (int res = 0; res < hexes.length; res++) {
-            hexes[res] = H3.geoToH3Address(queryPoint.getLat(), queryPoint.getLon(), res);
+            hexes[res] = H3.geoToH3(queryPoint.getLat(), queryPoint.getLon(), res);
         }
         IndexWriterConfig iwc = newIndexWriterConfig();
         // Else seeds may not reproduce:
@@ -46,7 +46,7 @@ public class H3LatLonGeometryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         int[] counts = new int[H3.MAX_H3_RES + 1];
         IndexWriter w = new IndexWriter(dir, iwc);
-        for (String hex : hexes) {
+        for (long hex : hexes) {
             CellBoundary cellBoundary = H3.h3ToGeoBoundary(hex);
             for (int i = 0; i < cellBoundary.numPoints(); i++) {
                 Document doc = new Document();
@@ -74,18 +74,18 @@ public class H3LatLonGeometryTests extends ESTestCase {
 
         IndexSearcher s = newSearcher(r);
         for (int i = 0; i < H3.MAX_H3_RES + 1; i++) {
-            H3LatLonGeometry geometry = new H3LatLonGeometry(hexes[i]);
+            H3SphericalGeometry geometry = new H3SphericalGeometry(hexes[i]);
             Query indexQuery = LatLonPoint.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometry);
             assertEquals(counts[i], s.count(indexQuery));
         }
         IOUtils.close(r, dir);
     }
 
-    private void computeCounts(String[] hexes, double lon, double lat, int[] counts) {
+    private void computeCounts(long[] hexes, double lon, double lat, int[] counts) {
         double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
         for (int res = 0; res < hexes.length; res++) {
-            if (hexes[res].equals(H3.geoToH3Address(qLat, qLon, res))) {
+            if (hexes[res] == H3.geoToH3(qLat, qLon, res)) {
                 counts[res]++;
             }
         }

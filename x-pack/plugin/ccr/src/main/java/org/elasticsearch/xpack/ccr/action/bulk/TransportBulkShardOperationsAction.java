@@ -220,7 +220,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             appliedOperations,
             maxSeqNoOfUpdatesOrDeletes
         );
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger);
     }
 
     @Override

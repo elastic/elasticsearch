@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.blobcache.common;
+package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
-import org.elasticsearch.blobcache.common.CacheFile.EvictionListener;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -21,6 +21,7 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

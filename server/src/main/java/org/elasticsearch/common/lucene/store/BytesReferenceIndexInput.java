@@ -22,7 +22,7 @@ public class BytesReferenceIndexInput extends IndexInput {
     private int filePointer;
     private StreamInput streamInput;
 
-    protected BytesReferenceIndexInput(String resourceDescription, BytesReference bytesReference) {
+    public BytesReferenceIndexInput(String resourceDescription, BytesReference bytesReference) {
         super(resourceDescription);
         this.bytesReference = bytesReference;
     }
@@ -50,7 +50,9 @@ public class BytesReferenceIndexInput extends IndexInput {
             throw new EOFException("seek past EOF");
         }
         var pos = (int) longPos;
-        if (streamInput != null && filePointer <= pos) {
+        if (pos < filePointer) {
+            streamInput = null;
+        } else if (streamInput != null) {
             final var toSkip = pos - filePointer;
             final var skipped = streamInput.skip(toSkip);
             assert skipped == toSkip;
@@ -123,5 +125,12 @@ public class BytesReferenceIndexInput extends IndexInput {
         } finally {
             filePointer += Long.BYTES;
         }
+    }
+
+    @Override
+    public IndexInput clone() {
+        final var clone = new BytesReferenceIndexInput(toString(), bytesReference);
+        clone.filePointer = filePointer;
+        return clone;
     }
 }

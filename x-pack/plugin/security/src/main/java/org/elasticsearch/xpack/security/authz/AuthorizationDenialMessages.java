@@ -97,6 +97,7 @@ class AuthorizationDenialMessages {
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
+        // TODO denial exception messages for remote access
         if (authentication.isAuthenticatedAsApiKey()) {
             final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                 .getMetadata()

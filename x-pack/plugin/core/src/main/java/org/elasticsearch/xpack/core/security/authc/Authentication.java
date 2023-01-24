@@ -400,6 +400,10 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
     }
 
+    public void assertNotRemoteAccess() {
+        assert false == isRemoteAccess() : "authentication cannot be for remote access";
+    }
+
     /**
      * Whether the authentication can run-as another user
      */
@@ -963,6 +967,8 @@ public final class Authentication implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
+        // TODO handle remote access authentication executed with old API keys (either by rejecting this, or rewriting role descriptors)
+        authentication.assertNotRemoteAccess();
         Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors

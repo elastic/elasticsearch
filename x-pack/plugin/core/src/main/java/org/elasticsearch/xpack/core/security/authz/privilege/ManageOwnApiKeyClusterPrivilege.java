@@ -61,6 +61,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
 
         @Override
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
+            authentication.assertNotRemoteAccess();
             if (request instanceof CreateApiKeyRequest) {
                 return true;
             } else if (request instanceof UpdateApiKeyRequest || request instanceof BulkUpdateApiKeyRequest) {

@@ -1608,8 +1608,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withAuthentication(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            // TODO more specialized auditing for remote access
-            if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+            // TODO auditing for remote access
+            authentication.assertNotRemoteAccess();
+            if (authentication.isApiKey()) {
                 logEntry.with(
                     API_KEY_ID_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)

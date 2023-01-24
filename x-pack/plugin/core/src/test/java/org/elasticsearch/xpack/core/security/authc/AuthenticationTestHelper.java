@@ -283,7 +283,6 @@ public class AuthenticationTestHelper {
         private final Map<String, Object> metadata = new HashMap<>();
         private Boolean isServiceAccount;
         private Boolean isRealmUnderDomain;
-        private Boolean useRemoteAccess;
         private RemoteAccessAuthentication remoteAccessAuthentication;
 
         private AuthenticationTestBuilder() {}
@@ -333,8 +332,6 @@ public class AuthenticationTestHelper {
             assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             resetShortcutRelatedVariables();
             realmRef = null;
-            // Prevent regular API key to get converted to remote access by `build()`
-            useRemoteAccess = false;
             candidateAuthenticationTypes = EnumSet.of(AuthenticationType.API_KEY);
             metadata.put(AuthenticationField.API_KEY_ID_KEY, Objects.requireNonNull(apiKeyId));
             return this;
@@ -369,8 +366,6 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder user(User user) {
-            // TODO we should generalize the builder to support this
-            useRemoteAccess = false;
             if (User.isInternal(user)) {
                 return internal(user);
             } else if (user instanceof AnonymousUser) {
@@ -391,7 +386,6 @@ public class AuthenticationTestHelper {
             final RemoteAccessAuthentication remoteAccessAuthentication
         ) {
             apiKey(remoteAccessApiKeyId);
-            useRemoteAccess = true;
             this.remoteAccessAuthentication = Objects.requireNonNull(remoteAccessAuthentication);
             return this;
         }
@@ -430,8 +424,6 @@ public class AuthenticationTestHelper {
             candidateAuthenticationTypes = candidateAuthenticationTypes.stream()
                 .filter(t -> t == AuthenticationType.REALM || t == AuthenticationType.API_KEY)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(AuthenticationType.class)));
-            // Remote access does not support run-as, so exclude it
-            useRemoteAccess = false;
             final Authentication authentication = build(false);
             return new AuthenticationTestBuilder(authentication);
         }
@@ -489,18 +481,12 @@ public class AuthenticationTestHelper {
                             ESTestCase.randomAlphaOfLengthBetween(3, 8)
                         );
                         // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
-                        // and a different subject type.
-                        // If useRemoteAccess is true, we transform the API key authentication instance into a remote access authentication
-                        // instance.
-                        // We don't want to convert if remote access is explicitly excluded (i.e., useRemoteAccess is false) but may convert
-                        // if it's `null`.
-                        // This is to ensure that if `apikey()` was called explicitly, we generate an API_KEY subject, not REMOTE_ACCESS
-                        // Likewise, remote access does not support run-as, so `runAs()` excludes remote access
-                        final boolean convertToRemoteAccess = useRemoteAccess == null ? ESTestCase.randomBoolean() : useRemoteAccess;
-                        authentication = convertToRemoteAccess
-                            ? apiKeyAuthentication.toRemoteAccess(
-                                remoteAccessAuthentication == null ? randomRemoteAccessAuthentication() : remoteAccessAuthentication
-                            )
+                        // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
+                        // instance into a remote access authentication instance.
+                        // This means the builder only produces remote access authentication instances if `remoteAccess()` was called.
+                        // TODO generalize the builder to randomly build remote access authentication instance, when viable
+                        authentication = remoteAccessAuthentication != null
+                            ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
                             : apiKeyAuthentication;
                     }
                     case TOKEN -> {
@@ -667,7 +653,6 @@ public class AuthenticationTestHelper {
         private void resetShortcutRelatedVariables() {
             isServiceAccount = null;
             isRealmUnderDomain = null;
-            useRemoteAccess = null;
         }
     }
 }

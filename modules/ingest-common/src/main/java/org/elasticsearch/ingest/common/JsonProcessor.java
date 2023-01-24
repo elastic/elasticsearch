@@ -102,12 +102,18 @@ public final class JsonProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("cannot read binary value");
             }
             if (strictJsonParsing) {
-                // The next token ought to be null. Otherwise we've received garbage and need to alert the user
                 String errorMessage = Strings.format(
                     "The input %s is not valid JSON and the %s parameter is true",
                     fieldValue,
                     STRICT_JSON_PARSING_PARAMETER
                 );
+                /*
+                 * If strict JSON parsing is disabled, then once we've found the first token then we move on. For example for the string
+                 * "123 \"foo\"" we would just return the first token, 123. However, if strict parsing is enabled (which it is by default),
+                 * then we check to see whether there are any more tokens at this point. We expect the next token to be null. If there is
+                 * another token or if the parser blows up, then we know we had invalid JSON and we alert the user with an
+                 * IllegalArgumentException.
+                 */
                 try {
                     token = parser.nextToken();
                 } catch (IllegalArgumentException e) {

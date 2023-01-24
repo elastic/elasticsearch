@@ -22,18 +22,23 @@ public class Aggregator {
 
     private final int intermediateChannel;
 
-    public record AggregatorFactory(AggregatorFunction.Factory provider, AggregatorMode mode, int inputChannel)
+    public record AggregatorFactory(AggregationName aggName, AggregationType aggType, AggregatorMode mode, int inputChannel)
         implements
             Supplier<Aggregator>,
             Describable {
+
+        public AggregatorFactory(AggregatorFunction.Factory aggFunctionFactory, AggregatorMode mode, int inputChannel) {
+            this(aggFunctionFactory.name(), aggFunctionFactory.type(), mode, inputChannel);
+        }
+
         @Override
         public Aggregator get() {
-            return new Aggregator(provider, mode, inputChannel);
+            return new Aggregator(AggregatorFunction.of(aggName, aggType), mode, inputChannel);
         }
 
         @Override
         public String describe() {
-            return provider.describe();
+            return AggregatorFunction.of(aggName, aggType).describe();
         }
     }
 

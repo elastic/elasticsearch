@@ -201,9 +201,14 @@ public class LocalExecutionPlanner {
                     } else {
                         throw new UnsupportedOperationException();
                     }
-
-                    var aggFactory = AggregateMapper.map(aggregateFunction);
-                    aggregatorFactories.add(new AggregatorFactory(aggFactory, aggMode, source.layout.getChannel(sourceAttr.id())));
+                    aggregatorFactories.add(
+                        new AggregatorFactory(
+                            AggregateMapper.mapToName(aggregateFunction),
+                            AggregateMapper.mapToType(aggregateFunction),
+                            aggMode,
+                            source.layout.getChannel(sourceAttr.id())
+                        )
+                    );
 
                 } else {
                     throw new UnsupportedOperationException();
@@ -259,10 +264,14 @@ public class LocalExecutionPlanner {
                         throw new UnsupportedOperationException();
                     }
 
-                    var aggFactory = AggregateMapper.mapGrouping(aggregateFunction);
-
                     aggregatorFactories.add(
-                        new GroupingAggregatorFactory(context.bigArrays, aggFactory, aggMode, source.layout.getChannel(sourceAttr.id()))
+                        new GroupingAggregatorFactory(
+                            context.bigArrays,
+                            AggregateMapper.mapToName(aggregateFunction),
+                            AggregateMapper.mapToType(aggregateFunction),
+                            aggMode,
+                            source.layout.getChannel(sourceAttr.id())
+                        )
                     );
                 } else if (grpAttribIds.contains(ne.id()) == false && aggregate.groupings().contains(ne) == false) {
                     var u = ne instanceof Alias ? ((Alias) ne).child() : ne;

@@ -27,19 +27,29 @@ public class GroupingAggregator implements Releasable {
 
     public record GroupingAggregatorFactory(
         BigArrays bigArrays,
-        GroupingAggregatorFunction.Factory aggCreationFunc,
+        AggregationName aggName,
+        AggregationType aggType,
         AggregatorMode mode,
         int inputChannel
     ) implements Supplier<GroupingAggregator>, Describable {
 
+        public GroupingAggregatorFactory(
+            BigArrays bigArrays,
+            GroupingAggregatorFunction.Factory aggFunctionFactory,
+            AggregatorMode mode,
+            int inputChannel
+        ) {
+            this(bigArrays, aggFunctionFactory.name(), aggFunctionFactory.type(), mode, inputChannel);
+        }
+
         @Override
         public GroupingAggregator get() {
-            return new GroupingAggregator(bigArrays, aggCreationFunc, mode, inputChannel);
+            return new GroupingAggregator(bigArrays, GroupingAggregatorFunction.of(aggName, aggType), mode, inputChannel);
         }
 
         @Override
         public String describe() {
-            return aggCreationFunc.describe();
+            return GroupingAggregatorFunction.of(aggName, aggType).describe();
         }
     }
 

@@ -465,18 +465,20 @@ public class ActionListenerTests extends ESTestCase {
         completeListener(randomBoolean(), runBefore);
 
         var error = expectThrows(AssertionError.class, () -> completeListener(true, runBefore));
-        assertThat(error.getMessage(), equalTo("listener already executed"));
+        assertThat(error.getMessage(), equalTo("already executed: " + runBefore));
     }
 
     public void testRunAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
         assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
         var count = new AtomicInteger();
-        final ActionListener<Void> runAfter = ActionListener.runAfter(ActionListener.noop(), count::incrementAndGet);
+        final ActionListener<Void> runAfter = randomBoolean()
+            ? ActionListener.runAfter(ActionListener.noop(), count::incrementAndGet)
+            : ActionListener.releaseAfter(ActionListener.noop(), count::incrementAndGet);
 
         completeListener(randomBoolean(), runAfter);
 
         var error = expectThrows(AssertionError.class, () -> completeListener(true, runAfter));
-        assertThat(error.getMessage(), equalTo("listener already executed"));
+        assertThat(error.getMessage(), equalTo("already executed: " + runAfter));
     }
 
     public void testWrappedRunBeforeOrAfterThrowsAssertionErrorIfExecutedMoreThanOnce() {
@@ -511,7 +513,7 @@ public class ActionListenerTests extends ESTestCase {
         });
 
         var error = expectThrows(AssertionError.class, () -> completeListener(true, wrappedListener));
-        assertThat(error.getMessage(), equalTo("listener already executed"));
+        assertThat(error.getMessage(), equalTo("already executed: " + runBeforeOrAfterListener));
     }
 
     public void testReleasing() {

@@ -72,8 +72,8 @@ import org.elasticsearch.core.SuppressForbidden;
  *
  *     Controls the maximum percentage of deleted documents that is tolerated in
  *     the index. Lower values make the index more space efficient at the
- *     expense of increased CPU and I/O activity. Values must be between <code>20</code> and
- *     <code>50</code>. Default value is <code>33</code>.
+ *     expense of increased CPU and I/O activity. Values must be between <code>5</code> and
+ *     <code>50</code>. Default value is <code>20</code>.
  * </ul>
  *
  * <p>
@@ -121,7 +121,7 @@ public final class MergePolicyConfig {
      * at the whole index level, while {@link LogByteSizeMergePolicy} makes decisions on a per-tier basis.
      */
     public static final int DEFAULT_MERGE_FACTOR = 16;
-    public static final double DEFAULT_DELETES_PCT_ALLOWED = 33.0d;
+    public static final double DEFAULT_DELETES_PCT_ALLOWED = 20.0d;
     private static final String INDEX_COMPOUND_FORMAT_SETTING_KEY = "index.compound_format";
     public static final Setting<CompoundFileThreshold> INDEX_COMPOUND_FORMAT_SETTING = new Setting<>(
         INDEX_COMPOUND_FORMAT_SETTING_KEY,
@@ -233,7 +233,7 @@ public final class MergePolicyConfig {
     public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING = Setting.doubleSetting(
         "index.merge.policy.deletes_pct_allowed",
         DEFAULT_DELETES_PCT_ALLOWED,
-        20.0d,
+        5.0d,
         50.0d,
         Property.Dynamic,
         Property.IndexScope

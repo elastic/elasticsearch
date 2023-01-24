@@ -125,7 +125,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             case RELOCATING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId != null : state + " shard must be relocating to a node " + this;
-                assert unassignedInfo == null : "relocating shard must be created without unassigned info " + this;
+                assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
                 assert recoverySource == null : state + "shard must be created without a recovery source" + this;
             }
         }

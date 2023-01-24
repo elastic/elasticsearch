@@ -497,7 +497,7 @@ public abstract class TransportReplicationAction<
                     new ReplicationOperation<>(
                         primaryRequest.getRequest(),
                         primaryShardReference,
-                        responseListener.map(result -> result.finalResponseIfSuccessful),
+                        responseListener.map(result -> result.replicationResponse),
                         newReplicasProxy(),
                         logger,
                         threadPool,
@@ -533,29 +533,18 @@ public abstract class TransportReplicationAction<
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse>
         implements
             ReplicationOperation.PrimaryResult<ReplicaRequest> {
-        protected final ReplicaRequest replicaRequest;
-        public final Response finalResponseIfSuccessful;
-        public final Exception finalFailure;
+        private final ReplicaRequest replicaRequest;
+        public final Response replicationResponse;
 
         /**
          * Result of executing a primary operation
-         * expects <code>finalResponseIfSuccessful</code> or <code>finalFailure</code> to be not-null
+         * expects <code>replicationResponse</code> to be not-null
          */
-        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful, Exception finalFailure) {
-            assert finalFailure != null ^ finalResponseIfSuccessful != null
-                : "either a response or a failure has to be not null, "
-                    + "found ["
-                    + finalFailure
-                    + "] failure and ["
-                    + finalResponseIfSuccessful
-                    + "] response";
-            this.replicaRequest = replicaRequest;
-            this.finalResponseIfSuccessful = finalResponseIfSuccessful;
-            this.finalFailure = finalFailure;
-        }
-
         public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
-            this(replicaRequest, replicationResponse, null);
+            assert replicaRequest != null : "request is required";
+            assert replicationResponse != null : "response is required";
+            this.replicaRequest = replicaRequest;
+            this.replicationResponse = replicationResponse;
         }
 
         @Override
@@ -565,18 +554,12 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
-            if (finalResponseIfSuccessful != null) {
-                finalResponseIfSuccessful.setShardInfo(shardInfo);
-            }
+            replicationResponse.setShardInfo(shardInfo);
         }
 
         @Override
         public void runPostReplicationActions(ActionListener<Void> listener) {
-            if (finalFailure != null) {
-                listener.onFailure(finalFailure);
-            } else {
-                listener.onResponse(null);
-            }
+            listener.onResponse(null);
         }
     }
 
@@ -1140,8 +1123,8 @@ public abstract class TransportReplicationAction<
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
             if (Assertions.ENABLED) {
                 listener = listener.map(result -> {
-                    assert result.replicaRequest() == null || result.finalFailure == null
-                        : "a replica request [" + result.replicaRequest() + "] with a primary failure [" + result.finalFailure + "]";
+                    assert result.replicaRequest().getParentTask().equals(request.getParentTask())
+                        : "a replica request [" + result.replicaRequest() + "] with a different parent task from the primary request";
                     return result;
                 });
             }

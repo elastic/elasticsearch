@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -73,11 +74,11 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DesiredNode CONTENT_DESIRED_NODE = newDesiredNode("node-content", DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE);
     private static final DesiredNode DATA_DESIRED_NODE = newDesiredNode("node-data", DiscoveryNodeRole.DATA_ROLE);
 
-    private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(
             DataTierAllocationDecider.INSTANCE,
-            new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         )
     );

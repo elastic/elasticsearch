@@ -12,8 +12,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -42,8 +43,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -250,19 +251,19 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
 
-        float[] vector = { (byte) -1, (byte) 1, (byte) 127 };
+        byte[] vector = { (byte) -1, (byte) 1, (byte) 127 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(KnnVectorField.class));
+        assertThat(fields[0], instanceOf(KnnByteVectorField.class));
 
-        KnnVectorField vectorField = (KnnVectorField) fields[0];
-        vectorField.binaryValue();
+        KnnByteVectorField vectorField = (KnnByteVectorField) fields[0];
+        vectorField.vectorValue();
         assertEquals(
             "Parsed vector is not equal to original.",
             new BytesRef(new byte[] { (byte) -1, (byte) 1, (byte) 127 }),
-            vectorField.binaryValue()
+            vectorField.vectorValue()
         );
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
@@ -332,9 +333,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
-            containsString(
-                "The [cosine] similarity does not support vectors with zero magnitude. Preview of invalid vector: [-0.0, 0.0, 0.0]"
-            )
+            containsString("The [cosine] similarity does not support vectors with zero magnitude. Preview of invalid vector: [0, 0, 0]")
         );
     }
 
@@ -544,7 +543,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0];")
+            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [128] at dim [0];")
+        );
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("element_type [byte] vectors only support non-decimal values but found decimal value [18.2] at dim [0];")
         );
 
         e = expectThrows(
@@ -553,7 +558,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [-129.0] at dim [2];")
+            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [-129] at dim [2];")
         );
     }
 
@@ -693,8 +698,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        assertThat(knnVectorsFormat, instanceOf(Lucene94HnswVectorsFormat.class));
-        String expectedString = "Lucene94HnswVectorsFormat(name=Lucene94HnswVectorsFormat, maxConn="
+        assertThat(knnVectorsFormat, instanceOf(Lucene95HnswVectorsFormat.class));
+        String expectedString = "Lucene95HnswVectorsFormat(name=Lucene95HnswVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
@@ -725,12 +730,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
-            List<Float> value = randomList(dims, dims, this::randomValue);
+            Object value = elementType == ElementType.BYTE
+                ? randomList(dims, dims, ESTestCase::randomByte)
+                : randomList(dims, dims, ESTestCase::randomFloat);
             return new SyntheticSourceExample(value, value, this::mapping);
-        }
-
-        private float randomValue() {
-            return elementType == ElementType.BYTE ? ESTestCase.randomByte() : ESTestCase.randomFloat();
         }
 
         private void mapping(XContentBuilder b) throws IOException {
@@ -753,7 +756,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
 
         @Override
-        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+        public List<SyntheticSourceInvalidExample> invalidExample() {
             return List.of();
         }
     }

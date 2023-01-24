@@ -103,34 +103,41 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                 }
             }
         } else {
-            Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
-            Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
+            // The 5 operations in MlInitializationService.makeMlInternalIndicesHidden() run sequentially, so might
+            // not all be finished when this test runs. The desired state should exist within a few seconds of startup,
+            // hence the assertBusy().
+            assertBusy(() -> {
+                Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
+                Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
 
-            assertThat("Index settings map was: " + indexSettingsMap, indexSettingsMap, is(aMapWithSize(greaterThanOrEqualTo(4))));
-            for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
-                String indexName = e.getKey();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> settings = (Map<String, Object>) e.getValue();
-                assertThat(settings, is(notNullValue()));
-                assertThat(
-                    "Index " + indexName + " expected to be hidden but wasn't, settings = " + settings,
-                    XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
-                    is(equalTo("true"))
-                );
-            }
+                assertThat("Index settings map was: " + indexSettingsMap, indexSettingsMap, is(aMapWithSize(greaterThanOrEqualTo(4))));
+                for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
+                    String indexName = e.getKey();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> settings = (Map<String, Object>) e.getValue();
+                    assertThat(settings, is(notNullValue()));
+                    assertThat(
+                        "Index " + indexName + " expected to be hidden but wasn't, settings = " + settings,
+                        XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
+                        is(equalTo("true"))
+                    );
+                }
 
-            for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
-                List<String> indices = indexAndAlias.v1();
-                String alias = indexAndAlias.v2();
-                assertThat(
-                    indexAndAlias + " expected to be hidden but wasn't, aliasesMap = " + aliasesMap,
-                    indices.stream()
-                        .anyMatch(
-                            index -> Boolean.TRUE.equals(XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"))
-                        ),
-                    is(true)
-                );
-            }
+                for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
+                    List<String> indices = indexAndAlias.v1();
+                    String alias = indexAndAlias.v2();
+                    assertThat(
+                        indexAndAlias + " expected to be hidden but wasn't, aliasesMap = " + aliasesMap,
+                        indices.stream()
+                            .anyMatch(
+                                index -> Boolean.TRUE.equals(
+                                    XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden")
+                                )
+                            ),
+                        is(true)
+                    );
+                }
+            });
         }
     }
 

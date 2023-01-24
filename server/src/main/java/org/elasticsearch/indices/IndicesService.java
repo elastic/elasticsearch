@@ -56,6 +56,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -685,59 +686,61 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexEventListener> builtInListeners,
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
-        final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-        if (idxSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)
-            && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
-            throw new IllegalArgumentException(
-                "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0"
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
+            if (idxSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)
+                && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
+                throw new IllegalArgumentException(
+                    "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0"
+                );
+            }
+            // we ignore private settings since they are not registered settings
+            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
+            logger.debug(
+                "creating Index [{}], shards [{}]/[{}] - reason [{}]",
+                indexMetadata.getIndex(),
+                idxSettings.getNumberOfShards(),
+                idxSettings.getNumberOfReplicas(),
+                indexCreationContext
+            );
+
+            final IndexModule indexModule = new IndexModule(
+                idxSettings,
+                analysisRegistry,
+                getEngineFactory(idxSettings),
+                directoryFactories,
+                () -> allowExpensiveQueries,
+                indexNameExpressionResolver,
+                recoveryStateFactories
+            );
+            for (IndexingOperationListener operationListener : indexingOperationListeners) {
+                indexModule.addIndexOperationListener(operationListener);
+            }
+            pluginsService.onIndexModule(indexModule);
+            for (IndexEventListener listener : builtInListeners) {
+                indexModule.addIndexEventListener(listener);
+            }
+            return indexModule.newIndexService(
+                indexCreationContext,
+                nodeEnv,
+                xContentRegistry,
+                this,
+                circuitBreakerService,
+                bigArrays,
+                threadPool,
+                scriptService,
+                clusterService,
+                client,
+                indicesQueryCache,
+                mapperRegistry,
+                indicesFieldDataCache,
+                namedWriteableRegistry,
+                this::isIdFieldDataEnabled,
+                valuesSourceRegistry,
+                indexFoldersDeletionListeners,
+                snapshotCommitSuppliers
             );
         }
-        // we ignore private settings since they are not registered settings
-        indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
-        logger.debug(
-            "creating Index [{}], shards [{}]/[{}] - reason [{}]",
-            indexMetadata.getIndex(),
-            idxSettings.getNumberOfShards(),
-            idxSettings.getNumberOfReplicas(),
-            indexCreationContext
-        );
-
-        final IndexModule indexModule = new IndexModule(
-            idxSettings,
-            analysisRegistry,
-            getEngineFactory(idxSettings),
-            directoryFactories,
-            () -> allowExpensiveQueries,
-            indexNameExpressionResolver,
-            recoveryStateFactories
-        );
-        for (IndexingOperationListener operationListener : indexingOperationListeners) {
-            indexModule.addIndexOperationListener(operationListener);
-        }
-        pluginsService.onIndexModule(indexModule);
-        for (IndexEventListener listener : builtInListeners) {
-            indexModule.addIndexEventListener(listener);
-        }
-        return indexModule.newIndexService(
-            indexCreationContext,
-            nodeEnv,
-            xContentRegistry,
-            this,
-            circuitBreakerService,
-            bigArrays,
-            threadPool,
-            scriptService,
-            clusterService,
-            client,
-            indicesQueryCache,
-            mapperRegistry,
-            indicesFieldDataCache,
-            namedWriteableRegistry,
-            this::isIdFieldDataEnabled,
-            valuesSourceRegistry,
-            indexFoldersDeletionListeners,
-            snapshotCommitSuppliers
-        );
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {

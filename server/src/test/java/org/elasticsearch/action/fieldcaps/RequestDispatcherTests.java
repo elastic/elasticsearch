@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterName;
@@ -743,7 +744,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final TestThreadPool threadPool = new TestThreadPool("test");
             TcpTransport transport = new Netty4Transport(
                 Settings.EMPTY,
-                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 new NetworkService(Collections.emptyList()),
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,

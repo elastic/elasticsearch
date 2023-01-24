@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,13 +35,13 @@ final class TransportHandshaker {
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 
-    private final Version version;
+    private final TransportVersion version;
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
     private final boolean ignoreDeserializationErrors;
 
     TransportHandshaker(
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         HandshakeRequestSender handshakeRequestSender,
         boolean ignoreDeserializationErrors
@@ -52,7 +52,13 @@ final class TransportHandshaker {
         this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
-    void sendHandshake(long requestId, DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
+    void sendHandshake(
+        long requestId,
+        DiscoveryNode node,
+        TcpChannel channel,
+        TimeValue timeout,
+        ActionListener<TransportVersion> listener
+    ) {
         numHandshakes.inc();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, version, listener);
         pendingHandshakes.put(requestId, handler);
@@ -64,7 +70,7 @@ final class TransportHandshaker {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
-            final Version minCompatVersion = version.minimumCompatibilityVersion();
+            TransportVersion minCompatVersion = version.calculateMinimumCompatVersion();
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
             threadPool.schedule(
@@ -123,11 +129,11 @@ final class TransportHandshaker {
     private class HandshakeResponseHandler implements TransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
-        private final Version currentVersion;
-        private final ActionListener<Version> listener;
+        private final TransportVersion currentVersion;
+        private final ActionListener<TransportVersion> listener;
         private final AtomicBoolean isDone = new AtomicBoolean(false);
 
-        private HandshakeResponseHandler(long requestId, Version currentVersion, ActionListener<Version> listener) {
+        private HandshakeResponseHandler(long requestId, TransportVersion currentVersion, ActionListener<TransportVersion> listener) {
             this.requestId = requestId;
             this.currentVersion = currentVersion;
             this.listener = listener;
@@ -141,14 +147,14 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                Version responseVersion = response.responseVersion;
+                TransportVersion responseVersion = response.responseVersion;
                 if (currentVersion.isCompatible(responseVersion) == false) {
                     listener.onFailure(
                         new IllegalStateException(
                             "Received message from unsupported version: ["
                                 + responseVersion
                                 + "] minimal compatible version is: ["
-                                + currentVersion.minimumCompatibilityVersion()
+                                + currentVersion.calculateMinimumCompatVersion()
                                 + "]"
                         )
                     );
@@ -174,9 +180,9 @@ final class TransportHandshaker {
 
     static final class HandshakeRequest extends TransportRequest {
 
-        private final Version version;
+        private final TransportVersion version;
 
-        HandshakeRequest(Version version) {
+        HandshakeRequest(TransportVersion version) {
             this.version = version;
         }
 
@@ -192,7 +198,7 @@ final class TransportHandshaker {
                 version = null;
             } else {
                 try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.version = Version.readVersion(messageStreamInput);
+                    this.version = TransportVersion.readVersion(messageStreamInput);
                 }
             }
         }
@@ -202,7 +208,7 @@ final class TransportHandshaker {
             super.writeTo(streamOutput);
             assert version != null;
             try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
-                Version.writeVersion(version, messageStreamOutput);
+                TransportVersion.writeVersion(version, messageStreamOutput);
                 BytesReference reference = messageStreamOutput.bytes();
                 streamOutput.writeBytesReference(reference);
             }
@@ -211,24 +217,24 @@ final class TransportHandshaker {
 
     static final class HandshakeResponse extends TransportResponse {
 
-        private final Version responseVersion;
+        private final TransportVersion responseVersion;
 
-        HandshakeResponse(Version responseVersion) {
+        HandshakeResponse(TransportVersion responseVersion) {
             this.responseVersion = responseVersion;
         }
 
         private HandshakeResponse(StreamInput in) throws IOException {
             super(in);
-            responseVersion = Version.readVersion(in);
+            responseVersion = TransportVersion.readVersion(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert responseVersion != null;
-            Version.writeVersion(responseVersion, out);
+            TransportVersion.writeVersion(responseVersion, out);
         }
 
-        Version getResponseVersion() {
+        TransportVersion getResponseVersion() {
             return responseVersion;
         }
     }
@@ -236,6 +242,6 @@ final class TransportHandshaker {
     @FunctionalInterface
     interface HandshakeRequestSender {
 
-        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, Version version) throws IOException;
+        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, TransportVersion version) throws IOException;
     }
 }

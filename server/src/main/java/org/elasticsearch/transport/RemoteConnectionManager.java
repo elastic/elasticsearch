@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -241,6 +242,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
+        public TransportVersion getTransportVersion() {
+            return connection.getTransportVersion();
+        }
+
+        @Override
         public Object getCacheKey() {
             return connection.getCacheKey();
         }
@@ -310,6 +316,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public Version getVersion() {
             return connection.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return connection.getTransportVersion();
         }
 
         @Override

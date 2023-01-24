@@ -48,8 +48,6 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -453,26 +451,21 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
-            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
-                Environment env = spy(super.createEnv(options, processInfo));
-
-                doAnswer(i -> {
-                    if (mockSecureSettingsLoader) {
-                        return new MockSecureSettingsLoader();
-                    }
-                    return i.callRealMethod();
-                }).when(env).secureSettingsLoader();
-
-                return env;
-            }
-
-            @Override
             protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }
                 mockServer.reset();
                 return mockServer;
+            }
+
+            @Override
+            protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+                if (mockSecureSettingsLoader) {
+                    return new MockSecureSettingsLoader();
+                }
+
+                return super.secureSettingsLoader(env);
             }
         };
     }
@@ -490,8 +483,8 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        public String validate(Environment environment) {
-            return null;
+        public boolean supportsAutoConfigure() {
+            return false;
         }
     }
 }

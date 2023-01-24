@@ -10,8 +10,6 @@ package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.KeyStoreLoader;
-import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -371,10 +369,5 @@ public class Environment {
 
     private static void assertEquals(Object actual, Object expected, String name) {
         assert Objects.deepEquals(actual, expected) : "actual " + name + " [" + actual + "] is different than [ " + expected + "]";
-    }
-
-    public SecureSettingsLoader secureSettingsLoader() {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
-        return new KeyStoreLoader();
     }
 }

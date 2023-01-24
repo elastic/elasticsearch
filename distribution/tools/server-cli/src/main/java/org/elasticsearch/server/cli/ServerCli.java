@@ -22,6 +22,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.settings.KeyStoreLoader;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -75,14 +76,22 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        var secureSettingsLoader = env.secureSettingsLoader();
+        var secureSettingsLoader = secureSettingsLoader(env);
 
         try (
             var loadedSecrets = secureSettingsLoader.load(env, terminal);
             var password = (loadedSecrets.password().isPresent()) ? loadedSecrets.password().get() : new SecureString(new char[0]);
         ) {
-            env = autoConfigureSecurity(terminal, options, processInfo, env, password);
-            SecureSettings secrets = secureSettingsLoader.bootstrap(env, password);
+            SecureSettings secrets = loadedSecrets.secrets();
+            if (secureSettingsLoader.supportsAutoConfigure()) {
+                env = autoConfigureSecurity(terminal, options, processInfo, env, password);
+                // reload or create the secrets
+                secrets = secureSettingsLoader.bootstrap(env, password);
+            }
+
+            if (secrets == null) {
+                throw new UserException(ExitCodes.CONFIG, "Elasticsearch secure settings not configured");
+            }
 
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
@@ -127,6 +136,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
+    // Autoconfiguration of SecureSettings is currently only supported for KeyStore based secure settings
     private Environment autoConfigureSecurity(
         Terminal terminal,
         OptionSet options,
@@ -134,6 +144,8 @@ class ServerCli extends EnvironmentAwareCommand {
         Environment env,
         SecureString optionalPassword
     ) throws Exception {
+        assert secureSettingsLoader(env) instanceof KeyStoreLoader;
+
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;

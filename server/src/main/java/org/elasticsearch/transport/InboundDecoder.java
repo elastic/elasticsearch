@@ -9,7 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +25,7 @@ public class InboundDecoder implements Releasable {
     static final Object PING = new Object();
     static final Object END_CONTENT = new Object();
 
-    private final Version version;
+    private final TransportVersion version;
     private final Recycler<BytesRef> recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
@@ -33,7 +33,7 @@ public class InboundDecoder implements Releasable {
     private boolean isCompressed = false;
     private boolean isClosed = false;
 
-    public InboundDecoder(Version version, Recycler<BytesRef> recycler) {
+    public InboundDecoder(TransportVersion version, Recycler<BytesRef> recycler) {
         this.version = version;
         this.recycler = recycler;
     }
@@ -154,7 +154,7 @@ public class InboundDecoder implements Releasable {
             return 0;
         }
 
-        Version remoteVersion = Version.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
+        TransportVersion remoteVersion = TransportVersion.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
         int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
         if (fixedHeaderSize > reference.length()) {
             return 0;
@@ -172,12 +172,12 @@ public class InboundDecoder implements Releasable {
     }
 
     // exposed for use in tests
-    static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    static Header readHeader(TransportVersion version, int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
-            Version remoteVersion = Version.fromId(streamInput.readInt());
+            TransportVersion remoteVersion = TransportVersion.fromId(streamInput.readInt());
             Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
             final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
             if (invalidVersion != null) {
@@ -203,14 +203,20 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    static IllegalStateException ensureVersionCompatibility(Version remoteVersion, Version currentVersion, boolean isHandshake) {
+    static IllegalStateException ensureVersionCompatibility(
+        TransportVersion remoteVersion,
+        TransportVersion currentVersion,
+        boolean isHandshake
+    ) {
         // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
         // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
         // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
         // once the connection is established
-        final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
+        final TransportVersion compatibilityVersion = isHandshake ? currentVersion.calculateMinimumCompatVersion() : currentVersion;
         if (remoteVersion.isCompatible(compatibilityVersion) == false) {
-            final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
+            final TransportVersion minCompatibilityVersion = isHandshake
+                ? compatibilityVersion
+                : compatibilityVersion.calculateMinimumCompatVersion();
             String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
             return new IllegalStateException(msg + remoteVersion + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
         }

@@ -431,6 +431,15 @@ public interface ActionListener<Response> {
         return new RunBeforeActionListener<>(delegate, runBefore);
     }
 
+    /**
+     * Wraps a given listener and returns a new listener which releases the provided {@code releasable}  before the listener is notified via
+     * either {@code #onResponse} or {@code #onFailure}. The release of the listener should not throw an exception, but if assertions are
+     * disabled then such an exception will be passed to the listener's {@code #onFailure} and its {@code #onResponse} will not be executed.
+     */
+    static <Response> ActionListener<Response> releaseBefore(ActionListener<Response> delegate, Releasable releasable) {
+        return runBefore(delegate, checkedRunnableFromReleasable(releasable));
+    }
+
     final class RunBeforeActionListener<T> extends Delegating<T, T> {
 
         private final CheckedRunnable<?> runBefore;
@@ -536,6 +545,20 @@ public interface ActionListener<Response> {
 
     private static Runnable runnableFromReleasable(Releasable releasable) {
         return new Runnable() {
+            @Override
+            public void run() {
+                Releasables.closeExpectNoException(releasable);
+            }
+
+            @Override
+            public String toString() {
+                return "release[" + releasable + "]";
+            }
+        };
+    }
+
+    private static CheckedRunnable<?> checkedRunnableFromReleasable(Releasable releasable) {
+        return new CheckedRunnable<>() {
             @Override
             public void run() {
                 Releasables.closeExpectNoException(releasable);

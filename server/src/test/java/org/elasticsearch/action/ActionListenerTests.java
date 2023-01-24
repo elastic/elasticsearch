@@ -550,6 +550,7 @@ public class ActionListenerTests extends ESTestCase {
         final ActionListener<Void> l = ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
+                assertFalse(released.get());
                 if (throwFromOnResponse) {
                     throw new RuntimeException("onResponse");
                 }
@@ -557,7 +558,49 @@ public class ActionListenerTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
+                assertFalse(released.get());
+            }
+
+            @Override
+            public String toString() {
+                return "test listener";
+            }
+        }, makeReleasable(released));
+        assertThat(l.toString(), containsString("test listener/release[test releasable]"));
+
+        if (successResponse) {
+            try {
+                l.onResponse(null);
+            } catch (Exception e) {
                 // ok
+            }
+        } else {
+            l.onFailure(new RuntimeException("supplied"));
+        }
+
+        assertTrue(released.get());
+    }
+
+    public void testReleaseBefore() {
+        runReleaseBeforeTest(true, false);
+        runReleaseBeforeTest(true, true);
+        runReleaseBeforeTest(false, false);
+    }
+
+    private static void runReleaseBeforeTest(boolean successResponse, final boolean throwFromOnResponse) {
+        final AtomicBoolean released = new AtomicBoolean();
+        final ActionListener<Void> l = ActionListener.releaseBefore(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                assertTrue(released.get());
+                if (throwFromOnResponse) {
+                    throw new RuntimeException("onResponse");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(released.get());
             }
 
             @Override

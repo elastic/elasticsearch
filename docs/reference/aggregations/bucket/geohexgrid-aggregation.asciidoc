@@ -232,7 +232,7 @@ within the edges defined by great circles. In other words the calculation is don
 However, when aggregating over `geo_shape` data, the shapes are considered within a hexagon if they lie
 within the edges defined as straight lines on an equirectangular projection.
 The reason is that Elasticsearch and Lucene treat edges using the equirectangular projection at index and search time.
-In order to ensure that search results and aggregation results are aligned, we therefor also use equirectangular
+In order to ensure that search results and aggregation results are aligned, we therefore also use equirectangular
 projection in aggregations.
 For most data, the difference is subtle or not noticed.
 However, for low zoom levels (low precision), especially far from the equator,  this can be noticeable.

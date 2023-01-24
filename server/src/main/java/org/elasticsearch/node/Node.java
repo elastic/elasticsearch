@@ -858,16 +858,13 @@ public class Node implements Closeable {
             );
 
             actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
+            actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
-                environment,
-                client
+                environment
             );
-
-            actionModule.getReservedClusterStateService()
-                .installStateHandler(new ReservedPipelineAction(ingestService, fileSettingsService));
 
             RestoreService restoreService = new RestoreService(
                 clusterService,
@@ -1395,6 +1392,13 @@ public class Node implements Closeable {
             pluginsService.flatMap(Plugin::getBootstrapChecks).toList()
         );
 
+        final FileSettingsService fileSettingsService = injector.getInstance(FileSettingsService.class);
+        fileSettingsService.start();
+        // if we are using the readiness service, listen for the file settings being applied
+        if (ReadinessService.enabled(environment)) {
+            fileSettingsService.addFileSettingsChangedListener(injector.getInstance(ReadinessService.class));
+        }
+
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
         coordinator.start(); // start before cluster service so that it can set initial state on ClusterApplierService
@@ -1445,7 +1449,6 @@ public class Node implements Closeable {
             }
         }
 
-        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {

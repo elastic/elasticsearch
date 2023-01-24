@@ -491,7 +491,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         storedDataCounts.incrementInputBytes(1L);
         storedDataCounts.incrementMissingFieldCount(1L);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
-        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts);
+        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts, true);
         jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
@@ -1046,9 +1046,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void indexDataCounts(DataCounts counts, String jobId) {
+    private void indexDataCounts(DataCounts counts, String jobId) throws InterruptedException {
         JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
-        persister.persistDataCounts(jobId, counts);
+        persister.persistDataCounts(jobId, counts, true);
     }
 
     private void indexFilters(List<MlFilter> filters) throws IOException {

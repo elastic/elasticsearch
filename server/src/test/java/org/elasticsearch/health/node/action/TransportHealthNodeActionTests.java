@@ -190,7 +190,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
+            super.doExecute(task, request, new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SAME), listener));
         }
 
         @Override

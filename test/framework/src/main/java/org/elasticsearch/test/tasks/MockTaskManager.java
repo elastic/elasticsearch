@@ -94,11 +94,11 @@ public class MockTaskManager extends TaskManager {
     }
 
     @Override
-    public void addRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
         for (MockTaskManagerListener listener : listeners) {
             listener.subscribeForRemovedTasks(removedTaskListener);
         }
-        super.addRemovedTaskListener(removedTaskListener);
+        super.registerRemovedTaskListener(removedTaskListener);
     }
 
     public void addListener(MockTaskManagerListener listener) {

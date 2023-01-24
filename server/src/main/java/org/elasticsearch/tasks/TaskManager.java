@@ -301,11 +301,11 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    public void addRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
         removedTaskListeners.add(removedTaskListener);
     }
 
-    public void removeRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+    public void unregisterRemovedTaskListener(RemovedTaskListener removedTaskListener) {
         removedTaskListeners.remove(removedTaskListener);
     }
 

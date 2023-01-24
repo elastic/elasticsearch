@@ -101,10 +101,10 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     }
                 }
             };
-            taskManager.addRemovedTaskListener(removedTaskListener);
+            taskManager.registerRemovedTaskListener(removedTaskListener);
             final ActionListener<Void> allMatchedTasksRemovedListener = ActionListener.runBefore(
                 nodeOperation,
-                () -> taskManager.removeRemovedTaskListener(removedTaskListener)
+                () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
             );
             try {
                 processTasks(request, task -> {

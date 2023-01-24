@@ -69,7 +69,17 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, String value);
 
     /**
+     * Sets the security setting keystore password.
+     */
+    T keystorePassword(String password);
+
+    /**
      * Adds a file to the node config directory
      */
     T configFile(String fileName, Resource configFile);
+
+    /**
+     * Adds a system property to node JVM arguments.
+     */
+    T systemProperty(String property, String value);
 }

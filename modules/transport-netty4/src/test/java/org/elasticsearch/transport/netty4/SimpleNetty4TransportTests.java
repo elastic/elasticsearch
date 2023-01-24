@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,7 +46,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+    protected Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         return new Netty4Transport(
             settings,
@@ -63,12 +64,12 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 DiscoveryNode node,
                 TcpChannel channel,
                 ConnectionProfile profile,
-                ActionListener<Version> listener
+                ActionListener<TransportVersion> listener
             ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(version.minimumCompatibilityVersion());
+                    listener.onResponse(version.calculateMinimumCompatVersion());
                 }
             }
         };

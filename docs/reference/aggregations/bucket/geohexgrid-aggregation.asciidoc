@@ -18,7 +18,7 @@ Precision for this aggregation can be between 0 and 15, inclusive.
 
 WARNING: High-precision requests can be very expensive in terms of RAM and
 result sizes. For example, the highest-precision geohex with a precision of 15
-produces cells that cover less than one square metre. We recommend you use a
+produces cells that cover less than one square meter. We recommend you use a
 filter to limit high-precision requests to a smaller geographic area. For an example,
 refer to <<geohexgrid-high-precision>>.
 

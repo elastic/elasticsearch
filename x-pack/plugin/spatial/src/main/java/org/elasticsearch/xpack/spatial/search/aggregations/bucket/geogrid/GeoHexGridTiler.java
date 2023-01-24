@@ -260,7 +260,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
          * For this reason the filter needs to be expanded to cover all descendent cells.
          *
          * This is done by taking the H3 cells at two corners, and expanding the filter width
-         * by 50% of the max width of those cells, and filter height by 50% of the max height of those cells.
+         * by 35% of the max width of those cells, and filter height by 35% of the max height of those cells.
          *
          * The inflation factor of 35% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
          */

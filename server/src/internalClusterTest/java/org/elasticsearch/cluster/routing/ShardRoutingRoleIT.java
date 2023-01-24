@@ -25,10 +25,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -49,6 +53,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("resource")
@@ -92,8 +97,11 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-            // TODO revert this once replication/recovery ignores unpromotable shards
-            return Optional.of(config -> new NoOpEngine(config, new TranslogStats(0, 0, 0, 0, 0)));
+            return Optional.of(
+                config -> config.isPromotableToPrimary()
+                    ? new InternalEngine(config)
+                    : new NoOpEngine(config, new TranslogStats(0, 0, 0, 0, 0))
+            );
         }
     }
 
@@ -216,6 +224,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
 
             ensureGreen(INDEX_NAME);
+            assertEngineTypes();
 
             // new replicas get the SEARCH_ONLY role
             routingTableWatcher.numReplicas += 1;
@@ -227,6 +236,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             );
 
             ensureGreen(INDEX_NAME);
+            assertEngineTypes();
 
             // removing replicas drops SEARCH_ONLY copies first
             while (routingTableWatcher.numReplicas > 0) {
@@ -270,16 +280,33 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 client().admin()
                     .cluster()
                     .prepareRestoreSnapshot("repo", "snap")
-                    .setIndices("test")
+                    .setIndices(INDEX_NAME)
                     .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
                     .setWaitForCompletion(true)
                     .get()
                     .getRestoreInfo()
                     .failedShards()
             );
-            ensureGreen("test");
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
+        }
+    }
+
+    private void assertEngineTypes() {
+        for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            for (IndexService indexService : indicesService) {
+                for (IndexShard indexShard : indexService) {
+                    final var engine = indexShard.getEngineOrNull();
+                    assertNotNull(engine);
+                    if (indexShard.routingEntry().isPromotableToPrimary()) {
+                        assertThat(engine, instanceOf(InternalEngine.class));
+                    } else {
+                        assertThat(engine, instanceOf(NoOpEngine.class));
+                    }
+                }
+            }
         }
     }
 
@@ -325,6 +352,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
             ensureGreen(INDEX_NAME);
+            assertEngineTypes();
 
             assertAcked(
                 client().admin()
@@ -390,6 +418,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
             // TODO index some documents here once recovery/replication ignore unpromotable shards
             ensureGreen(INDEX_NAME);
+            assertEngineTypes();
 
             final var searchShardProfileKeys = new HashSet<String>();
             final var indexRoutingTable = client().admin()

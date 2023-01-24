@@ -944,10 +944,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
-        // cache timestamp from ingest source map
-        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
-            indexRequest.setRawTimestamp(rawTimestamp);
+        if (indexRequest.getRawTimestamp() == null) {
+            // cache the @timestamp from the ingest document's source map if there is one
+            Object rawTimestamp = ingestDocument.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            if (rawTimestamp != null) {
+                indexRequest.setRawTimestamp(rawTimestamp);
+            }
         }
     }
 

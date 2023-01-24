@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -53,8 +53,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -167,66 +168,66 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // Process the missing repositories
-        final Map<String, ElasticsearchException> failures = new HashMap<>();
+        final Map<String, ElasticsearchException> failures = ConcurrentCollections.newConcurrentMap();
         for (String missingRepo : repositoriesResult.missing()) {
             failures.put(missingRepo, new RepositoryMissingException(missingRepo));
         }
 
-        // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
-        if (repositoriesResult.metadata().isEmpty()) {
-            listener.onResponse(new GetSnapshotsResponse(List.of(), failures, null, 0, 0));
-            return;
-        }
+        final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
+        final var remaining = new AtomicInteger();
+        final var totalCount = new AtomicInteger();
+
         List<RepositoryMetadata> repositories = maybeFilterRepositories(repositoriesResult.metadata(), sortBy, order, fromSortValue);
-        final GroupedActionListener<Tuple<Tuple<String, ElasticsearchException>, SnapshotsInRepo>> groupedActionListener =
-            new GroupedActionListener<>(repositories.size(), listener.map(responses -> {
-                assert repositories.size() == responses.size();
-                final List<SnapshotInfo> allSnapshots = responses.stream()
-                    .map(Tuple::v2)
-                    .filter(Objects::nonNull)
-                    .flatMap(snapshotsInRepo -> snapshotsInRepo.snapshotInfos.stream())
-                    .toList();
-
-                responses.stream().map(Tuple::v1).filter(Objects::nonNull).forEach(tuple -> failures.put(tuple.v1(), tuple.v2()));
-                final SnapshotsInRepo snInfos = sortSnapshots(allSnapshots, sortBy, after, offset, size, order);
-                final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
-                final int remaining = snInfos.remaining + responses.stream()
-                    .map(Tuple::v2)
-                    .filter(Objects::nonNull)
-                    .mapToInt(s -> s.remaining)
-                    .sum();
-                return new GetSnapshotsResponse(
-                    indices ? snapshotInfos : snapshotInfos.stream().map(SnapshotInfo::withoutIndices).toList(),
-                    failures,
-                    remaining > 0
-                        ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam()
-                        : null,
-                    responses.stream().map(Tuple::v2).filter(Objects::nonNull).mapToInt(s -> s.totalCount).sum(),
-                    remaining
-                );
-            }));
-
-        for (final RepositoryMetadata repository : repositories) {
-            final String repoName = repository.name();
-            getSingleRepoSnapshotInfo(
-                snapshotsInProgress,
-                repoName,
-                snapshots,
-                predicates,
-                ignoreUnavailable,
-                verbose,
-                cancellableTask,
+        try (var listeners = new RefCountingListener(listener.map(ignored -> {
+            cancellableTask.ensureNotCancelled();
+            final var sortedSnapshotsInRepos = sortSnapshots(
+                allSnapshotInfos.stream().flatMap(Collection::stream),
+                totalCount.get(),
                 sortBy,
                 after,
-                order,
-                groupedActionListener.delegateResponse((groupedListener, e) -> {
-                    if (isMultiRepoRequest && e instanceof ElasticsearchException) {
-                        groupedListener.onResponse(Tuple.tuple(Tuple.tuple(repoName, (ElasticsearchException) e), null));
-                    } else {
-                        groupedListener.onFailure(e);
-                    }
-                }).map(snInfos -> Tuple.tuple(null, snInfos))
+                offset,
+                size,
+                order
             );
+            final var snapshotInfos = sortedSnapshotsInRepos.snapshotInfos();
+            final int finalRemaining = sortedSnapshotsInRepos.remaining() + remaining.get();
+            return new GetSnapshotsResponse(
+                indices ? snapshotInfos : snapshotInfos.stream().map(SnapshotInfo::withoutIndices).toList(),
+                failures,
+                finalRemaining > 0
+                    ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam()
+                    : null,
+                totalCount.get(),
+                finalRemaining
+            );
+        }))) {
+            for (final RepositoryMetadata repository : repositories) {
+                final String repoName = repository.name();
+                getSingleRepoSnapshotInfo(
+                    snapshotsInProgress,
+                    repoName,
+                    snapshots,
+                    predicates,
+                    ignoreUnavailable,
+                    verbose,
+                    cancellableTask,
+                    sortBy,
+                    after,
+                    order,
+                    listeners.acquire((SnapshotsInRepo snapshotsInRepo) -> {
+                        allSnapshotInfos.add(snapshotsInRepo.snapshotInfos());
+                        remaining.addAndGet(snapshotsInRepo.remaining());
+                        totalCount.addAndGet(snapshotsInRepo.totalCount());
+                    }).delegateResponse((l, e) -> {
+                        if (isMultiRepoRequest && e instanceof ElasticsearchException elasticsearchException) {
+                            failures.put(repoName, elasticsearchException);
+                            l.onResponse(SnapshotsInRepo.EMPTY);
+                        } else {
+                            l.onFailure(e);
+                        }
+                    })
+                );
+            }
         }
     }
 
@@ -584,6 +585,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         SortOrder order
     ) {
+        return sortSnapshots(snapshotInfos.stream(), snapshotInfos.size(), sortBy, after, offset, size, order);
+    }
+
+    private static SnapshotsInRepo sortSnapshots(
+        Stream<SnapshotInfo> infos,
+        int totalCount,
+        GetSnapshotsRequest.SortBy sortBy,
+        @Nullable GetSnapshotsRequest.After after,
+        int offset,
+        int size,
+        SortOrder order
+    ) {
         final Comparator<SnapshotInfo> comparator = switch (sortBy) {
             case START_TIME -> BY_START_TIME;
             case NAME -> BY_NAME;
@@ -593,8 +606,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
             case REPOSITORY -> BY_REPOSITORY;
         };
-
-        Stream<SnapshotInfo> infos = snapshotInfos.stream();
 
         if (after != null) {
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
@@ -611,7 +622,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
             ? snapshots.subList(0, size)
             : snapshots;
-        return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
+        return new SnapshotsInRepo(resultSet, totalCount, allSnapshots.size() - resultSet.size());
     }
 
     private static Predicate<SnapshotInfo> buildAfterPredicate(
@@ -862,6 +873,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
-
+        private static final SnapshotsInRepo EMPTY = new SnapshotsInRepo(List.of(), 0, 0);
     }
 }

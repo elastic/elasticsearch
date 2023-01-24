@@ -106,27 +106,27 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 assert currentNodeId == null : state + " shard must not be assigned to a node " + this;
                 assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
                 assert unassignedInfo != null : state + " shard must be created with unassigned info " + this;
-                assert recoverySource != null : state + "shard must be created with a recovery source" + this;
-                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary";
+                assert recoverySource != null : state + " shard must be created with a recovery source" + this;
+                assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
             }
             case INITIALIZING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 // relocatingNodeId is not set for initializing shard but set for relocating shard counterpart
                 // unassignedInfo is kept after starting unassigned shard but not present for relocating shard counterpart
                 assert recoverySource != null : state + "shard must be created with a recovery source" + this;
-                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary";
+                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
             }
             case STARTED -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
                 assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
-                assert recoverySource == null : state + "shard must be created without a recovery source" + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
             }
             case RELOCATING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId != null : state + " shard must be relocating to a node " + this;
                 assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
-                assert recoverySource == null : state + "shard must be created without a recovery source" + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
             }
         }
         return true;

@@ -930,7 +930,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
-                postIngest(ingestDocument, indexRequest);
+                cacheRawTimestamp(indexRequest, ingestDocument);
 
                 handler.accept(null);
             }
@@ -948,12 +948,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
     }
 
-    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
-        if (indexRequest.getRawTimestamp() == null) {
+    private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {
+        if (request.getRawTimestamp() == null) {
             // cache the @timestamp from the ingest document's source map if there is one
-            Object rawTimestamp = ingestDocument.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            Object rawTimestamp = document.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
             if (rawTimestamp != null) {
-                indexRequest.setRawTimestamp(rawTimestamp);
+                request.setRawTimestamp(rawTimestamp);
             }
         }
     }

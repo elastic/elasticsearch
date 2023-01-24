@@ -46,11 +46,11 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
             ? in.readMap(
                 StreamInput::readString,
                 i -> new StackFrame(
-                    i.readOptionalString(),
-                    i.readOptionalString(),
-                    i.readOptionalInt(),
-                    i.readOptionalInt(),
-                    i.readOptionalInt()
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readInt),
+                    i.readList(StreamInput::readInt),
+                    i.readList(StreamInput::readInt)
                 )
             )
             : null;
@@ -106,11 +106,11 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         if (stackFrames != null) {
             out.writeBoolean(true);
             out.writeMap(stackFrames, StreamOutput::writeString, (o, v) -> {
-                o.writeOptionalString(v.fileName);
-                o.writeOptionalString(v.functionName);
-                o.writeOptionalInt(v.functionOffset);
-                o.writeOptionalInt(v.lineNumber);
-                o.writeOptionalInt(v.sourceType);
+                o.writeCollection(v.fileName, StreamOutput::writeString);
+                o.writeCollection(v.functionName, StreamOutput::writeString);
+                o.writeCollection(v.functionOffset, StreamOutput::writeInt);
+                o.writeCollection(v.lineNumber, StreamOutput::writeInt);
+                o.writeCollection(v.sourceType, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);

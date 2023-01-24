@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -36,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 public interface Role {
 
@@ -64,7 +64,7 @@ public interface Role {
      * @return A predicate that will match all the indices that this role
      * has the privilege for executing the given action on.
      */
-    Predicate<IndexAbstraction> allowedIndicesMatcher(String action);
+    IsResourceAuthorizedPredicate allowedIndicesMatcher(String action);
 
     /**
      * Returns an {@link Automaton} that matches all action names allowed for the given index

@@ -1,5 +1,0 @@
-pr: 92425
-summary: Fix NPE on logging when not tracking total hits
-area: SQL
-type: bug
-issues: []

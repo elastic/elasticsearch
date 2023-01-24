@@ -400,15 +400,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void startTransform(String transformId) throws IOException {
-        startTransform(transformId, null);
+        startTransform(transformId, null, null, null);
     }
 
-    protected void startTransform(String transformId, String authHeader, String... warnings) throws IOException {
-        // start the transform
-        startTransform(transformId, authHeader, null, warnings);
-    }
-
-    protected void startTransform(String transformId, String authHeader, String secondaryAuthHeader, String... warnings)
+    protected void startTransform(String transformId, String authHeader, String secondaryAuthHeader, String from, String... warnings)
         throws IOException {
         // start the transform
         final Request startTransformRequest = createRequestWithSecondaryAuth(
@@ -417,6 +412,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             authHeader,
             secondaryAuthHeader
         );
+        if (from != null) {
+            startTransformRequest.addParameter(TransformField.FROM.getPreferredName(), from);
+        }
         if (warnings.length > 0) {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
@@ -462,7 +460,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String... warnings
     ) throws Exception {
         // start the transform
-        startTransform(transformId, authHeader, secondaryAuthHeader, warnings);
+        startTransform(transformId, authHeader, secondaryAuthHeader, null, warnings);
         assertTrue(indexExists(transformIndex));
         // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId);
@@ -472,13 +470,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void startAndWaitForContinuousTransform(String transformId, String transformIndex, String authHeader) throws Exception {
-        startAndWaitForContinuousTransform(transformId, transformIndex, authHeader, 1L);
+        startAndWaitForContinuousTransform(transformId, transformIndex, authHeader, null, 1L);
     }
 
-    protected void startAndWaitForContinuousTransform(String transformId, String transformIndex, String authHeader, long checkpoint)
-        throws Exception {
+    protected void startAndWaitForContinuousTransform(
+        String transformId,
+        String transformIndex,
+        String authHeader,
+        String from,
+        long checkpoint
+    ) throws Exception {
         // start the transform
-        startTransform(transformId, authHeader, new String[0]);
+        startTransform(transformId, authHeader, null, from, new String[0]);
         assertTrue(indexExists(transformIndex));
         // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId, checkpoint);

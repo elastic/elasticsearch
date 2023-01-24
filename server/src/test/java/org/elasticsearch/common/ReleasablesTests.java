@@ -10,6 +10,7 @@ package org.elasticsearch.common;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,4 +25,15 @@ public class ReleasablesTests extends ESTestCase {
         releasable.close();
         assertEquals(1, count.get());
     }
+
+    public void testReleaseOnceReleasesDelegate() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final var releaseOnce = Releasables.releaseOnce(reachabilityChecker.register(this::noop));
+        reachabilityChecker.checkReachable();
+        releaseOnce.close();
+        reachabilityChecker.ensureUnreachable();
+        assertEquals("releaseOnce[null]", releaseOnce.toString());
+    }
+
+    private void noop() {}
 }

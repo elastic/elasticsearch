@@ -49,6 +49,18 @@ public final class JsonProcessor extends AbstractProcessor {
         String targetField,
         boolean addToRoot,
         ConflictStrategy addToRootConflictStrategy,
+        boolean allowDuplicateKeys
+    ) {
+        this(tag, description, field, targetField, addToRoot, addToRootConflictStrategy, allowDuplicateKeys, true);
+    }
+
+    JsonProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        boolean addToRoot,
+        ConflictStrategy addToRootConflictStrategy,
         boolean allowDuplicateKeys,
         boolean strictJsonParsing
     ) {

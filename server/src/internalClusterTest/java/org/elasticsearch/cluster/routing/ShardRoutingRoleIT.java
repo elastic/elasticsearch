@@ -10,6 +10,9 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableReplicaRefreshAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -50,13 +53,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("resource")
@@ -476,6 +483,71 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
                 }
             }
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
+        }
+    }
+
+    public void testSearchRefresh() throws Exception {
+        var routingTableWatcher = new RoutingTableWatcher();
+
+        var numDataNodes = routingTableWatcher.numReplicas + 2;
+        internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
+
+        final AtomicInteger refreshReplicaActions = new AtomicInteger(0);
+        final AtomicInteger refreshUnpromotableActions = new AtomicInteger(0);
+
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.startsWith(TransportShardRefreshAction.NAME + "[r]")) {
+                    refreshReplicaActions.incrementAndGet();
+                }
+                if (action.startsWith(TransportUnpromotableReplicaRefreshAction.NAME)) {
+                    refreshUnpromotableActions.incrementAndGet();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+            mockTransportService.addRequestHandlingBehavior(
+                TransportUnpromotableReplicaRefreshAction.NAME,
+                (handler, request, channel, task) -> {
+                    // Skip handling the request and send an immediate empty response
+                    channel.sendResponse(ActionResponse.Empty.INSTANCE);
+                }
+            );
+        }
+
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
+
+            createIndex(
+                INDEX_NAME,
+                Settings.builder()
+                    .put(routingTableWatcher.getIndexSettings())
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .build()
+            );
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+
+            indexRandom(false, INDEX_NAME, randomIntBetween(100, 200));
+            assertNoFailures(client().admin().indices().prepareRefresh(INDEX_NAME).execute().get());
+
+            // Each primary will send a TransportShardRefreshAction to each of the promotable replica shards
+            assertThat(
+                refreshReplicaActions.get(),
+                is(equalTo((routingTableWatcher.numIndexingCopies - 1) * routingTableWatcher.numShards))
+            );
+
+            // Each primary will send a TransportUnpromotableReplicaRefreshAction to each of the unpromotable replica / search shards
+            assertThat(
+                refreshUnpromotableActions.get(),
+                is(equalTo((routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards))
+            );
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }

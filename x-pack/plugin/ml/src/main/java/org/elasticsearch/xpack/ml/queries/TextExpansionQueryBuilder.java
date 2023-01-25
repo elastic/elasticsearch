@@ -8,17 +8,26 @@
 package org.elasticsearch.xpack.ml.queries;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
@@ -32,6 +41,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String fieldName;
     private final String modelText;
     private final String modelId;
+
+    private SetOnce<InferModelAction.Response> inferResponse;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         if (fieldName == null) {
@@ -53,14 +64,23 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.modelId = in.readString();
     }
 
+    private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<InferModelAction.Response> response) {
+        this.fieldName = other.fieldName;
+        this.modelText = other.modelText;
+        this.modelId = other.modelId;
+        this.boost = other.boost;
+        this.queryName = other.queryName;
+        this.inferResponse = response;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_7_0;
     }
 
     @Override
@@ -82,8 +102,57 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+
+        if (inferResponse != null) {
+            return this;
+        }
+
+        InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
+            modelId,
+            SlimConfigUpdate.EMPTY_UPDATE,
+            List.of(modelText)
+        );
+
+        SetOnce<InferModelAction.Response> evaluationResponse = new SetOnce<>();
+        queryRewriteContext.registerAsyncAction((client, listener) -> {
+            client.execute(InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(r -> {
+                evaluationResponse.set(r);
+                listener.onResponse(null);
+            }, listener::onFailure));
+        });
+
+        return new TextExpansionQueryBuilder(this, evaluationResponse);
+    }
+
+    @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return null;
+        if (inferResponse.get() == null) {
+            throw new IllegalStateException("inference response must be null, missing rewrite?");
+        }
+
+        if (inferResponse.get().getInferenceResults().isEmpty()) {
+            throw new IllegalStateException("inference response contain no results");
+        }
+
+        if (inferResponse.get().getInferenceResults().get(0)instanceof SlimResults slimResults) {
+            var boolQuery = QueryBuilders.boolQuery();
+            for (var weightedToken : slimResults.getWeightedTokens()) {
+                boolQuery.should(QueryBuilders.termQuery(fieldName, Integer.toString(weightedToken.token())).boost(weightedToken.weight()));
+            }
+            boolQuery.minimumShouldMatch(1);
+            return boolQuery.toQuery(context);
+        } else {
+            throw new IllegalStateException(
+                "expected a result of type ["
+                    + SlimResults.NAME
+                    + "] received ["
+                    + inferResponse.get().getInferenceResults().get(0).getWriteableName()
+                    + "]. Is ["
+                    + modelId
+                    + "] a compatible model?"
+            );
+        }
     }
 
     @Override

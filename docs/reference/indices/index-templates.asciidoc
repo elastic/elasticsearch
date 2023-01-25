@@ -30,7 +30,7 @@ following index patterns:
 - `metrics-*-*`
 // end::built-in-index-template-patterns[]
 
-{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+{fleet-guide}/ingest-management-overview.html[{agent}] uses these templates to
 create data streams. If you use {agent}, assign your index templates a priority
 lower than `100` to avoid an overriding the built-in templates. Otherwise, to avoid
 accidentally applying the built-in templates, do one or more of the following:

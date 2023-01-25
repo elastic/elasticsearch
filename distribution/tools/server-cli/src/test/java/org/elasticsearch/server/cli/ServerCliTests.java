@@ -22,7 +22,6 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.LocallyMountedSecrets;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.SecureString;
@@ -49,8 +48,6 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -327,11 +324,7 @@ public class ServerCliTests extends CommandTestCase {
     public void testSecureSettingsLoaders() throws Exception {
         this.mockSecureSettingsLoader = true;
         Command command = newCommand();
-        command.main(
-            new String[] {"-E" + LocallyMountedSecrets.ENABLED.getKey() + "=true"},
-            terminal,
-            new ProcessInfo(sysprops, envVars, esHomeDir)
-        );
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
         assertThat(terminal.getOutput(), Matchers.containsString("Mock secure settings loader loaded"));
     }
@@ -458,26 +451,21 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
-            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
-                Environment env = spy(super.createEnv(options, processInfo));
-
-                doAnswer(i -> {
-                    if (mockSecureSettingsLoader) {
-                        return new MockSecureSettingsLoader();
-                    }
-                    return i.callRealMethod();
-                }).when(env).secureSettingsLoader();
-
-                return env;
-            }
-
-            @Override
             protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }
                 mockServer.reset();
                 return mockServer;
+            }
+
+            @Override
+            protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+                if (mockSecureSettingsLoader) {
+                    return new MockSecureSettingsLoader();
+                }
+
+                return super.secureSettingsLoader(env);
             }
         };
     }
@@ -495,14 +483,8 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        public SecureSettings load(Environment environment, char[] password) {
-            terminal.println("Mock secure settings loader loaded");
-            return KeyStoreWrapper.create();
-        }
-
-        @Override
-        public String validate(Environment environment) {
-            return null;
+        public boolean supportsAutoConfigure() {
+            return false;
         }
     }
 }

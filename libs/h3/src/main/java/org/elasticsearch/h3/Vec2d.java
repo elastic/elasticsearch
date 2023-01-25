@@ -96,7 +96,7 @@ final class Vec2d {
     }
 
     /**
-     * Determines the center point in spherical coordinates of a cell given by 2D
+     * Determines the center point in spherical coordinates of a cell given by this 2D
      * hex coordinates on a particular icosahedral face.
      *
      * @param face      The icosahedral face upon which the 2D hex coordinate system is
@@ -106,8 +106,24 @@ final class Vec2d {
      *                  grid relative to the specified resolution.
      */
     public LatLng hex2dToGeo(int face, int res, boolean substrate) {
+        return hex2dToGeo(this.x, this.y, face, res, substrate);
+    }
+
+    /**
+     * Determines the center point in spherical coordinates of a cell given by the provided 2D
+     * hex coordinates on a particular icosahedral face.
+     *
+     * @param x         The x component of the 2D hex coordinates.
+     * @param y         The y component of the 2D hex coordinates.
+     * @param face      The icosahedral face upon which the 2D hex coordinate system is
+     *                  centered.
+     * @param res       The H3 resolution of the cell.
+     * @param substrate Indicates whether or not this grid is actually a substrate
+     *                  grid relative to the specified resolution.
+     */
+    static LatLng hex2dToGeo(double x, double y, int face, int res, boolean substrate) {
         // calculate (r, theta) in hex2d
-        double r = v2dMag();
+        double r = Math.sqrt(x * x + y * y);
 
         if (r < Constants.EPSILON) {
             return faceCenterGeo[face];
@@ -281,15 +297,6 @@ final class Vec2d {
         final double t = ((s2x * (p0.y - p2.y) - s2y * (p0.x - p2.x)) / (-s2x * s1y + s1x * s2y));
 
         return new Vec2d(p0.x + (t * s1x), p0.y + (t * s1y));
-    }
-
-    /**
-     * Calculates the magnitude of a 2D cartesian vector.
-     *
-     * @return The magnitude of the vector.
-     */
-    private double v2dMag() {
-        return Math.sqrt(x * x + y * y);
     }
 
     /**

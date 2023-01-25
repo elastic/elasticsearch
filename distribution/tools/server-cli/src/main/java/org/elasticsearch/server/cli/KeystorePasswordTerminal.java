@@ -15,14 +15,14 @@ import java.io.Closeable;
 import java.io.OutputStream;
 
 /**
- * A terminal that wraps an existing terminal and provides a single secret input.
+ * A terminal that wraps an existing terminal and provides a single secret input, the keystore password.
  */
-class PasswordTerminal extends Terminal implements Closeable {
+class KeystorePasswordTerminal extends Terminal implements Closeable {
 
     private final Terminal delegate;
     private final SecureString password;
 
-    PasswordTerminal(Terminal delegate, SecureString password) {
+    KeystorePasswordTerminal(Terminal delegate, SecureString password) {
         super(delegate.getReader(), delegate.getWriter(), delegate.getErrorWriter());
         this.delegate = delegate;
         this.password = password;

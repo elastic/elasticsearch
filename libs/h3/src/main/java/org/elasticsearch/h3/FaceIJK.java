@@ -421,8 +421,7 @@ final class FaceIJK {
      * @param res The H3 resolution of the cell.
      */
     public LatLng faceIjkToGeo(int res) {
-        Vec2d v = coord.ijkToHex2d();
-        return v.hex2dToGeo(face, res, false);
+        return coord.ijkToGeo(face, res, false);
     }
 
     /**
@@ -526,8 +525,7 @@ final class FaceIJK {
             // vert == start + NUM_PENT_VERTS is only used to test for possible
             // intersection on last edge
             if (vert < start + Constants.NUM_PENT_VERTS) {
-                final Vec2d vec = fijk.coord.ijkToHex2d();
-                final LatLng point = vec.hex2dToGeo(fijk.face, adjRes, true);
+                final LatLng point = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
                 boundary.add(point);
             }
             lastFace = fijk.face;
@@ -651,8 +649,7 @@ final class FaceIJK {
             // vert == start + NUM_HEX_VERTS is only used to test for possible
             // intersection on last edge
             if (vert < start + Constants.NUM_HEX_VERTS) {
-                final Vec2d vec = fijk.coord.ijkToHex2d();
-                final LatLng point = vec.hex2dToGeo(fijk.face, adjRes, true);
+                final LatLng point = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
                 boundary.add(point);
             }
             lastFace = fijk.face;

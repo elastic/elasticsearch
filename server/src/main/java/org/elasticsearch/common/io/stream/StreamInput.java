@@ -84,26 +84,35 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
-    private Version version = Version.CURRENT;
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
      * The version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public Version getVersion() {
-        return this.version;
+        return Version.fromId(this.version.id);
     }
 
     /**
      * The transport version the data is serialized as.
      */
     public TransportVersion getTransportVersion() {
-        return this.version.transportVersion;
+        return this.version;
     }
 
     /**
      * Set the version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public void setVersion(Version version) {
+        this.version = version.transportVersion;
+    }
+
+    /**
+     * Set the transport version of the data in this stream.
+     */
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 

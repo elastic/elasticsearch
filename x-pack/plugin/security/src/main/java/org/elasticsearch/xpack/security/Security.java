@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -1525,7 +1525,7 @@ public class Security extends Plugin
                 transportReference.set(
                     new SecurityNetty4ServerTransport(
                         settings,
-                        Version.CURRENT,
+                        TransportVersion.CURRENT,
                         threadPool,
                         networkService,
                         pageCacheRecycler,

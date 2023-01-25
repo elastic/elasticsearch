@@ -13,9 +13,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -140,7 +139,7 @@ class RollupShardIndexer {
 
     public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
         long startTime = System.currentTimeMillis();
-        BulkProcessor bulkProcessor = createBulkProcessor();
+        BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> { checkCancelled(); }));
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
@@ -187,8 +186,8 @@ class RollupShardIndexer {
         }
     }
 
-    private BulkProcessor createBulkProcessor() {
-        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+    private BulkProcessor2 createBulkProcessor() {
+        final BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
@@ -219,7 +218,7 @@ class RollupShardIndexer {
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 if (failure != null) {
                     long items = request.numberOfActions();
                     task.addNumFailed(items);
@@ -231,24 +230,22 @@ class RollupShardIndexer {
             }
         };
 
-        return BulkProcessor.builder(client::bulk, listener, "rollup-shard-indexer")
+        return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
             .setBulkActions(ROLLUP_BULK_ACTIONS)
             .setBulkSize(ROLLUP_BULK_SIZE)
-            // execute the bulk request on the same thread
-            .setConcurrentRequests(0)
-            .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
+            .setMaxNumberOfRetries(3)
             .build();
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
-        private final BulkProcessor bulkProcessor;
+        private final BulkProcessor2 bulkProcessor;
         private final RollupBucketBuilder rollupBucketBuilder;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
 
-        TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
+        TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
             List<AbstractRollupFieldProducer> rollupFieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::rollupFieldProducer)
@@ -365,7 +362,6 @@ class RollupShardIndexer {
                 XContentBuilder doc = rollupBucketBuilder.buildRollupDocument();
                 indexBucket(doc);
             }
-            bulkProcessor.flush();
 
             // check cancel after the flush all data
             checkCancelled();

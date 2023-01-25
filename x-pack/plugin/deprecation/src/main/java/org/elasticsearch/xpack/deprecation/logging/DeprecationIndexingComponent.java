@@ -13,9 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -51,7 +49,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
     private final DeprecationIndexingAppender appender;
-    private final BulkProcessor processor;
+    private final BulkProcessor2 processor;
     private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
 
@@ -156,9 +154,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             // previously-seen keys, otherwise we won't index anything.
             if (newEnabled) {
                 this.rateLimitingFilterForIndexing.reset();
-            } else {
-                // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
-                this.processor.flush();
             }
         }
     }
@@ -170,23 +165,21 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      * @param settings the settings to use
      * @return an initialised bulk processor
      */
-    private BulkProcessor getBulkProcessor(Client client, Settings settings) {
-        final BulkProcessor.Listener listener = new DeprecationBulkListener();
+    private BulkProcessor2 getBulkProcessor(Client client, Settings settings) {
+        final BulkProcessor2.Listener listener = new DeprecationBulkListener();
 
         // This configuration disables the size count and size thresholds,
         // and instead uses a scheduled flush only. This means that calling
         // processor.add() will not block the calling thread.
-        return BulkProcessor.builder(client::bulk, listener, "deprecation-indexing")
-            .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
-            .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
+        return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
+            .setMaxNumberOfRetries(3)
             .setBulkActions(-1)
             .setBulkSize(ByteSizeValue.MINUS_ONE)
             .setFlushInterval(TimeValue.timeValueSeconds(5))
-            .setFlushCondition(() -> flushEnabled.get())
             .build();
     }
 
-    private static class DeprecationBulkListener implements BulkProcessor.Listener {
+    private static class DeprecationBulkListener implements BulkProcessor2.Listener {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -211,7 +204,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             logger.error("Bulk write of " + request.numberOfActions() + " deprecation logs failed: " + failure.getMessage(), failure);
         }
     }

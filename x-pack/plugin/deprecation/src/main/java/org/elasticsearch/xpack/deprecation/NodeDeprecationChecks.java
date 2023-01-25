@@ -944,4 +944,22 @@ public class NodeDeprecationChecks {
             null
         );
     }
+
+    static DeprecationIssue checkWatcherBulkConcurrentRequestsSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = Setting.intSetting("xpack.watcher.bulk.concurrent_requests", 1, Setting.Property.Deprecated);
+        String url = "https://ela.st/es-deprecation-8-watcher-concurrent-bulk-requests-setting";
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 8.7 the limit is managed by Elasticsearch.",
+            DeprecationIssue.Level.WARNING
+        );
+    }
 }

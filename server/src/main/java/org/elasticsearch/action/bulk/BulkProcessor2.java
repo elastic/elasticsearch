@@ -23,6 +23,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,7 +36,7 @@ import java.util.function.BiConsumer;
  * <p>
  * In order to create a new bulk processor, use the {@link Builder}.
  */
-public class BulkProcessor2 {
+public class BulkProcessor2 implements Closeable {
 
     /**
      * A listener for the execution.
@@ -234,12 +235,13 @@ public class BulkProcessor2 {
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
      * @param unit    The time unit of the {@code timeout} argument
+     * @return true if all outstanding requests have been completed or the processor was already closed
      * @throws InterruptedException If the current thread is interrupted
      */
-    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         synchronized (mutex) {
             if (closed) {
-                return;
+                return true;
             }
             closed = true;
 
@@ -250,7 +252,19 @@ public class BulkProcessor2 {
             if (bulkRequestUnderConstruction.numberOfActions() > 0) {
                 execute();
             }
-            this.retry.awaitClose(timeout, unit);
+            return this.retry.awaitClose(timeout, unit);
+        }
+    }
+
+    /**
+     * This method flushes any requests, prevents any future retries, closes this processor, and returns immediately without waiting to see
+     * if any pending requests complete.
+     */
+    public void close() {
+        try {
+            awaitClose(0, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException exc) {
+            Thread.currentThread().interrupt();
         }
     }
 

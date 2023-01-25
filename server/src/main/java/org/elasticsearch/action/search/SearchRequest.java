@@ -316,10 +316,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Remote node version ["
+                "Remote transport version ["
                     + out.getTransportVersion()
                     + " incompatible with "
-                    + "wait_for_checkpoints. All nodes must be version ["
+                    + "wait_for_checkpoints. All nodes must use transport version ["
                     + waitForCheckpointsVersion
                     + "] or greater."
             );

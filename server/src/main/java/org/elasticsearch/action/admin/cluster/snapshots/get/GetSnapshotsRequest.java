@@ -163,7 +163,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if ((sort == SortBy.SHARDS || sort == SortBy.FAILED_SHARDS || sort == SortBy.REPOSITORY)
                 && out.getTransportVersion().before(SORT_BY_SHARDS_OR_REPO_VERSION)) {
                 throw new IllegalArgumentException(
-                    "can't use sort by shard count or repository name with version [" + out.getTransportVersion() + "]"
+                    "can't use sort by shard count or repository name in transport version [" + out.getTransportVersion() + "]"
                 );
             }
             out.writeEnum(sort);
@@ -173,26 +173,26 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 out.writeVInt(offset);
             } else if (offset != 0) {
                 throw new IllegalArgumentException(
-                    "can't use numeric offset in get snapshots request with version [" + out.getTransportVersion() + "]"
+                    "can't use numeric offset in get snapshots request in transport version [" + out.getTransportVersion() + "]"
                 );
             }
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
             throw new IllegalArgumentException(
-                "can't use paginated get snapshots request with version [" + out.getTransportVersion() + "]"
+                "can't use paginated get snapshots request in transport version [" + out.getTransportVersion() + "]"
             );
         }
         if (out.getTransportVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
             out.writeStringArray(policies);
         } else if (policies.length > 0) {
             throw new IllegalArgumentException(
-                "can't use slm policy filter in snapshots request with node version [" + out.getTransportVersion() + "]"
+                "can't use slm policy filter in snapshots request in transport version [" + out.getTransportVersion() + "]"
             );
         }
         if (out.getTransportVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
             out.writeOptionalString(fromSortValue);
         } else if (fromSortValue != null) {
             throw new IllegalArgumentException(
-                "can't use after-value in snapshot request with node version [" + out.getTransportVersion() + "]"
+                "can't use after-value in snapshot request in transport version [" + out.getTransportVersion() + "]"
             );
         }
         if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {

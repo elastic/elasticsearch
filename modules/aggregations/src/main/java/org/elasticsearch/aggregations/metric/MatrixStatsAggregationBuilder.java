@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.aggregations.metric;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -99,7 +98,7 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

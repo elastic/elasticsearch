@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -136,8 +135,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

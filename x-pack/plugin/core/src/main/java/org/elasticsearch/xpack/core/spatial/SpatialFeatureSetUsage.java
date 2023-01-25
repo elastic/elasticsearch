@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.spatial;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,8 +36,8 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_4_0;
     }
 
     SpatialStatsAction.Response statsResponse() {

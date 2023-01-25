@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -157,8 +157,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

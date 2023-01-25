@@ -293,7 +293,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

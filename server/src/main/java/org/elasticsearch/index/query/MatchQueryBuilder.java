@@ -578,7 +578,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

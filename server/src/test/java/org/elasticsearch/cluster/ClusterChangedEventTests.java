@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -300,8 +299,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         @Override
@@ -321,8 +320,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         @Override

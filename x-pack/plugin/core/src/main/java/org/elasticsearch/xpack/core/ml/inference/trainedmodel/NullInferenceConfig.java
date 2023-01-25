@@ -29,7 +29,7 @@ public class NullInferenceConfig implements InferenceConfig {
     }
 
     @Override
-    public Version getMinimalSupportedNodeVersion() {
+    public Version getMinimalSupportedVersion() {
         return Version.CURRENT;
     }
 

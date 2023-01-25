@@ -119,7 +119,7 @@ public class PassThroughConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedNodeVersion() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_8_0_0;
     }
 

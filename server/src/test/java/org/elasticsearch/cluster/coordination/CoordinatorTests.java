@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -1187,8 +1186,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             @Override
-            public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
             }
 
             @Override
@@ -1932,8 +1931,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
 
         @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Request;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -32,7 +31,7 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTes
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         Instant from = instance.from();
         TimeValue timeout = instance.timeout();

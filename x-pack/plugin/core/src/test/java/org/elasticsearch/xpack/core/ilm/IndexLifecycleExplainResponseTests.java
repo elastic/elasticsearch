@@ -172,7 +172,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
     }
 
     @Override
-    protected IndexLifecycleExplainResponse mutateInstance(IndexLifecycleExplainResponse instance) throws IOException {
+    protected IndexLifecycleExplainResponse mutateInstance(IndexLifecycleExplainResponse instance) {
         String index = instance.getIndex();
         Long indexCreationDate = instance.getIndexCreationDate();
         String policy = instance.getPolicyName();

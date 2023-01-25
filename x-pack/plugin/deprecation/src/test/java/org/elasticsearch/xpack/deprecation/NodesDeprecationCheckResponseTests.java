@@ -18,7 +18,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +41,7 @@ public class NodesDeprecationCheckResponseTests extends AbstractWireSerializingT
     }
 
     @Override
-    protected NodesDeprecationCheckResponse mutateInstance(NodesDeprecationCheckResponse instance) throws IOException {
+    protected NodesDeprecationCheckResponse mutateInstance(NodesDeprecationCheckResponse instance) {
         int mutate = randomIntBetween(1, 3);
         return switch (mutate) {
             case 1 -> {

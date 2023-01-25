@@ -22,6 +22,7 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.LocallyMountedSecrets;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.SecureString;
@@ -329,6 +330,13 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getOutput(), Matchers.containsString("Mock secure settings loader loaded"));
     }
 
+    public void testLocallyMountedSecureSettings() throws Exception {
+        Command command = newCommand();
+        command.main(new String[] {"-Estateless.enabled=true"}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        assertThat(terminal.getOutput(), Matchers.containsString("Locally mounted secrets"));
+    }
+
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
@@ -452,6 +460,9 @@ public class ServerCliTests extends CommandTestCase {
 
             @Override
             protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
+                if (args.secrets() instanceof LocallyMountedSecrets) {
+                    terminal.println("Locally mounted secrets");
+                }
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }

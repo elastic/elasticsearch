@@ -11,27 +11,22 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
-import java.nio.file.Files;
+import java.util.Optional;
 
 public class LocallyMountedSecretsLoader implements SecureSettingsLoader {
     @Override
-    public SecureSettings load(Environment environment, Terminal terminal, AutoConfigureFunction<SecureString, Environment> autoConfigure)
+    public LoadedSecrets load(Environment environment, Terminal terminal)
         throws Exception {
-        SecureSettings secrets = new LocallyMountedSecrets(environment);
-        autoConfigure.apply(new SecureString(new char[0]));
-        return secrets;
+        return new LoadedSecrets(new LocallyMountedSecrets(environment), Optional.empty());
     }
 
     @Override
-    public SecureSettings load(Environment environment, char[] password) throws Exception {
+    public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
         return new LocallyMountedSecrets(environment);
     }
 
     @Override
-    public String validate(Environment environment) {
-        if (Files.exists(environment.configFile()) == false) {
-            throw new IllegalStateException("config directory must exist for locally mounted secrets");
-        }
-        return null;
+    public boolean supportsAutoConfigure() {
+        return false;
     }
 }

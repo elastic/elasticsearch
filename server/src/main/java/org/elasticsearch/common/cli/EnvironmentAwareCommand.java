@@ -19,6 +19,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreLoader;
+import org.elasticsearch.common.settings.LocallyMountedSecretsLoader;
 import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -31,6 +32,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
@@ -156,7 +159,9 @@ public abstract class EnvironmentAwareCommand extends Command {
     public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
 
     protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
+        if (env.settings().getAsBoolean(STATELESS_ENABLED_SETTING_NAME, false)) {
+            return new LocallyMountedSecretsLoader();
+        }
         return new KeyStoreLoader();
     }
 

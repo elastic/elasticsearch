@@ -30,9 +30,6 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
 public class LocallyMountedSecrets implements SecureSettings {
-
-    public static final Setting<Boolean> ENABLED = Setting.boolSetting("mounted.directory.secrets", false, Setting.Property.NodeScope);
-
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
 

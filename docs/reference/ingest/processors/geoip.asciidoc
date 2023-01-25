@@ -418,7 +418,7 @@ updates and deletes all downloaded databases. Defaults to `true`.
 [[ingest-geoip-downloader-eager-download]]
 (<<dynamic-cluster-setting,Dynamic>>, Boolean)
 If `true`, {es} downloads GeoIP2 databases immediately, regardless of whether a
-pipeline exists with a geoip processor. If `false`, {es} only begines downloading
+pipeline exists with a geoip processor. If `false`, {es} only begins downloading
 the databases if a pipeline with a geoip processor exists or is added. Defaults
 to `false`.
 

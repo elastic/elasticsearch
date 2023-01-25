@@ -120,6 +120,8 @@ public class RedactProcessor extends AbstractProcessor {
         for (var grok : groks) {
             assert grok.captureConfig().size() == 1;
 
+            System.out.println(grok.getExpression());
+
             int offset = 0;
             int length = utf8Bytes.length;
 
@@ -128,7 +130,7 @@ public class RedactProcessor extends AbstractProcessor {
                 offset = extractor.getNextOffset();
                 length = utf8Bytes.length - offset;
                 var m = new String(utf8Bytes, offset, length, StandardCharsets.UTF_8);
-                System.out.println(m);
+                System.out.println("[" + offset + ", " + length + "] " + m);
             }
 
             return extractor.redactMatches(utf8Bytes);
@@ -154,7 +156,7 @@ public class RedactProcessor extends AbstractProcessor {
         while (true) {
             result = matcher.search(offset, length, Option.DEFAULT);
 
-            if (result == Matcher.FAILED) {
+            if (result < 0) {
                 break;
             }
             extracter.extract(utf8Bytes, offset, matcher.getEagerRegion());
@@ -189,9 +191,12 @@ public class RedactProcessor extends AbstractProcessor {
         @Override
         public void extract(byte[] utf8Bytes, int offset, Region region) {
             int number = 0;
-            int matchOffset = region.beg[number];
-            int matchEnd = region.end[number];
+            int matchOffset = offset + region.beg[number] ;
+            int matchEnd = offset + region.end[number];
             repPos.add(new ReplacementPositions(matchOffset, matchEnd));
+
+            var m = new String(utf8Bytes, matchOffset, matchEnd - matchOffset, StandardCharsets.UTF_8);
+            System.out.println("match |" + m + "|");
         }
 
         int  getNextOffset() {

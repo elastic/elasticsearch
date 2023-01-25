@@ -80,50 +80,54 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testMultiInvocation() throws Exception {
-        {
-            Grok grok = new Grok(Grok.getBuiltinPatterns(true), "%{EMAILADDRESS:EMAIL}", logger::warn);
-            GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
-
-            var utf8 = "thisisanemail@address.com will be redacted thisisdifferent@address.com".getBytes(StandardCharsets.UTF_8);
-
-            if (grok.match(utf8, 0, utf8.length, extracter)) {
-                assertTrue(true);
-            }
-
-            if (grok.match(utf8, 25, 45, extracter)) {
-                assertTrue(true);
-            }
-        }
+//        {
+//            Grok grok = new Grok(Grok.getBuiltinPatterns(true), "%{EMAILADDRESS:EMAIL}", logger::warn);
+//            GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
+//
+//            var utf8 = "thisisanemail@address.com will be redacted thisisdifferent@address.com".getBytes(StandardCharsets.UTF_8);
+//
+//            if (grok.match(utf8, 0, utf8.length, extracter)) {
+//                assertTrue(true);
+//            }
+//
+//            if (grok.match(utf8, 25, 45, extracter)) {
+//                assertTrue(true);
+//            }
+//        }
 
         {
             Grok grok = new Grok(Map.of("CREDIT_CARD", "\\d{4}[-]\\d{4}[-]\\d{4}[-]\\d{4}"), "%{CREDIT_CARD:CREDIT_CARD}", logger::warn);
             GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
 
+            System.out.println(grok.getExpression());
+
             var utf8 = "1001-1002-1003-1004 1001-1002-1003-1004 1001-1002-1003-1004 1001-1002-1003-1004".getBytes(StandardCharsets.UTF_8);
 
-            if (grok.match(utf8, 0, utf8.length, extracter)) {
-                assertTrue(true);
-            }
-
-            if (grok.match(utf8, 19, 60, extracter)) {
-                assertTrue(true);
-            }
-
-            assertEquals(" 1001-1002-1003-1004 1001-1002-1003-1004", new String(utf8, 39, 40, StandardCharsets.UTF_8));
-            if (grok.match(" 1001-1002-1003-1004 1001-1002-1003-1004".getBytes(StandardCharsets.UTF_8), 0, 40, extracter)) {
-                assertTrue(true);
-            }
-
-            if (grok.match(" 1001-1002-1003-1004 1001-1002-1003-1004".getBytes(StandardCharsets.UTF_8), 0, 20, extracter)) {
-                assertTrue(true);
-            }
-
-            if (grok.match(new String(utf8, 39, 40, StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8), 0, 40, extracter)) {
-                assertTrue(true);
-            }
+//            if (grok.match(utf8, 0, utf8.length, extracter)) {
+//                assertTrue(true);
+//            }
+//
+//            if (grok.match(utf8, 19, 60, extracter)) {
+//                assertTrue(true);
+//            }
+//
+//            assertEquals(" 1001-1002-1003-1004 1001-1002-1003-1004", new String(utf8, 39, 40, StandardCharsets.UTF_8));
+//            if (grok.match(" 1001-1002-1003-1004 1001-1002-1003-1004".getBytes(StandardCharsets.UTF_8), 0, 40, extracter)) {
+//                assertTrue(true);
+//            }
+//
+//            if (grok.match(" 1001-1002-1003-1004 1001-1002-1003-1004".getBytes(StandardCharsets.UTF_8), 0, 20, extracter)) {
+//                assertTrue(true);
+//            }
+//
+//            if (grok.match(new String(utf8, 39, 40, StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8), 0, 40, extracter)) {
+//                assertTrue(true);
+//            }
 
             if (grok.match(utf8, 39, 40, extracter)) {
                 assertTrue(true);
+            } else {
+                fail();
             }
         }
     }

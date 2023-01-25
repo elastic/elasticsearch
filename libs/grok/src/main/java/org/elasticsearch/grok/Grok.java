@@ -68,6 +68,7 @@ public final class Grok {
 
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
+    private final String expression;
     private final Regex compiledExpression;
     private final MatcherWatchdog matcherWatchdog;
     private final List<GrokCaptureConfig> captureConfig;
@@ -97,7 +98,7 @@ public final class Grok {
 
         forbidCircularReferences();
 
-        String expression = toRegex(grokPattern);
+        this.expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
         this.compiledExpression = new Regex(
             expressionBytes,
@@ -113,6 +114,10 @@ public final class Grok {
             grokCaptureConfigs.add(new GrokCaptureConfig(entry.next()));
         }
         this.captureConfig = List.copyOf(grokCaptureConfigs);
+    }
+
+    public String getExpression() {
+        return expression;
     }
 
     /**

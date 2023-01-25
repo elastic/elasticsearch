@@ -31,12 +31,13 @@ public class DecodeBenchmark extends AbstractDocValuesForUtilBenchmark {
         final DataOutput dataOutput = new ByteArrayDataOutput(outputBuffer);
         forUtil.encode(this.input, bitsPerValue, dataOutput);
         this.inputBuffer = new byte[Long.BYTES * blockSize];
+        this.dataInput = new ByteArrayDataInput(this.inputBuffer);
+        System.arraycopy(outputBuffer, 0, inputBuffer, 0, outputBuffer.length);
     }
 
     @Override
     public void setupInvocation(int bitsPerValue) {
-        this.dataInput = new ByteArrayDataInput(inputBuffer);
-        System.arraycopy(outputBuffer, 0, inputBuffer, 0, outputBuffer.length);
+        this.dataInput.reset(this.inputBuffer);
     }
 
     @Override

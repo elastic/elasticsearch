@@ -65,8 +65,8 @@ dependencies {
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(':modules:ingest-common')
   testImplementation project(':modules:reindex')
-  testImplementation project(':modules:mapper-extras')
   testImplementation project(':modules:analysis-common')
+  testImplementation project(':modules:mapper-extras')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   // ml deps

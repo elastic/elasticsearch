@@ -1,0 +1,78 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.benchmark.index.codec.tsdb;
+
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.AbstractDocValuesForUtilBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.ConstantIntegerSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecodeBenchmark;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.EncodeBenchmark;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
+
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+
+@Fork(value = 1)
+@Warmup(iterations = 1)
+@Measurement(iterations = 1)
+@BenchmarkMode(value = Mode.AverageTime)
+@OutputTimeUnit(value = TimeUnit.NANOSECONDS)
+@State(value = Scope.Benchmark)
+public class ES87TSDBDocValuesConstantBenchmark {
+    private static final int SEED = 17;
+    private static final int BLOCK_SIZE = 128;
+    @Param({ "15" })
+    private int bitsPerValue;
+    @Param({ "decode", "encode" })
+    private String mode;
+
+    private final AbstractDocValuesForUtilBenchmark decode;
+    private final AbstractDocValuesForUtilBenchmark encode;
+
+    public ES87TSDBDocValuesConstantBenchmark() {
+        this.decode = new DecodeBenchmark();
+        this.encode = new EncodeBenchmark();
+
+    }
+
+    @Setup(Level.Invocation)
+    public void setupInvocation() throws IOException {
+        switch (mode) {
+            case "decode" -> decode.setupInvocation(bitsPerValue);
+            case "encode" -> encode.setupInvocation(bitsPerValue);
+
+        }
+    }
+
+    @Setup(Level.Iteration)
+    public void setupIteration() throws IOException {
+        switch (mode) {
+            case "decode" -> decode.setupIteration(bitsPerValue, new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+            case "encode" -> encode.setupIteration(bitsPerValue, new ConstantIntegerSupplier(SEED, bitsPerValue, BLOCK_SIZE));
+        }
+    }
+
+    @Benchmark
+    public void benchmark() throws IOException {
+        switch (mode) {
+            case "decode" -> decode.benchmark(bitsPerValue);
+            case "encode" -> encode.benchmark(bitsPerValue);
+        }
+    }
+}

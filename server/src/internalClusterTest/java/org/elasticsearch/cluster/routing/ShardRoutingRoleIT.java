@@ -30,10 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -99,15 +96,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-            return Optional.of(
-                config -> config.isPromotableToPrimary()
-                    ? new InternalEngine(config)
-                    : new NoOpEngine(
-                        config,
-                        new TranslogStats(0, 0, 0, 0, 0),
-                        new SeqNoStats(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED)
-                    )
-            );
+            return Optional.of(config -> config.isPromotableToPrimary() ? new InternalEngine(config) : new NoOpEngine(config));
         }
     }
 

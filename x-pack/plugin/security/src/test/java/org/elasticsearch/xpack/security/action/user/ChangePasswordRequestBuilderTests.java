@@ -88,7 +88,10 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
         );
-        assertThat(e.getMessage(), containsString("The provided password hash could not be resolved to a known hash algorithm."));
+        assertThat(
+            e.getMessage(),
+            containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
+        );
     }
 
     public void testWithPasswordAndHash() throws IOException {

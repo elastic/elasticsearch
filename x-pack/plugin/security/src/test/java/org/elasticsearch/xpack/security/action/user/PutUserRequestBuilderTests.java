@@ -221,7 +221,10 @@ public class PutUserRequestBuilderTests extends ESTestCase {
                     .request();
             }
         );
-        assertThat(ex.getMessage(), containsString("The provided password hash could not be resolved to a known hash algorithm."));
+        assertThat(
+            ex.getMessage(),
+            containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
+        );
     }
 
     public void testWithBothPasswordAndHash() throws IOException {

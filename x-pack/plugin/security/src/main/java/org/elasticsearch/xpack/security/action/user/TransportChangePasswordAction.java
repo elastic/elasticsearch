@@ -53,10 +53,9 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             && Hasher.getAvailableAlgoStoredHash().contains(requestPwdHashAlgo.name().toLowerCase(Locale.ROOT)) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "The provided password hash could not be resolved to a known hash algorithm. "
-                        + "Valid algorithms for password hashing are ["
+                    "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
+                        + "The supported password hash algorithms are "
                         + Hasher.getAvailableAlgoStoredHash().toString()
-                        + "]."
                 )
             );
             return;

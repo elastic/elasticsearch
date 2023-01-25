@@ -195,7 +195,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(
             throwableRef.get().getMessage(),
-            containsString("The provided password hash could not be resolved to a known hash algorithm.")
+            containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
         );
         verifyNoMoreInteractions(usersStore);
     }

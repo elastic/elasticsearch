@@ -96,10 +96,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         if (resolvedHasher.equals(configuredHasher) == false
             && Hasher.getAvailableAlgoStoredHash().contains(resolvedHasher.name().toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException(
-                "The provided password hash could not be resolved to a known hash algorithm. "
-                    + "Valid algorithms for password hashing are ["
+                "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
+                    + "The supported password hash algorithms are "
                     + Hasher.getAvailableAlgoStoredHash().toString()
-                    + "]."
             );
         }
         if (request.passwordHash() != null) {

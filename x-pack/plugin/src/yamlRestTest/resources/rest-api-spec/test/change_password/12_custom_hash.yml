@@ -150,7 +150,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
-      catch: /The provided password hash could not be resolved to a known hash algorithm.*/
+      catch: /The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.*/
       security.put_user:
         username: "clear_text_hash_user1"
         body:  >
@@ -162,7 +162,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
-      catch: /The provided password hash could not be resolved to a known hash algorithm.*/
+      catch: /The provided password hash is not a hash or it could not be resolved to a supported hash algorithm..*/
       security.change_password:
         username: "test_user"
         body: >

@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
@@ -92,7 +92,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
  * of this class should just need to know about the {@link #effectiveSubject}. That is, often times, the caller
  * begins with {@code authentication.getEffectiveSubject()} for interrogating an Authentication object.
  */
-public final class Authentication implements ToXContentObject {
+public final class Authentication implements ToXContentObject, Writeable {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final Version VERSION_AUTHENTICATION_TYPE = Version.fromString("6.7.0");
@@ -400,10 +400,6 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
     }
 
-    public void assertNotRemoteAccess() {
-        assert false == isRemoteAccess() : "authentication cannot be for remote access";
-    }
-
     /**
      * Whether the authentication can run-as another user
      */
@@ -474,6 +470,7 @@ public final class Authentication implements ToXContentObject {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (isRunAs()) {
             final User outerUser = effectiveSubject.getUser();
@@ -829,9 +826,9 @@ public final class Authentication implements ToXContentObject {
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
 
-        static RealmRef newRemoteAccessRealmRef(String apiKeyId, String nodeName) {
+        static RealmRef newRemoteAccessRealmRef(String nodeName) {
             // no domain for remote access authentication
-            return new RealmRef(REMOTE_ACCESS_REALM_NAME_PREFIX + "_" + apiKeyId, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
+            return new RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
         }
     }
 
@@ -929,10 +926,7 @@ public final class Authentication implements ToXContentObject {
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert apiKeyId != null;
-        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(
-            apiKeyId,
-            getAuthenticatingSubject().getRealm().getNodeName()
-        );
+        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
         final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
         assert userFromRemoteCluster.enabled() : "the user received from a remote cluster must be enabled";
         final User userWithoutRoles = new User(
@@ -968,7 +962,7 @@ public final class Authentication implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         // TODO handle remote access authentication executed with old API keys (either by rejecting this, or rewriting role descriptors)
-        authentication.assertNotRemoteAccess();
+        assert false == authentication.isRemoteAccess() : "remote access authentication not supported here yet";
         Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors

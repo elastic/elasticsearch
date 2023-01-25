@@ -195,7 +195,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     // pkg private for testing
     static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
-        authentication.assertNotRemoteAccess();
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
             if (request instanceof AuthenticateRequest) {

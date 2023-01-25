@@ -459,7 +459,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication.getAuthenticatingSubject().getRealm(),
             equalTo(
                 new RealmRef(
-                    AuthenticationField.REMOTE_ACCESS_REALM_NAME_PREFIX + "_" + remoteAccessApiKeyId,
+                    AuthenticationField.REMOTE_ACCESS_REALM_NAME,
                     AuthenticationField.REMOTE_ACCESS_REALM_TYPE,
                     authentication.getAuthenticatingSubject().getRealm().getNodeName()
                 )

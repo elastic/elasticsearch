@@ -75,7 +75,8 @@ public class EsqlActionBreakerIT extends ESIntegTestCase {
             assertThat(e.getMessage(), containsString("Data too large"));
         } else {
             // The failure occurred after starting the drivers
-            assertThat(e.getMessage(), containsString("compute engine failure"));
+            assertThat(e.getMessage(), containsString("Compute engine failure"));
+            assertThat(e.getMessage(), containsString("Data too large"));
             assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
             assertThat(e.getCause().getMessage(), containsString("Data too large"));
         }

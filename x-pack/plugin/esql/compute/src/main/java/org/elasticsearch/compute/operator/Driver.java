@@ -218,14 +218,15 @@ public class Driver implements Runnable, Releasable, Describable {
 
     public static class Result {
         public static RuntimeException collectFailures(List<Driver.Result> results) {
-            List<Exception> failures = results.stream().filter(r -> r.isSuccess() == false).map(r -> r.getFailure()).toList();
+            List<Exception> failures = results.stream().filter(r -> r.isSuccess() == false).map(Result::getFailure).toList();
             if (failures.isEmpty()) {
                 return null;
             }
             List<Exception> failuresToReport = failures.stream().filter(e -> e instanceof CancellationException == false).toList();
             failuresToReport = failuresToReport.isEmpty() ? failures : failuresToReport;
             Iterator<Exception> e = failuresToReport.iterator();
-            ElasticsearchException result = new ElasticsearchException("compute engine failure", e.next());
+            var exception = e.next();
+            ElasticsearchException result = new ElasticsearchException("Compute engine failure:{}", exception, exception.getMessage());
             while (e.hasNext()) {
                 result.addSuppressed(e.next());
             }

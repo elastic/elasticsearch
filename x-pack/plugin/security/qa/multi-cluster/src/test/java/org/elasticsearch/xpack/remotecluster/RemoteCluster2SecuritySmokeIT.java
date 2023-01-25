@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -18,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
  * This test suite will be run twice: Once against the fulfilling cluster, then again against the querying cluster. The typical usage is to
  * conditionalize on whether the test is running against the fulfilling or the querying cluster.
  */
-public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
+public class RemoteCluster2SecuritySmokeIT extends ESRestTestCase {
     @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
@@ -27,6 +30,12 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     @Override
     protected boolean preserveDataStreamsUponCompletion() {
         return true;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private boolean isFulfillingCluster() {

@@ -17,6 +17,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
@@ -204,6 +205,56 @@ public class SSLErrorMessageFileTests extends ESTestCase {
             prefix + ".truststore.path," + prefix + ".truststore.secure_password",
             this::configureWorkingTruststore
         );
+    }
+
+    public void testMessageForRemoteClusterSslEnabledWithoutKeys() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final String prefix = "xpack.security.remote_cluster.ssl";
+        final Settings.Builder builder = Settings.builder().put("remote_cluster.enabled", true);
+        // remote cluster ssl is enabled by default
+        if (randomBoolean()) {
+            builder.put(prefix + ".enabled", true);
+        }
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, builder);
+        } else {
+            configureWorkingTruststore(prefix, builder);
+        }
+
+        final Throwable exception = expectFailure(builder);
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "invalid SSL configuration for "
+                    + prefix
+                    + " - server ssl configuration requires a key and certificate, but these have not been configured;"
+                    + " you must set either ["
+                    + prefix
+                    + ".keystore.path], or both ["
+                    + prefix
+                    + ".key] and ["
+                    + prefix
+                    + ".certificate]"
+            )
+        );
+        assertThat(exception, instanceOf(ElasticsearchException.class));
+    }
+
+    public void testNoErrorIfRemoteClusterOrSslDisabledWithoutKeys() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final String prefix = "xpack.security.remote_cluster.ssl";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".enabled", false);
+        if (randomBoolean()) {
+            builder.put("remote_cluster.enabled", true);
+        } else {
+            builder.put("remote_cluster.enabled", false);
+        }
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, builder);
+        } else {
+            configureWorkingTruststore(prefix, builder);
+        }
+        expectSuccess(builder);
     }
 
     private void checkMissingKeyManagerResource(String fileType, String configKey, @Nullable Settings.Builder additionalSettings) {

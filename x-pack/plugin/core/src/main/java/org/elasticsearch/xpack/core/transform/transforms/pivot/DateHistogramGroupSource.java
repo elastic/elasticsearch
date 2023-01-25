@@ -207,7 +207,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private final Interval interval;
     private final ZoneId timeZone;
     private final Rounding.Prepared rounding;
-    private final Long offset;
+    private final long offset;
 
     public DateHistogramGroupSource(
         String field,
@@ -220,7 +220,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         super(field, scriptConfig, missingBucket);
         this.interval = interval;
         this.timeZone = timeZone;
-        this.offset = offset;
+        this.offset = offset != null ? offset : 0;
         this.rounding = buildRounding();
     }
 
@@ -229,9 +229,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         this.interval = readInterval(in);
         this.timeZone = in.readOptionalZoneId();
         if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-            this.offset = in.readOptionalLong();
+            this.offset = in.readLong();
         } else {
-            this.offset = null;
+            this.offset = 0;
         }
         this.rounding = buildRounding();
     }
@@ -248,7 +248,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (timeZone != null) {
             roundingBuilder.timeZone(timeZone);
         }
-        if (offset != null) {
+        if (offset != 0) {
             roundingBuilder.offset(offset);
         }
         return roundingBuilder.build().prepareForUnknown();
@@ -324,7 +324,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return rounding;
     }
 
-    public Long getOffset() {
+    public long getOffset() {
         return offset;
     }
 
@@ -334,7 +334,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
         if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-            out.writeOptionalLong(offset);
+            out.writeLong(offset);
         }
     }
 
@@ -346,7 +346,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (timeZone != null) {
             builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
         }
-        if (offset != null) {
+        if (offset != 0) {
             builder.field(OFFSET.getPreferredName(), offset);
         }
         builder.endObject();
@@ -370,7 +370,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             && Objects.equals(this.scriptConfig, that.scriptConfig)
             && Objects.equals(this.interval, that.interval)
             && Objects.equals(this.timeZone, that.timeZone)
-            && Objects.equals(this.offset, that.offset);
+            && this.offset == that.offset;
     }
 
     @Override

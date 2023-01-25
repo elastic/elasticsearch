@@ -121,10 +121,56 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
         return DateHistogramGroupSource::new;
     }
 
+    public void testOffset() {
+        {
+            DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
+                null,
+                null,
+                false,
+                new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
+                null,
+                null
+            );
+            assertThat(dateHistogramGroupSource.getOffset(), equalTo(0L));
+        }
+        {
+            DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
+                null,
+                null,
+                false,
+                new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
+                null,
+                0L
+            );
+            assertThat(dateHistogramGroupSource.getOffset(), equalTo(0L));
+        }
+        {
+            DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
+                null,
+                null,
+                false,
+                new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
+                null,
+                DateHistogramAggregationBuilder.parseStringOffset("-1h")
+            );
+            assertThat(dateHistogramGroupSource.getOffset(), equalTo(-3_600_000L));
+        }
+        {
+            DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
+                null,
+                null,
+                false,
+                new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
+                null,
+                DateHistogramAggregationBuilder.parseStringOffset("+1h")
+            );
+            assertThat(dateHistogramGroupSource.getOffset(), equalTo(3_600_000L));
+        }
+    }
+
     public void testRoundingDateHistogramFixedInterval() {
-        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
-            field,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
             null,
             randomBoolean(),
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
@@ -144,9 +190,8 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
     }
 
     public void testRoundingDateHistogramCalendarInterval() {
-        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
-            field,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
             null,
             randomBoolean(),
             new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval("1w")),

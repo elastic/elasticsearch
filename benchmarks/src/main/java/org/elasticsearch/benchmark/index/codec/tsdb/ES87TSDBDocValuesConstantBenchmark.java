@@ -30,8 +30,8 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 @Fork(value = 1)
-@Warmup(iterations = 1)
-@Measurement(iterations = 1)
+@Warmup(iterations = 3)
+@Measurement(iterations = 10)
 @BenchmarkMode(value = Mode.AverageTime)
 @OutputTimeUnit(value = TimeUnit.NANOSECONDS)
 @State(value = Scope.Benchmark)

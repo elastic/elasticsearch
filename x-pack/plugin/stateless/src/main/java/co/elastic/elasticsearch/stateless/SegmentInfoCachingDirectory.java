@@ -29,7 +29,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.core.Streams;
 
 import java.io.FileNotFoundException;
@@ -122,7 +122,7 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
             throw new FileNotFoundException(name);
         }
         try {
-            final var bytesRef = blobContentsByName.computeIfAbsent(name, n -> {
+            return new BytesReferenceIndexInput(name, blobContentsByName.computeIfAbsent(name, n -> {
                 try (
                     var bso = new BytesStreamOutput(Math.toIntExact(blobMetadata.length()));
                     var inputStream = blobContainer.readBlob(name)
@@ -132,9 +132,7 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }).toBytesRef();
-            // TODO avoid toBytesRef here, make an IndexInput that works directly on a BytesReference instead
-            return new ByteArrayIndexInput(name, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            }));
         } catch (UncheckedIOException e) {
             if (e.getCause() != null) {
                 throw e.getCause();

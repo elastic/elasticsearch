@@ -472,14 +472,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
-        ClusterSettings clusterSettings = new ClusterSettings(
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(
             Settings.builder()
                 .put(
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
                     Integer.MAX_VALUE
                 )
-                .build(),
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+                .build()
         );
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
             Settings.EMPTY,

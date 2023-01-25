@@ -158,9 +158,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static FieldMapper createFieldMapper(String parent, String name) {
-        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, Version.CURRENT).build(
-            new MapperBuilderContext(parent, false)
-        );
+        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, Version.CURRENT).build(new MapperBuilderContext(parent, false));
     }
 
     private static ObjectMapper createObjectMapper(String name) {

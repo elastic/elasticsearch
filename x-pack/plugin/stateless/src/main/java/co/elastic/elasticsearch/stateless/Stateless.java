@@ -135,7 +135,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
         Tracer tracer,
         AllocationService allocationService
     ) {
-        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, client, clusterService);
+        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, client);
         this.objectStoreService.set(objectStoreService);
         return List.of(objectStoreService);
     }

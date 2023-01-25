@@ -248,9 +248,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (timeZone != null) {
             roundingBuilder.timeZone(timeZone);
         }
-        if (offset != 0) {
-            roundingBuilder.offset(offset);
-        }
+        roundingBuilder.offset(offset);
         return roundingBuilder.build().prepareForUnknown();
     }
 

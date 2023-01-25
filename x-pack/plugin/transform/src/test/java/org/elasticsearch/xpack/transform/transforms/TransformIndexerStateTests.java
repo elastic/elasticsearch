@@ -284,8 +284,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             );
         }
 
-        public void setTimeNanos(long timeNanos) {
-            this.timeNanos = timeNanos;
+        public void setTimeMillis(long millis) {
+            this.timeNanos = TimeUnit.MILLISECONDS.toNanos(millis);
         }
 
         @Override
@@ -393,7 +393,7 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         assertFalse(indexer.triggerSaveState());
         // simple: advancing the time should trigger state persistence
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(80_000));
+        indexer.setTimeMillis(80_000);
         assertTrue(indexer.triggerSaveState());
         // still true as state persistence has not been executed
         assertTrue(indexer.triggerSaveState());
@@ -401,44 +401,44 @@ public class TransformIndexerStateTests extends ESTestCase {
         // after state persistence, the trigger should return false
         assertFalse(indexer.triggerSaveState());
         // advance time twice, but don't persist
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(81_000));
+        indexer.setTimeMillis(81_000);
         assertFalse(indexer.triggerSaveState());
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(140_000));
+        indexer.setTimeMillis(140_000);
         assertFalse(indexer.triggerSaveState());
         // now trigger should return false as last persistence was 80_000
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(140_001));
+        indexer.setTimeMillis(140_001);
         assertTrue(indexer.triggerSaveState());
         // persist and check trigger
         indexer.doSaveState(IndexerState.INDEXING, null, () -> {});
         assertFalse(indexer.triggerSaveState());
         // check trigger but persist later
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(200_001));
+        indexer.setTimeMillis(200_001);
         assertFalse(indexer.triggerSaveState());
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(240_000));
+        indexer.setTimeMillis(240_000);
         indexer.doSaveState(IndexerState.INDEXING, null, () -> {});
         assertFalse(indexer.triggerSaveState());
         // last persistence should be 240_000, so don't trigger
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(270_000));
+        indexer.setTimeMillis(270_000);
         assertFalse(indexer.triggerSaveState());
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(300_001));
+        indexer.setTimeMillis(300_001);
         assertTrue(indexer.triggerSaveState());
         indexer.doSaveState(IndexerState.INDEXING, null, () -> {});
         assertFalse(indexer.triggerSaveState());
         // advance again, it shouldn't trigger
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(310_000));
+        indexer.setTimeMillis(310_000);
         assertFalse(indexer.triggerSaveState());
 
         // set stop at checkpoint, which must trigger state persistence
         setStopAtCheckpoint(indexer, true, ActionListener.noop());
         assertTrue(indexer.triggerSaveState());
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(311_000));
+        indexer.setTimeMillis(311_000);
         // after state persistence, trigger should return false
         indexer.doSaveState(IndexerState.INDEXING, null, () -> {});
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(310_200));
+        indexer.setTimeMillis(310_200);
         assertFalse(indexer.triggerSaveState());
 
         // after time has passed, trigger should work again
-        indexer.setTimeNanos(TimeUnit.MILLISECONDS.toNanos(371_001));
+        indexer.setTimeMillis(371_001);
     }
 
     public void testStopAtCheckpoint() throws Exception {

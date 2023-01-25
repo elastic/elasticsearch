@@ -443,7 +443,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 localCloseables.add(transportService::stop);
 
-                objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, client);
+                objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, client);
                 objectStoreService.start();
 
                 closeables = localCloseables.transfer();

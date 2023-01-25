@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
@@ -50,12 +51,14 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -104,6 +107,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
+    private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final Settings settings;
 
     private ObjectStoreService getObjectStoreService() {
@@ -135,9 +139,11 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
         Tracer tracer,
         AllocationService allocationService
     ) {
-        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, client);
+        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, client);
         this.objectStoreService.set(objectStoreService);
-        return List.of(objectStoreService);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, objectStoreService::pushTranslogFile);
+        this.translogReplicator.set(translogReplicator);
+        return List.of(objectStoreService, translogReplicator);
     }
 
     @Override
@@ -199,9 +205,52 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        return Optional.of(
-            config -> config.isPromotableToPrimary() ? new IndexEngine(config) : new SearchEngine(config, getObjectStoreService())
-        );
+        return Optional.of(config -> {
+            if (config.isPromotableToPrimary()) {
+                TranslogReplicator replicator = translogReplicator.get();
+                TranslogConfig translogConfig = config.getTranslogConfig();
+                TranslogConfig newTranslogConfig = new TranslogConfig(
+                    translogConfig.getShardId(),
+                    translogConfig.getTranslogPath(),
+                    translogConfig.getIndexSettings(),
+                    translogConfig.getBigArrays(),
+                    translogConfig.getBufferSize(),
+                    translogConfig.getDiskIoBufferPool(),
+                    (data, seqNo, location) -> replicator.add(translogConfig.getShardId(), data, seqNo, location)
+                );
+                EngineConfig newConfig = new EngineConfig(
+                    config.getShardId(),
+                    config.getThreadPool(),
+                    config.getIndexSettings(),
+                    config.getWarmer(),
+                    config.getStore(),
+                    config.getMergePolicy(),
+                    config.getAnalyzer(),
+                    config.getSimilarity(),
+                    config.getCodecService(),
+                    config.getEventListener(),
+                    config.getQueryCache(),
+                    config.getQueryCachingPolicy(),
+                    newTranslogConfig,
+                    config.getFlushMergesAfter(),
+                    config.getExternalRefreshListener(),
+                    config.getInternalRefreshListener(),
+                    config.getIndexSort(),
+                    config.getCircuitBreakerService(),
+                    config.getGlobalCheckpointSupplier(),
+                    config.retentionLeasesSupplier(),
+                    config.getPrimaryTermSupplier(),
+                    config.getSnapshotCommitSupplier(),
+                    config.getLeafSorter(),
+                    config.getRelativeTimeInNanosSupplier(),
+                    config.getIndexCommitListener(),
+                    config.isPromotableToPrimary()
+                );
+                return new IndexEngine(newConfig);
+            } else {
+                return new SearchEngine(config, getObjectStoreService());
+            }
+        });
     }
 
     @Override

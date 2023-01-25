@@ -33,9 +33,12 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -175,12 +178,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final ThreadPool threadPool;
+    private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> downloadTaskRunner;
     private final Semaphore permits;
 
     private BlobStoreRepository objectStore;
 
+    private final ClusterService clusterService;
     private final Client client;
 
     @Inject
@@ -188,12 +193,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         Settings settings,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
+        ClusterService clusterService,
         Client client
     ) {
         this.settings = settings;
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.client = client;
+        this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
+            getClass().getSimpleName() + "#upload-translog-file-task-runner",
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
+        );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
@@ -226,6 +238,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     .add(String.valueOf(shardId.id()))
                     .add(String.valueOf(primaryTerm))
             );
+    }
+
+    BlobContainer getTranslogBlobContainer(DiscoveryNode discoveryNode) {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("nodes").add(discoveryNode.getEphemeralId()));
     }
 
     private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
@@ -285,6 +302,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         ensureRunning();
         if (permits.tryAcquire()) {
             uploadTaskRunner.enqueueTask(new CommitUploadTask(commit, threadPool.relativeTimeInNanos(), permits::release));
+        }
+    }
+
+    void pushTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
+        logger.debug("starting translog file upload [{}]", fileName);
+        ensureRunning();
+        if (permits.tryAcquire()) {
+            uploadTranslogTaskRunner.enqueueTask(
+                new TranslogFileUploadTask(fileName, reference, ActionListener.runAfter(listener, permits::release))
+            );
         }
     }
 
@@ -404,6 +431,57 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 return Long.compare(generation, other.generation);
             }
             return Long.compare(timeInNanos, other.timeInNanos);
+        }
+    }
+
+    /**
+     * {@link TranslogFileUploadTask} uploads the compound translog file to the object store
+     */
+    private class TranslogFileUploadTask extends AbstractRunnable implements Comparable<TranslogFileUploadTask> {
+
+        private final String fileName;
+        private final BytesReference reference;
+        private final ActionListener<Void> listener;
+
+        TranslogFileUploadTask(String fileName, BytesReference reference, ActionListener<Void> listener) {
+            this.fileName = Objects.requireNonNull(fileName);
+            this.reference = Objects.requireNonNull(reference);
+            this.listener = Objects.requireNonNull(listener);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logFailure(e);
+            listener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            final DiscoveryNode discoveryNode = clusterService.localNode();
+            final BlobContainer blobContainer = getTranslogBlobContainer(discoveryNode);
+
+            var before = threadPool.relativeTimeInMillis();
+            blobContainer.writeBlob(fileName, reference, false);
+            var after = threadPool.relativeTimeInMillis();
+            logger.debug(
+                () -> format(
+                    "translog file %s of size [%s] bytes uploaded in [%s] ms",
+                    blobContainer.path().add(fileName),
+                    reference.length(),
+                    TimeValue.timeValueNanos(after - before).millis()
+                )
+            );
+            listener.onResponse(null);
+        }
+
+        private void logFailure(Exception e) {
+            logger.error(() -> format("failed to translog file [%s] to object store", fileName), e);
+        }
+
+        @Override
+        public int compareTo(TranslogFileUploadTask o) {
+            // TODO: Implement
+            return 0;
         }
     }
 

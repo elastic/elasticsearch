@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.engine.TranslogMetadata;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 
@@ -29,6 +30,8 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -37,7 +40,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
@@ -204,6 +209,56 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertObjectStoreConsistentWithIndexShards();
 
         indexDocuments(indexName);
+    }
+
+    public void testTranslogWrittenToObjectStore() throws Exception {
+        startMasterOnlyNode();
+        final int numberOfShards = randomIntBetween(1, 5);
+        startIndexNodes(numberOfShards);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        assertObjectStoreConsistentWithIndexShards();
+
+        indexDocuments(indexName);
+
+        final Map<Index, Integer> indices = resolveIndices();
+        assertThat(indices.isEmpty(), is(false));
+
+        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
+            assertThat(entry.getValue(), greaterThan(0));
+            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
+                DiscoveryNode indexNode = findIndexNode(entry.getKey(), shardId);
+                IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
+                var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class).getTranslogBlobContainer(indexNode);
+                final int finalShardId = shardId;
+                assertBusy(() -> {
+                    long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                    long totalOps = 0;
+                    for (String file : blobContainer.listBlobs().keySet()) {
+                        try (StreamInput remote = new InputStreamStreamInput(blobContainer.readBlob(file))) {
+                            ShardId objShardId = new ShardId(entry.getKey(), finalShardId);
+                            Map<ShardId, TranslogMetadata> map = remote.readMap(ShardId::new, TranslogMetadata::new);
+                            if (map.containsKey(objShardId)) {
+                                TranslogMetadata translogMetadata = map.get(objShardId);
+                                maxSeqNo = SequenceNumbers.max(maxSeqNo, translogMetadata.getMaxSeqNo());
+                                totalOps += translogMetadata.getTotalOps();
+                            }
+                        }
+                    }
+                    assertThat(maxSeqNo, equalTo(indexShard.seqNoStats().getMaxSeqNo()));
+                    assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
+                });
+            }
+        }
     }
 
     public void testDownloadNewCommitsFromObjectStore() throws Exception {
@@ -419,6 +474,22 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 totalRead += nRead1;
             }
         }
+    }
+
+    private static DiscoveryNode findIndexNode(Index index, int shardId) {
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.INDEX_ROLE)) {
+                IndexService indexService = indicesService.indexService(index);
+                if (indexService != null) {
+                    IndexShard shardOrNull = indexService.getShardOrNull(shardId);
+                    if (shardOrNull != null && shardOrNull.isActive()) {
+                        assertTrue(shardOrNull.routingEntry().primary());
+                        return indicesService.clusterService().localNode();
+                    }
+                }
+            }
+        }
+        throw new AssertionError("Cannot finding indexing node for: " + shardId);
     }
 
     private static IndexShard findIndexShard(Index index, int shardId) {

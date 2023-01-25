@@ -1,0 +1,5 @@
+pr: 92777
+summary: Reduce memory usage of match all bitset
+area: Search
+type: enhancement
+issues: []

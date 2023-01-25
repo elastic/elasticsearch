@@ -227,10 +227,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -315,10 +315,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .build();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -386,10 +386,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -452,10 +452,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -555,10 +555,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -690,10 +690,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",

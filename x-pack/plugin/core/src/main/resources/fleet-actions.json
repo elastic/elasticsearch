@@ -28,6 +28,9 @@
         "minimum_execution_duration": {
           "type": "integer"
         },
+        "rollout_duration_seconds": {
+          "type": "integer"
+        },
         "input_type": {
           "type": "keyword"
         },

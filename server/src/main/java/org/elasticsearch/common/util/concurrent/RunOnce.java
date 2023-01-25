@@ -8,25 +8,24 @@
 package org.elasticsearch.common.util.concurrent;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Runnable that can only be run one time.
+ * Runnable that prevents running its delegate more than once.
  */
 public class RunOnce implements Runnable {
 
-    private final Runnable delegate;
-    private final AtomicBoolean hasRun;
+    private final AtomicReference<Runnable> delegateRef;
 
     public RunOnce(final Runnable delegate) {
-        this.delegate = Objects.requireNonNull(delegate);
-        this.hasRun = new AtomicBoolean(false);
+        delegateRef = new AtomicReference<>(Objects.requireNonNull(delegate));
     }
 
     @Override
     public void run() {
-        if (hasRun.compareAndSet(false, true)) {
-            delegate.run();
+        var acquired = delegateRef.getAndSet(null);
+        if (acquired != null) {
+            acquired.run();
         }
     }
 
@@ -34,6 +33,11 @@ public class RunOnce implements Runnable {
      * {@code true} if the {@link RunOnce} has been executed once.
      */
     public boolean hasRun() {
-        return hasRun.get();
+        return delegateRef.get() == null;
+    }
+
+    @Override
+    public String toString() {
+        return "RunOnce[" + delegateRef.get() + "]";
     }
 }

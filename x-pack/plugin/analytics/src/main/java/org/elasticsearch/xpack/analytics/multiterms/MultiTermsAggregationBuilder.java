@@ -64,7 +64,8 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             true,
             true,
             false,
-            true
+            true,
+            false
         );
 
         PARSER.declareBoolean(MultiTermsAggregationBuilder::showTermDocCountError, MultiTermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);

@@ -729,7 +729,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected StringFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -737,7 +743,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
             @Override
             protected StringFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit("foo");

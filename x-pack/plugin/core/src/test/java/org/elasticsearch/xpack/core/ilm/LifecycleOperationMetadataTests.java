@@ -51,11 +51,6 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
         }
     }
 
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
-
     public void testMinimumSupportedVersion() {
         Version min = createTestInstance().getMinimalSupportedVersion();
         assertTrue(min.onOrBefore(VersionUtils.randomVersionBetween(random(), Version.V_8_7_0, Version.CURRENT)));

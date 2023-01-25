@@ -2869,6 +2869,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final List<Setting<?>> settingsList = new ArrayList<>();
         LoggingAuditTrail.registerSettings(settingsList);
         settingsList.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
         return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 

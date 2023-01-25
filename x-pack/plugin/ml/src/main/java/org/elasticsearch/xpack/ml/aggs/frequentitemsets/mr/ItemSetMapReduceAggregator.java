@@ -17,6 +17,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -47,7 +49,7 @@ public abstract class ItemSetMapReduceAggregator<
     Result extends ToXContent & Writeable> extends AggregatorBase {
 
     private final List<ItemSetMapReduceValueSource> extractors;
-    private final Weight weightFilter;
+    private final Weight weightDocumentFilter;
     private final List<Field> fields;
     private final AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
@@ -62,8 +64,8 @@ public abstract class ItemSetMapReduceAggregator<
         Aggregator parent,
         Map<String, Object> metadata,
         AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
-        List<ValuesSourceConfig> configs,
-        QueryBuilder filter
+        List<Tuple<ValuesSourceConfig, IncludeExclude>> configsAndValueFilters,
+        QueryBuilder documentFilter
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
@@ -72,12 +74,14 @@ public abstract class ItemSetMapReduceAggregator<
         IndexSearcher contextSearcher = context.searcher();
 
         int id = 0;
-        this.weightFilter = filter != null
-            ? contextSearcher.createWeight(contextSearcher.rewrite(context.buildQuery(filter)), ScoreMode.COMPLETE_NO_SCORES, 1f)
+        this.weightDocumentFilter = documentFilter != null
+            ? contextSearcher.createWeight(contextSearcher.rewrite(context.buildQuery(documentFilter)), ScoreMode.COMPLETE_NO_SCORES, 1f)
             : null;
 
-        for (ValuesSourceConfig c : configs) {
-            ItemSetMapReduceValueSource e = context.getValuesSourceRegistry().getAggregator(registryKey, c).build(c, id++);
+        for (var c : configsAndValueFilters) {
+            ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()
+                .getAggregator(registryKey, c.v1())
+                .build(c.v1(), id++, c.v2());
             if (e.getField().getName() != null) {
                 fields.add(e.getField());
                 extractors.add(e);
@@ -115,10 +119,10 @@ public abstract class ItemSetMapReduceAggregator<
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext ctx, LeafBucketCollector sub) throws IOException {
 
-        final Bits bits = weightFilter != null
+        final Bits bits = weightDocumentFilter != null
             ? Lucene.asSequentialAccessBits(
                 ctx.getLeafReaderContext().reader().maxDoc(),
-                weightFilter.scorerSupplier(ctx.getLeafReaderContext())
+                weightDocumentFilter.scorerSupplier(ctx.getLeafReaderContext())
             )
             : null;
 

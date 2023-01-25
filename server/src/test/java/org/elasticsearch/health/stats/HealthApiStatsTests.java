@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -30,7 +29,7 @@ public class HealthApiStatsTests extends ESTestCase {
     public void testEmptyCounters() {
         HealthApiStats healthApiStats = new HealthApiStats();
         assertThat(healthApiStats.getStats().get("invocations.total"), equalTo(0L));
-        Map<String, Object> metricMap = healthApiStats.getStats().toNestedMap();
+        Map<String, Object> metricMap = healthApiStats.getStats().toMutableNestedMap();
         assertThat(metricMap.containsKey("statuses"), equalTo(false));
         assertThat(metricMap.containsKey("indicators"), equalTo(false));
         assertThat(metricMap.containsKey("diagnoses"), equalTo(false));
@@ -53,13 +52,10 @@ public class HealthApiStatsTests extends ESTestCase {
             assertThat(healthApiStats.getStats().get("invocations.verbose_false"), equalTo(1L));
             expectThrows(IllegalArgumentException.class, () -> healthApiStats.getStats().get("invocations.verbose_true"));
             assertThat(healthApiStats.getStats().get("statuses.green"), equalTo(1L));
-            Map<String, Object> metricMap = healthApiStats.getStats().toNestedMap();
+            Map<String, Object> metricMap = healthApiStats.getStats().toMutableNestedMap();
             assertThat(((Map<String, Object>) metricMap.get("statuses")).size(), equalTo(1));
             assertThat(metricMap.containsKey("indicators"), equalTo(false));
             assertThat(metricMap.containsKey("diagnoses"), equalTo(false));
-            assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN)));
-            assertThat(healthApiStats.getIndicators().isEmpty(), equalTo(true));
-            assertThat(healthApiStats.getDiagnoses().isEmpty(), equalTo(true));
         }
         {
             // Yellow no diagnosis
@@ -76,11 +72,8 @@ public class HealthApiStatsTests extends ESTestCase {
             assertThat(healthApiStats.getStats().get("statuses.green"), equalTo(1L));
             assertThat(healthApiStats.getStats().get("statuses.yellow"), equalTo(1L));
             assertThat(healthApiStats.getStats().get("indicators.yellow.shards_availability"), equalTo(1L));
-            Map<String, Object> metricMap = healthApiStats.getStats().toNestedMap();
+            Map<String, Object> metricMap = healthApiStats.getStats().toMutableNestedMap();
             assertThat(metricMap.containsKey("diagnoses"), equalTo(false));
-            assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN, YELLOW)));
-            assertThat(healthApiStats.getIndicators().get(YELLOW), equalTo(Set.of("shards_availability")));
-            assertThat(healthApiStats.getDiagnoses().isEmpty(), equalTo(true));
         }
         {
             // Yellow and Red with diagnoses
@@ -108,17 +101,6 @@ public class HealthApiStatsTests extends ESTestCase {
             assertThat(
                 healthApiStats.getStats().get("diagnoses.red.elasticsearch:health:shards_availability:diagnosis:primary_unassigned"),
                 equalTo(1L)
-            );
-            assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN, YELLOW, RED)));
-            assertThat(healthApiStats.getIndicators().get(YELLOW), equalTo(Set.of("shards_availability", "disk")));
-            assertThat(healthApiStats.getIndicators().get(RED), equalTo(Set.of("shards_availability")));
-            assertThat(
-                healthApiStats.getDiagnoses().get(YELLOW),
-                equalTo(Set.of("elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"))
-            );
-            assertThat(
-                healthApiStats.getDiagnoses().get(RED),
-                equalTo(Set.of("elasticsearch:health:shards_availability:diagnosis:primary_unassigned"))
             );
         }
         {
@@ -152,22 +134,6 @@ public class HealthApiStatsTests extends ESTestCase {
             assertThat(
                 healthApiStats.getStats().get("diagnoses.red.elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"),
                 equalTo(1L)
-            );
-            assertThat(healthApiStats.getStatuses(), equalTo(Set.of(GREEN, YELLOW, RED)));
-            assertThat(healthApiStats.getIndicators().get(YELLOW), equalTo(Set.of("shards_availability", "disk")));
-            assertThat(healthApiStats.getIndicators().get(RED), equalTo(Set.of("shards_availability", "disk")));
-            assertThat(
-                healthApiStats.getDiagnoses().get(YELLOW),
-                equalTo(Set.of("elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"))
-            );
-            assertThat(
-                healthApiStats.getDiagnoses().get(RED),
-                equalTo(
-                    Set.of(
-                        "elasticsearch:health:shards_availability:diagnosis:primary_unassigned",
-                        "elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes"
-                    )
-                )
             );
         }
     }

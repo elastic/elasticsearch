@@ -43,4 +43,4 @@ fi
 ## Gradle is able to resolve dependencies resolved with earlier gradle versions
 ## therefore we run main _AFTER_ we run 6.8 which uses an earlier gradle version
 export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
-./gradlew --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none
+./gradlew --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none -Drecurse.bwc=true

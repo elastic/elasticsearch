@@ -2604,7 +2604,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 protected RuntimeField createChildRuntimeField(
                     MappingParserContext parserContext,
                     String parentName,
-                    Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+                    Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+                    OnScriptError onScriptError
                 ) {
                     throw new UnsupportedOperationException();
                 }

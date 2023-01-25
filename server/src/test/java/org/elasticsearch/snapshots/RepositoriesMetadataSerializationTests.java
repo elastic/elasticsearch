@@ -116,9 +116,4 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
         repos.sort(Comparator.comparing(RepositoryMetadata::name));
         return new RepositoriesMetadata(repos);
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

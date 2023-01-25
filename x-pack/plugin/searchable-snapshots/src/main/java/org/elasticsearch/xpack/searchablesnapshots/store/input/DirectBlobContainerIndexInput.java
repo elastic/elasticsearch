@@ -16,9 +16,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -29,7 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 /**
  * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
@@ -69,19 +67,19 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     public DirectBlobContainerIndexInput(
         String name,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long sequentialReadSize
     ) {
-        this(name, directory, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize);
+        this(name, blobContainer, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize);
         stats.incrementOpenCount();
     }
 
     private DirectBlobContainerIndexInput(
         String name,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -90,8 +88,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long length,
         long sequentialReadSize
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY, ByteRange.EMPTY); // TODO should use blob
-                                                                                                                    // cache
+        super(logger, name, blobContainer, fileInfo, context, stats, offset, length); // TODO should use blob cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
@@ -99,7 +96,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
-        ensureOpen();
+        if (closed.get()) {
+            throw new IOException(this + " is closed");
+        }
         if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
         } else {
@@ -271,7 +270,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
                 sliceName,
-                directory,
+                blobContainer,
                 fileInfo,
                 context,
                 stats,

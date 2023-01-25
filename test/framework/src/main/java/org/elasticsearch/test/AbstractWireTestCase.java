@@ -23,7 +23,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Standard test case for testing wire serialization. If the class being tested
@@ -110,7 +112,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * some hashCode implementations violate this assumption and it's very
      * surprising. This tries to fail when that assumption is violated.
      */
-    public final void testConcurrentHashCode() throws IOException, InterruptedException, ExecutionException {
+    public final void testConcurrentHashCode() throws InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
         int firstHashCode = testInstance.hashCode();
 
@@ -125,6 +127,12 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
                 assertEquals(firstHashCode, testInstance.hashCode());
             }
         });
+    }
+
+    public void testToString() throws Exception {
+        final String toString = createTestInstance().toString();
+        assertNotNull(toString);
+        assertThat(toString, not(emptyString()));
     }
 
     /**
@@ -148,7 +156,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * operations like {@link ToXContent#toXContent}. This doesn't
      * check that exactly, but it's close.
      */
-    public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
+    public final void testConcurrentSerialization() throws InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
 
         /*

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.slm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -295,9 +295,14 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
                     }
                 }
+                if (resp.isFailed()) {
+                    for (String repo : resp.getFailures().keySet()) {
+                        logger.debug(() -> "unable to retrieve snapshots for [" + repo + "] repositories: ", resp.getFailures().get(repo));
+                    }
+                }
                 listener.onResponse(snapshots);
             }, e -> {
-                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories", e);
+                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories: ", e);
                 listener.onFailure(e);
             }));
     }
@@ -328,9 +333,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         long startTime = nowNanoSupplier.getAsLong();
         final AtomicInteger deleted = new AtomicInteger(0);
         final AtomicInteger failed = new AtomicInteger(0);
-        final GroupedActionListener<Void> allDeletesListener = new GroupedActionListener<>(
+        final CountDownActionListener allDeletesListener = new CountDownActionListener(
             snapshotsToDelete.size(),
-            ActionListener.runAfter(listener.map(v -> null), () -> {
+            ActionListener.runAfter(listener, () -> {
                 TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
                 logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
                 slmStats.deletionTime(totalElapsedTime);
@@ -354,7 +359,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         ActionListener<Void> listener
     ) {
 
-        final ActionListener<Void> allDeletesListener = new GroupedActionListener<>(snapshots.size(), listener.map(v -> null));
+        final ActionListener<Void> allDeletesListener = new CountDownActionListener(snapshots.size(), listener);
         for (Tuple<SnapshotId, String> info : snapshots) {
             final SnapshotId snapshotId = info.v1();
             if (runningDeletions.add(snapshotId) == false) {

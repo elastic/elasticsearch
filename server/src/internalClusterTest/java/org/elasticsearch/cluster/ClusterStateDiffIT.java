@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -275,26 +274,16 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             int replicaCount = randomIntBetween(1, 10);
             Set<String> availableNodeIds = Sets.newHashSet(nodeIds);
             for (int j = 0; j < replicaCount; j++) {
-                UnassignedInfo unassignedInfo = null;
-                if (randomInt(5) == 1) {
-                    unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(10));
-                }
+                var newState = j == 0 ? ShardRoutingState.STARTED : randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
+                var unassignedInfo = randomInt(5) == 1 && newState == ShardRoutingState.INITIALIZING
+                    ? randomUnassignedInfo(randomAlphaOfLength(10))
+                    : null;
                 if (availableNodeIds.isEmpty()) {
                     break;
                 }
                 String nodeId = randomFrom(availableNodeIds);
                 availableNodeIds.remove(nodeId);
-                indexShard.addShard(
-                    TestShardRouting.newShardRouting(
-                        index,
-                        i,
-                        nodeId,
-                        null,
-                        j == 0,
-                        ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)),
-                        unassignedInfo
-                    )
-                );
+                indexShard.addShard(TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0, newState, unassignedInfo));
             }
             builder.addIndexShard(indexShard);
         }

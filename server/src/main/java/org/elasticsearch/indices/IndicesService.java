@@ -1648,14 +1648,20 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Metadata metadata = state.metadata();
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        if (ia.getParentDataStream() != null) {
-            List<QueryBuilder> filters = Arrays.stream(aliases).map(name -> metadata.dataStreamAliases().get(name)).map(dataStreamAlias -> {
-                try {
-                    return filterParser.apply(dataStreamAlias.getFilter().uncompressed());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).toList();
+        IndexAbstraction.DataStream dataStream = ia.getParentDataStream();
+        if (dataStream != null) {
+            String dataStreamName = dataStream.getName();
+            List<QueryBuilder> filters = Arrays.stream(aliases)
+                .map(name -> metadata.dataStreamAliases().get(name))
+                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
+                .map(dataStreamAlias -> {
+                    try {
+                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .toList();
             if (filters.isEmpty()) {
                 return AliasFilter.of(null, aliases);
             } else {

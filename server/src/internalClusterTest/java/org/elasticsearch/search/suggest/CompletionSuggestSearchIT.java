@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -1248,7 +1249,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             }
         } else {
             for (String expectedSuggestion : suggestions) {
-                String errMsg = String.format(Locale.ROOT, "Expected elem %s to be in list %s", expectedSuggestion, suggestionList);
+                String errMsg = Strings.format("Expected elem %s to be in list %s", expectedSuggestion, suggestionList);
                 assertThat(errMsg, suggestionList, hasItem(expectedSuggestion));
             }
         }

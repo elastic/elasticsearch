@@ -16,10 +16,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -77,7 +76,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder(clusterState.metadata())
             .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
-        RoutingTable initialRoutingTable = RoutingTable.builder(clusterState.routingTable()).addAsNew(metadata.index(index)).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterState.routingTable()
+        ).addAsNew(metadata.index(index)).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(initialRoutingTable).build();
 
         ShardRouting shard = clusterState.routingTable().index("idx_new").shard(0).primaryShard();
@@ -103,7 +105,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             yesAllocationDeciders(),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(
-                Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 TEST_WRITE_LOAD_FORECASTER
             ),
@@ -196,7 +197,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testRebalanceImprovesTheBalanceOfTheShards() {
         var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int node = 0; node < 3; node++) {
-            discoveryNodesBuilder.add(createNode("node-" + node));
+            discoveryNodesBuilder.add(newNode("node-" + node));
         }
 
         var metadataBuilder = Metadata.builder();
@@ -361,7 +362,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private static ClusterState stateWithStartedIndices(IndexMetadata.Builder... indices) {
         var metadataBuilder = Metadata.builder();
-        var routingTableBuilder = RoutingTable.builder();
+        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (var index : indices) {
             var build = index.settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
             metadataBuilder.put(build, false);
@@ -369,22 +370,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
             .metadata(metadataBuilder)
             .routingTable(routingTableBuilder)
             .build();
-    }
-
-    private static DiscoveryNode createNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
-            UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
     }
 
     private void addIndex(

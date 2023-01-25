@@ -1,0 +1,5 @@
+pr: 92314
+summary: JWT realm - add support for required claims
+area: Authentication
+type: enhancement
+issues: []

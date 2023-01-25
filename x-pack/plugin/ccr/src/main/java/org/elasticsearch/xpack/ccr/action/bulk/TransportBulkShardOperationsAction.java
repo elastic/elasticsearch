@@ -97,17 +97,18 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
         }
-        ActionListener.completeWith(
-            listener,
-            () -> shardOperationOnPrimary(
+        ActionListener.completeWith(listener, () -> {
+            final var result = shardOperationOnPrimary(
                 request.shardId(),
                 request.getHistoryUUID(),
                 request.getOperations(),
                 request.getMaxSeqNoOfUpdatesOrDeletes(),
                 primary,
                 logger
-            )
-        );
+            );
+            result.replicaRequest().setParentTask(request.getParentTask());
+            return result;
+        });
     }
 
     @Override
@@ -219,7 +220,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             appliedOperations,
             maxSeqNoOfUpdatesOrDeletes
         );
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger);
     }
 
     @Override

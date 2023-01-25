@@ -101,6 +101,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             super(Defaults.NAME);
         }
 
+        public Builder setSynthetic() {
+            this.mode.setValue(Mode.SYNTHETIC);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { enabled, mode, includes, excludes };

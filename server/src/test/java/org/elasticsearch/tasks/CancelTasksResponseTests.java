@@ -36,7 +36,7 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
     public record CancelTasksResponseWrapper(CancelTasksResponse in) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            return ChunkedToXContent.wrapAsXContentObject(in.groupedByNone()).toXContent(builder, params);
+            return ChunkedToXContent.wrapAsToXContent(in.groupedByNone()).toXContent(builder, params);
         }
     }
 

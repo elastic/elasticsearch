@@ -41,9 +41,4 @@ public class SnapshotLifecycleMetadataTests extends AbstractChunkedSerializingTe
     protected Writeable.Reader<SnapshotLifecycleMetadata> instanceReader() {
         return SnapshotLifecycleMetadata::new;
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

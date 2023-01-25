@@ -61,9 +61,4 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
             EnrichPolicyTests.assertEqualPolicies(expected, actual);
         }
     }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
-    }
 }

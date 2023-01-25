@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -73,7 +74,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             expectedMax = randomIntBetween(Math.max(1, core), 16);
             builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
         } else {
-            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT) ? 10 : maxBasedOnNumberOfProcessors;
+            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT)
+                ? getMaxSnapshotThreadPoolSize(processors)
+                : maxBasedOnNumberOfProcessors;
         }
 
         final long keepAlive;

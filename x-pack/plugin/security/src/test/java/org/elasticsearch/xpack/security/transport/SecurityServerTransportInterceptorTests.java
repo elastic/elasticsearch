@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -38,6 +36,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -558,10 +557,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendWithRemoteAccessHeaders() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles()))
-            .realm()
-            .build();
+        final boolean internalUser = randomBoolean();
+        final Authentication authentication = internalUser
+            ? AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+            : AuthenticationTestHelper.builder().user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
         final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
@@ -635,11 +634,16 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 return null;
             }
         });
-        // Call listener to complete flow
-        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
-            randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
-        );
-        listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection;
+        if (internalUser) {
+            expectedRoleDescriptorsIntersection = RoleDescriptorsIntersection.EMPTY;
+        } else {
+            expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+                randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
+            );
+            // Call listener to complete flow
+            listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
+        }
         assertTrue(calledWrappedSender.get());
         assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
         assertThat(
@@ -648,7 +652,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
         verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
-        verify(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(
+        verify(authzService, times(internalUser ? 0 : 1)).retrieveRemoteAccessRoleDescriptorsIntersection(
             eq(remoteClusterAlias),
             eq(authentication.getEffectiveSubject()),
             anyActionListener()
@@ -675,13 +679,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
         if (unsupportedAuthentication) {
-            authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build(), builder.internal().build());
+            authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build());
         } else {
             authentication = builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         }
         authentication.writeToContext(threadContext);
         final Tuple<String, TransportRequest> actionAndReq = nonAllowlistedRequest
-            ? new Tuple<>(ClusterStateAction.NAME, mock(ClusterStatsRequest.class))
+            ? new Tuple<>(FollowInfoAction.NAME, mock(TransportRequest.class))
             : randomAllowlistedActionAndRequest();
 
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);

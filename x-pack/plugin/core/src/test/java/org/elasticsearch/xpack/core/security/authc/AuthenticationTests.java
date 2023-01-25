@@ -33,9 +33,11 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -239,7 +241,7 @@ public class AuthenticationTests extends ESTestCase {
         final boolean isRemoteAccess = randomBoolean();
         final Authentication authentication;
         if (isRemoteAccess) {
-            authentication = AuthenticationTestHelper.builder().remoteAccess().build(false);
+            authentication = AuthenticationTestHelper.builder().remoteAccess().build();
         } else {
             authentication = randomValueOtherThanMany(
                 authc -> AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
@@ -274,7 +276,7 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
-        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build(false);
+        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build();
         assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
         assertThat(remoteAccessAuthentication.getDomain(), nullValue());
     }
@@ -511,7 +513,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token().supportsRunAs(anonymousUser), is(false));
 
         // Remote access cannot run-as
-        assertThat(AuthenticationTestHelper.builder().remoteAccess().build(false).supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().remoteAccess().build().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -594,6 +596,35 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(authenticationV7.isRunAs(), is(false));
         assertThat(authenticationV7.encode(), equalTo(headerV7));
+    }
+
+    public void testMaybeRewriteForOlderVersionWithRemoteAccessThrowsOnUnsupportedVersion() {
+        final Authentication authentication = randomBoolean()
+            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            : AuthenticationTestHelper.builder().build();
+
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_REALM_DOMAINS,
+            VersionUtils.getPreviousVersion(Version.V_8_7_0)
+        );
+
+        if (authentication.isRemoteAccess()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.maybeRewriteForOlderVersion(version));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before ["
+                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + "] can't handle remote access authentication and attempted to rewrite for ["
+                        + version.transportVersion
+                        + "]"
+                )
+            );
+        } else {
+            // Assert that rewriting took place; the details of rewriting logic are checked in other tests
+            assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
+        }
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

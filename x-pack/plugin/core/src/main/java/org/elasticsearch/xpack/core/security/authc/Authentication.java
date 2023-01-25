@@ -208,7 +208,8 @@ public final class Authentication implements ToXContentObject, Writeable {
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
-        // TODO is this necessary?
+        // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
+        // possible
         if (isRemoteAccess() && olderVersion.transportVersion.before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
@@ -484,6 +485,8 @@ public final class Authentication implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
+        // not send them across the wire to older nodes
         if (isRemoteAccess() && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["

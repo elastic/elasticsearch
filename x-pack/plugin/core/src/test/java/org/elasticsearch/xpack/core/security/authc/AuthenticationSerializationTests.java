@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
@@ -63,7 +63,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
     }
 
     public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build(false);
+        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
         assertThat(authentication.isRemoteAccess(), is(true));
 
         BytesStreamOutput output = new BytesStreamOutput();
@@ -77,12 +77,17 @@ public class AuthenticationSerializationTests extends ESTestCase {
 
     public void testWriteToWithRemoteAccessThrowsOnUnsupportedVersion() throws Exception {
         final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().remoteAccess().build(false)
+            ? AuthenticationTestHelper.builder().remoteAccess().build()
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion version = TransportVersion.V_8_6_0; // TODO randomize
-        out.setTransportVersion(version);
+        out.setTransportVersion(
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                Authentication.VERSION_REALM_DOMAINS.transportVersion,
+                TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REMOTE_ACCESS_REALM)
+            )
+        );
 
         if (authentication.isRemoteAccess()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
@@ -92,7 +97,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
                     "versions of Elasticsearch before ["
                         + Authentication.VERSION_REMOTE_ACCESS_REALM
                         + "] can't handle remote access authentication and attempted to send to ["
-                        + version
+                        + out.getTransportVersion()
                         + "]"
                 )
             );

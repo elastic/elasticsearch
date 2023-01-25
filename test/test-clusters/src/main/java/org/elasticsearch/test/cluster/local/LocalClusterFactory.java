@@ -121,10 +121,10 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new UncheckedIOException("An error occurred creating config directory", e);
             }
             writeConfiguration();
+            copyExtraConfigFiles();
             createKeystore();
             addKeystoreSettings();
             configureSecurity();
-            copyExtraConfigFiles();
 
             startElasticsearch();
         }
@@ -508,7 +508,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private void startElasticsearch() {
             process = ProcessUtils.exec(
-                spec.getKeystorePassword(),
+                spec.getKeystorePassword() == null ? null : spec.getKeystorePassword() + "\n",
                 workingDir,
                 OS.conditional(
                     c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch.bat"))
@@ -543,6 +543,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                    .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))
                     .collect(Collectors.joining(" "));
             }
 

@@ -1484,8 +1484,7 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
 
             // total
-            // see https://github.com/elastic/elasticsearch/issues/92843 -- this should be 1, but it's actually 2
-            // assertStats(ingestStats.getTotalStats(), 1, 0, 0);
+            assertStats(ingestStats.getTotalStats(), 1, 0, 0);
             // pipeline
             assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 1, 0, 0);
             assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 1, 0, 0);

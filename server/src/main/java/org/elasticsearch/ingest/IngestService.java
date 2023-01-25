@@ -714,7 +714,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        // acquire a ref to indicate that we're working on this document
+                        // start the stopwatch and acquire a ref to indicate that we're working on this document
+                        final long startTimeInNanos = System.nanoTime();
+                        totalMetrics.preIngest();
                         final int slot = i;
                         final Releasable ref = refs.acquire();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
@@ -730,10 +732,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                             @Override
                             public void onFailure(Exception e) {
+                                totalMetrics.ingestFailed();
                                 onFailure.accept(slot, e);
                             }
                         }, () -> {
-                            // regardless of success or failure, we always release the ref to indicate that we're finished
+                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+                            // that we're finished with this document
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
                         executePipelines(pipelines.iterator(), hasFinalPipeline, indexRequest, documentListener);
@@ -760,15 +766,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             final Pipeline pipeline = holder.pipeline;
             final String originalIndex = indexRequest.indices()[0];
-            long startTimeInNanos = System.nanoTime();
-            totalMetrics.preIngest();
             innerExecute(indexRequest, pipeline, (keep, e) -> {
                 assert keep != null;
 
-                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                totalMetrics.postIngest(ingestTimeInNanos);
                 if (e != null) {
-                    totalMetrics.ingestFailed();
                     logger.debug(
                         () -> format(
                             "failed to execute pipeline [%s] for document [%s/%s]",
@@ -793,7 +794,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     if (hasFinalPipeline && it.hasNext() == false) {
-                        totalMetrics.ingestFailed();
                         listener.onFailure(new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index"));
                         return; // document failed!
                     } else {

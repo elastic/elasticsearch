@@ -1590,17 +1590,12 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return List.of(
-            new QuerySpec<>(
-                SparseTermsQueryBuilder.NAME,
-                SparseTermsQueryBuilder::new,
-                p -> {
-                    if (SPARSE_TERMS_QUERY_FEATURE.check(getLicenseState()) == false) {
-                        throw LicenseUtils.newComplianceException(SPARSE_TERMS_QUERY_FEATURE.getName());
-                    }
-                    return SparseTermsQueryBuilder.PARSER.apply(p, null);
-                })
-        );
+        return List.of(new QuerySpec<>(SparseTermsQueryBuilder.NAME, SparseTermsQueryBuilder::new, p -> {
+            if (SPARSE_TERMS_QUERY_FEATURE.check(getLicenseState()) == false) {
+                throw LicenseUtils.newComplianceException(SPARSE_TERMS_QUERY_FEATURE.getName());
+            }
+            return SparseTermsQueryBuilder.PARSER.apply(p, null);
+        }));
     }
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {

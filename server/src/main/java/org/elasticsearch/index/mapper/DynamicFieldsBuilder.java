@@ -355,15 +355,8 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            Settings settings = context.indexSettings().getSettings();
-            boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
             createDynamicField(
-                new BooleanFieldMapper.Builder(
-                    name,
-                    ScriptCompiler.NONE,
-                    ignoreMalformed,
-                    context.indexSettings().getIndexVersionCreated()
-                ),
+                new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, context.indexSettings().getIndexVersionCreated()),
                 context
             );
         }

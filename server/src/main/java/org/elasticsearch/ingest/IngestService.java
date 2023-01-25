@@ -907,11 +907,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private void innerExecute(final IngestDocument ingestDocument, final Pipeline pipeline, final BiConsumer<Boolean, Exception> handler) {
-        if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(true, null);
-            return;
-        }
-
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             if (e != null) {
                 handler.accept(true, e);

@@ -32,6 +32,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -145,9 +146,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator = (message, listener) -> {
-        listener.onResponse(null);
-    };
+    private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator = (message, listener) -> { listener.onResponse(null); };
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;

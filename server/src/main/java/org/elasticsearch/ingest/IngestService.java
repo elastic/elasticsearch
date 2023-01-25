@@ -770,7 +770,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             final Pipeline pipeline = holder.pipeline;
             final String originalIndex = indexRequest.indices()[0];
-            innerExecute(ingestDocument, pipeline, (keep, e) -> {
+            executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
 
                 if (e != null) {
@@ -855,6 +855,23 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    private void executePipeline(
+        final IngestDocument ingestDocument,
+        final Pipeline pipeline,
+        final BiConsumer<Boolean, Exception> handler
+    ) {
+        // adapt our {@code BiConsumer<Boolean, Exception>} handler shape to the
+        // {@code BiConsumer<IngestDocument, Exception>} handler shape used internally
+        // by ingest pipelines and processors
+        ingestDocument.executePipeline(pipeline, (result, e) -> {
+            if (e != null) {
+                handler.accept(true, e);
+            } else {
+                handler.accept(result != null, null);
+            }
+        });
+    }
+
     public IngestStats stats() {
         IngestStats.Builder statsBuilder = new IngestStats.Builder();
         statsBuilder.addTotalMetrics(totalMetrics);
@@ -904,16 +921,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             sb.append(tag);
         }
         return sb.toString();
-    }
-
-    private void innerExecute(final IngestDocument ingestDocument, final Pipeline pipeline, final BiConsumer<Boolean, Exception> handler) {
-        ingestDocument.executePipeline(pipeline, (result, e) -> {
-            if (e != null) {
-                handler.accept(true, e);
-            } else {
-                handler.accept(result != null, null);
-            }
-        });
     }
 
     /**

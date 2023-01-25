@@ -62,7 +62,7 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            final var readStrategy = randomFrom(2, 6);
+            final var readStrategy = between(0, 8);
             switch (readStrategy) {
                 case 0, 1, 2, 3:
                     if (length - readPos >= Long.BYTES && readStrategy <= 0) {

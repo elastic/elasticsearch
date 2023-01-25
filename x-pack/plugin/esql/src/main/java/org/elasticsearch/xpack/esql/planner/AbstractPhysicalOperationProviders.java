@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     @Override
-    public final LocalExecutionPlanner.PhysicalOperation getGroupingPhysicalOperation(
+    public final LocalExecutionPlanner.PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         LocalExecutionPlanner.PhysicalOperation source,
         LocalExecutionPlanner.LocalExecutionPlannerContext context

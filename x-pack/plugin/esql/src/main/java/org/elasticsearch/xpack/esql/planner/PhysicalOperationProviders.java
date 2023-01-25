@@ -14,11 +14,11 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
 interface PhysicalOperationProviders {
-    PhysicalOperation getFieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source);
+    PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source);
 
-    PhysicalOperation getSourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
+    PhysicalOperation sourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
 
-    PhysicalOperation getGroupingPhysicalOperation(
+    PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
         LocalExecutionPlannerContext context

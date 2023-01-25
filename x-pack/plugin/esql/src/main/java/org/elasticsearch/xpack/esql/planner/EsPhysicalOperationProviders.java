@@ -40,7 +40,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public final PhysicalOperation getFieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
 
         var sourceAttrs = fieldExtractExec.sourceAttributes();
@@ -67,7 +67,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public PhysicalOperation getSourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+    public PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         Set<String> indices = esQueryExec.index().concreteIndices();
         List<SearchExecutionContext> matchedSearchContexts = searchContexts.stream()
             .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))

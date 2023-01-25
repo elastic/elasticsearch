@@ -44,7 +44,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     @Override
-    public PhysicalOperation getFieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    public PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
@@ -55,7 +55,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     @Override
-    public PhysicalOperation getSourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+    public PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         Layout.Builder layout = new Layout.Builder();
         for (int i = 0; i < esQueryExec.output().size(); i++) {
             layout.appendChannel(esQueryExec.output().get(i).id());
@@ -285,7 +285,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private Block maybeConvertToLongBlock(Block block) {
         int positionCount = block.getPositionCount();
-        if (block.elementType() == ElementType.INT) { // the hash is using longs only, so make it a Long block
+        if (block.elementType() == ElementType.INT) {
             LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
             for (int i = 0; i < positionCount; i++) {
                 if (block.isNull(i)) {

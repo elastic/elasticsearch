@@ -10,25 +10,17 @@ package org.elasticsearch.xpack.esql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -45,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
@@ -54,13 +45,11 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.After;
 import org.junit.Before;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URL;
@@ -70,13 +59,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.TreeMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadPage;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
@@ -103,7 +91,7 @@ public class CsvTests extends ESTestCase {
     private ThreadPool threadPool;
 
     private static IndexResolution loadIndexResolution() {
-        var mapping = new TreeMap<String, EsField>(TypesTests.loadMapping(EsqlDataTypeRegistry.INSTANCE, "mapping-default.json"));
+        var mapping = new TreeMap<String, EsField>(EsqlTestUtils.loadMapping("mapping-default.json"));
         return IndexResolution.valid(new EsIndex("test", mapping));
     }
 
@@ -189,23 +177,6 @@ public class CsvTests extends ESTestCase {
         runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
         Releasables.close(drivers);
         return new Tuple<>(collectedPages, actualColumnNames);
-    }
-
-    private void runToCompletion(Executor executor, List<Driver> drivers) {
-        if (drivers.isEmpty()) {
-            return;
-        }
-        PlainActionFuture<List<Driver.Result>> listener = new PlainActionFuture<>();
-        new DriverRunner() {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> done) {
-                Driver.start(executor, driver, done);
-            }
-        }.runToCompletion(drivers, listener);
-        RuntimeException e = Driver.Result.collectFailures(listener.actionGet());
-        if (e != null) {
-            throw e;
-        }
     }
 
     private void assertColumns(List<Tuple<String, Type>> expectedColumns, Page actualResultsPage, List<String> columnNames) {
@@ -309,212 +280,5 @@ public class CsvTests extends ESTestCase {
 
         th.setStackTrace(redone);
         return th;
-    }
-
-    static Tuple<Page, List<String>> loadPage(URL source) throws Exception {
-
-        class CsvColumn {
-            String name;
-            Type typeConverter;
-            List<Object> values;
-            Class<?> typeClass = null;
-            boolean hasNulls = false;
-
-            CsvColumn(String name, Type typeConverter, List<Object> values) {
-                this.name = name;
-                this.typeConverter = typeConverter;
-                this.values = values;
-            }
-
-            void addValue(String value) {
-                Object actualValue = typeConverter.convert(value);
-                values.add(actualValue);
-                if (typeClass == null) {
-                    typeClass = actualValue.getClass();
-                }
-            }
-
-            void addNull() {
-                values.add(null);
-                this.hasNulls = true;
-            }
-        }
-
-        CsvColumn[] columns = null;
-
-        try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(source)) {
-            String line;
-            int lineNumber = 1;
-
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                // ignore comments
-                if (line.isEmpty() == false && line.startsWith("//") == false && line.startsWith("#") == false) {
-                    var entries = Strings.delimitedListToStringArray(line, ",");
-                    for (int i = 0; i < entries.length; i++) {
-                        entries[i] = entries[i].trim();
-                    }
-                    // the schema row
-                    if (columns == null) {
-                        columns = new CsvColumn[entries.length];
-                        for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
-                            String name, typeName;
-
-                            if (split < 0) {
-                                throw new IllegalArgumentException(
-                                    "A type is always expected in the schema definition; found " + entries[i]
-                                );
-                            } else {
-                                name = entries[i].substring(0, split).trim();
-                                typeName = entries[i].substring(split + 1).trim();
-                                if (typeName.length() == 0) {
-                                    throw new IllegalArgumentException(
-                                        "A type is always expected in the schema definition; found " + entries[i]
-                                    );
-                                }
-                            }
-                            Type type = Type.asType(typeName);
-                            if (type == Type.NULL) {
-                                throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
-                            }
-                            columns[i] = new CsvColumn(name, type, new ArrayList<>());
-                        }
-                    }
-                    // data rows
-                    else {
-                        if (entries.length != columns.length) {
-                            throw new IllegalArgumentException(
-                                format(
-                                    null,
-                                    "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
-                                    lineNumber,
-                                    columns.length,
-                                    entries.length
-                                )
-                            );
-                        }
-                        for (int i = 0; i < entries.length; i++) {
-                            try {
-                                if ("".equals(entries[i])) {
-                                    columns[i].addNull();
-                                } else {
-                                    columns[i].addValue(entries[i]);
-                                }
-                            } catch (Exception e) {
-                                throw new IllegalArgumentException(
-                                    format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entries[i]),
-                                    e
-                                );
-                            }
-                        }
-                    }
-                }
-                lineNumber++;
-            }
-        }
-        var blocks = new Block[columns.length];
-        var columnNames = new ArrayList<String>(columns.length);
-        int i = 0;
-        for (CsvColumn c : columns) {
-            blocks[i++] = buildBlock(c.values, c.typeClass);
-            columnNames.add(c.name);
-        }
-        return new Tuple<>(new Page(blocks), columnNames);
-    }
-
-    private static Block buildBlock(List<Object> values, Class<?> type) {
-        Block.Builder builder;
-        if (type == Integer.class) {
-            builder = IntBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((IntBlock.Builder) builder).appendInt((Integer) v);
-                }
-            }
-        } else if (type == Long.class) {
-            builder = LongBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((LongBlock.Builder) builder).appendLong((Long) v);
-                }
-            }
-        } else if (type == Float.class) {
-            // creating a DoubleBlock here, but once a Float one is available this code needs to change
-            builder = DoubleBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((DoubleBlock.Builder) builder).appendDouble((Double) v);
-                }
-            }
-        } else if (type == Double.class) {
-            builder = DoubleBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((DoubleBlock.Builder) builder).appendDouble((Double) v);
-                }
-            }
-        } else {
-            // (type == String.class || type == Boolean.class)
-            builder = BytesRefBlock.newBlockBuilder(values.size());
-            for (Object v : values) {
-                if (v == null) {
-                    builder.appendNull();
-                } else {
-                    ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(v.toString()));
-                }
-            }
-        }
-        return builder.build();
-    }
-
-    private enum Type {
-        INTEGER(Integer::parseInt),
-        LONG(Long::parseLong),
-        DOUBLE(Double::parseDouble),
-        KEYWORD(Object::toString),
-        NULL(s -> null);
-
-        private final Function<String, Object> converter;
-
-        Type(Function<String, Object> converter) {
-            this.converter = converter;
-        }
-
-        public static <T extends Enum<T>> T valueOf(Class<T> c, String s) {
-            return Enum.valueOf(c, s.trim().toUpperCase(Locale.ROOT));
-        }
-
-        public static Type asType(String name) {
-            return valueOf(Type.class, name);
-        }
-
-        public static Type asType(ElementType elementType) {
-            return switch (elementType) {
-                case INT -> INTEGER;
-                case LONG -> LONG;
-                case DOUBLE -> DOUBLE;
-                case NULL -> NULL;
-                case BYTES_REF -> KEYWORD;
-                case UNKNOWN -> {
-                    throw new IllegalArgumentException("Unknown block types cannot be handled");
-                }
-            };
-        }
-
-        Object convert(String value) {
-            if (value == null) {
-                return null;
-            }
-            return converter.apply(value);
-        }
     }
 }

@@ -161,15 +161,15 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.getGroupingPhysicalOperation(aggregate, plan(aggregate.child(), context), context);
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, plan(aggregate.child(), context), context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.getSourcePhysicalOperation(esQuery, context);
+        return physicalOperationProviders.sourcePhysicalOperation(esQuery, context);
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {
-        return physicalOperationProviders.getFieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
+        return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {

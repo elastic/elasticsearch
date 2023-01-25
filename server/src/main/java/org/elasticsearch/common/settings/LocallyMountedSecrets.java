@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +30,15 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
+/**
+ * An implementation of {@link SecureSettings} which loads the secrets from
+ * externally mounted local directory. It looks for the folder called 'secrets'
+ * under the config directory. All secure settings should be supplied in a single
+ * file called 'secrets.json' which sits inside the 'secrets' directory.
+ * <p>
+ * If the 'secrets' directory or the 'secrets.json' file don't exist, the
+ * SecureSettings implementation is loaded with empty settings map.
+ */
 public class LocallyMountedSecrets implements SecureSettings {
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
@@ -38,16 +48,20 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<LocalFileSecrets, Void> secretsParser = new ConstructingObjectParser<>(
-        "reserved_state_chunk",
+        "locally_mounted_secrets",
         a -> new LocalFileSecrets((Map<String, String>) a[0], (ReservedStateVersion) a[1])
     );
 
     private final String secretsDir;
     private final String secretsFile;
     private final SetOnce<LocalFileSecrets> secrets = new SetOnce<>();
-    private volatile boolean closed;
 
+    /**
+     * Constructed directly by the {@link LocallyMountedSecretsLoader}
+     */
     public LocallyMountedSecrets(Environment environment) {
+        assert environment.settings().getAsBoolean(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false);
+
         var secretsDirPath = environment.configFile().toAbsolutePath().resolve(SECRETS_DIRECTORY);
         var secretsFilePath = secretsDirPath.resolve(SECRETS_FILE_NAME);
         secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), SECRETS_FIELD);
@@ -55,7 +69,6 @@ public class LocallyMountedSecrets implements SecureSettings {
         if (Files.exists(secretsDirPath) && Files.exists(secretsFilePath)) {
             try {
                 secrets.set(processSecretsFile(secretsFilePath));
-                closed = false;
             } catch (IOException e) {
                 throw new IllegalStateException("Error processing secrets file", e);
             }
@@ -64,13 +77,17 @@ public class LocallyMountedSecrets implements SecureSettings {
         this.secretsFile = secretsFilePath.toString();
     }
 
+    /**
+     * Used by {@link org.elasticsearch.bootstrap.ServerArgs} to deserialize the secrets
+     * when they are received by the Elasticsearch process. The ServerCli code serializes
+     * the secrets as part of ServerArgs.
+     */
     public LocallyMountedSecrets(StreamInput in) throws IOException {
         this.secretsDir = in.readString();
         this.secretsFile = in.readString();
         if (in.readBoolean()) {
             secrets.set(LocalFileSecrets.readFrom(in));
         }
-        this.closed = in.readBoolean();
     }
 
     @Override
@@ -83,7 +100,6 @@ public class LocallyMountedSecrets implements SecureSettings {
             out.writeBoolean(true);
             secrets.get().writeTo(out);
         }
-        out.writeBoolean(closed);
     }
 
     @Override
@@ -100,7 +116,11 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public SecureString getString(String setting) {
         assert isLoaded();
-        return new SecureString(secrets.get().map().get(setting).toString().toCharArray());
+        var value = secrets.get().map().get(setting);
+        if (value == null) {
+            return null;
+        }
+        return new SecureString(value.toCharArray());
     }
 
     @Override
@@ -115,7 +135,6 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     @Override
     public void close() throws IOException {
-        closed = true;
         if (null != secrets.get() && secrets.get().map().isEmpty() == false) {
             for (var entry : secrets.get().map().entrySet()) {
                 entry.setValue(null);
@@ -123,6 +142,7 @@ public class LocallyMountedSecrets implements SecureSettings {
         }
     }
 
+    // package private for testing
     LocalFileSecrets processSecretsFile(Path path) throws IOException {
         try (
             var fis = Files.newInputStream(path);

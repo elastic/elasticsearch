@@ -20,6 +20,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.LocallyMountedSecrets;
@@ -332,7 +333,11 @@ public class ServerCliTests extends CommandTestCase {
 
     public void testLocallyMountedSecureSettings() throws Exception {
         Command command = newCommand();
-        command.main(new String[] {"-Estateless.enabled=true"}, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.main(
+            new String[] { "-E" + DiscoveryNode.STATELESS_ENABLED_SETTING_NAME + "=true" },
+            terminal,
+            new ProcessInfo(sysprops, envVars, esHomeDir)
+        );
         command.close();
         assertThat(terminal.getOutput(), Matchers.containsString("Locally mounted secrets"));
     }

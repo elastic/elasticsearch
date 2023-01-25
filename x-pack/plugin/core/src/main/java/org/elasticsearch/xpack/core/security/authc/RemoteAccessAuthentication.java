@@ -135,6 +135,8 @@ public final class RemoteAccessAuthentication {
             : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
         assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
             : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
+        assert false == getAuthentication().isRemoteAccess()
+            : "authentication included in remote access header cannot itself be remote access";
         final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
         try {
             copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication().encode());

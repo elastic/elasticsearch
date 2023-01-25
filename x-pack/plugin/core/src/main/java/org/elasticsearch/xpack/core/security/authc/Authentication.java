@@ -208,6 +208,16 @@ public final class Authentication implements ToXContentObject, Writeable {
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
+        // TODO is this necessary?
+        if (isRemoteAccess() && olderVersion.transportVersion.before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + VERSION_REMOTE_ACCESS_REALM
+                    + "] can't handle remote access authentication and attempted to rewrite for ["
+                    + olderVersion.transportVersion
+                    + "]"
+            );
+        }
 
         final Map<String, Object> newMetadata = maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
 

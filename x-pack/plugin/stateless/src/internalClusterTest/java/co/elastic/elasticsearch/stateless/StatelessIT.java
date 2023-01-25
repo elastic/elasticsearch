@@ -272,9 +272,11 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
         ensureGreen(indexName);
-        indexDocuments(indexName);
-        flush(indexName);
-        assertObjectStoreConsistentWithIndexShards();
+        for (int i = 0; i < 3; i++) {
+            indexDocuments(indexName);
+            flush(indexName);
+            assertObjectStoreConsistentWithIndexShards();
+        }
 
         startSearchNodes(numberOfShards);
         updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));

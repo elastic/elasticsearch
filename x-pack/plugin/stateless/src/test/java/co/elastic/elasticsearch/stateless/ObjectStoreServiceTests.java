@@ -23,8 +23,11 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.elasticsearch.Version;
@@ -39,6 +42,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -222,6 +226,110 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
     }
 
+    public void testStartingShardRetrievesSegmentsFromOneCommit() throws IOException {
+        final var mergesEnabled = randomBoolean();
+        final var indexWriterConfig = mergesEnabled
+            ? new IndexWriterConfig(new KeywordAnalyzer())
+            : Lucene.indexWriterConfigWithNoMerging(new KeywordAnalyzer());
+
+        final var permittedFiles = new HashSet<String>();
+        try (var testHarness = new TestHarness() {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+
+                class WrappedBlobContainer extends FilterBlobContainer {
+                    WrappedBlobContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedBlobContainer(child);
+                    }
+
+                    @Override
+                    public InputStream readBlob(String blobName) throws IOException {
+                        assert permittedFiles.contains(blobName) : blobName + " in " + permittedFiles;
+                        return super.readBlob(blobName);
+                    }
+                }
+
+                return new WrappedBlobContainer(innerContainer);
+            }
+        }) {
+            var commitCount = between(0, 5);
+
+            try (
+                var indexWriter = new IndexWriter(testHarness.indexingStore.directory(), indexWriterConfig);
+                var closeables = new TransferableCloseables()
+            ) {
+
+                for (int commit = 0; commit < commitCount; commit++) {
+                    indexWriter.addDocument(List.of());
+                    indexWriter.forceMerge(1);
+                    indexWriter.commit();
+                    final var indexReader = closeables.add(DirectoryReader.open(indexWriter));
+                    final var indexCommit = indexReader.getIndexCommit();
+                    final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap();
+                    if (commit == 0 || mergesEnabled == false) {
+                        final var segmentCommitInfos = SegmentInfos.readCommit(
+                            testHarness.indexingDirectory,
+                            indexCommit.getSegmentsFileName()
+                        );
+                        assertEquals(commit + 1, segmentCommitInfos.size());
+                        for (SegmentCommitInfo segmentCommitInfo : segmentCommitInfos) {
+                            assertTrue(segmentCommitInfo.info.getUseCompoundFile());
+                        }
+                    }
+
+                    permittedFiles.clear();
+                    permittedFiles.addAll(indexCommit.getFileNames());
+
+                    PlainActionFuture.<Void, IOException>get(
+                        future -> testHarness.objectStoreService.onCommitCreation(
+                            new StatelessCommitRef(
+                                testHarness.shardId,
+                                new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),
+                                commitFiles,
+                                commitFiles.keySet(),
+                                1
+                            )
+                        ),
+                        10,
+                        TimeUnit.SECONDS
+                    );
+                }
+            }
+
+            assertEquals(
+                commitCount,
+                testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1)
+                    .listBlobs()
+                    .keySet()
+                    .stream()
+                    .filter(s -> s.startsWith(IndexFileNames.SEGMENTS))
+                    .count()
+            );
+            assertEquals(Math.min(1L, commitCount), permittedFiles.stream().filter(s -> s.startsWith(IndexFileNames.SEGMENTS)).count());
+
+            expectThrows(IndexNotFoundException.class, () -> DirectoryReader.open(testHarness.searchStore.directory()));
+
+            Set<String> downloadedFiles = PlainActionFuture.get(
+                future -> testHarness.objectStoreService.downloadSearchShardFiles(testHarness.shardId, 1, testHarness.searchStore, future)
+            );
+
+            assertEquals(permittedFiles, downloadedFiles);
+
+            if (commitCount == 0) {
+                expectThrows(IndexNotFoundException.class, () -> DirectoryReader.open(testHarness.searchStore.directory()));
+            } else {
+                try (var indexReader = DirectoryReader.open(testHarness.searchStore.directory())) {
+                    assertEquals(commitCount, indexReader.numDocs());
+                }
+            }
+        }
+    }
+
     private class TestHarness implements Closeable {
 
         final DiscoveryNode node;
@@ -238,6 +346,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
         final ShardPath indexingShardPath;
         final Directory indexingDirectory;
         final Store indexingStore;
+        final ShardPath searchShardPath;
+        final Directory searchDirectory;
+        final Store searchStore;
         final TransportService transportService;
         final RepositoriesService repoService;
         final ObjectStoreService objectStoreService;
@@ -267,6 +378,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 createTempDir().resolve(shardId.getIndex().getUUID()).resolve("0"),
                 shardId
             );
+            searchShardPath = new ShardPath(
+                false,
+                createTempDir().resolve(shardId.getIndex().getUUID()).resolve("0"),
+                createTempDir().resolve(shardId.getIndex().getUUID()).resolve("0"),
+                shardId
+            );
 
             try (var localCloseables = new TransferableCloseables()) {
 
@@ -278,6 +395,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 client = localCloseables.add(new NodeClient(nodeSettings, threadPool));
                 indexingDirectory = localCloseables.add(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath));
                 indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
+                searchDirectory = localCloseables.add(new FsDirectoryFactory().newDirectory(indexSettings, searchShardPath));
+                searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
                 transportService = transport.createTransportService(
                     nodeSettings,
@@ -324,7 +443,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 localCloseables.add(transportService::stop);
 
-                objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, client, clusterService);
+                objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, client);
                 objectStoreService.start();
 
                 closeables = localCloseables.transfer();

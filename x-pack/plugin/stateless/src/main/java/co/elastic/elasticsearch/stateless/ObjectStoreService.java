@@ -22,16 +22,17 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -58,9 +59,11 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -179,21 +182,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private BlobStoreRepository objectStore;
 
     private final Client client;
-    private final ClusterService clusterService;
 
     @Inject
     public ObjectStoreService(
         Settings settings,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
-        Client client,
-        ClusterService clusterService
+        Client client
     ) {
         this.settings = settings;
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
@@ -290,36 +290,79 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public void downloadSearchShardFiles(ShardId shardId, long primaryTerm, Store store, ActionListener<Set<String>> listener) {
         try {
-            var blobs = getBlobContainer(shardId, primaryTerm).listBlobs();
-            if (blobs.isEmpty()) {
-                listener.onResponse(blobs.keySet());
+            // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
+            // TODO ES-5258 This looks for a commit from the latest primary term only, is that sufficient?
+            final var blobContainer = getBlobContainer(shardId, primaryTerm);
+            final var allBlobs = Map.copyOf(blobContainer.listBlobs());
+            if (allBlobs.keySet().stream().noneMatch(s -> s.startsWith(IndexFileNames.SEGMENTS))) {
+                listener.onResponse(Set.of());
                 return;
             }
-            RecoveryState.Index indexState = new RecoveryState.Index();
-            for (var blob : blobs.values()) {
-                indexState.addFileDetail(blob.name(), blob.length(), false);
-            }
-            MultiFileWriter multiFileWriter = new MultiFileWriter(
-                store,
-                indexState,
-                "prepare_index_recovery_download_" + UUIDs.randomBase64UUID(),
-                org.apache.logging.log4j.LogManager.getLogger(getClass()),
-                () -> {},
-                false // TODO ES-4993 we should start verifying output
-            );
+            try (var directory = new SegmentInfoCachingDirectory(blobContainer, allBlobs)) {
+                // SegmentInfos#readLatestCommit lists segments_N files, picks the latest, then loads it and all the .si files it mentions:
+                final var segmentInfos = SegmentInfos.readLatestCommit(directory);
+                // TODO ES-5310 can now notify the primary which commit we're going to be using, allowing cleanup of other commits
 
-            downloadTaskRunner.enqueueTask(
-                new CommitDownloadTask(
-                    multiFileWriter,
-                    toStoreFileMetadata(blobs),
-                    shardId,
-                    primaryTerm,
-                    -1,
-                    threadPool.relativeTimeInNanos(),
-                    ActionListener.runBefore(listener.map(ignored -> blobs.keySet()), multiFileWriter::renameAllTempFiles)
-                )
-            );
-        } catch (IOException e) {
+                final Collection<String> commitFiles = segmentInfos.files(true);
+                final var blobs = new HashMap<String, BlobMetadata>();
+                for (String commitFile : commitFiles) {
+                    final BlobMetadata blob = allBlobs.get(commitFile);
+                    if (blob == null) {
+                        throw new FileNotFoundException(commitFile + " not found");
+                    }
+                    blobs.put(commitFile, blob);
+                }
+
+                RecoveryState.Index indexState = new RecoveryState.Index();
+                MultiFileWriter multiFileWriter = new MultiFileWriter(
+                    store,
+                    indexState,
+                    "prepare_index_recovery_download_" + UUIDs.randomBase64UUID(),
+                    org.apache.logging.log4j.LogManager.getLogger(getClass()),
+                    () -> {},
+                    false // TODO ES-4993 we should start verifying output
+                );
+
+                try (var listeners = new RefCountingListener(ActionListener.runAfter(listener.map(ignored -> {
+                    multiFileWriter.renameAllTempFiles();
+                    return Set.copyOf(commitFiles);
+                }), multiFileWriter::close))) {
+
+                    for (final var blobIterator = blobs.entrySet().iterator(); blobIterator.hasNext();) {
+                        final var entry = blobIterator.next();
+                        final var name = entry.getKey();
+                        final var metadata = entry.getValue();
+                        indexState.addFileDetail(name, metadata.length(), false);
+
+                        if (SegmentInfoCachingDirectory.isCached(name)) {
+                            blobIterator.remove();
+                            assert directory.assertFileInCache(name);
+                            ActionRunnable.run(listeners.acquire(), () -> {
+                                try (var indexInput = directory.openInput(name, IOContext.READONCE)) {
+                                    multiFileWriter.writeFile(
+                                        toStoreFileMetadata(metadata),
+                                        getObjectStore().getReadBufferSizeInBytes(),
+                                        new InputStreamIndexInput(indexInput, Long.MAX_VALUE)
+                                    );
+                                }
+                            }).run();
+                        }
+                    }
+
+                    downloadTaskRunner.enqueueTask(
+                        new CommitDownloadTask(
+                            multiFileWriter,
+                            toStoreFileMetadata(blobs),
+                            shardId,
+                            primaryTerm,
+                            -1,
+                            threadPool.relativeTimeInNanos(),
+                            listeners.acquire()
+                        )
+                    );
+                }
+            }
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

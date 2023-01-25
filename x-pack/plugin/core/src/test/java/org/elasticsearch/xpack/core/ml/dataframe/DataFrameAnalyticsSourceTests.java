@@ -54,6 +54,11 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         return createRandom();
     }
 
+    @Override
+    protected DataFrameAnalyticsSource mutateInstance(DataFrameAnalyticsSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataFrameAnalyticsSource createRandom() {
         String[] index = generateRandomStringArray(10, 10, false, false);
         QueryProvider queryProvider = null;

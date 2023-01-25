@@ -51,6 +51,11 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
     }
 
     @Override
+    protected CategoryDefinition mutateInstance(CategoryDefinition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<CategoryDefinition> instanceReader() {
         return CategoryDefinition::new;
     }

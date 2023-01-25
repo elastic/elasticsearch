@@ -61,6 +61,11 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
     }
 
     @Override
+    protected ZeroShotClassificationConfigUpdate mutateInstance(ZeroShotClassificationConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected ZeroShotClassificationConfigUpdate mutateInstanceForVersion(ZeroShotClassificationConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

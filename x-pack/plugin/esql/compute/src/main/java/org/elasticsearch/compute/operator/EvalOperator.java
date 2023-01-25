@@ -31,7 +31,7 @@ public class EvalOperator implements Operator {
 
         @Override
         public String describe() {
-            return "EvalOperator(datatype = " + dataType + ")";
+            return "EvalOperator[dataType=" + dataType + ", evaluator=" + evaluator + "]";
         }
     }
 

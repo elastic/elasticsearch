@@ -742,12 +742,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         assert it.hasNext();
         final String pipelineId = it.next();
         try {
-            PipelineHolder holder = pipelines.get(pipelineId);
+            final PipelineHolder holder = pipelines.get(pipelineId);
             if (holder == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            Pipeline pipeline = holder.pipeline;
-            String originalIndex = indexRequest.indices()[0];
+            final Pipeline pipeline = holder.pipeline;
+            final String originalIndex = indexRequest.indices()[0];
             long startTimeInNanos = System.nanoTime();
             totalMetrics.preIngest();
             innerExecute(slot, indexRequest, pipeline, onDropped, e -> {

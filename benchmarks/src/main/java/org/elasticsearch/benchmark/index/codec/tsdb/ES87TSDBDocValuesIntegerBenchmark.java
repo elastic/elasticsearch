@@ -25,6 +25,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -88,12 +89,12 @@ public class ES87TSDBDocValuesIntegerBenchmark {
     }
 
     @Benchmark
-    public void benchmark() throws IOException {
+    public void benchmark(Blackhole bh) throws IOException {
         switch (mode) {
-            case "decode increasing integer" -> decodeIncreasingInteger.benchmark(bitsPerValue);
-            case "decode decreasing integer" -> decodeDecreasingInteger.benchmark(bitsPerValue);
-            case "encode increasing integer" -> encodeIncreasingInteger.benchmark(bitsPerValue);
-            case "encode decreasing integer" -> encodeDecreasingInteger.benchmark(bitsPerValue);
+            case "decode increasing integer" -> decodeIncreasingInteger.benchmark(bitsPerValue, bh);
+            case "decode decreasing integer" -> decodeDecreasingInteger.benchmark(bitsPerValue, bh);
+            case "encode increasing integer" -> encodeIncreasingInteger.benchmark(bitsPerValue, bh);
+            case "encode decreasing integer" -> encodeDecreasingInteger.benchmark(bitsPerValue, bh);
         }
     }
 }

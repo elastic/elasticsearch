@@ -24,6 +24,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -69,10 +70,10 @@ public class ES87TSDBDocValuesConstantBenchmark {
     }
 
     @Benchmark
-    public void benchmark() throws IOException {
+    public void benchmark(Blackhole bh) throws IOException {
         switch (mode) {
-            case "decode" -> decode.benchmark(bitsPerValue);
-            case "encode" -> encode.benchmark(bitsPerValue);
+            case "decode" -> decode.benchmark(bitsPerValue, bh);
+            case "encode" -> encode.benchmark(bitsPerValue, bh);
         }
     }
 }

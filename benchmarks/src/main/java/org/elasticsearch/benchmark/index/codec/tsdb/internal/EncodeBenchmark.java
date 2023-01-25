@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -28,7 +29,8 @@ public class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
     }
 
     @Override
-    public void benchmark(int bitsPerValue) throws IOException {
+    public void benchmark(int bitsPerValue, Blackhole bh) throws IOException {
         forUtil.encode(this.input, bitsPerValue, this.dataOutput);
+        bh.consume(this.dataOutput);
     }
 }

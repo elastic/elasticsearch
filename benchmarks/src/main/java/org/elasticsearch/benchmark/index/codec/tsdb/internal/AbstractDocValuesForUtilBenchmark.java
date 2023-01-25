@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
 import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -23,7 +24,7 @@ public abstract class AbstractDocValuesForUtilBenchmark {
         this.blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
     }
 
-    public abstract void benchmark(int bitsPerValue) throws IOException;
+    public abstract void benchmark(int bitsPerValue, Blackhole bh) throws IOException;
 
     public abstract void setupIteration(int bitsPerValue, final Supplier<long[]> arraySupplier) throws IOException;
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -149,7 +150,8 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<CanMatchNodeResponse> listener
     ) {
-        if (connection.getVersion().onOrAfter(Version.V_7_16_0) && connection.getNode().getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (connection.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)
+            && connection.getNode().getVersion().onOrAfter(Version.V_7_16_0)) {
             transportService.sendChildRequest(
                 connection,
                 QUERY_CAN_MATCH_NODE_NAME,

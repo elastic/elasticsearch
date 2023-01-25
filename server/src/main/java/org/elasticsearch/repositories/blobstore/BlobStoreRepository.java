@@ -1982,7 +1982,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             clusterService,
                             metadata.name(),
                             loaded,
-                            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(v -> loaded), false)
+                            new ThreadedActionListener<>(threadPool.generic(), listener.map(v -> loaded))
                         );
                     }
                 }

@@ -192,7 +192,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         try {
             csDeduplicator.execute(
-                new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
+                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SNAPSHOT_META), context.map(response -> {
                     Metadata responseMetadata = response.metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
                     return new SnapshotInfo(
@@ -203,7 +203,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         response.getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
                     );
-                }), false)
+                }))
             );
         } catch (Exception e) {
             assert false : e;

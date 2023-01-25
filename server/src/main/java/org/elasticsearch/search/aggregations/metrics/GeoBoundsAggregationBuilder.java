@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -156,7 +156,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
@@ -18,21 +17,10 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
 
     boolean isTargetTypeSupported(TargetType targetType);
 
-    @Override
-    default TransportVersion getMinimalSupportedVersion() {
-        /*
-         * TODO: This method existed before it inherited from VersionedNamedWriteable,
-         *  so we need to look at this closely when we migrate the bulk of the ML code,
-         *  whether this actually means the transport version or the actual node version
-         *  on the other end
-         */
-        return getMinimalSupportedNodeVersion().transportVersion;
-    }
-
     /**
      * All nodes in the cluster must be at least this version
      */
-    Version getMinimalSupportedNodeVersion();
+    Version getMinimalSupportedVersion();
 
     default boolean requestingImportance() {
         return false;

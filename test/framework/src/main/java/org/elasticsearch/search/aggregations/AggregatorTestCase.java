@@ -42,7 +42,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -1364,8 +1363,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

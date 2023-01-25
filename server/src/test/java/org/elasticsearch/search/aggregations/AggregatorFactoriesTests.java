@@ -8,7 +8,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -347,8 +347,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
 
         @Override

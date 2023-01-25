@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -215,7 +214,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_10_0;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_10_0;
     }
 }

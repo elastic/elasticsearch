@@ -148,7 +148,7 @@ public class TextSimilarityConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedNodeVersion() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_8_5_0;
     }
 

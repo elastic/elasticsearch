@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -66,8 +65,8 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -180,8 +179,8 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {

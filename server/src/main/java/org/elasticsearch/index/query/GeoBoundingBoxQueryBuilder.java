@@ -396,7 +396,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

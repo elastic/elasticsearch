@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -108,8 +107,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_0_0;
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override

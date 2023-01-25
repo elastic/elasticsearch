@@ -23,7 +23,7 @@ public class IncreasingIntegerSupplier extends AbstractLongArraySupplier {
     @Override
     public long[] get() {
         final long[] data = new long[size];
-        long min = 1L << bitsPerValue - 1;
+        long min = 1L << (bitsPerValue - 1);
         long max = 1L << bitsPerValue;
         for (int i = 0; i < size; i++) {
             data[i] = random.nextLong(min, max);

@@ -22,7 +22,7 @@ public class ConstantIntegerSupplier extends AbstractLongArraySupplier {
     @Override
     public long[] get() {
         long[] data = new long[size];
-        long min = 1L << bitsPerValue - 1;
+        long min = 1L << (bitsPerValue - 1);
         long max = 1L << bitsPerValue;
         Arrays.fill(data, random.nextLong(min, max));
         return data;

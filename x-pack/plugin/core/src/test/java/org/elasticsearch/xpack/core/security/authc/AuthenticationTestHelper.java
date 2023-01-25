@@ -386,7 +386,7 @@ public class AuthenticationTestHelper {
             final RemoteAccessAuthentication remoteAccessAuthentication
         ) {
             if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("cannot use remote access authentication with run-as");
+                throw new IllegalArgumentException("cannot use remote access authentication as run-as target");
             }
             apiKey(remoteAccessApiKeyId);
             this.remoteAccessAuthentication = Objects.requireNonNull(remoteAccessAuthentication);
@@ -421,6 +421,9 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder runAs() {
+            if (remoteAccessAuthentication != null) {
+                throw new IllegalArgumentException("cannot convert to run-as for remote access authentication");
+            }
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot convert to run-as again for run-as authentication");
             }
@@ -486,7 +489,6 @@ public class AuthenticationTestHelper {
                         // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
                         // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
                         // instance into a remote access authentication instance.
-                        // This means the builder only produces remote access authentication instances if `remoteAccess()` was called.
                         authentication = remoteAccessAuthentication != null
                             ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
                             : apiKeyAuthentication;

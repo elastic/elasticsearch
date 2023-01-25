@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -99,6 +100,7 @@ public final class Authentication implements ToXContentObject, Writeable {
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
     public static final Version VERSION_REALM_DOMAINS = Version.V_8_2_0;
+    public static final TransportVersion VERSION_REMOTE_ACCESS_REALM = TransportVersion.V_8_7_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -472,6 +474,15 @@ public final class Authentication implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (isRemoteAccess() && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + VERSION_REMOTE_ACCESS_REALM
+                    + "] can't handle remote access authentication and attempted to send to ["
+                    + out.getTransportVersion()
+                    + "]"
+            );
+        }
         if (isRunAs()) {
             final User outerUser = effectiveSubject.getUser();
             final User innerUser = authenticatingSubject.getUser();
@@ -666,8 +677,14 @@ public final class Authentication implements ToXContentObject, Writeable {
         if (realmRef == null) {
             return false;
         }
-        if (List.of(API_KEY_REALM_NAME, ServiceAccountSettings.REALM_NAME, ANONYMOUS_REALM_NAME, FALLBACK_REALM_NAME, ATTACH_REALM_NAME)
-            .contains(realmRef.getName())) {
+        if (List.of(
+            API_KEY_REALM_NAME,
+            ServiceAccountSettings.REALM_NAME,
+            ANONYMOUS_REALM_NAME,
+            FALLBACK_REALM_NAME,
+            ATTACH_REALM_NAME,
+            REMOTE_ACCESS_REALM_NAME
+        ).contains(realmRef.getName())) {
             return true;
         }
         if (List.of(

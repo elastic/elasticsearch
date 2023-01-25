@@ -15,7 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.extras.RankFeaturesFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -115,7 +114,7 @@ public class SparseTermsQueryBuilder extends AbstractQueryBuilder<SparseTermsQue
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        if (fieldType instanceof RankFeaturesFieldMapper.RankFeaturesFieldType == false) {
+        if (fieldType.typeName().equals("rank_features") == false) {
             throw new QueryShardException(
                 context,
                 "[{}] can only query [rank_features] fields; found [{}] on index [{}]",

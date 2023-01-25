@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,7 +56,7 @@ public class SparseTermsQueryBuilderTests extends AbstractQueryTestCase<SparseTe
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(MachineLearning.class, MapperExtrasPlugin.class);
+        return Arrays.asList(MachineLearningTests.TrialLicensedMachineLearning.class, MapperExtrasPlugin.class);
     }
 
     @Override

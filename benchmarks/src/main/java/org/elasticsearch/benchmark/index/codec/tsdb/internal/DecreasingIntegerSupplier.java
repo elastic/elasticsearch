@@ -25,7 +25,7 @@ public class DecreasingIntegerSupplier extends AbstractLongArraySupplier {
         final long[] data = new long[size];
         long max = 1L << bitsPerValue;
         for (int i = 0; i < size; i++) {
-            data[i] = random.nextLong(0, max);
+            data[i] = random.nextLong(max);
         }
         return Arrays.stream(data).boxed().sorted(Collections.reverseOrder()).mapToLong(Long::longValue).toArray();
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -177,8 +177,8 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     public void testMinimumSupportedVersion() {
-        Version min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
+        TransportVersion min = createTestInstance().getMinimalSupportedVersion();
+        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT)));
     }
 
     public void testcontext() {

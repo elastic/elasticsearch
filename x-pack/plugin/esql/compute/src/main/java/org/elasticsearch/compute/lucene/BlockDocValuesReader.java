@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.lucene.ValueSources.checkMultiValue;
+
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
  */
@@ -144,9 +146,7 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    if (numericDocValues.docValueCount() != 1) {
-                        throw new UnsupportedOperationException("only single valued fields supported for now");
-                    }
+                    checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendLong(numericDocValues.nextValue());
                 } else {
                     blockBuilder.appendNull();
@@ -230,9 +230,7 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    if (numericDocValues.docValueCount() != 1) {
-                        throw new UnsupportedOperationException("only single valued fields supported for now");
-                    }
+                    checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendDouble(numericDocValues.nextValue());
                 } else {
                     blockBuilder.appendNull();
@@ -274,12 +272,7 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (binaryDV.advanceExact(doc)) {
-                    int dvCount = binaryDV.docValueCount();
-                    if (dvCount != 1) {
-                        throw new IllegalStateException(
-                            "multi-values not supported for now, could not read doc [" + doc + "] with [" + dvCount + "] values"
-                        );
-                    }
+                    checkMultiValue(doc, binaryDV.docValueCount());
                     blockBuilder.appendBytesRef(binaryDV.nextValue());
                 } else {
                     blockBuilder.appendNull();

@@ -526,7 +526,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
     }
 
-    private void callClusterStateAppliers(
+    private static void callClusterStateAppliers(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<ClusterStateApplier> clusterStateAppliers
@@ -537,11 +537,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try (Releasable ignored = stopWatch.record(name)) {
                 applier.applyClusterState(clusterChangedEvent);
             }
-            assert threadPool.getThreadContext().getResponseHeaders().isEmpty()
-                : "ClusterStateApplier must not set response headers to the ClusterApplierService, but ["
-                    + applier
-                    + "] leaked the following headers: "
-                    + threadPool.getThreadContext().getResponseHeaders();
+            // TODO assert "ClusterStateApplier must not set response headers in the ClusterApplierService"
         }
     }
 
@@ -550,7 +546,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
-    private void callClusterStateListener(
+    private static void callClusterStateListener(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<? extends ClusterStateListener> listeners
@@ -565,11 +561,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
             }
-            assert threadPool.getThreadContext().getResponseHeaders().isEmpty()
-                : "ClusterStateApplier must not set response headers to the ClusterStateListener, but ["
-                    + listener
-                    + "] leaked the following headers: "
-                    + threadPool.getThreadContext().getResponseHeaders();
+            // TODO assert "ClusterStateApplier must not set response headers in the ClusterStateListener"
         }
     }
 

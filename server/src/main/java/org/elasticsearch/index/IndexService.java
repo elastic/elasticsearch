@@ -436,7 +436,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             ShardPath path;
-            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
@@ -468,17 +468,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
                     dataPathToShardCount.put(dataPath, curCount + 1);
                 }
-                try (var ignored = threadPool.getThreadContext().newStoredContext()) {
-                    path = ShardPath.selectNewPathForShard(
-                        nodeEnv,
-                        shardId,
-                        this.indexSettings,
-                        routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                            ? getAvgShardSizeInBytes()
-                            : routing.getExpectedShardSize(),
-                        dataPathToShardCount
-                    );
-                }
+                path = ShardPath.selectNewPathForShard(
+                    nodeEnv,
+                    shardId,
+                    this.indexSettings,
+                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                        ? getAvgShardSizeInBytes()
+                        : routing.getExpectedShardSize(),
+                    dataPathToShardCount
+                );
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

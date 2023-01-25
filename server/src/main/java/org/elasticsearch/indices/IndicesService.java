@@ -1022,8 +1022,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     index,
                     0,
                     indexSettings,
-                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths),
-                    threadPool.getThreadContext()
+                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
                 );
             }
             success = true;
@@ -1055,8 +1054,7 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectoryUnderLock(
             lock,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths),
-            threadPool.getThreadContext()
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
         );
     }
 
@@ -1085,8 +1083,7 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(
             shardId,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths),
-            threadPool.getThreadContext()
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
         );
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
@@ -1180,22 +1177,20 @@ public class IndicesService extends AbstractLifecycleComponent
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
         final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
-        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
-            if (isAllocated) {
-                return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
-            } else if (indexSettings.hasCustomDataPath()) {
-                // lets see if it's on a custom path (return false if the shard doesn't exist)
-                // we don't need to delete anything that is not there
-                return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId))
-                    ? ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE
-                    : ShardDeletionCheckResult.NO_FOLDER_FOUND;
-            } else {
-                // lets see if it's path is available (return false if the shard doesn't exist)
-                // we don't need to delete anything that is not there
-                return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId))
-                    ? ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE
-                    : ShardDeletionCheckResult.NO_FOLDER_FOUND;
-            }
+        if (isAllocated) {
+            return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
+        } else if (indexSettings.hasCustomDataPath()) {
+            // lets see if it's on a custom path (return false if the shard doesn't exist)
+            // we don't need to delete anything that is not there
+            return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId))
+                ? ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE
+                : ShardDeletionCheckResult.NO_FOLDER_FOUND;
+        } else {
+            // lets see if it's path is available (return false if the shard doesn't exist)
+            // we don't need to delete anything that is not there
+            return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId))
+                ? ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE
+                : ShardDeletionCheckResult.NO_FOLDER_FOUND;
         }
     }
 
@@ -1328,8 +1323,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                 nodeEnv.deleteIndexDirectoryUnderLock(
                                     index,
                                     indexSettings,
-                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths),
-                                    threadPool.getThreadContext()
+                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
                                 );
                                 iterator.remove();
                             } catch (IOException ex) {

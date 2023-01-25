@@ -11,14 +11,20 @@ package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 import org.apache.lucene.store.ByteArrayDataOutput;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
-public abstract class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
+public class EncodeBenchmark extends AbstractDocValuesForUtilBenchmark {
     protected ByteArrayDataOutput dataOutput;
     protected long[] input;
 
     @Override
-    public void setupInvocation(int bitsPerValue) throws IOException {
-        this.dataOutput.reset(new byte[Long.BYTES * blockSize]);
+    public void setupIteration(int unUsedBitsPerValue, Supplier<long[]> arraySupplier) throws IOException {
+        this.input = arraySupplier.get();
+    }
+
+    @Override
+    public void setupInvocation(int unusedBitsPerValue) {
+        this.dataOutput = new ByteArrayDataOutput(new byte[Long.BYTES * blockSize]);
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
@@ -465,8 +466,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91609")
     public void testServiceLoadingWithOptionalDependencies() throws Exception {
-
+        assumeFalse("Tests frequently fail on Windows", Constants.WINDOWS);
         try (UberModuleClassLoader loader = getServiceTestLoader(true)) {
 
             Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
@@ -483,8 +485,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91609")
     public void testServiceLoadingWithoutOptionalDependencies() throws Exception {
-
+        assumeFalse("Tests frequently fail on Windows", Constants.WINDOWS);
         try (UberModuleClassLoader loader = getServiceTestLoader(false)) {
 
             Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");

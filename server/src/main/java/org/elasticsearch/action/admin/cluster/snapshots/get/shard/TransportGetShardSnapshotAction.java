@@ -85,8 +85,8 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         }
 
         GroupedActionListener<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> groupedActionListener = new GroupedActionListener<>(
-            listener.map(TransportGetShardSnapshotAction::transformToResponse),
-            repositories.size()
+            repositories.size(),
+            listener.map(TransportGetShardSnapshotAction::transformToResponse)
         );
 
         BlockingQueue<String> repositoriesQueue = new LinkedBlockingQueue<>(repositories);

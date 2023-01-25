@@ -287,7 +287,9 @@ public class FollowingEngineTests extends ESTestCase {
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            System::nanoTime
+            System::nanoTime,
+            null,
+            true
         );
     }
 

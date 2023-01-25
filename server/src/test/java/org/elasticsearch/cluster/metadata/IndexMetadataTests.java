@@ -47,6 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETT
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetadataTests extends ESTestCase {
@@ -497,16 +498,40 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIndexAndAliasWithSameName() {
-        final IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(AliasMetadata.builder("index").build())
-                .build()
-        );
-        assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(randomBoolean())
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(false)
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+    }
+
+    public void testRepairIndexAndAliasWithSameName() {
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("index").build())
+            .build(true);
+        assertThat(indexMetadata.getAliases(), hasKey("index-alias-corrupted-by-8-5"));
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {

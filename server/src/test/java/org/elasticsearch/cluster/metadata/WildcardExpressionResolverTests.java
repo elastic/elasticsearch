@@ -28,6 +28,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
 
@@ -96,7 +97,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         } else if (indicesOptions == IndicesOptions.strictExpandOpen()) {
             IndexNotFoundException infe = expectThrows(
                 IndexNotFoundException.class,
-                () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))
+                () -> IndexNameExpressionResolver.resolveExpressions(context, "testXXX", "-testXXX")
             );
             assertEquals("-testXXX", infe.getIndex().getName());
         }
@@ -178,6 +179,23 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Collections.singletonList("testX*"))),
             equalTo(newHashSet("testXXX", "testXXY"))
         );
+        context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(true, true, false, false),
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(IndexNameExpressionResolver.resolveExpressions(context, "testX*").size(), equalTo(0));
+        context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(false, true, false, false),
+            SystemIndexAccessLevel.NONE
+        );
+        IndexNameExpressionResolver.Context finalContext = context;
+        IndexNotFoundException infe = expectThrows(
+            IndexNotFoundException.class,
+            () -> IndexNameExpressionResolver.resolveExpressions(finalContext, "testX*")
+        );
+        assertThat(infe.getIndex().getName(), is("testX*"));
     }
 
     // issue #13334
@@ -237,9 +255,29 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             SystemIndexAccessLevel.NONE
         );
         assertThat(
-            newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, Collections.singletonList("_all"))),
+            newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
             equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
         );
+        assertThat(
+            newHashSet(IndexNameExpressionResolver.resolveExpressions(context, "_all")),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
+        IndicesOptions noExpandOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            true,
+            false,
+            false,
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        IndexNameExpressionResolver.Context noExpandContext = new IndexNameExpressionResolver.Context(
+            state,
+            noExpandOptions,
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(IndexNameExpressionResolver.resolveExpressions(noExpandContext, "_all").size(), equalTo(0));
     }
 
     public void testResolveEmpty() {
@@ -420,13 +458,48 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         {
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
-                () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(
-                    skipAliasesStrictContext,
-                    Collections.singletonList("foo_alias")
-                )
+                () -> IndexNameExpressionResolver.resolveExpressions(skipAliasesStrictContext, "foo_alias")
             );
             assertEquals(
-                "The provided expression [foo_alias] matches an alias, " + "specify the corresponding concrete indices instead.",
+                "The provided expression [foo_alias] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage()
+            );
+        }
+        IndicesOptions noExpandNoAliasesIndicesOptions = IndicesOptions.fromOptions(true, false, false, false, true, false, true, false);
+        IndexNameExpressionResolver.Context noExpandNoAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            noExpandNoAliasesIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
+        {
+            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(
+                noExpandNoAliasesContext,
+                List.of("foo_alias")
+            );
+            assertThat(indices, containsInAnyOrder("foo_alias"));
+        }
+        IndicesOptions strictNoExpandNoAliasesIndicesOptions = IndicesOptions.fromOptions(
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            true,
+            false
+        );
+        IndexNameExpressionResolver.Context strictNoExpandNoAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            strictNoExpandNoAliasesIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
+        {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexNameExpressionResolver.resolveExpressions(strictNoExpandNoAliasesContext, "foo_alias")
+            );
+            assertEquals(
+                "The provided expression [foo_alias] matches an alias, specify the corresponding concrete indices instead.",
                 iae.getMessage()
             );
         }
@@ -638,11 +711,11 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(matches, containsInAnyOrder("foo_alias"));
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(onlyIndicesContext, List.of("foo_alias"))
+            () -> IndexNameExpressionResolver.resolveExpressions(onlyIndicesContext, "foo_alias")
         );
         assertThat(
             iae.getMessage(),
-            containsString("The provided expression [foo_alias] matches an alias, specify the corresponding " + "concrete indices instead")
+            containsString("The provided expression [foo_alias] matches an alias, specify the corresponding concrete indices instead")
         );
     }
 

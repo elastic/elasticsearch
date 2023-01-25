@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,6 +18,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -81,13 +84,20 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        delegate.openConnection(node, profile, listener);
+        delegate.openConnection(
+            node,
+            profile,
+            ActionListener.wrap(
+                connection -> listener.onResponse(new InternalRemoteConnection(connection, clusterAlias)),
+                listener::onFailure
+            )
+        );
     }
 
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
         try {
-            return delegate.getConnection(node);
+            return getConnectionInternal(node);
         } catch (NodeNotConnectedException e) {
             return new ProxyConnection(getAnyRemoteConnection(), node);
         }
@@ -116,7 +126,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         if (localConnectedNodes.isEmpty() == false) {
             DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
             try {
-                return delegate.getConnection(nextNode);
+                return getConnectionInternal(nextNode);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will manually create an iterator of open nodes
             }
@@ -124,7 +134,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
         for (DiscoveryNode connectedNode : allConnectionNodes) {
             try {
-                return delegate.getConnection(connectedNode);
+                return getConnectionInternal(connectedNode);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will try the next one until all are exhausted.
             }
@@ -150,6 +160,26 @@ public class RemoteConnectionManager implements ConnectionManager {
     @Override
     public void closeNoBlock() {
         delegate.closeNoBlock();
+    }
+
+    /**
+     * This method returns a remote cluster alias for the given transport connection if it targets a node in the remote cluster.
+     * This method will return an optional empty in case the connection targets the local node or the node in the local cluster.
+     *
+     * @param connection the transport connection for which to resolve a remote cluster alias
+     * @return a cluster alias if the connection target a node in the remote cluster, otherwise an empty result
+     */
+    public static Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
+        Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
+        if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
+            return Optional.of(remoteConnection.getClusterAlias());
+        }
+        return Optional.empty();
+    }
+
+    private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
+        Transport.Connection connection = delegate.getConnection(node);
+        return new InternalRemoteConnection(connection, clusterAlias);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -219,6 +249,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
+        public TransportVersion getTransportVersion() {
+            return connection.getTransportVersion();
+        }
+
+        @Override
         public Object getCacheKey() {
             return connection.getCacheKey();
         }
@@ -248,5 +283,91 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         @Override
         public void onRemoved() {}
+    }
+
+    private static final class InternalRemoteConnection implements Transport.Connection {
+
+        private final Transport.Connection connection;
+        private final String clusterAlias;
+
+        InternalRemoteConnection(Transport.Connection connection, String clusterAlias) {
+            this.clusterAlias = Objects.requireNonNull(clusterAlias);
+            this.connection = Objects.requireNonNull(connection);
+        }
+
+        public String getClusterAlias() {
+            return clusterAlias;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return connection.getNode();
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            connection.sendRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            connection.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return connection.isClosed();
+        }
+
+        @Override
+        public Version getVersion() {
+            return connection.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return connection.getTransportVersion();
+        }
+
+        @Override
+        public Object getCacheKey() {
+            return connection.getCacheKey();
+        }
+
+        @Override
+        public void close() {
+            connection.close();
+        }
+
+        @Override
+        public void onRemoved() {
+            connection.onRemoved();
+        }
+
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
+        }
+
+        @Override
+        public void incRef() {
+            connection.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return connection.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return connection.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return connection.hasReferences();
+        }
     }
 }

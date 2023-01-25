@@ -21,6 +21,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,7 +35,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -177,15 +177,8 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             .test();
     }
 
-    public void testToChunkedXContent() {
-        final GetSnapshotsResponse response = createTestInstance();
-        final Iterator<ToXContent> serialization = response.toXContentChunked();
-        int chunks = 0;
-        while (serialization.hasNext()) {
-            serialization.next();
-            chunks++;
-        }
-        assertEquals(chunks, response.getSnapshots().size() + 2);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getSnapshots().size() + 2);
     }
 
 }

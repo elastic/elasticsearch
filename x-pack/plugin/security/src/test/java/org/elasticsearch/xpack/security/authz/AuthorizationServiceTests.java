@@ -240,6 +240,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private boolean shouldFailOperatorPrivilegesCheck = false;
     private boolean setFakeOriginatingAction = true;
+    private SecurityContext securityContext;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -258,6 +259,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         threadContext = new ThreadContext(settings);
+        securityContext = new SecurityContext(settings, threadContext);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
@@ -364,7 +366,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         String someRandomHeader = "test_" + UUIDs.randomBase64UUID();
         Object someRandomHeaderValue = mock(Object.class);
         threadContext.putTransient(someRandomHeader, someRandomHeaderValue);
-        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         // the thread context before authorization could contain any of the transient headers
         IndicesAccessControl mockAccessControlHeader = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
         if (mockAccessControlHeader == null && randomBoolean()) {
@@ -1168,12 +1169,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, SearchAction.NAME, searchRequest, true, () -> {
             verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
             IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            // Successful search action authorization should set a parent authorization header.
+            assertThat(securityContext.getParentAuthorization().action(), equalTo(SearchAction.NAME));
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
                 verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
                 // But it does not create a new IndicesAccessControl
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
+                // The parent authorization header should only be present for direct child actions
+                // and not be carried over for a child of a child actions.
+                // Meaning, only query phase action should be pre-authorized in this case and potential sub-actions should not.
+                assertThat(securityContext.getParentAuthorization(), nullValue());
             });
         });
         verify(auditTrail).accessGranted(
@@ -1476,7 +1483,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
 
         TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result = future.get();
-        BulkShardResponse response = result.finalResponseIfSuccessful;
+        BulkShardResponse response = result.replicationResponse;
         assertThat(response, notNullValue());
         assertThat(response.getResponses(), arrayWithSize(3));
         assertThat(response.getResponses()[0].getFailureMessage(), containsString("unauthorized for user [" + user.principal() + "]"));
@@ -2879,7 +2886,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 Map<String, IndexAbstraction> indicesLookup,
-                ActionListener<Set<String>> listener
+                ActionListener<AuthorizationEngine.AuthorizedIndices> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }

@@ -79,3 +79,91 @@ setup:
   - match: { aggregations.ts.buckets.0.key: { "key": "foo" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
+---
+"Sampler aggregation with nested time series aggregation failure":
+  - skip:
+      version: " - 8.6.99"
+      reason: "Handling for time series aggregation failures introduced in 8.7.0"
+
+  - do:
+      catch: '/\[random_sampler\] aggregation \[sample\] does not support sampling \[time_series\] aggregation \[ts\]/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            sample:
+              random_sampler:
+                probability: 1.0
+              aggs:
+                by_timestamp:
+                  date_histogram:
+                    field: "@timestamp"
+                    fixed_interval: 1h
+                  aggs:
+                    ts:
+                      time_series:
+                        keyed: false
+                      aggs:
+                        sum:
+                          sum:
+                            field: val
+
+---
+"Composite aggregation with nested time series aggregation failure":
+  - skip:
+      version: " - 8.6.99"
+      reason: "Handling for time series aggregation failures introduced in 8.7.0"
+
+  - do:
+      catch: '/\[composite\] aggregation is incompatible with time series execution mode/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            by_key:
+              composite:
+                sources: [
+                  {
+                    "key": {
+                      "terms": {
+                        "field": "key"
+                      }
+                    }
+                  }
+                ]
+              aggs:
+                date:
+                  date_histogram:
+                    field: "@timestamp"
+                    fixed_interval: "1h"
+                  aggs:
+                    ts:
+                      time_series:
+                        keyed: false
+                      aggs:
+                        sum:
+                          sum:
+                            field: val
+
+---
+"Global aggregation with nested time series aggregation failure":
+  - skip:
+      version: " - 8.6.99"
+      reason: "Handling for time series aggregation failures introduced in 8.7.0"
+
+  - do:
+      catch: '/Time series aggregations cannot be used inside global aggregation./'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            global:
+              global: {}
+              aggs:
+                ts:
+                  time_series:
+                    keyed: false
+                  aggs:
+                    sum:
+                      sum:
+                        field: val

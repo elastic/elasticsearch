@@ -76,9 +76,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
+        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
-        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
     }
@@ -97,7 +97,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
         }
-        if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         } else {
             this.reservedSpace = Map.of();
@@ -117,7 +117,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
-        if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace);
         }
     }
@@ -133,7 +133,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             nodeAndShard.shardId,
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "fake")
+            new UnassignedInfo(REINITIALIZED, "fake"),
+            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
         ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 

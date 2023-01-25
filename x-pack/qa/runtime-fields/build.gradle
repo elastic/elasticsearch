@@ -21,7 +21,7 @@ tasks.named("test").configure { enabled = false }
 
 subprojects {
   if (project.name.startsWith('core-with-')) {
-    apply plugin: 'elasticsearch.internal-yaml-rest-test'
+    apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
     dependencies {
       yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
@@ -114,6 +114,13 @@ subprojects {
           'search/400_synthetic_source/*',
           'search.highlight/50_synthetic_source/*',
           'aggregations/top_hits/synthetic _source',
+          // Runtime fields produce a slightly different result for multi valued matrix_stats yaml tests:
+          // (this appears to always have been the case. muted when matrix_stats was moved from its own
+          // module to aggregations module)
+          'aggregations/matrix_stats_multi_value_field/Multi value field Min',
+          'aggregations/matrix_stats_multi_value_field/Multi value field Max',
+          'aggregations/matrix_stats_multi_value_field/Partially unmapped',
+          'aggregations/matrix_stats_multi_value_field/Partially unmapped with missing defaults',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

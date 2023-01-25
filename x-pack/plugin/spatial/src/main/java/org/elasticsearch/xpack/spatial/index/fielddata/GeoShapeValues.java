@@ -80,7 +80,7 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
          */
         public GeoRelation relate(int minX, int maxX, int minY, int maxY) throws IOException {
             tile2DVisitor.reset(minX, minY, maxX, maxY);
-            reader.visit(tile2DVisitor);
+            visit(tile2DVisitor);
             return tile2DVisitor.relation();
         }
 

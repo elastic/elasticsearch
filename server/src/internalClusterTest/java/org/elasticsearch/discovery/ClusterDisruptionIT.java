@@ -339,7 +339,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         // fail a random shard
         ShardRouting failedShard = randomFrom(
-            clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED)
+            clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED).toList()
         );
         ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonMasterNode);
         CountDownLatch latch = new CountDownLatch(1);

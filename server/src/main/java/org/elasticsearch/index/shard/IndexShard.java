@@ -222,6 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
+    private final Engine.IndexCommitListener indexCommitListener;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -290,6 +291,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
 
+    // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
+    private volatile long globalCheckPointIfUnpromotable;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -311,7 +315,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        final LongSupplier relativeTimeInNanosSupplier
+        final LongSupplier relativeTimeInNanosSupplier,
+        final Engine.IndexCommitListener indexCommitListener,
+        final ReplicationTracker.Factory replicationTrackerFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -359,12 +365,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
-        this.replicationTracker = new ReplicationTracker(
+        this.replicationTracker = replicationTrackerFactory.create(
             shardId,
             aId,
             indexSettings,
             primaryTerm,
-            UNASSIGNED_SEQ_NO,
             globalCheckpointListeners::globalCheckpointUpdated,
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
@@ -390,6 +395,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
     }
 
     public ThreadPool getThreadPool() {
@@ -1214,12 +1220,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
      */
-    public void refresh(String source) {
+    public Engine.RefreshResult refresh(String source) {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with source [{}]", source);
         }
-        getEngine().refresh(source);
+        return getEngine().refresh(source);
     }
 
     /**
@@ -1584,6 +1590,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ); // completes stats recording
     }
 
+    public void setGlobalCheckpointIfUnpromotable(long globalCheckpoint) {
+        assert shardRouting.isPromotableToPrimary() == false : "must only call this on unpromotable shards";
+        globalCheckPointIfUnpromotable = globalCheckpoint;
+    }
+
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
@@ -1634,13 +1645,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void preRecovery() {
+    public void preRecovery(ActionListener<Void> listener) {
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(shardId, currentState);
         }
         assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
-        indexEventListener.beforeIndexShardRecovery(this, indexSettings);
+        indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
     public void postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
@@ -1882,12 +1893,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void loadGlobalCheckpointToReplicationTracker() throws IOException {
-        // we have to set it before we open an engine and recover from the translog because
-        // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
-        // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        if (shardRouting.isPromotableToPrimary()) {
+            // we have to set it before we open an engine and recover from the translog because
+            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        } else {
+            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckPointIfUnpromotable, "from CleanFilesRequest");
+        }
     }
 
     /**
@@ -2052,6 +2067,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
             rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
             logger.debug("exception obtaining range for timestamp field", e);
             return ShardLongFieldRange.UNKNOWN;
@@ -2997,7 +3013,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
      * closed.
      */
-    protected Engine getEngineOrNull() {
+    public Engine getEngineOrNull() {
         return this.currentEngineReference.get();
     }
 
@@ -3270,7 +3286,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
             isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
-            relativeTimeInNanosSupplier
+            relativeTimeInNanosSupplier,
+            indexCommitListener,
+            routingEntry().isPromotableToPrimary()
         );
     }
 
@@ -3769,7 +3787,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // for tests
-    ReplicationTracker getReplicationTracker() {
+    public ReplicationTracker getReplicationTracker() {
         return replicationTracker;
     }
 
@@ -3797,7 +3815,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (logger.isTraceEnabled()) {
                     logger.trace("refresh with source [schedule]");
                 }
-                return getEngine().maybeRefresh("schedule");
+                return getEngine().maybeRefresh("schedule").refreshed();
             }
         }
         final Engine engine = getEngine();
@@ -4113,5 +4131,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public String toString() {
         return "IndexShard(shardRouting=" + shardRouting + ")";
+    }
+
+    public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
+        getEngine().addSegmentGenerationListener(segmentGeneration, listener);
     }
 }

@@ -13,7 +13,7 @@ module org.elasticsearch.ilm {
     requires org.apache.logging.log4j;
 
     exports org.elasticsearch.xpack.ilm.action to org.elasticsearch.server;
-    exports org.elasticsearch.xpack.ilm to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.ilm;
     exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
 

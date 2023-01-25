@@ -20,6 +20,9 @@ This regression was fixed in version 8.4.3.
 an incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
 (issue: {es-issue}90187[#90187])
 
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
 
 [[bug-8.4.2]]
 [float]

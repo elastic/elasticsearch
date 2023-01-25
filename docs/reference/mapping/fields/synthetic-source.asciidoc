@@ -32,6 +32,8 @@ space. There are a couple of restrictions to be aware of:
 
 * When you retrieve synthetic `_source` content it undergoes minor
 <<synthetic-source-modifications,modifications>> compared to the original JSON.
+* The `params._source` is unavailable in scripts. Instead use the
+{painless}/painless-field-context.html[`doc`] API or the <<script-fields-api, `field`>>.
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 

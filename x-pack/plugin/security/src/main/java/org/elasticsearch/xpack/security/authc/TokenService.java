@@ -1805,12 +1805,13 @@ public final class TokenService {
                 }
                 builder.endObject().endObject();
             }
+            final Authentication.RealmRef userTokenEffectiveRealm = userToken.getAuthentication().getEffectiveSubject().getRealm();
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getSourceRealm().getName());
-            if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
-                builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
+                .field("realm", userTokenEffectiveRealm.getName());
+            if (userTokenEffectiveRealm.getDomain() != null) {
+                builder.field("realm_domain", userTokenEffectiveRealm.getDomain());
             }
             builder.endObject().endObject();
             return BytesReference.bytes(builder);

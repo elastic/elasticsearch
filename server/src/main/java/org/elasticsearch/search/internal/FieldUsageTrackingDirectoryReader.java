@@ -10,6 +10,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
@@ -23,6 +24,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorValues;
@@ -90,11 +93,11 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         void onKnnVectorsUsed(String field);
     }
 
-    public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
+    static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
 
         private final FieldUsageNotifier notifier;
 
-        public FieldUsageTrackingLeafReader(LeafReader in, FieldUsageNotifier notifier) {
+        FieldUsageTrackingLeafReader(LeafReader in, FieldUsageNotifier notifier) {
             super(in);
             this.notifier = notifier;
         }
@@ -106,6 +109,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 f = new FieldUsageTrackingTermVectorFields(f);
             }
             return f;
+        }
+
+        @Override
+        public TermVectors termVectors() throws IOException {
+            TermVectors termVectors = super.termVectors();
+            return new TermVectors() {
+                @Override
+                public Fields get(int doc) throws IOException {
+                    Fields f = termVectors.get(doc);
+                    if (f != null) {
+                        f = new FieldUsageTrackingTermVectorFields(f);
+                    }
+                    return f;
+                }
+            };
         }
 
         @Override
@@ -124,6 +142,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             } else {
                 super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
             }
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            StoredFields storedFields = super.storedFields();
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                        storedFields.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
+                    } else {
+                        storedFields.document(docID, new FieldUsageStoredFieldVisitor(visitor));
+                    }
+                }
+            };
         }
 
         @Override
@@ -196,6 +229,24 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            ByteVectorValues vectorValues = super.getByteVectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+            if (topDocs != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return topDocs;
+        }
+
+        @Override
         public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
             TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
             if (topDocs != null) {
@@ -223,8 +274,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                reader.visitDocument(docID, new FieldUsageStoredFieldVisitor(visitor));
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                reader.document(docID, new FieldUsageStoredFieldVisitor(visitor));
             }
 
             @Override
@@ -248,7 +299,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
         }
 
-        private class FieldUsageTrackingTerms extends FilterTerms {
+        class FieldUsageTrackingTerms extends FilterTerms {
 
             private final String field;
 
@@ -285,6 +336,16 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long getSumDocFreq() throws IOException {
                 return in.getSumDocFreq();
+            }
+
+            @Override
+            public BytesRef getMin() throws IOException {
+                return in.getMin();
+            }
+
+            @Override
+            public BytesRef getMax() throws IOException {
+                return in.getMax();
             }
         }
 

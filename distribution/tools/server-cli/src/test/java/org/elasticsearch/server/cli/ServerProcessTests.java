@@ -78,9 +78,9 @@ public class ServerProcessTests extends ESTestCase {
         void validate(ProcessBuilder processBuilder) throws IOException;
     }
 
-    void runForeground() throws Exception {
+    int runForeground() throws Exception {
         var server = startProcess(false, false, "");
-        server.waitFor();
+        return server.waitFor();
     }
 
     @Before
@@ -228,22 +228,12 @@ public class ServerProcessTests extends ESTestCase {
 
     public void testBootstrapError() throws Exception {
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.USER_EXCEPTION_MARKER + "a bootstrap exception");
+            stderr.println("a bootstrap exception");
             exitCode.set(ExitCodes.CONFIG);
         };
-        var e = expectThrows(UserException.class, () -> runForeground());
-        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(e.getMessage(), equalTo("a bootstrap exception"));
-    }
-
-    public void testUserError() throws Exception {
-        mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.USER_EXCEPTION_MARKER + "a user exception");
-            exitCode.set(ExitCodes.USAGE);
-        };
-        var e = expectThrows(UserException.class, () -> runForeground());
-        assertThat(e.exitCode, equalTo(ExitCodes.USAGE));
-        assertThat(e.getMessage(), equalTo("a user exception"));
+        int exitCode = runForeground();
+        assertThat(exitCode, equalTo(ExitCodes.CONFIG));
+        assertThat(terminal.getErrorOutput(), containsString("a bootstrap exception"));
     }
 
     public void testStartError() throws Exception {

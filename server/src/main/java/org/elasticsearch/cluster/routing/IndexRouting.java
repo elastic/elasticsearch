@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -233,7 +234,7 @@ public abstract class IndexRouting {
     }
 
     public static class ExtractFromSource extends IndexRouting {
-        private final List<String> routingPaths;
+        private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -241,7 +242,8 @@ public abstract class IndexRouting {
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            this.routingPaths = metadata.getRoutingPaths();
+            List<String> routingPaths = metadata.getRoutingPaths();
+            isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
@@ -262,7 +264,7 @@ public abstract class IndexRouting {
         public String createId(Map<String, Object> flat, byte[] suffix) {
             Builder b = builder();
             for (Map.Entry<String, Object> e : flat.entrySet()) {
-                if (Regex.simpleMatch(routingPaths, e.getKey())) {
+                if (isRoutingPath.test(e.getKey())) {
                     b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
                 }
             }
@@ -299,7 +301,7 @@ public abstract class IndexRouting {
             private final List<NameAndHash> hashes = new ArrayList<>();
 
             public void addMatching(String fieldName, BytesRef string) {
-                if (Regex.simpleMatch(routingPaths, fieldName)) {
+                if (isRoutingPath.test(fieldName)) {
                     hashes.add(new NameAndHash(new BytesRef(fieldName), hash(string)));
                 }
             }

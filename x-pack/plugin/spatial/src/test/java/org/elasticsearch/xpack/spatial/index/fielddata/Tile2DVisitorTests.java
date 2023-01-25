@@ -33,7 +33,7 @@ import java.util.List;
 import static org.elasticsearch.geo.GeometryTestUtils.randomMultiLine;
 import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPolygon;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 public class Tile2DVisitorTests extends ESTestCase {
 
@@ -45,10 +45,10 @@ public class Tile2DVisitorTests extends ESTestCase {
         // test cell crossing poly
         Polygon pacMan = new Polygon(new LinearRing(py, px), Collections.emptyList());
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(pacMan, TestCoordinateEncoder.INSTANCE);
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(2, -1, 11, 1));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-12, -12, 12, 12));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-2, -1, 2, 0));
-        assertRelation(GeoRelation.QUERY_INSIDE, reader, getExtentFromBox(-5, -6, 2, -2));
+        assertRelation(reader, getExtentFromBox(2, -1, 11, 1), GeoRelation.QUERY_CROSSES);
+        assertRelation(reader, getExtentFromBox(-12, -12, 12, 12), GeoRelation.QUERY_CONTAINS);
+        assertRelation(reader, getExtentFromBox(-2, -1, 2, 0), GeoRelation.QUERY_CROSSES);
+        assertRelation(reader, getExtentFromBox(-5, -6, 2, -2), GeoRelation.QUERY_INSIDE);
     }
 
     // adapted from org.apache.lucene.geo.TestPolygon2D#testMultiPolygon
@@ -60,12 +60,12 @@ public class Tile2DVisitorTests extends ESTestCase {
 
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(polyWithHole, CoordinateEncoder.GEO);
 
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(6, -6, 6, -6)); // in the hole
-        assertRelation(GeoRelation.QUERY_INSIDE, reader, getExtentFromBox(25, -25, 25, -25)); // on the mainland
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(51, 51, 52, 52)); // outside of mainland
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-60, -60, 60, 60)); // enclosing us completely
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(49, 49, 51, 51)); // overlapping the mainland
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(9, 9, 11, 11)); // overlapping the hole
+        assertRelation(reader, getExtentFromBox(6, -6, 6, -6), GeoRelation.QUERY_DISJOINT); // in the hole
+        assertRelation(reader, getExtentFromBox(25, -25, 25, -25), GeoRelation.QUERY_INSIDE); // on the mainland
+        assertRelation(reader, getExtentFromBox(51, 51, 52, 52), GeoRelation.QUERY_DISJOINT); // outside of mainland
+        assertRelation(reader, getExtentFromBox(-60, -60, 60, 60), GeoRelation.QUERY_CONTAINS); // enclosing us completely
+        assertRelation(reader, getExtentFromBox(49, 49, 51, 51), GeoRelation.QUERY_CROSSES); // overlapping the mainland
+        assertRelation(reader, getExtentFromBox(9, 9, 11, 11), GeoRelation.QUERY_CROSSES); // overlapping the hole
     }
 
     public void testCombPolygon() throws Exception {
@@ -78,9 +78,9 @@ public class Tile2DVisitorTests extends ESTestCase {
         Polygon polyWithHole = new Polygon(new LinearRing(px, py), Collections.singletonList(new LinearRing(hx, hy)));
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(polyWithHole, CoordinateEncoder.GEO);
         // test cell crossing poly
-        assertRelation(GeoRelation.QUERY_INSIDE, reader, getExtentFromBox(5, 10, 5, 10));
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(15, 10, 15, 10));
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(25, 10, 25, 10));
+        assertRelation(reader, getExtentFromBox(5, 10, 5, 10), GeoRelation.QUERY_INSIDE);
+        assertRelation(reader, getExtentFromBox(15, 10, 15, 10), GeoRelation.QUERY_DISJOINT);
+        assertRelation(reader, getExtentFromBox(25, 10, 25, 10), GeoRelation.QUERY_DISJOINT);
     }
 
     public void testPacManClosedLineString() throws Exception {
@@ -90,10 +90,10 @@ public class Tile2DVisitorTests extends ESTestCase {
 
         // test cell crossing poly
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(new Line(px, py), CoordinateEncoder.GEO);
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(2, -1, 11, 1));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-12, -12, 12, 12));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-2, -1, 2, 0));
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(-5, -6, 2, -2));
+        assertRelation(reader, getExtentFromBox(2, -1, 11, 1), GeoRelation.QUERY_CROSSES);
+        assertRelation(reader, getExtentFromBox(-12, -12, 12, 12), GeoRelation.QUERY_CONTAINS);
+        assertRelation(reader, getExtentFromBox(-2, -1, 2, 0), GeoRelation.QUERY_CROSSES);
+        assertRelation(reader, getExtentFromBox(-5, -6, 2, -2), GeoRelation.QUERY_DISJOINT);
     }
 
     public void testPacManLineString() throws Exception {
@@ -103,10 +103,10 @@ public class Tile2DVisitorTests extends ESTestCase {
 
         // test cell crossing poly
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(new Line(px, py), CoordinateEncoder.GEO);
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(2, -1, 11, 1));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-12, -12, 12, 12));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(-2, -1, 2, 0));
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, getExtentFromBox(-5, -6, 2, -2));
+        assertRelation(reader, getExtentFromBox(2, -1, 11, 1), GeoRelation.QUERY_CROSSES);
+        assertRelation(reader, getExtentFromBox(-12, -12, 12, 12), GeoRelation.QUERY_CONTAINS);
+        assertRelation(reader, getExtentFromBox(-2, -1, 2, 0), GeoRelation.QUERY_CROSSES);
+        assertRelation(reader, getExtentFromBox(-5, -6, 2, -2), GeoRelation.QUERY_DISJOINT);
     }
 
     public void testPacManPoints() throws Exception {
@@ -132,7 +132,7 @@ public class Tile2DVisitorTests extends ESTestCase {
 
         // test cell crossing poly
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(new MultiPoint(points), CoordinateEncoder.GEO);
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(xMin, yMin, xMax, yMax));
+        assertRelation(reader, getExtentFromBox(xMin, yMin, xMax, yMax), GeoRelation.QUERY_CROSSES);
     }
 
     public void testRandomMultiLineIntersections() throws IOException {
@@ -148,23 +148,24 @@ public class Tile2DVisitorTests extends ESTestCase {
                 && lineExtent.minY() != Integer.MIN_VALUE
                 && lineExtent.maxY() != Integer.MAX_VALUE) {
                 assertRelation(
-                    GeoRelation.QUERY_CROSSES,
                     reader,
-                    Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1, lineExtent.maxX() + 1, lineExtent.maxY() + 1)
+                    Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1, lineExtent.maxX() + 1, lineExtent.maxY() + 1),
+                    GeoRelation.QUERY_CROSSES,
+                    GeoRelation.QUERY_CONTAINS
                 );
             }
         }
 
         // extent that fully encloses the MultiLine
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, reader.getExtent());
+        assertRelation(reader, reader.getExtent(), GeoRelation.QUERY_CONTAINS);
         if (readerExtent.minX() != Integer.MIN_VALUE
             && readerExtent.maxX() != Integer.MAX_VALUE
             && readerExtent.minY() != Integer.MIN_VALUE
             && readerExtent.maxY() != Integer.MAX_VALUE) {
             assertRelation(
-                GeoRelation.QUERY_CROSSES,
                 reader,
-                Extent.fromPoints(readerExtent.minX() - 1, readerExtent.minY() - 1, readerExtent.maxX() + 1, readerExtent.maxY() + 1)
+                Extent.fromPoints(readerExtent.minX() - 1, readerExtent.minY() - 1, readerExtent.maxX() + 1, readerExtent.maxY() + 1),
+                GeoRelation.QUERY_CONTAINS
             );
         }
 
@@ -211,12 +212,11 @@ public class Tile2DVisitorTests extends ESTestCase {
     }
 
     private boolean intersects(Geometry g, Point p, double extentSize) throws IOException {
-
         Extent bufferBounds = bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize);
         Tile2DVisitor tile2DVisitor = new Tile2DVisitor();
         tile2DVisitor.reset(bufferBounds.minX(), bufferBounds.minY(), bufferBounds.maxX(), bufferBounds.maxY());
         GeoTestUtils.geometryDocValueReader(g, CoordinateEncoder.GEO).visit(tile2DVisitor);
-        return tile2DVisitor.relation() == GeoRelation.QUERY_CROSSES || tile2DVisitor.relation() == GeoRelation.QUERY_INSIDE;
+        return tile2DVisitor.relation() != GeoRelation.QUERY_DISJOINT;
     }
 
     /**
@@ -281,10 +281,10 @@ public class Tile2DVisitorTests extends ESTestCase {
         });
     }
 
-    static void assertRelation(GeoRelation expectedRelation, GeometryDocValueReader reader, Extent extent) throws IOException {
+    static void assertRelation(GeometryDocValueReader reader, Extent extent, GeoRelation... expectedRelation) throws IOException {
         Tile2DVisitor tile2DVisitor = new Tile2DVisitor();
         tile2DVisitor.reset(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
         reader.visit(tile2DVisitor);
-        assertThat(expectedRelation, equalTo(tile2DVisitor.relation()));
+        assertThat(tile2DVisitor.relation(), in(expectedRelation));
     }
 }

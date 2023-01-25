@@ -41,6 +41,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -124,6 +125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final OperationListener operationListener;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -157,6 +159,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.operationListener = config.getOperationListener();
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
@@ -234,7 +237,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // translog was found.
             for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
                 Path committedTranslogFile = location.resolve(getFilename(i));
-                if (Files.exists(committedTranslogFile) == false) {
+                final Checkpoint readerCheckpoint = i == checkpoint.generation
+                    ? checkpoint
+                    : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i)));
+                final TranslogReader reader;
+                try {
+                    reader = openReader(committedTranslogFile, readerCheckpoint);
+                } catch (NoSuchFileException fnfe) {
                     throw new TranslogCorruptedException(
                         committedTranslogFile.toString(),
                         "translog file doesn't exist with generation: "
@@ -246,10 +255,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + " - translog ids must be consecutive"
                     );
                 }
-                final Checkpoint readerCheckpoint = i == checkpoint.generation
-                    ? checkpoint
-                    : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i)));
-                final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
                 assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong()
                     : "Primary terms go backwards; current term ["
                         + primaryTermSupplier.getAsLong()
@@ -552,7 +557,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                diskIoBufferPool
+                diskIoBufferPool,
+                operationListener
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -1945,7 +1951,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> { throw new UnsupportedOperationException(); },
             BigArrays.NON_RECYCLING_INSTANCE,
-            DiskIoBufferPool.INSTANCE
+            DiskIoBufferPool.INSTANCE,
+            (d, s, l) -> {}
         );
         writer.close();
         return uuid;

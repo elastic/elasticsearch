@@ -417,7 +417,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     Map<String, IndexAbstraction> indicesLookup,
-                    ActionListener<Set<String>> listener
+                    ActionListener<AuthorizationEngine.AuthorizedIndices> listener
                 ) {
                     listener.onFailure(new UnsupportedOperationException("not implemented"));
                 }

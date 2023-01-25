@@ -37,9 +37,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -304,7 +306,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             runnable.run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         apiKeyService = new ApiKeyService(
             settings,
@@ -388,7 +394,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         service.authenticate("action", transportRequest, true, ActionListener.wrap(authentication -> {
             assertThat(threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY), is(authenticationResult));
             assertThat(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY), is(authentication));
-            assertThat(authentication.getDomain(), is(secondDomain));
+            assertThat(authentication.getEffectiveSubject().getRealm().getDomain(), is(secondDomain));
             verify(auditTrail).authenticationSuccess(anyString(), eq(authentication), eq("action"), eq(transportRequest));
             setCompletedToTrue(completed);
         }, this::logAndFail));
@@ -992,7 +998,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(authentication, notNullValue());
                 assertThat(authentication.getEffectiveSubject().getUser(), sameInstance(user1));
                 assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
-                assertThat(authentication.getDomain(), is(firstDomain));
+                assertThat(authentication.getEffectiveSubject().getRealm().getDomain(), is(firstDomain));
                 assertThreadContextContainsAuthentication(authentication);
                 authRef.set(authentication);
                 authHeaderRef.set(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
@@ -1270,7 +1276,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance((Object) anonymousUser));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.ANONYMOUS));
-            assertThat(result.v1().getDomain(), nullValue());
+            assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
             assertThreadContextContainsAuthentication(result.v1());
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
             verify(auditTrail).authenticationSuccess(result.v2(), result.v1(), request);
@@ -1345,7 +1351,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
             assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(anonymousUser));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.ANONYMOUS));
-            assertThat(result.v1().getDomain(), nullValue());
+            assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
             assertThreadContextContainsAuthentication(result.v1());
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
         });
@@ -1382,7 +1388,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
             assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(SystemUser.INSTANCE));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.INTERNAL));
-            assertThat(result.v1().getDomain(), nullValue());
+            assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
             assertThreadContextContainsAuthentication(result.v1());
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
         });
@@ -2133,7 +2139,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 assertThat(result.v1().getEffectiveSubject().getUser().fullName(), is("john doe"));
                 assertThat(result.v1().getEffectiveSubject().getUser().email(), is("john@doe.com"));
                 assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.API_KEY));
-                assertThat(result.v1().getDomain(), nullValue());
+                assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
                 verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
             });
         }

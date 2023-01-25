@@ -7,12 +7,12 @@
  */
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.publish'
 
@@ -34,6 +34,8 @@ configurations {
 }
 
 dependencies {
+  api project(":libs:elasticsearch-ssl-config")
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"
@@ -71,7 +73,7 @@ TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClu
 
 TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaRestTest", RestIntegTestTask) {
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet javaRestTestSourceSet = sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet javaRestTestSourceSet = sourceSets.getByName(LegacyJavaRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(javaRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(javaRestTestSourceSet.getRuntimeClasspath())
 
@@ -91,7 +93,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoders',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 

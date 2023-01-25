@@ -101,7 +101,7 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));
-        assertThat(validation.validationErrors().get(0), containsString("query_string cannot be null"));
+        assertThat(validation.validationErrors().get(0), containsString("model_text cannot be null"));
         assertThat(validation.validationErrors().get(1), containsString("model_id cannot be null"));
         assertThat(validation.validationErrors().get(2), containsString("knn cannot be null"));
     }

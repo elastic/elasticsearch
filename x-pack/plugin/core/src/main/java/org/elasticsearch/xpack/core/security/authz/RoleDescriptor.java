@@ -1034,7 +1034,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.
      */
-    public static class IndicesPrivileges implements ToXContentObject, Writeable {
+    public static class IndicesPrivileges implements ToXContentObject, Writeable, Comparable<IndicesPrivileges> {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
@@ -1212,6 +1212,35 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         public static void write(StreamOutput out, IndicesPrivileges privileges) throws IOException {
             privileges.writeTo(out);
+        }
+
+        @Override
+        public int compareTo(IndicesPrivileges o) {
+            if (this == o) {
+                return 0;
+            }
+            int cmp = Boolean.compare(allowRestrictedIndices, o.allowRestrictedIndices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(indices, o.indices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(privileges, o.privileges);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Objects.compare(query, o.query, Comparator.nullsFirst(BytesReference::compareTo));
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(grantedFields, o.grantedFields);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(deniedFields, o.deniedFields);
+            return cmp;
         }
 
         public static class Builder {

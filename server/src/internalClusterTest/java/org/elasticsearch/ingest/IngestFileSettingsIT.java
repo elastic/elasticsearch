@@ -101,7 +101,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                  "ingest_pipelines": {
                    "my_ingest_pipeline": {
                        "description": "_description",
-                       "processors": [
+                       "processors":
                           {
                             "foo" : {
                               "field": "pipeline",
@@ -204,11 +204,11 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
+                    assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
                         reservedState.errorMetadata().errors().get(0),
-                        containsString("org.elasticsearch.ElasticsearchParseException: No processor type exists with name [foo]")
+                        containsString("org.elasticsearch.xcontent.XContentParseException: [17:16] [reserved_state_chunk] failed")
                     );
                 }
             }

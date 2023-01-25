@@ -107,7 +107,7 @@ actions in the order listed.
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-migrate,Migrate>>
-  <<ilm-downsample,Downsample>>
+  - <<ilm-downsample,Downsample>>
 * Frozen
   - <<ilm-unfollow,Unfollow>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>

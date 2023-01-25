@@ -798,7 +798,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91087")
     public void testTransientErrorsDuringRecoveryAreRetried() throws Exception {
         final String recoveryActionToBlock = randomFrom(
             PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,

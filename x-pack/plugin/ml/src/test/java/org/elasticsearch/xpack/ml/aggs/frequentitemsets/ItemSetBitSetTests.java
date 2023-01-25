@@ -44,7 +44,7 @@ public class ItemSetBitSetTests extends ESTestCase {
         assertTrue(set.get(200));
     }
 
-    public void testIsSubSet() {
+    public void testIsSubSetAndSetRelation() {
         ItemSetBitSet set1 = new ItemSetBitSet();
         set1.set(0);
         set1.set(3);
@@ -60,24 +60,39 @@ public class ItemSetBitSetTests extends ESTestCase {
 
         assertEquals(3, set2.cardinality());
         assertTrue(set2.isSubset(set1));
+        assertEquals(ItemSetBitSet.SetRelation.SUB_SET, set2.setRelation(set1));
         assertFalse(set1.isSubset(set2));
+        assertEquals(ItemSetBitSet.SetRelation.SUPER_SET, set1.setRelation(set2));
         assertTrue(set1.isSubset(set1));
+        assertEquals(ItemSetBitSet.SetRelation.EQUAL, set1.setRelation(set1));
 
         set2.set(0);
         set2.set(5);
         assertTrue(set2.isSubset(set1));
         assertTrue(set1.isSubset(set2));
+        assertEquals(ItemSetBitSet.SetRelation.EQUAL, set1.setRelation(set2));
+        assertEquals(ItemSetBitSet.SetRelation.EQUAL, set2.setRelation(set1));
 
         set2.set(99);
         assertFalse(set2.isSubset(set1));
         assertTrue(set1.isSubset(set2));
+        assertEquals(ItemSetBitSet.SetRelation.SUPER_SET, set2.setRelation(set1));
+        assertEquals(ItemSetBitSet.SetRelation.SUB_SET, set1.setRelation(set2));
 
         set1.set(999);
         assertFalse(set1.isSubset(set2));
+        assertEquals(ItemSetBitSet.SetRelation.DISJOINT_OR_INTERSECT, set2.setRelation(set1));
+        assertEquals(ItemSetBitSet.SetRelation.DISJOINT_OR_INTERSECT, set1.setRelation(set2));
+
         set2.set(999);
         assertTrue(set1.isSubset(set2));
+        assertEquals(ItemSetBitSet.SetRelation.SUPER_SET, set2.setRelation(set1));
+        assertEquals(ItemSetBitSet.SetRelation.SUB_SET, set1.setRelation(set2));
+
         set2.set(2222);
         assertTrue(set1.isSubset(set2));
+        assertEquals(ItemSetBitSet.SetRelation.SUPER_SET, set2.setRelation(set1));
+        assertEquals(ItemSetBitSet.SetRelation.SUB_SET, set1.setRelation(set2));
     }
 
     public void testClone() {

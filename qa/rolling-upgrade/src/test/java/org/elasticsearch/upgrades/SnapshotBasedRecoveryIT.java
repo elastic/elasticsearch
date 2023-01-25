@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91383")
     public void testSnapshotBasedRecovery() throws Exception {
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
@@ -197,7 +198,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             }
             builder.endObject();
 
-            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty");
+            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty&metric=none");
             request.setJsonEntity(Strings.toString(builder));
             Response response = client().performRequest(request);
             logger.info("--> Relocated primary to an older version {}", EntityUtils.toString(response.getEntity()));

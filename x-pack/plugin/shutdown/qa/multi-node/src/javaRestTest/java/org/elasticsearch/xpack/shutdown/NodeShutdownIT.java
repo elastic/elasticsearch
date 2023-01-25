@@ -344,7 +344,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
         Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity(formatted("""
+        createIndexRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "number_of_shards": %s,

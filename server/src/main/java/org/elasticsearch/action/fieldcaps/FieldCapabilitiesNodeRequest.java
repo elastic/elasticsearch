@@ -19,6 +19,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -134,6 +137,30 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("shards[");
+        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], fields[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], filters[");
+        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(filters), ","));
+        stringBuilder.append("], types[");
+        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ","));
+        stringBuilder.append("]");
+        return stringBuilder.toString();
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return FieldCapabilitiesNodeRequest.this.getDescription();
+            }
+        };
     }
 
     @Override

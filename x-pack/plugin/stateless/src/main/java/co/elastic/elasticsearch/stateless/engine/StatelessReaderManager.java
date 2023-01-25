@@ -417,8 +417,6 @@ public class StatelessReaderManager extends AbstractRefCounted implements Closea
         assert segmentGenerationListeners.isEmpty();
     }
 
-    private record SegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {}
-
     private record NewCommit(long primaryTerm, long generation, Map<String, StoreFileMetadata> commitFiles, ActionListener<Void> listener)
         implements
             Comparable<NewCommit> {

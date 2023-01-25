@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -23,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.TemporalAccessor;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTestCase<DateHistogramGroupSource> {
 
@@ -126,20 +129,18 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
             randomBoolean(),
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval("1d")),
             null,
-            randomBoolean() ? randomOffset() : null
+            null
         );
+
+        Rounding.Prepared rounding = dateHistogramGroupSource.getRounding();
+        assertThat(rounding, notNullValue());
 
         // not meant to be complete rounding tests, see {@link RoundingTests} for more
-        assertNotNull(dateHistogramGroupSource.getRounding());
-
-        assertThat(
-            dateHistogramGroupSource.getRounding().round(time("2020-03-26T23:59:59.000Z")),
-            equalTo(time("2020-03-26T00:00:00.000Z"))
-        );
-        assertThat(
-            dateHistogramGroupSource.getRounding().round(time("2020-03-26T00:00:01.000Z")),
-            equalTo(time("2020-03-26T00:00:00.000Z"))
-        );
+        assertThat(rounding.round(time("2020-03-25T23:59:59.000Z")), equalTo(time("2020-03-25T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-26T00:00:00.000Z")), equalTo(time("2020-03-26T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-26T00:00:01.000Z")), equalTo(time("2020-03-26T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-26T23:59:59.000Z")), equalTo(time("2020-03-26T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-27T00:00:00.000Z")), equalTo(time("2020-03-27T00:00:00.000Z")));
     }
 
     public void testRoundingDateHistogramCalendarInterval() {
@@ -150,24 +151,78 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
             randomBoolean(),
             new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval("1w")),
             null,
-            randomBoolean() ? randomOffset() : null
+            null
         );
+
+        Rounding.Prepared rounding = dateHistogramGroupSource.getRounding();
+        assertThat(rounding, notNullValue());
 
         // not meant to be complete rounding tests, see {@link RoundingTests} for more
-        assertNotNull(dateHistogramGroupSource.getRounding());
+        assertThat(rounding.round(time("2020-03-21T23:59:59.000Z")), equalTo(time("2020-03-16T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-22T00:00:00.000Z")), equalTo(time("2020-03-16T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-22T23:59:59.000Z")), equalTo(time("2020-03-16T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-23T00:00:00.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-23T00:00:01.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-24T00:00:00.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-26T23:59:59.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-28T23:59:59.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-29T00:00:00.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-29T23:59:59.000Z")), equalTo(time("2020-03-23T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-30T00:00:00.000Z")), equalTo(time("2020-03-30T00:00:00.000Z")));
+    }
 
-        assertThat(
-            dateHistogramGroupSource.getRounding().round(time("2020-03-26T23:59:59.000Z")),
-            equalTo(time("2020-03-23T00:00:00.000Z"))
+    public void testRoundingDateHistogramCalendarIntervalWithNegativeOffset() {
+        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+            null,
+            randomBoolean(),
+            new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval("1w")),
+            null,
+            DateHistogramAggregationBuilder.parseStringOffset("-1d")
         );
-        assertThat(
-            dateHistogramGroupSource.getRounding().round(time("2020-03-29T23:59:59.000Z")),
-            equalTo(time("2020-03-23T00:00:00.000Z"))
+
+        Rounding.Prepared rounding = dateHistogramGroupSource.getRounding();
+        assertThat(rounding, notNullValue());
+
+        // not meant to be complete rounding tests, see {@link RoundingTests} for more
+        assertThat(rounding.round(time("2020-03-21T23:59:59.000Z")), equalTo(time("2020-03-15T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-22T00:00:00.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-22T23:59:59.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-23T00:00:00.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-23T00:00:01.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-24T00:00:00.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-26T23:59:59.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-28T23:59:59.000Z")), equalTo(time("2020-03-22T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-29T00:00:00.000Z")), equalTo(time("2020-03-29T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-29T23:59:59.000Z")), equalTo(time("2020-03-29T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-30T00:00:00.000Z")), equalTo(time("2020-03-29T00:00:00.000Z")));
+    }
+
+    public void testRoundingDateHistogramCalendarIntervalWithPositiveOffset() {
+        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+            null,
+            randomBoolean(),
+            new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval("1w")),
+            null,
+            DateHistogramAggregationBuilder.parseStringOffset("+1d")
         );
-        assertThat(
-            dateHistogramGroupSource.getRounding().round(time("2020-03-23T00:00:01.000Z")),
-            equalTo(time("2020-03-23T00:00:00.000Z"))
-        );
+
+        Rounding.Prepared rounding = dateHistogramGroupSource.getRounding();
+        assertThat(rounding, notNullValue());
+
+        // not meant to be complete rounding tests, see {@link RoundingTests} for more
+        assertThat(rounding.round(time("2020-03-21T23:59:59.000Z")), equalTo(time("2020-03-17T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-22T00:00:00.000Z")), equalTo(time("2020-03-17T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-22T23:59:59.000Z")), equalTo(time("2020-03-17T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-23T00:00:00.000Z")), equalTo(time("2020-03-17T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-23T00:00:01.000Z")), equalTo(time("2020-03-17T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-24T00:00:00.000Z")), equalTo(time("2020-03-24T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-26T23:59:59.000Z")), equalTo(time("2020-03-24T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-28T23:59:59.000Z")), equalTo(time("2020-03-24T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-29T00:00:00.000Z")), equalTo(time("2020-03-24T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-29T23:59:59.000Z")), equalTo(time("2020-03-24T00:00:00.000Z")));
+        assertThat(rounding.round(time("2020-03-30T00:00:00.000Z")), equalTo(time("2020-03-24T00:00:00.000Z")));
     }
 
     private static long time(String time) {

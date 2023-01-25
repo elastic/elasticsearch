@@ -121,8 +121,8 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
             // Below warnings are set (and leaking) from an index in this test case
             request.setOptions(expectVersionSpecificWarnings(v -> {
                 v.compatible(
-                    "[index.indexing.slowlog.level] setting was deprecated in the previous Elasticsearch release and is removed in this release.",
-                    "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+                    "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
                 );
             }));
         }

@@ -206,11 +206,16 @@ public final class Authentication implements ToXContentObject, Writeable {
      * This is commonly employed when the {@code Authentication} is serialized across cluster nodes with mixed versions.
      */
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
+        return maybeRewriteForOlderVersion(olderVersion, Authentication.VERSION_REMOTE_ACCESS_REALM);
+    }
+
+    Authentication maybeRewriteForOlderVersion(Version olderVersion, TransportVersion remoteAccessRealmVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
+
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
         // possible
-        if (isRemoteAccess() && olderVersion.transportVersion.before(Authentication.VERSION_REMOTE_ACCESS_REALM)) {
+        if (isRemoteAccess() && olderVersion.transportVersion.before(remoteAccessRealmVersion)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_REMOTE_ACCESS_REALM
@@ -220,7 +225,14 @@ public final class Authentication implements ToXContentObject, Writeable {
             );
         }
 
-        final Map<String, Object> newMetadata = maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
+        final Map<String, Object> newMetadata;
+        if (isAuthenticatedAsApiKey()) {
+            newMetadata = maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
+        } else if (isRemoteAccess()) {
+            newMetadata = maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, this);
+        } else {
+            newMetadata = getAuthenticatingSubject().getMetadata();
+        }
 
         final Authentication newAuthentication;
         if (isRunAs()) {
@@ -954,8 +966,6 @@ public final class Authentication implements ToXContentObject, Writeable {
     public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
         assert isApiKey() : "can only convert API key authentication to remote access";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
-        final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        assert apiKeyId != null;
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
         final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
         assert userFromRemoteCluster.enabled() : "the user received from a remote cluster must be enabled";
@@ -991,8 +1001,6 @@ public final class Authentication implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
-        // TODO handle remote access authentication executed with old API keys (either by rejecting this, or rewriting role descriptors)
-        assert false == authentication.isRemoteAccess() : "remote access authentication not supported here yet";
         Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors
@@ -1032,6 +1040,39 @@ public final class Authentication implements ToXContentObject, Writeable {
                 }
         }
         return metadata;
+    }
+
+    // pkg-private for testing
+    static Map<String, Object> maybeRewriteMetadataForRemoteAccessAuthentication(
+        final Version olderVersion,
+        final Authentication authentication
+    ) {
+        // TODO also handle remote access authentication executed with old API keys (either by rejecting this, or rewriting role
+        // descriptors)
+        assert authentication.isRemoteAccess() : "authentication must be remote access";
+        final Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
+        assert metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+            : "metadata must contain authentication object for remote access authentication";
+        try {
+            final Authentication authenticationFromMetadata = AuthenticationContextSerializer.decode(
+                (String) metadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+            );
+            if (authenticationFromMetadata.getEffectiveSubject().getVersion().after(olderVersion)) {
+                final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
+                rewrittenMetadata.put(
+                    AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                    authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion).encode()
+                );
+                return rewrittenMetadata;
+            } else {
+                return metadata;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                "failed serialization while rewriting [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] metadata field",
+                e
+            );
+        }
     }
 
     private static Map<String, Object> convertRoleDescriptorsBytesToMap(BytesReference roleDescriptorsBytes) {

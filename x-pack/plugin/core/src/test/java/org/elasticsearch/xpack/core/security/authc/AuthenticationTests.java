@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -37,7 +38,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -625,6 +625,26 @@ public class AuthenticationTests extends ESTestCase {
             // Assert that rewriting took place; the details of rewriting logic are checked in other tests
             assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
         }
+    }
+
+    public void testMaybeRewriteForOlderVersionWithRemoteAccessRewritesAuthenticationInMetadata() throws IOException {
+        final Version fakeRemoteAccessRealmVersion = Version.V_8_6_0;
+        final Version version = VersionUtils.randomVersionBetween(random(), fakeRemoteAccessRealmVersion, Version.CURRENT);
+        final Authentication innerAuthentication = AuthenticationTestHelper.builder().version(version).build();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(20), new RemoteAccessAuthentication(innerAuthentication, RoleDescriptorsIntersection.EMPTY))
+            .build();
+        assertThat(authentication.getAuthenticatingSubject().getMetadata(), hasKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY));
+
+        final Version maybeOldVersion = VersionUtils.randomVersionBetween(random(), fakeRemoteAccessRealmVersion, version);
+        final Authentication rewritten = authentication.maybeRewriteForOlderVersion(
+            maybeOldVersion,
+            fakeRemoteAccessRealmVersion.transportVersion
+        );
+        final Authentication innerMaybeRewritten = AuthenticationContextSerializer.decode(
+            (String) rewritten.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+        );
+        assertThat(innerMaybeRewritten.getEffectiveSubject().getVersion(), equalTo(maybeOldVersion));
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

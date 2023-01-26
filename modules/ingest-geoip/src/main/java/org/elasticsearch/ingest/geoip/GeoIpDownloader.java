@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -375,28 +376,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         if (isCancelled() || isCompleted()) {
             return;
         }
-        if (event.metadataChanged()) {
-            /*
-             * In this block, we are trying to figure out if someone has newly added a geoip processor to a new or existing pipeline when
-             * there had previously been no geoip processor in the cluster. If so then we want to schedule runDownloader() to run. This
-             * is complicated by the fact that we can only run runDownloader() if the .geoip index is "ready" -- meaning either it
-             * doesn't exist or all its primary shards have been allocated. It is potentially not ready if (for example) we have recently
-             * cancelled another GeoipDownloader task. The cluster state update with information about the .geoip index's shards being
-             * allocated can come after the cluster state update with information about updated pipelines. So this method checks for both.
-             * Since we only trigger the downloader when a geoip processor has been added, we only set atLeastOneGeoIpProcessor to true if
-             * both conditions have been met.
-             */
-            var geoIpIndex = event.state().getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
-            boolean geoipIndexReady = geoIpIndex == null
-                || event.state().routingTable().index(geoIpIndex.getWriteIndex()).allPrimaryShardsActive();
+        if (event.metadataChanged() && event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
-            if (geoipIndexReady && newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
+            if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                 atLeastOneGeoipProcessor = true;
                 logger.trace("Scheduling runDownloader because a geoip processor has been added");
                 threadPool.schedule(() -> runDownloader(false), TimeValue.ZERO, ThreadPool.Names.GENERIC);
-            } else if (newAtLeastOneGeoipProcessor == false) {
-                atLeastOneGeoipProcessor = false;
-            } // else there is now at least one geoip processor but the geoip index isn't ready yet, so we'll deal with it next time
+            } else {
+                atLeastOneGeoipProcessor = newAtLeastOneGeoipProcessor;
+            }
         }
     }
 }

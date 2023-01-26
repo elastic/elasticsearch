@@ -206,7 +206,7 @@ public final class Authentication implements ToXContentObject, Writeable {
      * This is commonly employed when the {@code Authentication} is serialized across cluster nodes with mixed versions.
      */
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
-        return maybeRewriteForOlderVersion(olderVersion, Authentication.VERSION_REMOTE_ACCESS_REALM);
+        return maybeRewriteForOlderVersion(olderVersion, VERSION_REMOTE_ACCESS_REALM);
     }
 
     Authentication maybeRewriteForOlderVersion(Version olderVersion, TransportVersion remoteAccessRealmVersion) {
@@ -218,22 +218,14 @@ public final class Authentication implements ToXContentObject, Writeable {
         if (isRemoteAccess() && olderVersion.transportVersion.before(remoteAccessRealmVersion)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + VERSION_REMOTE_ACCESS_REALM
+                    + remoteAccessRealmVersion
                     + "] can't handle remote access authentication and attempted to rewrite for ["
                     + olderVersion.transportVersion
                     + "]"
             );
         }
 
-        final Map<String, Object> newMetadata;
-        if (isAuthenticatedAsApiKey()) {
-            newMetadata = maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
-        } else if (isRemoteAccess()) {
-            newMetadata = maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, this);
-        } else {
-            newMetadata = getAuthenticatingSubject().getMetadata();
-        }
-
+        final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion);
         final Authentication newAuthentication;
         if (isRunAs()) {
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
@@ -268,6 +260,16 @@ public final class Authentication implements ToXContentObject, Writeable {
 
         }
         return newAuthentication;
+    }
+
+    private Map<String, Object> maybeRewriteMetadata(Version olderVersion) {
+        if (isAuthenticatedAsApiKey()) {
+            return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
+        } else if (isRemoteAccess()) {
+            return maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, this);
+        } else {
+            return getAuthenticatingSubject().getMetadata();
+        }
     }
 
     /**

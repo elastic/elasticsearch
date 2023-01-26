@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.ml.query;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
@@ -15,6 +16,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -34,11 +36,11 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Lucene query to be used by {@link SparseTermsQueryBuilder}.
+ * Lucene query to be used by {@link RankFeaturesFieldMapper}  when creating term queries
  *
  * This is adapted from Lucene's FeatureQuery query and extends TermQuery
  */
-class SparseTermsQuery extends TermQuery {
+class LinearRankFeatureTermQuery extends TermQuery {
     private static final int MAX_FREQ = Float.floatToIntBits(Float.MAX_VALUE) >>> 15;
 
     static float decodeFeatureValue(float freq) {
@@ -51,19 +53,17 @@ class SparseTermsQuery extends TermQuery {
     }
 
     private final Term term;
-    private final float value;
 
-    SparseTermsQuery(Term term, float value) {
+    LinearRankFeatureTermQuery(Term term) {
         super(term);
         this.term = Objects.requireNonNull(term);
-        this.value = value;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final IndexReaderContext context = searcher.getTopReaderContext();
         final TermStates termState = TermStates.build(context, term, scoreMode.needsScores());
-        return new SparseTermWeight(scoreMode, boost, termState);
+        return new LinearRankFeatureTermWeight(scoreMode, boost, termState);
     }
 
     @Override
@@ -71,35 +71,32 @@ class SparseTermsQuery extends TermQuery {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        SparseTermsQuery that = (SparseTermsQuery) obj;
-        return Objects.equals(term, that.term) && Objects.equals(value, that.value);
+        LinearRankFeatureTermQuery that = (LinearRankFeatureTermQuery) obj;
+        return Objects.equals(term, that.term);
     }
 
     @Override
     public int hashCode() {
         int h = getClass().hashCode();
         h = 31 * h + term.hashCode();
-        h = 31 * h + Objects.hash(value);
         return h;
     }
 
     @Override
     public String toString(String field) {
-        return "SparseTermsQuery(field=" + term.field() + ", term=" + term.text() + ", weight=" + value + ")";
+        return "LinearRankFeatureTermQuery(field=" + term.field() + ", feature=" + term.text() + ")";
     }
 
-    private static class SimpleLinearScorer extends Similarity.SimScorer {
-        private final float termValue;
+    private static class LinearScorer extends Similarity.SimScorer {
         private final float boost;
 
-        SimpleLinearScorer(float termValue, float boost) {
-            this.termValue = termValue;
+        LinearScorer(float boost) {
             this.boost = boost;
         }
 
         @Override
         public float score(float freq, long norm) {
-            return decodeFeatureValue(freq) * termValue * boost;
+            return decodeFeatureValue(freq) * boost;
         }
 
         @Override
@@ -107,21 +104,26 @@ class SparseTermsQuery extends TermQuery {
             float score = score(freq.getValue().floatValue(), 1L);
             return Explanation.match(
                 score,
-                "score(termValue=" + decodeFeatureValue(freq.getValue().floatValue()) + ", termQueryWeight=" + termValue + ")"
+                "LinearScorer(featureValue=" + decodeFeatureValue(freq.getValue().floatValue()) + ", weight=" + boost + ")"
             );
+        }
+
+        @Override
+        public String toString() {
+            return "LinearScorer";
         }
     }
 
     // Based on Lucene package private and final class TermWeight, but with specific scorer & optimizations
-    class SparseTermWeight extends Weight {
+    class LinearRankFeatureTermWeight extends Weight {
         private final ScoreMode scoreMode;
         private final Similarity.SimScorer simScorer;
         private final TermStates termStates;
 
-        SparseTermWeight(ScoreMode scoreMode, float boost, TermStates termStates) {
-            super(SparseTermsQuery.this);
+        LinearRankFeatureTermWeight(ScoreMode scoreMode, float boost, TermStates termStates) {
+            super(LinearRankFeatureTermQuery.this);
             this.scoreMode = scoreMode;
-            this.simScorer = new SimpleLinearScorer(value, boost);
+            this.simScorer = new LinearScorer(boost);
             this.termStates = termStates;
         }
 
@@ -142,7 +144,7 @@ class SparseTermsQuery extends TermQuery {
 
         @Override
         public String toString() {
-            return "weight(" + SparseTermsQuery.this + ")";
+            return "weight(" + LinearRankFeatureTermQuery.this + ")";
         }
 
         @Override
@@ -193,20 +195,38 @@ class SparseTermsQuery extends TermQuery {
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            TermScorer scorer = (TermScorer) scorer(context);
-            if (scorer != null) {
-                int newDoc = scorer.iterator().advance(doc);
-                if (newDoc == doc) {
-                    float freq = scorer.freq();
-                    LeafSimScorer docScorer = new LeafSimScorer(simScorer, context.reader(), term.field(), true);
-                    Explanation freqExplanation = Explanation.match(freq, "freq, occurrences of term within document");
-                    Explanation scoreExplanation = docScorer.explain(doc, freqExplanation);
-                    return Explanation.match(
-                        scoreExplanation.getValue(),
-                        "weight(" + getQuery() + " in " + doc + ") [SimpleLinearScorer], result of:",
-                        scoreExplanation
-                    );
-                }
+            String desc = "weight(" + getQuery() + " in " + doc + ") [" + simScorer + "]";
+
+            Terms terms = context.reader().terms(term.field());
+            if (terms == null) {
+                return Explanation.noMatch(desc + ". Field " + term.field() + " doesn't exist.");
+            }
+            final TermsEnum termsEnum = getTermsEnum(context);
+            if (termsEnum == null) {
+                return Explanation.noMatch(desc + ". Feature " + term.text() + " doesn't exist.");
+            }
+            LeafSimScorer scorer = new LeafSimScorer(simScorer, context.reader(), term.field(), scoreMode.needsScores());
+            final TermScorer termScorer;
+            if (scoreMode == ScoreMode.TOP_SCORES) {
+                termScorer = new TermScorer(this, termsEnum.impacts(PostingsEnum.FREQS), scorer);
+            } else {
+                termScorer = new TermScorer(
+                    this,
+                    termsEnum.postings(null, scoreMode.needsScores() ? PostingsEnum.FREQS : PostingsEnum.NONE),
+                    scorer
+                );
+            }
+            int newDoc = termScorer.iterator().advance(doc);
+            if (newDoc == doc) {
+                float freq = termScorer.freq();
+                LeafSimScorer docScorer = new LeafSimScorer(simScorer, context.reader(), term.field(), true);
+                Explanation freqExplanation = Explanation.match(freq, "frequency used to store featureValue");
+                Explanation scoreExplanation = docScorer.explain(doc, freqExplanation);
+                return Explanation.match(
+                    scoreExplanation.getValue(),
+                    "weight(" + getQuery() + " in " + doc + ") [SimpleLinearScorer], result of:",
+                    scoreExplanation
+                );
             }
             return Explanation.noMatch("no matching term");
         }

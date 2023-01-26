@@ -9,7 +9,10 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -107,7 +110,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
+            return new LinearRankFeatureTermQuery(new Term(name(), indexedValueForSearch(value)));
+        }
+
+        private static BytesRef indexedValueForSearch(Object value) {
+            return BytesRefs.toBytesRef(value);
         }
     }
 

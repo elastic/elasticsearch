@@ -365,7 +365,6 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
-import org.elasticsearch.xpack.ml.query.SparseTermsQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -1586,16 +1585,6 @@ public class MachineLearning extends Plugin
             ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
                 .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
         );
-    }
-
-    @Override
-    public List<QuerySpec<?>> getQueries() {
-        return List.of(new QuerySpec<>(SparseTermsQueryBuilder.NAME, SparseTermsQueryBuilder::new, p -> {
-            if (SPARSE_TERMS_QUERY_FEATURE.check(getLicenseState()) == false) {
-                throw LicenseUtils.newComplianceException(SPARSE_TERMS_QUERY_FEATURE.getName());
-            }
-            return SparseTermsQueryBuilder.PARSER.apply(p, null);
-        }));
     }
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {

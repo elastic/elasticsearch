@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.query;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -29,7 +30,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SparseTermsQueryTests extends ESTestCase {
+public class LinearRankFeatureTermQueryTests extends ESTestCase {
 
     public void testScoring() throws IOException {
         String fieldName = "sparse_terms";
@@ -49,19 +50,19 @@ public class SparseTermsQueryTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
 
-                TopDocs topDocs = searcher.search(new SparseTermsQuery(new Term(fieldName, "1"), 1f), 10);
+                TopDocs topDocs = searcher.search(new LinearRankFeatureTermQuery(new Term(fieldName, "1")), 10);
                 assertThat(topDocs.totalHits.value, equalTo((long) terms.size()));
                 for (ScoreDoc d : topDocs.scoreDocs) {
                     assertThat(d.score, equalTo(1f));
                 }
 
-                topDocs = searcher.search(new SparseTermsQuery(new Term(fieldName, "1"), 5f), 10);
+                topDocs = searcher.search(new BoostQuery(new LinearRankFeatureTermQuery(new Term(fieldName, "1")), 5f), 10);
                 assertThat(topDocs.totalHits.value, equalTo((long) terms.size()));
                 for (ScoreDoc d : topDocs.scoreDocs) {
                     assertThat(d.score, equalTo(5f));
                 }
 
-                topDocs = searcher.search(new SparseTermsQuery(new Term(fieldName, "2"), 1f), 10);
+                topDocs = searcher.search(new LinearRankFeatureTermQuery(new Term(fieldName, "2")), 10);
                 assertThat(topDocs.totalHits.value, equalTo((long) terms.size() - 1));
                 for (ScoreDoc d : topDocs.scoreDocs) {
                     assertThat(d.score, equalTo(2f));
@@ -69,8 +70,8 @@ public class SparseTermsQueryTests extends ESTestCase {
 
                 topDocs = searcher.search(
                     new BooleanQuery.Builder().setMinimumNumberShouldMatch(1)
-                        .add(new SparseTermsQuery(new Term(fieldName, "1"), 1f), BooleanClause.Occur.SHOULD)
-                        .add(new SparseTermsQuery(new Term(fieldName, "2"), 1f), BooleanClause.Occur.SHOULD)
+                        .add(new LinearRankFeatureTermQuery(new Term(fieldName, "1")), BooleanClause.Occur.SHOULD)
+                        .add(new LinearRankFeatureTermQuery(new Term(fieldName, "2")), BooleanClause.Occur.SHOULD)
                         .build(),
                     10
                 );
@@ -103,7 +104,7 @@ public class SparseTermsQueryTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
-                TopDocs topDocs = searcher.search(new ConstantScoreQuery(new SparseTermsQuery(new Term(fieldName, "1"), 5f)), 10);
+                TopDocs topDocs = searcher.search(new ConstantScoreQuery(new LinearRankFeatureTermQuery(new Term(fieldName, "1"))), 10);
                 assertThat(topDocs.totalHits.value, equalTo((long) terms.size()));
                 for (ScoreDoc d : topDocs.scoreDocs) {
                     assertThat(d.score, equalTo(1f));

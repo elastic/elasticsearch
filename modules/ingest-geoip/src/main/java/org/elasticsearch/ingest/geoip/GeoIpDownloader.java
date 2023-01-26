@@ -17,9 +17,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -32,10 +29,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -62,7 +55,7 @@ import java.util.function.Supplier;
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterStateListener {
+public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -92,14 +85,14 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
     protected volatile GeoIpTaskState state;
     private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
+    private final Supplier<TimeValue> pollIntervalSupplier;
+    private final Supplier<Boolean> eagerDownloadSupplier;
     /*
      * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
      * not download geoip databases (unless configured to eagerly download). Access is not protected because it is set in the constructor
      * and then only ever updated on the cluster state update thread (it is also read on the generic thread). Non-private for unit testing.
      */
-    volatile boolean atLeastOneGeoipProcessor;
-    private final Supplier<TimeValue> pollIntervalSupplier;
-    private final Supplier<Boolean> eagerDownloadSupplier;
+    private final Supplier<Boolean> atLeastOneGeoipProcessorSupplier;
 
     GeoIpDownloader(
         Client client,
@@ -114,17 +107,18 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         TaskId parentTask,
         Map<String, String> headers,
         Supplier<TimeValue> pollIntervalSupplier,
-        Supplier<Boolean> eagerDownloadSupplier
+        Supplier<Boolean> eagerDownloadSupplier,
+        Supplier<Boolean> atLeastOneGeoipProcessorSupplier
     ) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(clusterService.state());
         endpoint = ENDPOINT_SETTING.get(settings);
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
+        this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
     }
 
     // visible for testing
@@ -141,7 +135,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
                 throw blockException;
             }
         }
-        if (eagerDownloadSupplier.get() || atLeastOneGeoipProcessor) {
+        if (eagerDownloadSupplier.get() || atLeastOneGeoipProcessorSupplier.get()) {
             logger.trace("Updating geoip databases");
             List<Map<String, Object>> response = fetchDatabasesOverview();
             for (Map<String, Object> res : response) {
@@ -196,19 +190,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
             stats = stats.failedDownload();
             logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
-        List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
-        return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
-            Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
-            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineMap.get(Pipeline.PROCESSORS_KEY);
-            if (processors != null) {
-                return processors.stream().anyMatch(processor -> processor.containsKey(GeoIpProcessor.TYPE));
-            }
-            return false;
-        });
     }
 
     // visible for testing
@@ -347,7 +328,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         if (scheduled != null) {
             scheduled.cancel();
         }
-        clusterService.removeListener(this);
         markAsCompleted();
     }
 
@@ -362,20 +342,4 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         }
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (isCancelled() || isCompleted()) {
-            return;
-        }
-        if (event.metadataChanged() && event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)) {
-            boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
-            if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
-                atLeastOneGeoipProcessor = true;
-                logger.trace("Scheduling runDownloader because a geoip processor has been added");
-                requestReschedule();
-            } else {
-                atLeastOneGeoipProcessor = newAtLeastOneGeoipProcessor;
-            }
-        }
-    }
 }

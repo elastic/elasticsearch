@@ -53,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -105,7 +106,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         );
     }
 
@@ -261,7 +263,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             void updateTaskState() {
@@ -309,7 +312,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             void updateTaskState() {
@@ -359,7 +363,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             void updateTaskState() {
@@ -402,7 +407,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
@@ -431,7 +437,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
@@ -457,6 +464,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
+        final AtomicBoolean atLeastOneGeoipProcessor = new AtomicBoolean(false);
         geoIpDownloader = new GeoIpDownloader(
             client,
             httpClient,
@@ -470,7 +478,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Collections.emptyMap(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY)
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            atLeastOneGeoipProcessor::get
         ) {
             @Override
             void processDatabase(Map<String, Object> databaseInfo) {
@@ -479,7 +488,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
         geoIpDownloader.updateDatabases();
         assertTrue(it.hasNext());
-        geoIpDownloader.atLeastOneGeoipProcessor = true;
+        atLeastOneGeoipProcessor.set(true);
         geoIpDownloader.updateDatabases();
         assertFalse(it.hasNext());
     }

@@ -418,8 +418,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "source_field");
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config);
-        Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "89.160.20.128");
+        Map<String, Object> document = Map.of("source_field", "89.160.20.128");
         {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             processor.execute(ingestDocument);

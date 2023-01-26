@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction.Request;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> {
@@ -45,7 +44,7 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {

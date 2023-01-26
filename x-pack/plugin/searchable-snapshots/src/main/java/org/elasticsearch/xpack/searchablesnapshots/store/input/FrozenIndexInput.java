@@ -160,7 +160,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                         writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
                     }
                 },
-                directory.cacheFetchAsyncExecutor()
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
             );
             assert bytesRead == length : bytesRead + " vs " + length;
             assert luceneByteBufLock.getReadHoldCount() == 0;

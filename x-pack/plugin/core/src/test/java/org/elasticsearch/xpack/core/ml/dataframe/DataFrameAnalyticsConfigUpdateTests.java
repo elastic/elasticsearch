@@ -36,6 +36,11 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
     }
 
     @Override
+    protected DataFrameAnalyticsConfigUpdate mutateInstance(DataFrameAnalyticsConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<DataFrameAnalyticsConfigUpdate> instanceReader() {
         return DataFrameAnalyticsConfigUpdate::new;
     }

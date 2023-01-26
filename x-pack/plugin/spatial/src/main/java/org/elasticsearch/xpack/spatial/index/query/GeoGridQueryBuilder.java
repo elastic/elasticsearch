@@ -12,7 +12,7 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -397,7 +397,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_3_0;
     }
 }

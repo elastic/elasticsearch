@@ -32,6 +32,11 @@ public class VocabularyConfigTests extends AbstractBWCSerializationTestCase<Voca
     }
 
     @Override
+    protected VocabularyConfig mutateInstance(VocabularyConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected VocabularyConfig mutateInstanceForVersion(VocabularyConfig instance, Version version) {
         return instance;
     }

@@ -90,6 +90,11 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     @Override
+    protected AggregationConfig mutateInstance(AggregationConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<AggregationConfig> instanceReader() {
         return AggregationConfig::new;
     }

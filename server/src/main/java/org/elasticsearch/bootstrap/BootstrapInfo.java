@@ -67,13 +67,6 @@ public final class BootstrapInfo {
     public static final String UNTRUSTED_CODEBASE = "/untrusted";
 
     /**
-     * A non-printable character denoting a UserException has occurred.
-     *
-     * This is sent over stderr to the controlling CLI process.
-     */
-    public static final char USER_EXCEPTION_MARKER = '\u0015';
-
-    /**
      * A non-printable character denoting the server is ready to process requests.
      *
      * This is sent over stderr to the controlling CLI process.

@@ -65,6 +65,11 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         return searchRequest;
     }
 
+    @Override
+    protected SubmitAsyncSearchRequest mutateInstance(SubmitAsyncSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     protected SearchSourceBuilder randomSearchSourceBuilder() {
         SearchSourceBuilder source = new SearchSourceBuilder();
         if (randomBoolean()) {

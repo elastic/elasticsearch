@@ -57,6 +57,11 @@ public class GeoHexAggregationBuilderTests extends AbstractXContentSerializingTe
         return geoHexGridAggregationBuilder;
     }
 
+    @Override
+    protected GeoHexGridAggregationBuilder mutateInstance(GeoHexGridAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testInvalidPrecision() {
         GeoHexGridAggregationBuilder geoHexGridAggregationBuilder = new GeoHexGridAggregationBuilder("_name");
         expectThrows(IllegalArgumentException.class, () -> geoHexGridAggregationBuilder.precision(16));

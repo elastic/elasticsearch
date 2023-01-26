@@ -29,6 +29,11 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
         );
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidate() {
         Request badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), -1, -1, -1);
 

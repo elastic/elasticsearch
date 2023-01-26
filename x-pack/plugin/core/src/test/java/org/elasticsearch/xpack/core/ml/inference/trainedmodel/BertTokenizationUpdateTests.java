@@ -68,6 +68,11 @@ public class BertTokenizationUpdateTests extends AbstractBWCWireSerializationTes
     }
 
     @Override
+    protected BertTokenizationUpdate mutateInstance(BertTokenizationUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected BertTokenizationUpdate mutateInstanceForVersion(BertTokenizationUpdate instance, Version version) {
         if (version.before(Version.V_8_2_0)) {
             return new BertTokenizationUpdate(instance.getTruncate(), null);

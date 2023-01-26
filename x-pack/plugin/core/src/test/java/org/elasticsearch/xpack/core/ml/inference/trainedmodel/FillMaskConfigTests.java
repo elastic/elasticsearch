@@ -52,6 +52,11 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
     }
 
     @Override
+    protected FillMaskConfig mutateInstance(FillMaskConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected FillMaskConfig mutateInstanceForVersion(FillMaskConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

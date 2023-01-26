@@ -40,7 +40,7 @@ public class MultiFieldsSerializationTests extends ESTestCase {
             builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, Version.CURRENT));
         }
 
-        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, false, Version.CURRENT);
+        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, Version.CURRENT);
         FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.root(false));
 
         String serialized = Strings.toString(multiFields);

@@ -68,4 +68,9 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
         ParsedKSTest ks = (ParsedKSTest) parsedAggregation;
         assertThat(ks.getModes(), equalTo(aggregation.getModeValues()));
     }
+
+    @Override
+    protected InternalKSTestAggregation mutateInstance(InternalKSTestAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

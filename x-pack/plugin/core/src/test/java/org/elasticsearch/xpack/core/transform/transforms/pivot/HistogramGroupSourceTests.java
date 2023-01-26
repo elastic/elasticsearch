@@ -64,6 +64,11 @@ public class HistogramGroupSourceTests extends AbstractXContentSerializingTestCa
     }
 
     @Override
+    protected HistogramGroupSource mutateInstance(HistogramGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<HistogramGroupSource> instanceReader() {
         return HistogramGroupSource::new;
     }

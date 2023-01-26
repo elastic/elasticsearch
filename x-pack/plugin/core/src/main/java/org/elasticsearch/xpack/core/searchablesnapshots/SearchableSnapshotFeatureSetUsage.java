@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,7 +27,7 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     public SearchableSnapshotFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         numberOfSearchableSnapshotIndices = input.readVInt();
-        if (input.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             numberOfFullCopySearchableSnapshotIndices = input.readVInt();
             numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
         } else {
@@ -46,7 +45,7 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(numberOfSearchableSnapshotIndices);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
             out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
         }

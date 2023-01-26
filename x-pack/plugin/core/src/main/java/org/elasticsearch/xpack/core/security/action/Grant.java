@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +41,7 @@ public class Grant implements Writeable {
         this.username = in.readOptionalString();
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             this.runAsUsername = in.readOptionalString();
         } else {
             this.runAsUsername = null;
@@ -53,7 +53,7 @@ public class Grant implements Writeable {
         out.writeOptionalString(username);
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalString(runAsUsername);
         }
     }

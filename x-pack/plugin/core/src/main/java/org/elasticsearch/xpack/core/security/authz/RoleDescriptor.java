@@ -166,7 +166,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_REMOTE_INDICES.transportVersion)) {
             this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
@@ -337,14 +337,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_REMOTE_INDICES.transportVersion)) {
             out.writeArray(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_REMOTE_INDICES
                     + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getVersion()
+                    + out.getTransportVersion()
                     + "]"
             );
         }

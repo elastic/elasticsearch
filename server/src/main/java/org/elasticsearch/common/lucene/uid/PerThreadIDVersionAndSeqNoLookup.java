@@ -19,6 +19,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -54,6 +55,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /** used for assertions to make sure class usage meets assumptions */
     private final Object readerKey;
 
+    final boolean loadedTimestampRange;
     final long minTimestamp;
     final long maxTimestamp;
 
@@ -91,8 +93,9 @@ final class PerThreadIDVersionAndSeqNoLookup {
         assert trackReaderKey ? (readerKey = reader.getCoreCacheHelper().getKey()) != null : readerKey == null;
         this.readerKey = readerKey;
 
+        this.loadedTimestampRange = loadTimestampRange;
         if (loadTimestampRange) {
-            PointValues tsPointValues = reader.getPointValues("@timestamp");
+            PointValues tsPointValues = reader.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
             minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
             maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
         } else {

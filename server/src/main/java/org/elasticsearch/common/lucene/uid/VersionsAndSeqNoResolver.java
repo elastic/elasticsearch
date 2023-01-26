@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
@@ -63,6 +64,21 @@ public final class VersionsAndSeqNoResolver {
                 lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField, loadTimestampRange);
             }
             ctl.set(lookupState);
+        } else {
+            if (Assertions.ENABLED) {
+                // Ensure cached lookup instances have loaded timestamp range if that was requested
+                for (PerThreadIDVersionAndSeqNoLookup lookup : lookupState) {
+                    if (lookup.loadedTimestampRange != loadTimestampRange) {
+                        throw new AssertionError(
+                            "Mismatch between lookup.loadedTimestampRange ["
+                                + lookup.loadedTimestampRange
+                                + "] and loadTimestampRange ["
+                                + loadTimestampRange
+                                + "]"
+                        );
+                    }
+                }
+            }
         }
 
         if (lookupState.length != reader.leaves().size()) {
@@ -141,6 +157,7 @@ public final class VersionsAndSeqNoResolver {
         long prevMaxTimestamp = Long.MAX_VALUE;
         for (final LeafReaderContext leaf : leaves) {
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            assert lookup.loadedTimestampRange;
             assert prevMaxTimestamp >= lookup.maxTimestamp;
             if (timestamp < lookup.minTimestamp) {
                 continue;

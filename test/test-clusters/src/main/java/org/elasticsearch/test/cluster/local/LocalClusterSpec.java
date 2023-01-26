@@ -265,6 +265,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.distributionType,
                         n.features,
                         n.keystoreSettings,
+                        n.keystoreFiles,
                         n.keystorePassword,
                         n.extraConfigFiles,
                         n.systemProperties

@@ -1,0 +1,5 @@
+pr: 93278
+summary: '`IngestCtxMap` hashmap optimization'
+area: Ingest Node
+type: enhancement
+issues: []

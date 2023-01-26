@@ -123,7 +123,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
     }
 
     @Override
-    protected ClusterIndexHealth mutateInstance(ClusterIndexHealth instance) throws IOException {
+    protected ClusterIndexHealth mutateInstance(ClusterIndexHealth instance) {
         String mutate = randomFrom(
             "index",
             "numberOfShards",

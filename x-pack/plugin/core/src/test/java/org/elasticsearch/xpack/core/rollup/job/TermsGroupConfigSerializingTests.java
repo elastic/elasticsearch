@@ -39,6 +39,11 @@ public class TermsGroupConfigSerializingTests extends AbstractXContentSerializin
         return randomTermsGroupConfig(random());
     }
 
+    @Override
+    protected TermsGroupConfig mutateInstance(TermsGroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateNoMapping() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();

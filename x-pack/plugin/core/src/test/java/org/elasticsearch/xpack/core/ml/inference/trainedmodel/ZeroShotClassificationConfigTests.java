@@ -56,6 +56,11 @@ public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCa
     }
 
     @Override
+    protected ZeroShotClassificationConfig mutateInstance(ZeroShotClassificationConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected ZeroShotClassificationConfig mutateInstanceForVersion(ZeroShotClassificationConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

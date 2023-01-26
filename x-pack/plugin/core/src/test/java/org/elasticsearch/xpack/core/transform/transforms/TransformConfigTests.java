@@ -260,6 +260,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     @Override
+    protected TransformConfig mutateInstance(TransformConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformConfig> instanceReader() {
         return TransformConfig::new;
     }

@@ -18,6 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
@@ -45,11 +46,21 @@ public final class NoOpEngine extends ReadOnlyEngine {
     private final DocsStats docsStats;
 
     public NoOpEngine(EngineConfig config) {
-        this(config, null);
+        this(
+            config,
+            config.isPromotableToPrimary() ? null : new TranslogStats(0, 0, 0, 0, 0),
+            config.isPromotableToPrimary()
+                ? null
+                : new SeqNoStats(
+                    config.getGlobalCheckpointSupplier().getAsLong(),
+                    config.getGlobalCheckpointSupplier().getAsLong(),
+                    config.getGlobalCheckpointSupplier().getAsLong()
+                )
+        );
     }
 
-    public NoOpEngine(EngineConfig config, @Nullable TranslogStats translogStats) {
-        super(config, null, translogStats, true, Function.identity(), true, true);
+    public NoOpEngine(EngineConfig config, @Nullable TranslogStats translogStats, SeqNoStats seqNoStats) {
+        super(config, seqNoStats, translogStats, true, Function.identity(), true, true);
         this.segmentsStats = new SegmentsStats();
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {

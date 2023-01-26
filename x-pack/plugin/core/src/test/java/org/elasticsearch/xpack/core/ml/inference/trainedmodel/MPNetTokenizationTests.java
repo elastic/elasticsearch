@@ -53,6 +53,11 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
     }
 
     @Override
+    protected MPNetTokenization mutateInstance(MPNetTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, Version version) {
         return mutateForVersion(instance, version);
     }

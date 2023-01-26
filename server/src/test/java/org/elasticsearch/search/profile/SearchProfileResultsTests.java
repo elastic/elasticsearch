@@ -38,6 +38,11 @@ public class SearchProfileResultsTests extends AbstractXContentSerializingTestCa
     }
 
     @Override
+    protected SearchProfileResults mutateInstance(SearchProfileResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SearchProfileResults> instanceReader() {
         return SearchProfileResults::new;
     }

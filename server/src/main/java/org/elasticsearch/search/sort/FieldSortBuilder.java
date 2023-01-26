@@ -711,8 +711,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     /**

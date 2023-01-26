@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -46,7 +45,7 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
     }
 
     @Override
-    protected ResetFeatureStateResponse mutateInstance(ResetFeatureStateResponse instance) throws IOException {
+    protected ResetFeatureStateResponse mutateInstance(ResetFeatureStateResponse instance) {
         int minSize = 0;
         if (instance.getFeatureStateResetStatuses().size() == 0) {
             minSize = 1;

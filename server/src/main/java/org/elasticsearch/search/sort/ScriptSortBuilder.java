@@ -459,8 +459,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     public enum ScriptSortType implements Writeable {

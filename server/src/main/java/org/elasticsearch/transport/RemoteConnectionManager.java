@@ -84,7 +84,14 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-        delegate.openConnection(node, profile, listener);
+        delegate.openConnection(
+            node,
+            profile,
+            ActionListener.wrap(
+                connection -> listener.onResponse(new InternalRemoteConnection(connection, clusterAlias)),
+                listener::onFailure
+            )
+        );
     }
 
     @Override

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -65,31 +65,33 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES.transportVersion);
 
         final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices);
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
         assertThat(copy, equalTo(original));
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
+            RoleDescriptor.VERSION_REMOTE_INDICES.transportVersion
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
             versionBeforeRemoteIndices
         );
-        out.setVersion(version);
+        out.setTransportVersion(version);
 
         final GetUserPrivilegesResponse original = randomResponse();
         if (original.hasRemoteIndicesPrivileges()) {
@@ -106,7 +108,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            in.setVersion(out.getVersion());
+            in.setTransportVersion(out.getTransportVersion());
             final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
             assertThat(copy, equalTo(original));
         }

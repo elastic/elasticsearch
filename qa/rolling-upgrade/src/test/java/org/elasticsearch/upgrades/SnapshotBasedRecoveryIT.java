@@ -31,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.upgrades.UpgradeWithOldIndexSettingsIT.updateIndexSettingsPermittingSlowlogDeprecationWarning;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +41,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91383")
+
     public void testSnapshotBasedRecovery() throws Exception {
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
@@ -101,8 +102,14 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 }
 
                 // Drop replicas
-                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
-                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                    indexName,
+                    Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                );
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                    indexName,
+                    Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                );
                 try {
                     ensureGreen(indexName);
                 } catch (AssertionError e) {

@@ -163,7 +163,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        GeoIpDownloader downloader = new GeoIpDownloader(
+        return new GeoIpDownloader(
             client,
             httpClient,
             clusterService,
@@ -178,7 +178,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             () -> pollInterval,
             () -> eagerDownload
         );
-        return downloader;
     }
 
     @Override

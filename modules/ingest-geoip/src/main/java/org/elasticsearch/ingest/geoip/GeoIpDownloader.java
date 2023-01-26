@@ -291,14 +291,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
      * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
      */
     void runDownloader() {
-        runDownloader(true);
-    }
-
-    /**
-     * Downloads the geoip databases now. If scheduleNext is true, this schedules them to be downloaded again after pollInterval.
-     * @param scheduleNext
-     */
-    void runDownloader(boolean scheduleNext) {
         if (isCancelled() || isCompleted()) {
             return;
         }
@@ -313,15 +305,14 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         } catch (Exception e) {
             logger.error("exception during geoip databases cleanup", e);
         }
-        if (scheduleNext) {
-            scheduleNextRun(pollIntervalSupplier.get());
-        }
+        scheduleNextRun(pollIntervalSupplier.get());
     }
 
     /**
      * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
-     * pollIntervalSupplier or eagerDownloadSupplier has changed). This method does nothing if this task is cancelled, completed, or has not
-     * yet been scheduled to run for the first time. It cancels any existing scheduled run.
+     * pollIntervalSupplier or eagerDownloadSupplier has changed, or a pipeline with a geoip processor has been added). This method does
+     * nothing if this task is cancelled, completed, or has not yet been scheduled to run for the first time. It cancels any existing
+     * scheduled run.
      */
     public void requestReschedule() {
         if (isCancelled() || isCompleted()) {
@@ -381,7 +372,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
             if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                 atLeastOneGeoipProcessor = true;
                 logger.trace("Scheduling runDownloader because a geoip processor has been added");
-                threadPool.schedule(() -> runDownloader(false), TimeValue.ZERO, ThreadPool.Names.GENERIC);
+                requestReschedule();
             } else {
                 atLeastOneGeoipProcessor = newAtLeastOneGeoipProcessor;
             }

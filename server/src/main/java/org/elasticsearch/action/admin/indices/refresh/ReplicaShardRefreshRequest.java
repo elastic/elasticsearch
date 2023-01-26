@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +31,7 @@ public class ReplicaShardRefreshRequest extends ReplicationRequest<ReplicaShardR
 
     public ReplicaShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.segmentGeneration = in.readOptionalVLong();
         } else {
             this.segmentGeneration = null;
@@ -41,7 +41,7 @@ public class ReplicaShardRefreshRequest extends ReplicationRequest<ReplicaShardR
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalVLong(segmentGeneration);
         }
     }

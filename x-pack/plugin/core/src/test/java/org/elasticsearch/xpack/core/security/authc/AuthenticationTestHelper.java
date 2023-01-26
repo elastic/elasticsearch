@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -234,7 +234,7 @@ public class AuthenticationTestHelper {
     }
 
     public static class AuthenticationTestBuilder {
-        private Version version;
+        private TransportVersion transportVersion;
         private Authentication authenticatingAuthentication;
         private User user;
         private Authentication.RealmRef realmRef;
@@ -248,7 +248,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder(Authentication authentication) {
             assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
-            this.version = authentication.getEffectiveSubject().getVersion();
+            this.transportVersion = authentication.getEffectiveSubject().getTransportVersion();
         }
 
         public AuthenticationTestBuilder realm() {
@@ -346,11 +346,11 @@ public class AuthenticationTestHelper {
             return this;
         }
 
-        public AuthenticationTestBuilder version(Version version) {
+        public AuthenticationTestBuilder transportVersion(TransportVersion version) {
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot set version for run-as authentication");
             }
-            this.version = Objects.requireNonNull(version);
+            this.transportVersion = Objects.requireNonNull(version);
             return this;
         }
 
@@ -499,20 +499,20 @@ public class AuthenticationTestHelper {
                         String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
                         if (user == SystemUser.INSTANCE) {
                             authentication = ESTestCase.randomFrom(
-                                Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName),
+                                Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName),
                                 Authentication.newInternalFallbackAuthentication(user, nodeName)
                             );
                         } else {
-                            authentication = Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName);
+                            authentication = Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName);
                         }
                     }
                     default -> throw new IllegalArgumentException("unknown authentication type [" + authenticationType + "]");
                 }
-                if (version == null) {
-                    version = Version.CURRENT;
+                if (transportVersion == null) {
+                    transportVersion = TransportVersion.CURRENT;
                 }
-                if (version.before(authentication.getEffectiveSubject().getVersion())) {
-                    return authentication.maybeRewriteForOlderVersion(version);
+                if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
+                    return authentication.maybeRewriteForOlderVersion(transportVersion);
                 } else {
                     return authentication;
                 }

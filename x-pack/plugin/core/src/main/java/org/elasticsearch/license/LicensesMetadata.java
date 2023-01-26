@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
@@ -105,8 +106,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

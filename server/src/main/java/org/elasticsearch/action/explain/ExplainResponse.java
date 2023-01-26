@@ -9,6 +9,7 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,7 +70,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     public ExplainResponse(StreamInput in) throws IOException {
         super(in);
         index = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readString();
         }
         id = in.readString();

@@ -315,6 +315,11 @@ public class TrainedModelDefinitionTests extends AbstractXContentSerializingTest
     }
 
     @Override
+    protected TrainedModelDefinition mutateInstance(TrainedModelDefinition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<TrainedModelDefinition> instanceReader() {
         return TrainedModelDefinition::new;
     }

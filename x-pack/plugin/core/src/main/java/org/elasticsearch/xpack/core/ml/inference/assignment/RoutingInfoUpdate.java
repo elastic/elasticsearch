@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,7 +35,7 @@ public class RoutingInfoUpdate implements Writeable {
     }
 
     public RoutingInfoUpdate(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             numberOfAllocations = Optional.ofNullable(in.readOptionalVInt());
             stateAndReason = Optional.ofNullable(in.readOptionalWriteable(RoutingStateAndReason::new));
         } else {
@@ -46,7 +46,7 @@ public class RoutingInfoUpdate implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalVInt(numberOfAllocations.orElse(null));
             out.writeOptionalWriteable(stateAndReason.orElse(null));
         } else {

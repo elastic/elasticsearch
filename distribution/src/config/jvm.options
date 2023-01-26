@@ -73,6 +73,3 @@
 
 ## GC logging
 -Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,level,pid,tags:filecount=32,filesize=64m
-
-# temporarily disable the Panama-based MMapDirectory
--Dorg.apache.lucene.store.MMapDirectory.enableMemorySegments=false

@@ -188,10 +188,10 @@ public class RolloverAction implements LifecycleAction {
         out.writeOptionalWriteable(maxPrimaryShardSize);
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeOptionalVLong(maxPrimaryShardDocs);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalWriteable(minSize);
             out.writeOptionalWriteable(minPrimaryShardSize);
             out.writeOptionalTimeValue(minAge);

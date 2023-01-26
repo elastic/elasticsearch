@@ -206,7 +206,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         out.writeVLong(searchTotal);
         out.writeVLong(indexFailures);
         out.writeVLong(searchFailures);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             out.writeVLong(processingTime);
             out.writeVLong(processingTotal);
         }

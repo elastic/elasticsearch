@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,7 +77,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     }
 
     public ScriptStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
             compilations = compilationsHistory.total;
@@ -93,7 +94,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             compilationsHistory.writeTo(out);
             cacheEvictionsHistory.writeTo(out);
         } else {

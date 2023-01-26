@@ -457,10 +457,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
-            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalTimeValue(rolloverMinAge);
                 out.writeOptionalVLong(rolloverMinDocs);
                 out.writeOptionalWriteable(rolloverMinPrimaryShardSize);

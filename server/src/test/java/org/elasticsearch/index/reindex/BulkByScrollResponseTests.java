@@ -10,6 +10,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -82,7 +83,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     private void assertResponseEquals(BulkByScrollResponse expected, BulkByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
-        BulkByScrollTaskStatusTests.assertTaskStatusEquals(Version.CURRENT, expected.getStatus(), actual.getStatus());
+        BulkByScrollTaskStatusTests.assertTaskStatusEquals(TransportVersion.CURRENT, expected.getStatus(), actual.getStatus());
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
         for (int i = 0; i < expected.getBulkFailures().size(); i++) {
             Failure expectedFailure = expected.getBulkFailures().get(i);

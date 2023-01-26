@@ -10,6 +10,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -102,7 +103,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     MultiSearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(Item::new, Item[]::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_0_0)) {
             tookInMillis = in.readVLong();
         } else {
             tookInMillis = -1L;
@@ -136,7 +137,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(items);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_0_0)) {
             out.writeVLong(tookInMillis);
         }
     }

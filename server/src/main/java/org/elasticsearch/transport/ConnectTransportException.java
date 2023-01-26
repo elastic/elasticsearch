@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +36,7 @@ public class ConnectTransportException extends ActionTransportException {
 
     public ConnectTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_1_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_1_0)) {
             in.readOptionalWriteable(DiscoveryNode::new);
         }
     }
@@ -43,7 +44,7 @@ public class ConnectTransportException extends ActionTransportException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_1_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_1_0)) {
             out.writeMissingWriteable(DiscoveryNode.class);
         }
     }

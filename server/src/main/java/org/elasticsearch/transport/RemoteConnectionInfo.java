@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +41,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        if (input.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             RemoteConnectionStrategy.ConnectionStrategy mode = input.readEnum(RemoteConnectionStrategy.ConnectionStrategy.class);
             modeInfo = mode.getReader().read(input);
             initialConnectionTimeout = input.readTimeValue();
@@ -79,7 +80,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeEnum(modeInfo.modeType());
             modeInfo.writeTo(out);
             out.writeTimeValue(initialConnectionTimeout);

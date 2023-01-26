@@ -10,6 +10,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -594,7 +595,7 @@ public class XContentHelper {
      * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
             out.writeVInt(xContentType.canonical().ordinal());
         } else {

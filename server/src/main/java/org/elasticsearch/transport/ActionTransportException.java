@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +25,7 @@ public class ActionTransportException extends TransportException {
 
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_1_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_1_0)) {
             in.readOptionalWriteable(TransportAddress::new);
             in.readOptionalString();
         }
@@ -45,7 +46,7 @@ public class ActionTransportException extends TransportException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_1_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_1_0)) {
             out.writeMissingWriteable(TransportAddress.class);
             out.writeMissingString(); // action
         }

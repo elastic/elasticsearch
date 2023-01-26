@@ -99,7 +99,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return dryRun;
     }
 
-    public boolean isCompatibleWithVersion(Version version) {
+    public boolean isCompatibleWithVersion(TransportVersion version) {
         if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             return true;
         }

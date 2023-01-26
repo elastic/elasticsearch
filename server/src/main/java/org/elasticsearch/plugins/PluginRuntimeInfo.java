@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +41,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     }
 
     private static Boolean readIsOfficial(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             return in.readBoolean();
         } else {
             return null;
@@ -48,7 +49,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     }
 
     private static PluginApiInfo readApiInfo(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             return in.readOptionalWriteable(PluginApiInfo::new);
         } else {
             return null;
@@ -72,7 +73,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         descriptor.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
             out.writeBoolean(isOfficial);
             out.writeOptionalWriteable(pluginApiInfo);
         }

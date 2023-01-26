@@ -158,7 +158,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     @Override
-    protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) throws IOException {
+    protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) {
         return randomInstance();
     }
 

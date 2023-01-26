@@ -23,6 +23,11 @@ public class WarningInferenceResultsTests extends InferenceResultsTestCase<Warni
     }
 
     @Override
+    protected WarningInferenceResults mutateInstance(WarningInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<WarningInferenceResults> instanceReader() {
         return WarningInferenceResults::new;
     }

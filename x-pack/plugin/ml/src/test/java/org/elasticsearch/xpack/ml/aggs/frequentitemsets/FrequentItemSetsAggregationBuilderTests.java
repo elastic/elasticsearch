@@ -90,6 +90,11 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
     }
 
     @Override
+    protected FrequentItemSetsAggregationBuilder mutateInstance(FrequentItemSetsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }

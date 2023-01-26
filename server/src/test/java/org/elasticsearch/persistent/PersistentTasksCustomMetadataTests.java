@@ -76,6 +76,11 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
     }
 
     @Override
+    protected Custom mutateInstance(Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Custom> instanceReader() {
         return PersistentTasksCustomMetadata::new;
     }

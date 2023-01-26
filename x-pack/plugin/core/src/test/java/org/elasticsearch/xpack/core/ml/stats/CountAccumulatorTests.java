@@ -94,6 +94,11 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
     }
 
     @Override
+    protected CountAccumulator mutateInstance(CountAccumulator instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<CountAccumulator> instanceReader() {
         return CountAccumulator::new;
     }

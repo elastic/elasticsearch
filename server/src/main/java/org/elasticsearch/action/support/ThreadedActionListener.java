@@ -8,39 +8,37 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.ExecutorService;
 
 /**
- * An action listener that wraps another action listener and threading its execution.
+ * An action listener that wraps another action listener and dispatches its completion to an executor.
  */
 public final class ThreadedActionListener<Response> extends ActionListener.Delegating<Response, Response> {
 
-    private final Logger logger;
-    private final ThreadPool threadPool;
-    private final String executor;
+    private static final Logger logger = LogManager.getLogger(ThreadedActionListener.class);
+
+    private final ExecutorService executor;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(
-        Logger logger,
-        ThreadPool threadPool,
-        String executor,
-        ActionListener<Response> listener,
-        boolean forceExecution
-    ) {
+    public ThreadedActionListener(ExecutorService executor, ActionListener<Response> listener) {
+        this(executor, false, listener);
+    }
+
+    public ThreadedActionListener(ExecutorService executor, boolean forceExecution, ActionListener<Response> listener) {
         super(listener);
-        this.logger = logger;
-        this.threadPool = threadPool;
-        this.executor = executor;
         this.forceExecution = forceExecution;
+        this.executor = executor;
     }
 
     @Override
     public void onResponse(final Response response) {
-        threadPool.executor(executor).execute(new ActionRunnable<>(delegate) {
+        executor.execute(new ActionRunnable<>(delegate) {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
@@ -60,7 +58,7 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
 
     @Override
     public void onFailure(final Exception e) {
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        executor.execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
@@ -84,8 +82,8 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
 
             @Override
             public void onFailure(Exception e) {
+                logger.error(() -> "failed to execute failure callback on [" + ThreadedActionListener.this + "]", e);
                 assert false : e;
-                logger.error(() -> "failed to execute failure callback on [" + delegate + "]", e);
             }
 
             @Override

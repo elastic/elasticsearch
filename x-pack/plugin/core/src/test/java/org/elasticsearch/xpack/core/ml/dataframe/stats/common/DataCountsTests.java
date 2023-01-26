@@ -56,6 +56,11 @@ public class DataCountsTests extends AbstractBWCSerializationTestCase<DataCounts
         return createRandom();
     }
 
+    @Override
+    protected DataCounts mutateInstance(DataCounts instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataCounts createRandom() {
         return new DataCounts(randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }

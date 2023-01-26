@@ -108,7 +108,7 @@ public final class UserToken implements Writeable, ToXContentObject {
     }
 
     /**
-     * The version of the node this token was created on
+     * The transport version of the node this token was created on
      */
     TransportVersion getTransportVersion() {
         return version;

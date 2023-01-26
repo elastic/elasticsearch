@@ -882,11 +882,12 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    private static RealmRef maybeRewriteRealmRef(Version streamVersion, RealmRef realmRef) {
+    // pkg-private for testing
+    static RealmRef maybeRewriteRealmRef(Version streamVersion, RealmRef realmRef) {
         if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
             logger.info("Rewriting realm [" + realmRef + "] without domain");
             // security domain erasure
-            new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
+            return new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
         }
         return realmRef;
     }

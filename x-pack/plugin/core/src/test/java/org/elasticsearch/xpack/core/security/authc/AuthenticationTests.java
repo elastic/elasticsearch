@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AuthenticationTests extends ESTestCase {
@@ -504,6 +505,69 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.encode(), equalTo(headerV7));
     }
 
+    public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
+        final Version olderVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_REALM_DOMAINS.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
+            .version(VersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null))
+            .build();
+        assertThat(authentication.getEffectiveSubject().getVersion().after(olderVersion), is(true));
+
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
+
+        assertThat(actual.getEffectiveSubject().getVersion(), equalTo(olderVersion));
+        assertThat(actual.getAuthenticatingSubject().getRealm().getDomain(), nullValue());
+        assertThat(actual.getEffectiveSubject().getRealm().getDomain(), nullValue());
+    }
+
+    public void testMaybeRewriteRealmRef() {
+        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
+        assertThat(realmRefWithDomain.getDomain(), notNullValue());
+
+        assertThat(
+            Authentication.maybeRewriteRealmRef(
+                VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)),
+                realmRefWithDomain
+            ).getDomain(),
+            nullValue()
+        );
+
+        assertThat(
+            Authentication.maybeRewriteRealmRef(
+                VersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
+                realmRefWithDomain
+            ),
+            equalTo(realmRefWithDomain)
+        );
+    }
+
+    public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
+        final Version olderVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_REALM_DOMAINS,
+            VersionUtils.getPreviousVersion()
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
+            .version(VersionUtils.randomVersionBetween(random(), olderVersion, null))
+            .build();
+
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
+
+        assertThat(
+            actual.getAuthenticatingSubject().getRealm().getDomain(),
+            equalTo(authentication.getAuthenticatingSubject().getRealm().getDomain())
+        );
+        assertThat(
+            actual.getEffectiveSubject().getRealm().getDomain(),
+            equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
+        );
+    }
+
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             authentication.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -542,7 +606,7 @@ public class AuthenticationTests extends ESTestCase {
 
     /**
      * Randomly create an authentication that has either realm or token authentication type.
-     * The authentication can have any version from 7.0.0 to current and random metadata.
+     * The authentication can have any version from 7.0.0 (or from 8.2.0, if the realm has a domain) to current and random metadata.
      */
     public static Authentication randomAuthentication(User user, RealmRef realmRef) {
         return randomAuthentication(user, realmRef, randomBoolean());
@@ -555,7 +619,9 @@ public class AuthenticationTests extends ESTestCase {
         if (realmRef == null) {
             realmRef = randomRealmRef(false);
         }
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+        // If the realm is expected to have a domain, we need a version that's at least compatible with domains
+        final Version minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : Version.V_7_0_0;
+        final Version version = VersionUtils.randomVersionBetween(random(), minVersion, Version.CURRENT);
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));

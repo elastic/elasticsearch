@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
@@ -73,15 +74,11 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             apiKeysQuery.filter().get(1),
             is(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
         );
-        if (authentication.getEffectiveSubject().getRealm().getDomain().realms().size() == 1) {
+        final RealmDomain domain = authentication.getEffectiveSubject().getRealm().getDomain();
+        if (domain.realms().size() == 1) {
             assertThat(
                 apiKeysQuery.filter().get(2),
-                is(
-                    QueryBuilders.termQuery(
-                        "creator.realm",
-                        authentication.getEffectiveSubject().getRealm().getDomain().realms().stream().findFirst().get().getName()
-                    )
-                )
+                is(QueryBuilders.termQuery("creator.realm", domain.realms().stream().findFirst().get().getName()))
             );
         } else {
             assertThat(apiKeysQuery.filter().get(2), instanceOf(BoolQueryBuilder.class));
@@ -89,7 +86,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).mustNot().size(), is(0));
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).filter().size(), is(0));
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).minimumShouldMatch(), is("1"));
-            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getEffectiveSubject().getRealm().getDomain().realms()) {
+            for (RealmConfig.RealmIdentifier realmIdentifier : domain.realms()) {
                 assertThat(
                     ((BoolQueryBuilder) apiKeysQuery.filter().get(2)).should(),
                     hasItem(QueryBuilders.termQuery("creator.realm", realmIdentifier.getName()))

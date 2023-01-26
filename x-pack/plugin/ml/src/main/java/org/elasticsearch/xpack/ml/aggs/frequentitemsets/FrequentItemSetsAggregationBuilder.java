@@ -227,8 +227,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_4_0;
     }
 
 }

@@ -66,8 +66,8 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -180,8 +180,8 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT.minimumCompatibilityVersion();
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {

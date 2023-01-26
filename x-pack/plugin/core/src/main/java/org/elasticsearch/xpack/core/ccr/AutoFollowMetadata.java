@@ -136,8 +136,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

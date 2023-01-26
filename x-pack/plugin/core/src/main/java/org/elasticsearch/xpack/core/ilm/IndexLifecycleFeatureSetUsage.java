@@ -38,8 +38,8 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_0_0;
     }
 
     @Override

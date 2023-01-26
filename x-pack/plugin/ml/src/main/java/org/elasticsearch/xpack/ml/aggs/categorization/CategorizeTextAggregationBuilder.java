@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -345,11 +344,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         // This isn't strictly true, as the categorize_text aggregation has existed since 7.16.
         // However, the implementation completely changed in 8.3, so it's best that if the
         // coordinating node is on 8.3 or above then it should refuse to use this aggregation
         // until the older nodes are upgraded.
-        return Version.fromId(ALGORITHM_CHANGED_VERSION.id);
+        return ALGORITHM_CHANGED_VERSION;
     }
 }

@@ -53,6 +53,11 @@ public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextS
     }
 
     @Override
+    protected TextSimilarityConfig mutateInstance(TextSimilarityConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected TextSimilarityConfig mutateInstanceForVersion(TextSimilarityConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

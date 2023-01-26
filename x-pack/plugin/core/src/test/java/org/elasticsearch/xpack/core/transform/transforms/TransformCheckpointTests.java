@@ -54,6 +54,11 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     }
 
     @Override
+    protected TransformCheckpoint mutateInstance(TransformCheckpoint instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformCheckpoint> instanceReader() {
         return TransformCheckpoint::new;
     }

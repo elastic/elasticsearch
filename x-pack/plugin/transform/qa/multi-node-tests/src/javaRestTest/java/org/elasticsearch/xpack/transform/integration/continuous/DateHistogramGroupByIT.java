@@ -67,6 +67,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                     null,
                     missing,
                     new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND),
+                    null,
                     null
                 )
             ),

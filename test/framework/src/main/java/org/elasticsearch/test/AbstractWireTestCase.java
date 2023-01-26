@@ -46,10 +46,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * Returns an instance which is mutated slightly so it should not be equal
      * to the given instance.
      */
-    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
-    protected T mutateInstance(T instance) throws IOException {
-        return null;
-    }
+    protected abstract T mutateInstance(T instance) throws IOException;
 
     /**
      * Tests that the equals and hashcode methods are consistent and copied

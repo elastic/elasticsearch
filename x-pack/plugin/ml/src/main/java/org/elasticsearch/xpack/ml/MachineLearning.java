@@ -541,12 +541,6 @@ public class MachineLearning extends Plugin
         License.OperationMode.PLATINUM
     );
 
-    private static final LicensedFeature.Momentary SPARSE_TERMS_QUERY_FEATURE = LicensedFeature.momentary(
-        MachineLearningField.ML_FEATURE_FAMILY,
-        "sparse-terms-query",
-        License.OperationMode.PLATINUM
-    );
-
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {

@@ -45,6 +45,11 @@ public class EnumCountersTests extends AbstractWireTestCase<EnumCounters<EnumCou
     }
 
     @Override
+    protected EnumCounters<TestV2> mutateInstance(EnumCounters<TestV2> instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected EnumCounters<TestV2> copyInstance(EnumCounters<TestV2> instance, Version version) throws IOException {
         return serialize(instance, in -> new EnumCounters<>(in, TestV2.class));
     }

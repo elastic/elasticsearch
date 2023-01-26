@@ -191,7 +191,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         assertThat(state, sameInstance(lastState));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93142")
     public void testStoragePreventsMove() {
         // this test moves shards to warm nodes and then checks that the reactive decider can calculate the storage necessary to move them
         // back to hot nodes.
@@ -270,7 +269,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(addDataNodes(DATA_HOT_NODE_ROLE, "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93142")
     public void testMoveToEmpty() {
         // allocate all primary shards
         allocate();
@@ -474,14 +472,16 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(
             Settings.builder()
                 .put(
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
                     Integer.MAX_VALUE
                 )
-                .build(),
+                .build()
+        );
+        Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
+            Settings.EMPTY,
             clusterSettings,
             Collections.emptyList()
         );

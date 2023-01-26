@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
@@ -338,6 +339,32 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithSearchShards();
+    }
+
+    public void testCreatesSearchShardsOfClosedIndex() {
+        startMasterOnlyNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numberOfShards = randomIntBetween(1, 5);
+        startIndexNodes(numberOfShards);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+        indexDocuments(indexName);
+        flush(indexName);
+        assertObjectStoreConsistentWithIndexShards();
+
+        assertAcked(client().admin().indices().prepareClose(indexName));
+
+        startSearchNodes(numberOfShards);
+        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+        // TODO assertObjectStoreConsistentWithSearchShards(); doesn't work yet because closing the index incremented the primary term
     }
 
     private static void indexDocuments(String indexName) {

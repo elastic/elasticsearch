@@ -38,6 +38,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
@@ -607,7 +608,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     private void executeTestCase(
         final CacheService cacheService,
-        final SharedBlobCacheService sharedBlobCacheService,
+        final SharedBlobCacheService<CacheKey> sharedBlobCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
@@ -649,7 +650,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         try (
             CacheService ignored = cacheService;
-            SharedBlobCacheService ignored2 = sharedBlobCacheService;
+            var ignored2 = sharedBlobCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,

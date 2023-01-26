@@ -136,6 +136,10 @@ project(":libs").children.each { libsProject ->
   }
 }
 
+project(":qa:stable-api").children.each { libsProject ->
+  libsProject.name = "elasticsearch-${libsProject.name}"
+}
+
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
 }

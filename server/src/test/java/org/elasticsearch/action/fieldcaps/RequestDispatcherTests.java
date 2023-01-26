@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterName;
@@ -78,6 +79,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -742,7 +744,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final TestThreadPool threadPool = new TestThreadPool("test");
             TcpTransport transport = new Netty4Transport(
                 Settings.EMPTY,
-                Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool,
                 new NetworkService(Collections.emptyList()),
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -904,10 +906,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             .routingTable(routingTable.build())
             .build();
         final Settings settings = Settings.EMPTY;
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);
         final ArrayList<AllocationDecider> deciders = new ArrayList<>();
-        deciders.add(new EnableAllocationDecider(settings, clusterSettings));
-        deciders.add(new SameShardAllocationDecider(settings, clusterSettings));
+        deciders.add(new EnableAllocationDecider(clusterSettings));
+        deciders.add(new SameShardAllocationDecider(clusterSettings));
         deciders.add(new ReplicaAfterPrimaryActiveAllocationDecider());
         Collections.shuffle(deciders, random());
         final MockAllocationService allocationService = new MockAllocationService(

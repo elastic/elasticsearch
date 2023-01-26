@@ -22,8 +22,8 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
     protected float[] vector;
     protected final int dims;
 
-    public KnnDenseVectorDocValuesField(@Nullable VectorValues input, String name, ElementType elementType, int dims) {
-        super(name, elementType);
+    public KnnDenseVectorDocValuesField(@Nullable VectorValues input, String name, int dims) {
+        super(name, ElementType.FLOAT);
         this.dims = dims;
         this.input = input;
     }

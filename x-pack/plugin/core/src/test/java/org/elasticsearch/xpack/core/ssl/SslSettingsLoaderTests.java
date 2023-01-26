@@ -82,8 +82,8 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true).build();
         Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
-        assertThat(settingsMap, hasKey(RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX));
-        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX));
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
+        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
         assertThat(sslConfiguration.keyConfig(), sameInstance(EmptyKeyConfig.INSTANCE));
         assertThat(sslConfiguration.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
         assertThat(sslConfiguration.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
@@ -99,19 +99,16 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(
-            RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD,
-            "testnode"
-        );
+        secureSettings.setString(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, "testnode");
         Settings testSettings = Settings.builder()
             .put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
-            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
-            .putList(RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
+            .put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
+            .putList(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
             .setSecureSettings(secureSettings)
             .build();
         Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
-        assertThat(settingsMap, hasKey(RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX));
-        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SSL_PREFIX));
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
+        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
         assertThat(sslConfiguration.supportedProtocols(), contains("TLSv1.3", "TLSv1.2"));
 
         SslKeyConfig keyStore = sslConfiguration.keyConfig();

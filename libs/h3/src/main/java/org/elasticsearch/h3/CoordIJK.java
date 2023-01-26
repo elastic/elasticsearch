@@ -112,6 +112,15 @@ final class CoordIJK {
     }
 
     /**
+     * Find the center point in spherical coordinates of a hex on a particular icosahedral face.
+     */
+    public LatLng ijkToGeo(int face, int res, boolean substrate) {
+        final int i = Math.subtractExact(this.i, this.k);
+        final int j = Math.subtractExact(this.j, this.k);
+        return Vec2d.hex2dToGeo(i - 0.5 * j, j * Constants.M_SQRT3_2, face, res, substrate);
+    }
+
+    /**
      * Add ijk coordinates.
      *
      * @param i the i coordinate
@@ -270,12 +279,10 @@ final class CoordIJK {
      * clockwise aperture 7 grid.
      */
     public void upAp7r() {
-        i = Math.subtractExact(this.i, this.k);
-        j = Math.subtractExact(this.j, this.k);
-        final int i = (int) Math.round((Math.addExact(Math.multiplyExact(2, this.i), this.j)) / 7.0);
-        final int j = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, this.j), this.i)) / 7.0);
-        this.i = i;
-        this.j = j;
+        final int i = Math.subtractExact(this.i, this.k);
+        final int j = Math.subtractExact(this.j, this.k);
+        this.i = (int) Math.round((Math.addExact(Math.multiplyExact(2, i), j)) / 7.0);
+        this.j = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, j), i)) / 7.0);
         this.k = 0;
         ijkNormalize();
     }
@@ -286,12 +293,10 @@ final class CoordIJK {
      *
      */
     public void upAp7() {
-        i = Math.subtractExact(this.i, this.k);
-        j = Math.subtractExact(this.j, this.k);
-        final int i = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, this.i), this.j)) / 7.0);
-        final int j = (int) Math.round((Math.addExact(Math.multiplyExact(2, this.j), this.i)) / 7.0);
-        this.i = i;
-        this.j = j;
+        final int i = Math.subtractExact(this.i, this.k);
+        final int j = Math.subtractExact(this.j, this.k);
+        this.i = (int) Math.round((Math.subtractExact(Math.multiplyExact(3, i), j)) / 7.0);
+        this.j = (int) Math.round((Math.addExact(Math.multiplyExact(2, j), i)) / 7.0);
         this.k = 0;
         ijkNormalize();
     }

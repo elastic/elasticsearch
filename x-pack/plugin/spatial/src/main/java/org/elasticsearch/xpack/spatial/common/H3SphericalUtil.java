@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.common;
 
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
@@ -125,5 +126,10 @@ public final class H3SphericalUtil {
             points.add(new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad()));
         }
         return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+    }
+
+    /** Return the {@link LatLonGeometry} representing the provided H3 bin */
+    public static LatLonGeometry getLatLonGeometry(long h3) {
+        return new H3SphericalGeometry(h3);
     }
 }

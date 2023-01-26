@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
@@ -16,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
  */
 public abstract class AcknowledgedRequestBuilder<
     Request extends AcknowledgedRequest<Request>,
-    Response extends AcknowledgedResponse,
+    Response extends ActionResponse & IsAcknowledgedSupplier,
     RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>> extends MasterNodeOperationRequestBuilder<
         Request,
         Response,

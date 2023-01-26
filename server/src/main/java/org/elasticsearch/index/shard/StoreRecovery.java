@@ -543,11 +543,8 @@ public final class StoreRecovery {
                     // BwC path, running against an old version master that did not add the IndexId to the recovery source
                     repository.getRepositoryData(
                         new ThreadedActionListener<>(
-                            logger,
-                            indexShard.getThreadPool(),
-                            ThreadPool.Names.GENERIC,
-                            indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())),
-                            false
+                            indexShard.getThreadPool().generic(),
+                            indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName()))
                         )
                     );
                 } else {

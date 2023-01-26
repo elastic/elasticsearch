@@ -57,6 +57,11 @@ public class OutlierDetectionStatsTests extends AbstractBWCSerializationTestCase
         return createRandom();
     }
 
+    @Override
+    protected OutlierDetectionStats mutateInstance(OutlierDetectionStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static OutlierDetectionStats createRandom() {
         return new OutlierDetectionStats(
             randomAlphaOfLength(10),

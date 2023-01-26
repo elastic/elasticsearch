@@ -125,6 +125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final OperationListener operationListener;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -158,6 +159,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.operationListener = config.getOperationListener();
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
@@ -555,7 +557,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                diskIoBufferPool
+                diskIoBufferPool,
+                operationListener
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -1948,7 +1951,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> { throw new UnsupportedOperationException(); },
             BigArrays.NON_RECYCLING_INSTANCE,
-            DiskIoBufferPool.INSTANCE
+            DiskIoBufferPool.INSTANCE,
+            (d, s, l) -> {}
         );
         writer.close();
         return uuid;

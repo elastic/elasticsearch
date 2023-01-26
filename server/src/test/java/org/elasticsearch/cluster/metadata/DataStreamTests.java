@@ -58,6 +58,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         return DataStreamTestHelper.randomInstance();
     }
 
+    @Override
+    protected DataStream mutateInstance(DataStream instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);

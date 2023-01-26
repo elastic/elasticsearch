@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -131,7 +131,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPip
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_4_0;
     }
 }

@@ -39,7 +39,7 @@ public class IndexTests extends AbstractXContentSerializingTestCase<Index> {
     }
 
     @Override
-    protected Index mutateInstance(Index instance) throws IOException {
+    protected Index mutateInstance(Index instance) {
         return mutate(instance);
     }
 

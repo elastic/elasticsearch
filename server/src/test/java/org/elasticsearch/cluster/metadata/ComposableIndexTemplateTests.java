@@ -26,13 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTestCase<ComposableIndexTemplate> {
     @Override
     protected ComposableIndexTemplate makeTestChanges(ComposableIndexTemplate testInstance) {
-        try {
-            return mutateInstance(testInstance);
-        } catch (IOException e) {
-            logger.error(e);
-            fail("mutating should not throw an exception, but got: " + e);
-            return null;
-        }
+        return mutateInstance(testInstance);
     }
 
     @Override
@@ -150,7 +144,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     @Override
-    protected ComposableIndexTemplate mutateInstance(ComposableIndexTemplate orig) throws IOException {
+    protected ComposableIndexTemplate mutateInstance(ComposableIndexTemplate orig) {
         return mutateTemplate(orig);
     }
 

@@ -133,62 +133,62 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return ingestDocument;
         }
 
-        if (ip instanceof String ipString) {
-            Map<String, Object> geoData = getGeoData(lazyLoader, ipString);
-            if (geoData.isEmpty() == false) {
-                ingestDocument.setFieldValue(targetField, geoData);
-            }
-        } else if (ip instanceof List<?> ipList) {
-            boolean match = false;
-            List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
-            for (Object ipAddr : ipList) {
-                if (ipAddr instanceof String == false) {
-                    throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
-                }
-                Map<String, Object> geoData = getGeoData(lazyLoader, (String) ipAddr);
-                if (geoData.isEmpty()) {
-                    geoDataList.add(null);
-                    continue;
-                }
-                if (firstOnly) {
+        try {
+            if (ip instanceof String ipString) {
+                Map<String, Object> geoData = getGeoData(lazyLoader, ipString);
+                if (geoData.isEmpty() == false) {
                     ingestDocument.setFieldValue(targetField, geoData);
-                    return ingestDocument;
                 }
-                match = true;
-                geoDataList.add(geoData);
+            } else if (ip instanceof List<?> ipList) {
+                boolean match = false;
+                List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+                for (Object ipAddr : ipList) {
+                    if (ipAddr instanceof String == false) {
+                        throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
+                    }
+                    Map<String, Object> geoData = getGeoData(lazyLoader, (String) ipAddr);
+                    if (geoData.isEmpty()) {
+                        geoDataList.add(null);
+                        continue;
+                    }
+                    if (firstOnly) {
+                        ingestDocument.setFieldValue(targetField, geoData);
+                        return ingestDocument;
+                    }
+                    match = true;
+                    geoDataList.add(geoData);
+                }
+                if (match) {
+                    ingestDocument.setFieldValue(targetField, geoDataList);
+                }
+            } else {
+                throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
             }
-            if (match) {
-                ingestDocument.setFieldValue(targetField, geoDataList);
-            }
-        } else {
-            throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
+        } finally {
+            lazyLoader.postLookup();
         }
         return ingestDocument;
     }
 
     private Map<String, Object> getGeoData(DatabaseReaderLazyLoader lazyLoader, String ip) throws IOException {
-        try {
-            final String databaseType = lazyLoader.getDatabaseType();
-            final InetAddress ipAddress = InetAddresses.forString(ip);
-            Map<String, Object> geoData;
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                geoData = retrieveCityGeoData(lazyLoader, ipAddress);
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
+        final String databaseType = lazyLoader.getDatabaseType();
+        final InetAddress ipAddress = InetAddresses.forString(ip);
+        Map<String, Object> geoData;
+        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+            geoData = retrieveCityGeoData(lazyLoader, ipAddress);
+        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+            geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
 
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
+        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+            geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
 
-            } else {
-                throw new ElasticsearchParseException(
-                    "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
-                    new IllegalStateException()
-                );
-            }
-            return geoData;
-        } finally {
-            lazyLoader.postLookup();
+        } else {
+            throw new ElasticsearchParseException(
+                "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
+                new IllegalStateException()
+            );
         }
+        return geoData;
     }
 
     @Override

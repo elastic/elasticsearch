@@ -31,7 +31,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -97,11 +96,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-            return Optional.of(
-                config -> config.isPromotableToPrimary()
-                    ? new InternalEngine(config)
-                    : new NoOpEngine(config, new TranslogStats(0, 0, 0, 0, 0))
-            );
+            return Optional.of(config -> config.isPromotableToPrimary() ? new InternalEngine(config) : new NoOpEngine(config));
         }
     }
 
@@ -300,7 +295,8 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 for (IndexShard indexShard : indexService) {
                     final var engine = indexShard.getEngineOrNull();
                     assertNotNull(engine);
-                    if (indexShard.routingEntry().isPromotableToPrimary()) {
+                    if (indexShard.routingEntry().isPromotableToPrimary()
+                        && indexShard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
                         assertThat(engine, instanceOf(InternalEngine.class));
                     } else {
                         assertThat(engine, instanceOf(NoOpEngine.class));
@@ -453,4 +449,27 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
+    public void testClosedIndex() {
+        var routingTableWatcher = new RoutingTableWatcher();
+
+        var numDataNodes = routingTableWatcher.numReplicas + 2;
+        internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
+
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
+
+            createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+
+            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
+        }
+    }
 }

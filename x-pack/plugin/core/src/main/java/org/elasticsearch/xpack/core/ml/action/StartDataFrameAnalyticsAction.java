@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -200,8 +201,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return VERSION_INTRODUCED;
+        public TransportVersion getMinimalSupportedVersion() {
+            return VERSION_INTRODUCED.transportVersion;
         }
 
         @Override

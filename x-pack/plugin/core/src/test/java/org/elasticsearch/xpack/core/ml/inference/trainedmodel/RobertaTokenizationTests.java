@@ -53,6 +53,11 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
     }
 
     @Override
+    protected RobertaTokenization mutateInstance(RobertaTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected RobertaTokenization mutateInstanceForVersion(RobertaTokenization instance, Version version) {
         return mutateForVersion(instance, version);
     }

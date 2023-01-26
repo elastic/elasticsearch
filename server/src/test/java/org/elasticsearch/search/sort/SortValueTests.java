@@ -61,7 +61,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     @Override
-    protected SortValue mutateInstance(SortValue instance) throws IOException {
+    protected SortValue mutateInstance(SortValue instance) {
         return randomValueOtherThanMany(mut -> instance.getKey().equals(mut.getKey()), this::createTestInstance);
     }
 

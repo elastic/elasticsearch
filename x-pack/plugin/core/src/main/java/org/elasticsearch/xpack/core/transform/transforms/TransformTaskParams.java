@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -90,8 +91,8 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_17_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_17_0;
     }
 
     @Override

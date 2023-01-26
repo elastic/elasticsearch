@@ -78,6 +78,11 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
     }
 
     @Override
+    protected FindStructureAction.Request mutateInstance(FindStructureAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<FindStructureAction.Request> instanceReader() {
         return FindStructureAction.Request::new;
     }

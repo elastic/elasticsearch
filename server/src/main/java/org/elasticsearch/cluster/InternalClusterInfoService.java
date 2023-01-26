@@ -200,9 +200,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 .stats(
                     indicesStatsRequest,
                     new ThreadedActionListener<>(
-                        logger,
-                        threadPool,
-                        ThreadPool.Names.MANAGEMENT,
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
                         ActionListener.releaseAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
@@ -277,8 +275,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 }
                                 indicesStatsSummary = IndicesStatsSummary.EMPTY;
                             }
-                        }, fetchRefs.acquire()),
-                        false
+                        }, fetchRefs.acquire())
                     )
                 );
         }

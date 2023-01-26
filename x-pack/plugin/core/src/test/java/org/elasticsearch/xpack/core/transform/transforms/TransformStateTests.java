@@ -47,6 +47,11 @@ public class TransformStateTests extends AbstractXContentSerializingTestCase<Tra
     }
 
     @Override
+    protected TransformState mutateInstance(TransformState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformState> instanceReader() {
         return TransformState::new;
     }

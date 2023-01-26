@@ -47,6 +47,11 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         return new Response(new QueryPage<>(trainedModelStats, randomLongBetween(listSize, 1000), RESULTS_FIELD));
     }
 
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private IngestStats randomIngestStats() {
         List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 10)).toList();
         return new IngestStats(

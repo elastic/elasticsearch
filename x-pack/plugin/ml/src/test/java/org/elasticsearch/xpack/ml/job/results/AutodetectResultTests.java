@@ -151,6 +151,11 @@ public class AutodetectResultTests extends AbstractXContentSerializingTestCase<A
     }
 
     @Override
+    protected AutodetectResult mutateInstance(AutodetectResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<AutodetectResult> instanceReader() {
         return AutodetectResult::new;
     }

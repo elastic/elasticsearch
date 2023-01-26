@@ -806,6 +806,7 @@ public class DataStreamIT extends ESIntegTestCase {
         String alias = randomAlphaOfLength(4);
         String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
             .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .distinct()
             .toArray(String[]::new);
         for (String dataStream : dataStreams) {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
@@ -2075,7 +2076,6 @@ public class DataStreamIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91967")
     public void testWriteLoadAndAvgShardSizeIsStoredInABestEffort() throws Exception {
         // This test simulates the scenario where some nodes fail to respond
         // to the IndicesStatsRequest and therefore only a partial view of the
@@ -2124,6 +2124,12 @@ public class DataStreamIT extends ESIntegTestCase {
             );
         }
 
+        logger.info(
+            "--> Node IDs failing to respond to stats requests {}, shard 1 replica routing {}",
+            failingIndicesStatsNodeIds,
+            currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0)
+        );
+
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
@@ -2134,7 +2140,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
             // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
             if (index.equals(dataStream.getWriteIndex()) == false && shard1ReplicaIsAllocatedInAReachableNode) {
-                assertThat(metadataStats, is(notNullValue()));
+                assertThat("Expected stats for index " + index, metadataStats, is(notNullValue()));
 
                 final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
                 // All stats request performed against nodes holding the shard 0 failed

@@ -115,8 +115,8 @@ final class ServerTransportFilter {
             }
         }
 
-        TransportVersion version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
+        final TransportVersion version = transportChannel.getVersion();
+        final ActionListener<Authentication> authorizationStep = ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
@@ -131,7 +131,6 @@ final class ServerTransportFilter {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
         }, listener::onFailure);
-
         if (requiresRemoteAccessAuthentication
             // The handshake action is special; under the hood it will be executed by the system user - there won't be remote access
             // headers, so we don't want to handle it via the remote access authenticator but rather fall back on our default authentication

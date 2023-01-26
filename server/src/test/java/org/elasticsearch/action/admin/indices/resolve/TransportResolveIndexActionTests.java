@@ -84,7 +84,10 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This request isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+            assertEquals(
+                "This request isn't serializable before transport version " + TransportVersion.CURRENT,
+                ex.getCause().getMessage()
+            );
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

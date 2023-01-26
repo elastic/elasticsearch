@@ -22,6 +22,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static java.util.Objects.requireNonNullElseGet;
 import static org.hamcrest.Matchers.containsString;
@@ -367,32 +368,25 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     break;
                 case 6:
                     // change state
-                    ShardRoutingState newState;
-                    do {
-                        newState = randomFrom(ShardRoutingState.values());
-                    } while (newState == otherRouting.state());
-
-                    UnassignedInfo unassignedInfo = otherRouting.unassignedInfo();
-                    if (unassignedInfo == null
-                        && (newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.INITIALIZING)) {
-                        unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test");
-                    }
-
+                    ShardRoutingState newState = randomValueOtherThan(otherRouting.state(), () -> randomFrom(ShardRoutingState.values()));
                     otherRouting = TestShardRouting.newShardRouting(
                         otherRouting.getIndexName(),
                         otherRouting.id(),
-                        newState == ShardRoutingState.UNASSIGNED
-                            ? null
-                            : (otherRouting.currentNodeId() == null ? "1" : otherRouting.currentNodeId()),
+                        newState == ShardRoutingState.UNASSIGNED ? null : Objects.requireNonNullElse(otherRouting.currentNodeId(), "1"),
                         newState == ShardRoutingState.RELOCATING ? "2" : null,
                         otherRouting.primary(),
                         newState,
-                        unassignedInfo
+                        newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.INITIALIZING
+                            ? Objects.requireNonNullElse(
+                                otherRouting.unassignedInfo(),
+                                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+                            )
+                            : null
                     );
                     break;
             }
 
-            if (randomBoolean()) {
+            if (randomBoolean() && otherRouting.state() == ShardRoutingState.UNASSIGNED) {
                 // change unassigned info
                 otherRouting = TestShardRouting.newShardRouting(
                     otherRouting.getIndexName(),

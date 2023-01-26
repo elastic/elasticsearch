@@ -85,7 +85,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     }
 
     @Override
-    protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) throws IOException {
+    protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
         switch (random().nextInt(6)) {
 
             case 0:

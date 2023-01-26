@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -161,12 +162,12 @@ public class RolloverAction implements LifecycleAction {
         maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             maxPrimaryShardDocs = in.readOptionalVLong();
         } else {
             maxPrimaryShardDocs = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             minSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             minAge = in.readOptionalTimeValue();

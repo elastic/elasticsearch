@@ -309,6 +309,11 @@ public class DeterministicTaskQueue {
                 public void execute(Runnable command) {
                     scheduleNow(runnableWrapper.apply(command));
                 }
+
+                @Override
+                public String toString() {
+                    return "DeterministicTaskQueue/forkingExecutor";
+                }
             };
 
             @Override

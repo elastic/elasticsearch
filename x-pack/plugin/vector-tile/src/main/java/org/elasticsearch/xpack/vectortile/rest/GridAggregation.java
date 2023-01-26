@@ -52,6 +52,12 @@ enum GridAggregation {
         public Rectangle toRectangle(String bucketKey) {
             return GeoTileUtils.toBoundingBox(bucketKey);
         }
+
+        @Override
+        public boolean needsBounding(int z, int gridPrecision) {
+            // we always bound it as it is pretty efficient anyway.
+            return true;
+        }
     },
     GEOHEX {
 
@@ -174,6 +180,17 @@ enum GridAggregation {
         public Rectangle toRectangle(String bucketKey) {
             return H3CartesianUtil.toBoundingBox(H3.stringToH3(bucketKey));
         }
+
+        @Override
+        public boolean needsBounding(int z, int gridPrecision) {
+            /*
+              Bounded geohex aggregation can be expensive, in particular where there is lots of data outside the bounding
+              box. Because we are buffering our queries, this is magnified for low precision tiles. Because the total number
+              of buckets up to precision 3 is lower than the default max buckets, we better not bound those aggregations
+              which results in much better performance.
+             */
+            return gridPrecisionToAggPrecision(z, gridPrecision) > 3;
+        }
     };
 
     /**
@@ -202,6 +219,11 @@ enum GridAggregation {
      * Returns the bounding box of the bin.
      */
     public abstract Rectangle toRectangle(String bucketKey);
+
+    /**
+     * If false, the aggregation at the given zoom and grid precision is not bound.
+     */
+    public abstract boolean needsBounding(int z, int gridPrecision);
 
     public static GridAggregation fromString(String type) {
         return switch (type.toLowerCase(Locale.ROOT)) {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -30,12 +30,12 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
     }
 
     @Override
-    public boolean supportsVersion(Diff<T> value, Version version) {
+    public boolean supportsVersion(Diff<T> value, TransportVersion version) {
         return version.onOrAfter(((NamedDiff<?>) value).getMinimalSupportedVersion());
     }
 
     @Override
-    public boolean supportsVersion(T value, Version version) {
+    public boolean supportsVersion(T value, TransportVersion version) {
         return version.onOrAfter(value.getMinimalSupportedVersion());
     }
 

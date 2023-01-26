@@ -351,11 +351,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                if (User.isInternal(authentication.getEffectiveSubject().getUser())) {
-                    assertInternalUserExpectedInCrossClusterRequest(authentication.getEffectiveSubject().getUser());
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                final User user = authentication.getEffectiveSubject().getUser();
+                if (SystemUser.is(user)) {
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         remoteAccessCredentials.writeToContext(threadContext);
-                        // Access control is handled differently for internal users. Privileges are defined by the fulfilling cluster,
+                        // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
                         // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
                         // authentication instance
                         new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY).writeToContext(threadContext);
@@ -363,6 +363,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     } catch (IOException e) {
                         contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                     }
+                } else if (User.isInternal(user)) {
+                    final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
+                    assert false : message;
+                    throw new IllegalArgumentException(message);
                 } else {
                     authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                         remoteClusterAlias,
@@ -375,14 +379,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             }
                         }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
                     );
-                }
-            }
-
-            private void assertInternalUserExpectedInCrossClusterRequest(final User user) {
-                if (false == (SystemUser.is(user))) {
-                    final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
-                    assert false : message;
-                    throw new IllegalStateException(message);
                 }
             }
 

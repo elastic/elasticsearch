@@ -24,6 +24,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -427,6 +428,35 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertFalse(ingestDocument.hasField("target_field"));
     }
 
+    public void testListDatabaseReferenceCounting() throws Exception {
+        AtomicBoolean closeCheck = new AtomicBoolean(false);
+        var loader = loader("/GeoLite2-City.mmdb", closeCheck);
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field", () -> {
+            loader.preLookup();
+            return loader;
+        }, () -> true, "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false, false, "filename");
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", Arrays.asList("8.8.8.8", "82.171.64.0"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+
+        Map<String, Object> location = new HashMap<>();
+        location.put("lat", 37.751d);
+        location.put("lon", -97.822d);
+        assertThat(geoData.get(0).get("location"), equalTo(location));
+
+        assertThat(geoData.get(1).get("city_name"), equalTo("Hoensbroek"));
+
+        // Check the loader's reference count and attempt to close
+        assertThat(loader.current(), equalTo(0));
+        loader.close();
+        assertTrue(closeCheck.get());
+    }
+
     public void testListFirstOnly() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),
@@ -546,11 +576,16 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     private CheckedSupplier<DatabaseReaderLazyLoader, IOException> loader(final String path) {
+        var loader = loader(path, null);
+        return () -> loader;
+    }
+
+    private DatabaseReaderLazyLoader loader(final String path, final AtomicBoolean closed) {
         final Supplier<InputStream> databaseInputStreamSupplier = () -> GeoIpProcessor.class.getResourceAsStream(path);
         final CheckedSupplier<DatabaseReader, IOException> loader = () -> new DatabaseReader.Builder(databaseInputStreamSupplier.get())
             .build();
         final GeoIpCache cache = new GeoIpCache(1000);
-        DatabaseReaderLazyLoader lazyLoader = new DatabaseReaderLazyLoader(cache, PathUtils.get(path), null, loader) {
+        return new DatabaseReaderLazyLoader(cache, PathUtils.get(path), null, loader) {
 
             @Override
             long databaseFileSize() throws IOException {
@@ -571,8 +606,14 @@ public class GeoIpProcessorTests extends ESTestCase {
                 return databaseInputStreamSupplier.get();
             }
 
+            @Override
+            protected void doClose() throws IOException {
+                if (closed != null) {
+                    closed.set(true);
+                }
+                super.doClose();
+            }
         };
-        return () -> lazyLoader;
     }
 
 }

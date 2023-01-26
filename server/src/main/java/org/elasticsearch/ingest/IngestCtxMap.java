@@ -42,7 +42,12 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         ZonedDateTime timestamp,
         Map<String, Object> source
     ) {
-        super(new HashMap<>(source), new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
+        // if source is already a HashMap, then just use it as is, otherwise we'll need to copy into a new HashMap so that
+        // we have something mutable
+        super(
+            (source instanceof HashMap) ? source : new HashMap<>(source),
+            new IngestDocMetadata(index, id, version, routing, versionType, timestamp)
+        );
     }
 
     /**

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -1109,6 +1111,33 @@ public class IngestDocumentTests extends ESTestCase {
         assertTrue(IngestDocument.Metadata.isMetadata("_version"));
         assertFalse(IngestDocument.Metadata.isMetadata("name"));
         assertFalse(IngestDocument.Metadata.isMetadata("address"));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // an ingest document's ctxMap will, as an optimization, just use the passed-in map reference if the reference is a hashmap
+        {
+            Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertTrue(document.getSource() == source);
+            assertTrue(document.getCtxMap().getSource() == source);
+        }
+
+        {
+            Map<String, Object> source = XContentHelper.convertToMap(new BytesArray("{ \"foo\": 1 }"), false).v2();
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertTrue(document.getSource() == source);
+            assertTrue(document.getCtxMap().getSource() == source);
+        }
+
+        // but it still works fine if it isn't a hashmap, it'll just be copied into one
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertFalse(document.getSource() == source);
+            assertFalse(document.getCtxMap().getSource() == source);
+            assertTrue(document.getSource().equals(source));
+            assertTrue(document.getCtxMap().getSource().equals(source));
+        }
     }
 
 }

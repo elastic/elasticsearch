@@ -77,13 +77,13 @@ import static org.elasticsearch.core.Strings.format;
  * 2) For each database check whether the databases have changed
  * by comparing the local and remote md5 hash or are locally missing.
  * 3) For each database identified in step 2 start downloading the database
- * chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
+ * chunks. Each chunk is appended to a tmp file (inside geoip tmp dir) and
  * after all chunks have been downloaded, the database is uncompressed and
  * renamed to the final filename.After this the database is loaded and
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseNodeService implements Closeable {
+public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseNodeService.class);
 
@@ -161,7 +161,8 @@ public final class DatabaseNodeService implements Closeable {
         clusterService.addListener(event -> checkDatabases(event.state()));
     }
 
-    public DatabaseReaderLazyLoader getDatabase(String name) {
+    // for testing only:
+    DatabaseReaderLazyLoader getDatabaseReaderLazyLoader(String name) {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
@@ -172,6 +173,11 @@ public final class DatabaseNodeService implements Closeable {
             // instance is closed after incrementing its usage,
             // drop this instance and fetch another one.
         }
+    }
+
+    @Override
+    public GeoIpDatabase getDatabase(String name) {
+        return getDatabaseReaderLazyLoader(name);
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {

@@ -66,7 +66,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES.transportVersion);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
 
         final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices);
 
@@ -83,9 +83,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
-            RoleDescriptor.VERSION_REMOTE_INDICES.transportVersion
-        );
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
@@ -99,7 +97,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )

@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ApiKeyRoleReference;
@@ -50,7 +50,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             user,
             new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             Map.of()
         );
 
@@ -73,7 +73,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             anonymousUser,
             new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             Map.of()
         );
 
@@ -91,7 +91,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             serviceUser,
             new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, "node"),
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             Map.of()
         );
 
@@ -122,7 +122,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             authMetadata
         );
 
@@ -165,7 +165,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1),
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1),
             authMetadata
         );
 
@@ -195,7 +195,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("elastic/fleet-server"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             Map.of(
                 AuthenticationField.API_KEY_CREATOR_REALM_NAME,
                 ServiceAccountSettings.REALM_NAME,

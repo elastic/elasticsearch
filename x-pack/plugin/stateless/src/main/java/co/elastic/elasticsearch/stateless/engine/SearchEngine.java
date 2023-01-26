@@ -148,8 +148,13 @@ public class SearchEngine extends Engine {
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        assert false : noOp;
-        return null;
+        // TODO when removing this NoOpResult constructor won't require to be public anymore
+        return new NoOpResult(noOp.primaryTerm(), noOp.seqNo()) {
+            @Override
+            public Translog.Location getTranslogLocation() {
+                return new Translog.Location(0, lastTranslogLocation.incrementAndGet(), 1);
+            }
+        };
     }
 
     @Override

@@ -97,7 +97,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
         }
-        if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         } else {
             this.reservedSpace = Map.of();
@@ -117,7 +117,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
-        if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace);
         }
     }

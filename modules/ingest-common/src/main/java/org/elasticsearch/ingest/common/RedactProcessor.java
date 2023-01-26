@@ -36,8 +36,8 @@ public class RedactProcessor extends AbstractProcessor {
 
     private static final Logger logger = LogManager.getLogger(RedactProcessor.class);
 
-    private static final char REDACTED_START = '<';
-    private static final char REDACTED_END = '>';
+    private static final char REDACTED_START_CHAR = '<';
+    private static final char REDACTED_END_CHAR = '>';
 
     private final String redactField;
     private final List<String> matchPatterns;
@@ -102,30 +102,36 @@ public class RedactProcessor extends AbstractProcessor {
         return groks;
     }
 
+    /**
+     * Replaces the
+     * @param fieldValue
+     * @param groks
+     * @return
+     */
     static String redactGroks(String fieldValue, List<Grok> groks) {
         for (var grok : groks) {
             Map<String, Object> matches = grok.captures(fieldValue);
             if (matches != null) {
                 for (var entry : matches.entrySet()) {
-                    fieldValue = fieldValue.replace((String) entry.getValue(), '<' + entry.getKey() + '>');
+                    fieldValue = fieldValue.replace((String) entry.getValue(), REDACTED_START_CHAR + entry.getKey() + REDACTED_END_CHAR);
                 }
             }
         }
         return fieldValue;
     }
 
-    static String inplaceRedact(String fieldValue, List<Grok> groks) {
+    static String matchRedact(String fieldValue, List<Grok> groks) {
         byte[] utf8Bytes = fieldValue.getBytes(StandardCharsets.UTF_8);
 
         for (var grok : groks) {
-            assert grok.captureConfig().size() == 1;
+            assert grok.captureConfig().size() == 1;   // debugging only. TODO support multi captures
 
             System.out.println(grok.getExpression());
 
             int offset = 0;
             int length = utf8Bytes.length;
 
-            AccumulatingMatchExtractor extractor = new AccumulatingMatchExtractor(grok.captureConfig().get(0).name());
+            RegionTrackingMatchExtractor extractor = new RegionTrackingMatchExtractor(grok.captureConfig().get(0).name());
             while (grok.match(utf8Bytes, offset, length, extractor)) {
                 offset = extractor.getNextOffset();
                 length = utf8Bytes.length - offset;
@@ -142,12 +148,12 @@ public class RedactProcessor extends AbstractProcessor {
     static String extractAll(String fieldValue, Grok grok) {
         byte[] utf8Bytes = fieldValue.getBytes(StandardCharsets.UTF_8);
 
-        AccumulatingMatchExtractor extractor = new AccumulatingMatchExtractor(grok.captureConfig().get(0).name());
+        RegionTrackingMatchExtractor extractor = new RegionTrackingMatchExtractor(grok.captureConfig().get(0).name());
         matchRepeat(grok, utf8Bytes, extractor);
         return extractor.redactMatches(utf8Bytes);
     }
 
-    static void matchRepeat(Grok grok, byte[] utf8Bytes, AccumulatingMatchExtractor extracter) {
+    private static void matchRepeat(Grok grok, byte[] utf8Bytes, RegionTrackingMatchExtractor extracter) {
         Matcher matcher = grok.getCompiledExpression().matcher(utf8Bytes, 0, utf8Bytes.length);
         int result;
         int offset = 0;
@@ -159,16 +165,19 @@ public class RedactProcessor extends AbstractProcessor {
             if (result < 0) {
                 break;
             }
+            if (offset > length) {
+                break;
+            }
             extracter.extract(utf8Bytes, offset, matcher.getEagerRegion());
 
             offset = extracter.getNextOffset();
             length = utf8Bytes.length - offset;
             var m = new String(utf8Bytes, offset, length, StandardCharsets.UTF_8);
-            System.out.println(m);
+            System.out.println("remaining|" + m + "|");
         }
     }
 
-    private static class AccumulatingMatchExtractor implements GrokCaptureExtracter {
+    private static class RegionTrackingMatchExtractor implements GrokCaptureExtracter {
 
         private static class ReplacementPositions {
             int start;
@@ -183,15 +192,15 @@ public class RedactProcessor extends AbstractProcessor {
         private final byte[] replacementText;
         private final List<ReplacementPositions> repPos;
 
-        AccumulatingMatchExtractor(String className) {
-            this.replacementText = ('<' + className + '>').getBytes(StandardCharsets.UTF_8);
+        RegionTrackingMatchExtractor(String className) {
+            this.replacementText = (REDACTED_START_CHAR + className + REDACTED_END_CHAR).getBytes(StandardCharsets.UTF_8);
             repPos = new ArrayList<>();
         }
 
         @Override
         public void extract(byte[] utf8Bytes, int offset, Region region) {
             int number = 0;
-            int matchOffset = offset + region.beg[number] ;
+            int matchOffset = offset + region.beg[number];
             int matchEnd = offset + region.end[number];
             repPos.add(new ReplacementPositions(matchOffset, matchEnd));
 
@@ -199,7 +208,7 @@ public class RedactProcessor extends AbstractProcessor {
             System.out.println("match |" + m + "|");
         }
 
-        int  getNextOffset() {
+        int getNextOffset() {
             return repPos.get(repPos.size() - 1).end;
         }
 

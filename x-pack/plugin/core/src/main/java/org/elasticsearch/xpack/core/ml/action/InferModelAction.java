@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -136,12 +136,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 textInput = in.readOptionalStringList();
             } else {
                 textInput = null;
@@ -196,10 +196,10 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 out.writeTimeValue(inferenceTimeout);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
         }

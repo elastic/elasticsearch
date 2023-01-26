@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.indexing;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,7 +85,7 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.indexFailures = in.readVLong();
         this.searchFailures = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             this.processingTime = in.readVLong();
             this.processingTotal = in.readVLong();
         }

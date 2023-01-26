@@ -62,14 +62,14 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
-        if (namedWriteable.getMinimalSupportedVersion().after(getVersion())) {
+        if (namedWriteable.getMinimalSupportedVersion().after(getTransportVersion())) {
             throw new IllegalArgumentException(
                 "["
                     + namedWriteable.getWriteableName()
                     + "] was released first in version "
                     + namedWriteable.getMinimalSupportedVersion()
                     + ", failed compatibility check trying to send it to node with version "
-                    + getVersion()
+                    + getTransportVersion()
             );
         }
     }

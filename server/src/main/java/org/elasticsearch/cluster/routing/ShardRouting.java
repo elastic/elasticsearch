@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -38,8 +38,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    private static final Version EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = Version.V_8_5_0;
-    private static final Version RELOCATION_FAILURE_INFO_VERSION = Version.V_8_6_0;
+    private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersion.V_8_5_0;
+    private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersion.V_8_6_0;
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -339,7 +339,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource = null;
         }
         unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
-        if (in.getVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         } else {
             relocationFailureInfo = RelocationFailureInfo.NO_FAILURES;
@@ -347,12 +347,12 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         allocationId = in.readOptionalWriteable(AllocationId::new);
         if (state == ShardRoutingState.RELOCATING
             || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && in.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+            || (state == ShardRoutingState.STARTED && in.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             expectedShardSize = in.readLong();
         } else {
             expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             role = Role.readFrom(in);
         } else {
             role = Role.DEFAULT;
@@ -379,20 +379,22 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource.writeTo(out);
         }
         out.writeOptionalWriteable(unassignedInfo);
-        if (out.getVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo.writeTo(out);
         }
         out.writeOptionalWriteable(allocationId);
         if (state == ShardRoutingState.RELOCATING
             || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && out.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+            || (state == ShardRoutingState.STARTED && out.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             out.writeLong(expectedShardSize);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             role.writeTo(out);
         } else if (role != Role.DEFAULT) {
-            throw new IllegalStateException(Strings.format("cannot send role [%s] to node of version [%s]", role, out.getVersion()));
+            throw new IllegalStateException(
+                Strings.format("cannot send role [%s] to node of version [%s]", role, out.getTransportVersion())
+            );
         }
     }
 

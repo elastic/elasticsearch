@@ -61,6 +61,11 @@ public class MPNetTokenizationUpdateTests extends AbstractBWCWireSerializationTe
     }
 
     @Override
+    protected MPNetTokenizationUpdate mutateInstance(MPNetTokenizationUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected MPNetTokenizationUpdate mutateInstanceForVersion(MPNetTokenizationUpdate instance, Version version) {
         if (version.before(Version.V_8_2_0)) {
             return new MPNetTokenizationUpdate(instance.getTruncate(), null);

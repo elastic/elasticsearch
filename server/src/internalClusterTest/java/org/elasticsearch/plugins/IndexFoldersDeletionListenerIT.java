@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -127,6 +128,12 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
+    @TestLogging(
+        reason = "Debug #93226",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
+            + "org.elasticsearch.indices.IndicesService:DEBUG,"
+            + "org.elasticsearch.index.IndexService:DEBUG"
+    )
     public void testListenersInvokedWhenIndexIsRelocated() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(4);
@@ -165,6 +172,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }
 
         final List<String> excludedNodes = randomSubsetOf(2, shardsByNodes.keySet());
+        logger.info("--> excluding nodes {}", excludedNodes);
         assertAcked(
             client().admin()
                 .indices()

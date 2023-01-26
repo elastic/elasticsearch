@@ -24,7 +24,7 @@ public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<Sna
     }
 
     @Override
-    protected SnapshotInfo mutateInstance(SnapshotInfo instance) throws IOException {
+    protected SnapshotInfo mutateInstance(SnapshotInfo instance) {
         return SnapshotInfoTestUtils.mutateSnapshotInfo(instance);
     }
 

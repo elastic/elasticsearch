@@ -8,6 +8,7 @@
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -267,8 +268,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     public static class RoundingInfo implements Writeable {

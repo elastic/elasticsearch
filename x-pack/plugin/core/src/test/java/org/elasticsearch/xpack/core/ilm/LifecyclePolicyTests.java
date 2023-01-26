@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -281,7 +280,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
     }
 
     @Override
-    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
+    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) {
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
         switch (between(0, 1)) {

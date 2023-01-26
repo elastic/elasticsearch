@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
@@ -90,6 +91,14 @@ public class MockTaskManager extends TaskManager {
             }
         }
         super.waitForTaskCompletion(task, untilInNanos);
+    }
+
+    @Override
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        for (MockTaskManagerListener listener : listeners) {
+            listener.subscribeForRemovedTasks(removedTaskListener);
+        }
+        super.registerRemovedTaskListener(removedTaskListener);
     }
 
     public void addListener(MockTaskManagerListener listener) {

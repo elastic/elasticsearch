@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -49,8 +50,8 @@ public class XPackUsageResponseTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return oldVersion;
+        public TransportVersion getMinimalSupportedVersion() {
+            return oldVersion.transportVersion;
         }
 
     }
@@ -66,8 +67,8 @@ public class XPackUsageResponseTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return newVersion;
+        public TransportVersion getMinimalSupportedVersion() {
+            return newVersion.transportVersion;
         }
 
     }

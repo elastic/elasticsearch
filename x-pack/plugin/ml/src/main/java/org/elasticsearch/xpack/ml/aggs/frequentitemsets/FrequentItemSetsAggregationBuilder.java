@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -140,7 +140,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
             this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         } else {
             this.filter = null;
@@ -168,7 +168,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
             out.writeOptionalNamedWriteable(filter);
         }
     }
@@ -226,8 +226,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_4_0;
     }
 
 }

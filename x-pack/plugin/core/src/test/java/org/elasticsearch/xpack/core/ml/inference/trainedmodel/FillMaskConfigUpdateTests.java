@@ -125,6 +125,11 @@ public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<F
     }
 
     @Override
+    protected FillMaskConfigUpdate mutateInstance(FillMaskConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

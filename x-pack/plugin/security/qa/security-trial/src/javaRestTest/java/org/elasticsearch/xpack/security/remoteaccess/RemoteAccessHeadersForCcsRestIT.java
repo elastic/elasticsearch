@@ -11,6 +11,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -345,7 +346,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
                         Authentication.newInternalAuthentication(
                             SystemUser.INSTANCE,
-                            Version.CURRENT,
+                            TransportVersion.CURRENT,
                             // Since we are running on a multi-node cluster the actual node name may be different between runs
                             // so just copy the one from the actual result
                             actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()

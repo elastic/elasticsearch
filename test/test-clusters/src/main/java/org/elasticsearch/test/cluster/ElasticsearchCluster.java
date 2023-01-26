@@ -10,7 +10,6 @@ package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.test.cluster.local.DefaultLocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.rules.TestRule;
 
 /**
@@ -32,7 +31,5 @@ public interface ElasticsearchCluster extends TestRule, ClusterHandle {
     static LocalClusterSpecBuilder local() {
         return new DefaultLocalClusterSpecBuilder();
     }
-
-    Version getVersion();
 
 }

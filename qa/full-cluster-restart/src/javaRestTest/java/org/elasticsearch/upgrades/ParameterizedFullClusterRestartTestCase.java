@@ -29,6 +29,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private static boolean upgradeFailed = false;
+    private static boolean upgraded = false;
     private final FullClustRestartUpgradeStatus requestedUpgradeStatus;
 
     public ParameterizedFullClusterRestartTestCase(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
@@ -42,7 +43,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
     @Before
     public void maybeUpgrade() throws Exception {
-        if (getUpgradeCluster().getVersion().equals(OLD_CLUSTER_VERSION) && requestedUpgradeStatus == UPGRADED) {
+        if (upgraded == false && requestedUpgradeStatus == UPGRADED) {
             try {
                 if (OLD_CLUSTER_VERSION.before(MINIMUM_WIRE_COMPATIBLE_VERSION)) {
                     // First upgrade to latest wire compatible version
@@ -54,6 +55,8 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
             } catch (Exception e) {
                 upgradeFailed = true;
                 throw e;
+            } finally {
+                upgraded = true;
             }
         }
 
@@ -63,6 +66,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
     @AfterClass
     public static void resetUpgrade() {
+        upgraded = false;
         upgradeFailed = false;
     }
 

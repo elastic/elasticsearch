@@ -113,12 +113,6 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
         handle.upgradeToVersion(version);
     }
 
-    @Override
-    public Version getVersion() {
-        checkHandle();
-        return spec.getNodes().get(0).getVersion();
-    }
-
     private void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");

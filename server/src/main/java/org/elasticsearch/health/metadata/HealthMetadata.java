@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,8 +54,8 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_5_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_5_0;
     }
 
     @Override

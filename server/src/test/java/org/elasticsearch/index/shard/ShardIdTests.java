@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class ShardIdTests extends AbstractWireSerializingTestCase<ShardId> {
 
     @Override
@@ -29,7 +27,7 @@ public class ShardIdTests extends AbstractWireSerializingTestCase<ShardId> {
     }
 
     @Override
-    protected ShardId mutateInstance(ShardId instance) throws IOException {
+    protected ShardId mutateInstance(ShardId instance) {
         return mutate(instance);
     }
 

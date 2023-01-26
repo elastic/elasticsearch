@@ -41,11 +41,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -438,15 +440,42 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
 
             for (int i = 0; i < 10; i++) {
-                final var profileResults = client().prepareSearch(INDEX_NAME).setProfile(true).get().getProfileResults();
+                final var requestBuilder = client().prepareSearch(INDEX_NAME).setProfile(true);
+                if (randomBoolean()) {
+                    requestBuilder.setRouting(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    requestBuilder.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                }
+
+                final var profileResults = requestBuilder.get().getProfileResults();
                 assertThat(profileResults, not(anEmptyMap()));
                 for (final var searchShardProfileKey : profileResults.keySet()) {
                     assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
                 }
             }
+
+            // TODO also verify PIT routing
+            // TODO also verify the search-shards API
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }
+    }
+
+    private String randomSearchPreference(int numShards, String... nodeIds) {
+        final var preference = randomFrom(Preference.SHARDS, Preference.PREFER_NODES, Preference.LOCAL);
+        // ONLY_LOCAL and ONLY_NODES omitted here because they may yield no shard copies which causes the search to fail
+        // TODO add support for ONLY_LOCAL and ONLY_NODES too
+        return switch (preference) {
+            case LOCAL, ONLY_LOCAL -> preference.type();
+            case PREFER_NODES, ONLY_NODES -> preference.type() + ":" + String.join(",", randomNonEmptySubsetOf(Arrays.asList(nodeIds)));
+            case SHARDS -> preference.type()
+                + ":"
+                + String.join(
+                    ",",
+                    randomSubsetOf(between(1, numShards), IntStream.range(0, numShards).mapToObj(Integer::toString).toList())
+                );
+        };
     }
 
     public void testClosedIndex() {

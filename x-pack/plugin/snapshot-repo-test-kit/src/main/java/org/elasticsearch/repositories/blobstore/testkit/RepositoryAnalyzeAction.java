@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -704,7 +703,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
-                throw new IllegalStateException("cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]");
+                throw new IllegalStateException(
+                    "cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]"
+                );
             }
         }
 

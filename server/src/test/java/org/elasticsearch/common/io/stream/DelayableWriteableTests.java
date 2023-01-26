@@ -9,10 +9,8 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -195,6 +193,9 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static TransportVersion randomOldVersion() {
-        return randomValueOtherThanMany(TransportVersion.CURRENT::before, () -> TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT));
+        return randomValueOtherThanMany(
+            TransportVersion.CURRENT::before,
+            () -> TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT)
+        );
     }
 }

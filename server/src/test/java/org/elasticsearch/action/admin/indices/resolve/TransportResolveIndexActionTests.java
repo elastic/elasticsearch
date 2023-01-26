@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
@@ -54,8 +55,10 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     super.writeTo(out);
-                    if (out.getVersion().before(Version.CURRENT)) {
-                        throw new IllegalArgumentException("This request isn't serializable to nodes before " + Version.CURRENT);
+                    if (out.getTransportVersion().before(TransportVersion.CURRENT)) {
+                        throw new IllegalArgumentException(
+                            "This request isn't serializable before transport version " + TransportVersion.CURRENT
+                        );
                     }
                 }
             };

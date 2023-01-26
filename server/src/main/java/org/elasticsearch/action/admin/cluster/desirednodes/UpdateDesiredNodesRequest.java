@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;

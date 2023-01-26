@@ -113,7 +113,7 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
         assertTrue(hitsTotal >= countAtLeast);
     }
 
-    public static void updateIndexSettingsWithPossibleDeprecation(String index, Settings.Builder settings) throws IOException {
+    public static void updateIndexSettingsPermittingSlowlogDeprecationWarning(String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(settings.build()));
         if (UPGRADE_FROM_VERSION.before(Version.V_7_17_9)) {

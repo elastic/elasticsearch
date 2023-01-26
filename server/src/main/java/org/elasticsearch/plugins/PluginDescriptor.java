@@ -137,7 +137,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             isLicensed = false;
         }
 
-        if (in.getTransportVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             isModular = in.readBoolean();
             isStable = in.readBoolean();
         } else {

@@ -10,7 +10,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -54,6 +53,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Main component responsible for downloading new GeoIP databases.
@@ -64,21 +64,6 @@ import java.util.Objects;
 public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
-
-    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "ingest.geoip.downloader.poll.interval",
-        TimeValue.timeValueDays(3),
-        TimeValue.timeValueDays(1),
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> EAGER_DOWNLOAD_SETTING = Setting.boolSetting(
-        "ingest.geoip.downloader.eager.download",
-        false,
-        Property.Dynamic,
-        Property.NodeScope
-    );
 
     // for overriding in tests
     private static final String DEFAULT_ENDPOINT = System.getProperty(
@@ -104,7 +89,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
 
     // visible for testing
     protected volatile GeoIpTaskState state;
-    private volatile TimeValue pollInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
     /*
@@ -113,7 +97,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
      * and then only ever updated on the cluster state update thread (it is also read on the generic thread). Non-private for unit testing.
      */
     volatile boolean atLeastOneGeoipProcessor;
-    private volatile boolean eagerDownload;
+    private final Supplier<TimeValue> pollIntervalSupplier;
+    private final Supplier<Boolean> eagerDownloadSupplier;
 
     GeoIpDownloader(
         Client client,
@@ -126,35 +111,19 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         String action,
         String description,
         TaskId parentTask,
-        Map<String, String> headers
+        Map<String, String> headers,
+        Supplier<TimeValue> pollIntervalSupplier,
+        Supplier<Boolean> eagerDownloadSupplier
     ) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(clusterService.state());
         endpoint = ENDPOINT_SETTING.get(settings);
-        pollInterval = POLL_INTERVAL_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(EAGER_DOWNLOAD_SETTING, this::setEagerDownload);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
-    }
-
-    public void setEagerDownload(Boolean eagerDownload) {
-        if (this.eagerDownload != eagerDownload) {
-            this.eagerDownload = eagerDownload;
-            if (eagerDownload && scheduled != null && scheduled.cancel()) {
-                scheduleNextRun(TimeValue.ZERO);
-            }
-        }
-    }
-
-    public void setPollInterval(TimeValue pollInterval) {
-        this.pollInterval = pollInterval;
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(TimeValue.ZERO);
-        }
+        this.pollIntervalSupplier = pollIntervalSupplier;
+        this.eagerDownloadSupplier = eagerDownloadSupplier;
     }
 
     // visible for testing
@@ -171,7 +140,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
                 throw blockException;
             }
         }
-        if (eagerDownload || atLeastOneGeoipProcessor) {
+        if (eagerDownloadSupplier.get() || atLeastOneGeoipProcessor) {
             logger.trace("Updating geoip databases");
             List<Map<String, Object>> response = fetchDatabasesOverview();
             for (Map<String, Object> res : response) {
@@ -224,7 +193,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
+            logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
     }
 
@@ -344,7 +313,21 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
             logger.error("exception during geoip databases cleanup", e);
         }
         if (scheduleNext) {
-            scheduleNextRun(pollInterval);
+            scheduleNextRun(pollIntervalSupplier.get());
+        }
+    }
+
+    /**
+     * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
+     * pollIntervalSupplier or eagerDownloadSupplier has changed). This method does nothing if this task is cancelled, completed, or has not
+     * yet been scheduled to run for the first time. It cancels any existing scheduled run.
+     */
+    public void requestReschedule() {
+        if (isCancelled() || isCompleted()) {
+            return;
+        }
+        if (scheduled != null && scheduled.cancel()) {
+            scheduleNextRun(TimeValue.ZERO);
         }
     }
 
@@ -372,6 +355,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         if (scheduled != null) {
             scheduled.cancel();
         }
+        clusterService.removeListener(this);
         markAsCompleted();
     }
 

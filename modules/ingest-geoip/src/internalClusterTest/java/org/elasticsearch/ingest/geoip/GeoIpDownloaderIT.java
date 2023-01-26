@@ -114,7 +114,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .setPersistentSettings(
                 Settings.builder()
                     .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                    .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                    .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
                     .putNull("ingest.geoip.database_validity")
             )
             .get();
@@ -183,7 +183,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
+            .setPersistentSettings(
+                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+            )
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         List<Path> geoIpTmpDirs = getGeoIpTmpDirs();
@@ -232,7 +234,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
+            .setPersistentSettings(
+                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+            )
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck()));

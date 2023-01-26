@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestService;
@@ -36,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
@@ -56,6 +58,20 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
+        "ingest.geoip.downloader.poll.interval",
+        TimeValue.timeValueDays(3),
+        TimeValue.timeValueDays(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> EAGER_DOWNLOAD_SETTING = Setting.boolSetting(
+        "ingest.geoip.downloader.eager.download",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -66,6 +82,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final Settings settings;
     private final PersistentTasksService persistentTasksService;
     private final AtomicReference<GeoIpDownloader> currentTask = new AtomicReference<>();
+    private volatile TimeValue pollInterval;
+    private volatile boolean eagerDownload;
 
     GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
         super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
@@ -75,9 +93,18 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
         persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        clusterService.addListener(this);
+        this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
+        this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
+    }
 
+    /**
+     * This method completes the initialization of the GeoIpDownloaderTaskExecutor by registering several listeners.
+     */
+    public void init() {
+        clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EAGER_DOWNLOAD_SETTING, this::setEagerDownload);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
     }
 
     private void setEnabled(boolean enabled) {
@@ -92,12 +119,36 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
     }
 
+    private void setEagerDownload(Boolean eagerDownload) {
+        if (Objects.equals(this.eagerDownload, eagerDownload) == false) {
+            this.eagerDownload = eagerDownload;
+            GeoIpDownloader currentDownloader = getCurrentTask();
+            if (currentDownloader != null && Objects.equals(eagerDownload, Boolean.TRUE)) {
+                currentDownloader.requestReschedule();
+            }
+        }
+    }
+
+    private void setPollInterval(TimeValue pollInterval) {
+        if (Objects.equals(this.pollInterval, pollInterval) == false) {
+            this.pollInterval = pollInterval;
+            GeoIpDownloader currentDownloader = getCurrentTask();
+            if (currentDownloader != null) {
+                currentDownloader.requestReschedule();
+            }
+        }
+    }
+
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
-        currentTask.set(downloader);
         GeoIpTaskState geoIpTaskState = state == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
+        clusterService.addListener(downloader);
+        GeoIpDownloader previousDownloader = currentTask.getAndSet(downloader);
+        if (previousDownloader != null) {
+            clusterService.removeListener(previousDownloader);
+        }
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
             downloader.runDownloader();
         }
@@ -123,9 +174,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             action,
             getDescription(taskInProgress),
             parentTaskId,
-            headers
+            headers,
+            () -> pollInterval,
+            () -> eagerDownload
         );
-        clusterService.addListener(downloader);
         return downloader;
     }
 

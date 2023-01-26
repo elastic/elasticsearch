@@ -85,9 +85,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             CACHE_SIZE,
-            GeoIpDownloader.EAGER_DOWNLOAD_SETTING,
+            GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING,
+            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
             GeoIpDownloaderTaskExecutor.ENABLED_SETTING
         );
     }
@@ -127,6 +127,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         }
 
         geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
+        geoIpDownloaderTaskExecutor.init();
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
 

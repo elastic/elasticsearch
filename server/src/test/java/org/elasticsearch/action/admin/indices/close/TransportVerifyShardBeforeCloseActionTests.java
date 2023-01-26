@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -94,6 +95,9 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         final ShardId shardId = new ShardId("index", "_na_", randomIntBetween(0, 3));
         when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.routingEntry()).thenReturn(
+            TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(5), true, ShardRoutingState.STARTED)
+        );
 
         clusterService = createClusterService(threadPool);
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -106,8 +106,8 @@ public final class RemoteAccessAuthentication {
 
     public String encode() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(authentication.getEffectiveSubject().getVersion());
-        Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
+        out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
+        TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
         authentication.writeTo(out);
         out.writeCollection(roleDescriptorsBytesList, StreamOutput::writeBytesReference);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
@@ -117,8 +117,8 @@ public final class RemoteAccessAuthentication {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
-        final Version version = Version.readVersion(in);
-        in.setVersion(version);
+        final TransportVersion version = TransportVersion.readVersion(in);
+        in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);

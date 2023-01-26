@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -81,13 +82,15 @@ public class AuthenticationSerializationTests extends ESTestCase {
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                Authentication.VERSION_REALM_DOMAINS.transportVersion,
-                TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REMOTE_ACCESS_REALM)
-            )
+        final TransportVersion versionBeforeRemoteAccessRealm = TransportVersionUtils.getPreviousVersion(
+            Authentication.VERSION_REMOTE_ACCESS_REALM
         );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteAccessRealm.calculateMinimumCompatVersion(),
+            versionBeforeRemoteAccessRealm
+        );
+        out.setTransportVersion(version);
 
         if (authentication.isRemoteAccess()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));

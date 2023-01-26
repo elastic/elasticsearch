@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleCh
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final Version CLUSTER_BALANCE_STATS_VERSION = Version.V_8_7_0;
+    private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersion.V_8_7_0;
 
     private final DesiredBalanceStats stats;
     private final ClusterBalanceStats clusterBalanceStats;
@@ -53,7 +53,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public static DesiredBalanceResponse from(StreamInput in) throws IOException {
         return new DesiredBalanceResponse(
             DesiredBalanceStats.readFrom(in),
-            in.getVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION) ? ClusterBalanceStats.readFrom(in) : ClusterBalanceStats.EMPTY,
+            in.getTransportVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)
+                ? ClusterBalanceStats.readFrom(in)
+                : ClusterBalanceStats.EMPTY,
             in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from))
         );
     }
@@ -61,7 +63,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        if (out.getVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)) {
             clusterBalanceStats.writeTo(out);
         }
         out.writeMap(
@@ -176,10 +178,10 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         @Nullable Long forecastedShardSizeInBytes
     ) implements Writeable, ToXContentObject {
 
-        private static final Version ADD_FORECASTS_VERSION = Version.V_8_7_0;
+        private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
 
         public static ShardView from(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
                 return new ShardView(
                     ShardRoutingState.fromValue(in.readByte()),
                     in.readBoolean(),
@@ -220,7 +222,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             out.writeBoolean(relocatingNodeIsDesired);
             out.writeVInt(shardId);
             out.writeString(index);
-            if (out.getVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
                 out.writeOptionalDouble(forecastedWriteLoad);
                 out.writeOptionalLong(forecastedShardSizeInBytes);
             } else {

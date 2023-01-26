@@ -40,6 +40,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     setting 'xpack.security.enabled', 'false'
     setting 'logger.org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator', 'TRACE'
+    setting 'logger.org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders', 'TRACE'
     requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   }
 

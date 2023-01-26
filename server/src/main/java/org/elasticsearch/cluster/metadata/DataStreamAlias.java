@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
@@ -167,7 +167,7 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         this.name = in.readString();
         this.dataStreams = in.readStringList();
         this.writeDataStream = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.dataStreamToFilterMap = in.readMap(StreamInput::readString, CompressedXContent::readCompressedString);
         } else {
             this.dataStreamToFilterMap = new HashMap<>();
@@ -398,16 +398,16 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeMap(dataStreamToFilterMap, StreamOutput::writeString, (out1, filter) -> filter.writeTo(out1));
         } else {
             if (dataStreamToFilterMap.isEmpty()) {
                 out.writeBoolean(false);
             } else {
                 /*
-                 * Versions before 8.7 incorrectly only allowed a single filter for all datastreams, and randomly dropped all others. We
-                 * replicate that buggy behavior here if we have to write to an older node because there is no way to send multipole
-                 * filters to an older node.
+                 * TransportVersions before 8.7 incorrectly only allowed a single filter for all datastreams,
+                 * and randomly dropped all others. We replicate that buggy behavior here if we have to write
+                 * to an older node because there is no way to send multipole filters to an older node.
                  */
                 dataStreamToFilterMap.values().iterator().next().writeTo(out);
             }

@@ -9,6 +9,7 @@ package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.common.Strings;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -65,16 +66,14 @@ public class ByteArrayIndexInput extends IndexInput {
             return new ByteArrayIndexInput(sliceDescription, bytes, this.offset + (int) offset, (int) length);
         } else {
             throw new IllegalArgumentException(
-                "slice() "
-                    + sliceDescription
-                    + " out of bounds: offset="
-                    + offset
-                    + ",length="
-                    + length
-                    + ",fileLength="
-                    + this.length
-                    + ": "
-                    + this
+                Strings.format(
+                    "slice() %s out of bounds: offset=%d,length=%d,fileLength=%d: %s",
+                    sliceDescription,
+                    offset,
+                    length,
+                    this.length,
+                    this
+                )
             );
         }
     }

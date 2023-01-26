@@ -12,6 +12,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -49,7 +50,7 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-    private static final Version VERSION_STORE_VALUES_AS_BYTES_REFERENCE = Version.V_7_12_0;
+    private static final TransportVersion VERSION_STORE_VALUES_AS_BYTES_REFERENCE = TransportVersion.V_7_12_0;
 
     private final String fieldName;
     private final Values values;
@@ -415,7 +416,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private abstract static class Values extends AbstractCollection implements Writeable {
 
         private static Values readFrom(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (in.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 return in.readOptionalWriteable(BinaryValues::new);
             } else {
                 List<?> list = (List<?>) in.readGenericValue();
@@ -424,7 +425,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
 
         private static void writeTo(StreamOutput out, Values values) throws IOException {
-            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 out.writeOptionalWriteable(values);
             } else {
                 if (values == null) {
@@ -561,7 +562,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 out.writeBytesReference(valueRef);
             } else {
                 valueRef.writeTo(out);
@@ -642,7 +643,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 BytesReference bytesRef = serialize(values, false);
                 out.writeBytesReference(bytesRef);
             } else {

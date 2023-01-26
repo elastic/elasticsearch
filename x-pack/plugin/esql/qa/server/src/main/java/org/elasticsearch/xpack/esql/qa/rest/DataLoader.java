@@ -7,18 +7,27 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestUtils;
@@ -26,11 +35,10 @@ import org.elasticsearch.xpack.ql.TestUtils;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -44,12 +52,58 @@ import static org.junit.Assert.assertThat;
 public class DataLoader {
     public static final String TEST_INDEX_SIMPLE = "simple";
 
-    private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
+    /**
+     * <p>
+     * Loads spec data on a local ES server.
+     * </p>
+     * <p>
+     * Accepts an URL as first argument, eg. http://localhost:9200 or http://user:pass@localhost:9200
+     *</p>
+     * <p>
+     * If no arguments are specified, the default URL is http://localhost:9200 without authentication
+     * </p>
+     * <p>
+     * It also supports HTTPS
+     * </p>
+     * @param args the URL to connect
+     * @throws IOException
+     */
+    public static void main(String[] args) throws IOException {
+        String protocol = "http";
+        String host = "localhost";
+        int port = 9200;
+        String username = null;
+        String password = null;
+        if (args.length > 0) {
+            URL url = URI.create(args[0]).toURL();
+            protocol = url.getProtocol();
+            host = url.getHost();
+            port = url.getPort();
+            if (port < 0 || port > 65535) {
+                throw new IllegalArgumentException("Please specify a valid port [0 - 65535], found [" + port + "]");
+            }
+            String userInfo = url.getUserInfo();
+            if (userInfo != null) {
+                if (userInfo.contains(":") == false || userInfo.split(":").length != 2) {
+                    throw new IllegalArgumentException("Invalid user credentials [username:password], found [" + userInfo + "]");
+                }
+                String[] userPw = userInfo.split(":");
+                username = userPw[0];
+                password = userPw[1];
+            }
+        }
+        RestClientBuilder builder = RestClient.builder(new HttpHost(host, port, protocol));
+        if (username != null) {
+            CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
+            builder = builder.setHttpClientConfigCallback(
+                httpClientBuilder -> httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
+            );
+        }
 
-    private static Map<String, String[]> getReplacementPatterns() {
-        final Map<String, String[]> map = Maps.newMapWithExpectedSize(1);
-        map.put("[runtime_random_keyword_type]", new String[] { "keyword", "wildcard" });
-        return map;
+        try (RestClient client = builder.build()) {
+            loadDatasetIntoEs(client, DataLoader::createParser);
+        }
     }
 
     public static void loadDatasetIntoEs(RestClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
@@ -86,7 +140,7 @@ public class DataLoader {
     }
 
     /**
-     * Reads the mapping file, ignoring comments and replacing placeholders for random types.
+     * Reads the mapping file, ignoring comments
      */
     private static String readMapping(URL resource) throws IOException {
         try (BufferedReader reader = TestUtils.reader(resource)) {
@@ -94,9 +148,6 @@ public class DataLoader {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("#") == false) {
-                    for (Entry<String, String[]> entry : replacementPatterns.entrySet()) {
-                        line = line.replace(entry.getKey(), ESRestTestCase.randomFrom(entry.getValue()));
-                    }
                     b.append(line);
                 }
             }
@@ -153,5 +204,12 @@ public class DataLoader {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).map(body)) {
             return BytesReference.bytes(builder).utf8ToString();
         }
+    }
+
+    private static XContentParser createParser(XContent xContent, InputStream data) throws IOException {
+        NamedXContentRegistry contentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(contentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        return xContent.createParser(config, data);
     }
 }

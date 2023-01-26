@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -62,11 +63,19 @@ final class EvalMapper {
 
         @Override
         protected ExpressionEvaluator map(ArithmeticOperation ao, Layout layout) {
-
             ExpressionEvaluator leftEval = toEvaluator(ao.left(), layout);
             ExpressionEvaluator rightEval = toEvaluator(ao.right(), layout);
-            return (page, pos) -> ao.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
+            record ArithmeticExpressionEvaluator(ArithmeticOperation ao, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
+                implements
+                    ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return ao.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
+                }
+            }
+            return new ArithmeticExpressionEvaluator(ao, leftEval, rightEval);
         }
+
     }
 
     static class Comparisons extends ExpressionMapper<BinaryComparison> {
@@ -75,7 +84,15 @@ final class EvalMapper {
         protected ExpressionEvaluator map(BinaryComparison bc, Layout layout) {
             ExpressionEvaluator leftEval = toEvaluator(bc.left(), layout);
             ExpressionEvaluator rightEval = toEvaluator(bc.right(), layout);
-            return (page, pos) -> bc.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
+            record ComparisonsExpressionEvaluator(BinaryComparison bc, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
+                implements
+                    ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return bc.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
+                }
+            }
+            return new ComparisonsExpressionEvaluator(bc, leftEval, rightEval);
         }
     }
 
@@ -85,7 +102,15 @@ final class EvalMapper {
         protected ExpressionEvaluator map(BinaryLogic bc, Layout layout) {
             ExpressionEvaluator leftEval = toEvaluator(bc.left(), layout);
             ExpressionEvaluator rightEval = toEvaluator(bc.right(), layout);
-            return (page, pos) -> bc.function().apply((Boolean) leftEval.computeRow(page, pos), (Boolean) rightEval.computeRow(page, pos));
+            record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
+                implements
+                    ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return bl.function().apply((Boolean) leftEval.computeRow(page, pos), (Boolean) rightEval.computeRow(page, pos));
+                }
+            }
+            return new BooleanLogicExpressionEvaluator(bc, leftEval, rightEval);
         }
     }
 
@@ -94,7 +119,13 @@ final class EvalMapper {
         @Override
         protected ExpressionEvaluator map(Not not, Layout layout) {
             ExpressionEvaluator expEval = toEvaluator(not.field(), layout);
-            return (page, pos) -> NotProcessor.apply(expEval.computeRow(page, pos));
+            record NotsExpressionEvaluator(ExpressionEvaluator expEval) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return NotProcessor.apply(expEval.computeRow(page, pos));
+                }
+            }
+            return new NotsExpressionEvaluator(expEval);
         }
     }
 
@@ -102,14 +133,18 @@ final class EvalMapper {
         @Override
         protected ExpressionEvaluator map(Attribute attr, Layout layout) {
             int channel = layout.getChannel(attr.id());
-            return (page, pos) -> {
-                Block block = page.getBlock(channel);
-                if (block.isNull(pos)) {
-                    return null;
-                } else {
-                    return block.getObject(pos);
+            record AttributesExpressionEvaluator(int channel) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    Block block = page.getBlock(channel);
+                    if (block.isNull(pos)) {
+                        return null;
+                    } else {
+                        return block.getObject(pos);
+                    }
                 }
-            };
+            }
+            return new AttributesExpressionEvaluator(channel);
         }
     }
 
@@ -117,7 +152,13 @@ final class EvalMapper {
 
         @Override
         protected ExpressionEvaluator map(Literal lit, Layout layout) {
-            return (page, pos) -> lit.value();
+            record LiteralsExpressionEvaluator(Literal lit) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return lit.value();
+                }
+            }
+            return new LiteralsExpressionEvaluator(lit);
         }
     }
 
@@ -129,12 +170,18 @@ final class EvalMapper {
             // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
             ExpressionEvaluator decimalsEvaluator = round.decimals() != null ? toEvaluator(round.decimals(), layout) : null;
             if (round.field().dataType().isRational()) {
-                return (page, pos) -> {
-                    // decimals could be null
-                    // it's not the same null as round.decimals() being null
-                    Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
-                    return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
-                };
+                record DecimalRoundExpressionEvaluator(ExpressionEvaluator fieldEvaluator, ExpressionEvaluator decimalsEvaluator)
+                    implements
+                        ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        // decimals could be null
+                        // it's not the same null as round.decimals() being null
+                        Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
+                        return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
+                    }
+                }
+                return new DecimalRoundExpressionEvaluator(fieldEvaluator, decimalsEvaluator);
             } else {
                 return fieldEvaluator;
             }
@@ -145,8 +192,13 @@ final class EvalMapper {
 
         @Override
         protected ExpressionEvaluator map(Length length, Layout layout) {
-            ExpressionEvaluator e1 = toEvaluator(length.field(), layout);
-            return (page, pos) -> Length.process(((BytesRef) e1.computeRow(page, pos)).utf8ToString());
+            record LengthFunctionExpressionEvaluator(ExpressionEvaluator exp) implements ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    return Length.process(((BytesRef) exp.computeRow(page, pos)).utf8ToString());
+                }
+            }
+            return new LengthFunctionExpressionEvaluator(toEvaluator(length.field(), layout));
         }
     }
 }

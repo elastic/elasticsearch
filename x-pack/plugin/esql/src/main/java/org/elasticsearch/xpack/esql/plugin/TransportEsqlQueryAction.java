@@ -57,7 +57,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.computeService = new ComputeService(searchService, clusterService, nodeClient, threadPool, bigArrays);
+        this.computeService = new ComputeService(searchService, clusterService, transportService, nodeClient, threadPool, bigArrays);
         this.settings = settings;
     }
 

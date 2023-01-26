@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -39,8 +40,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -88,6 +87,12 @@ public class CsvTests extends ESTestCase {
         Settings.EMPTY,
         EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
     );
+    private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+    private final EsqlParser parser = new EsqlParser();
+    private final Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution), new Verifier());
+    private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
+    private final Mapper mapper = new Mapper();
+    private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
 
     private static IndexResolution loadIndexResolution() {
@@ -154,14 +159,11 @@ public class CsvTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan() {
-        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        var parsed = new EsqlParser().createStatement(testCase.query);
-        PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution), new Verifier());
+        var parsed = parser.createStatement(testCase.query);
         var analyzed = analyzer.analyze(parsed);
-        var logicalOptimized = new LogicalPlanOptimizer().optimize(analyzed);
-        var physicalPlan = new Mapper().map(logicalOptimized);
-        return new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan);
+        var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
+        var physicalPlan = mapper.map(logicalOptimized);
+        return physicalPlanOptimizer.optimize(physicalPlan);
     }
 
     private Tuple<List<Page>, List<String>> getActualResults(LocalExecutionPlanner planner) {
@@ -222,7 +224,6 @@ public class CsvTests extends ESTestCase {
             List<Object> row = new ArrayList<>(actualColumnsCount);
             for (int b = 0; b < actualColumnsCount; b++) {
                 Block block = actualResultsPage.getBlock(b);
-                // this `isNull()` call doesn't actually work
                 var value = block.isNull(i) ? null : block.getObject(i);
                 if (value instanceof BytesRef bytes) {
                     row.add(bytes.utf8ToString());

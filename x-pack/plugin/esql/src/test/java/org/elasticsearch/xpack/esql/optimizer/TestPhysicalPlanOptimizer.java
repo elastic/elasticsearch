@@ -7,10 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+
 public class TestPhysicalPlanOptimizer extends PhysicalPlanOptimizer {
 
+    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(false);
+
     public TestPhysicalPlanOptimizer(PhysicalOptimizerContext context) {
-        super(context, false);
+        super(context);
     }
 
+    @Override
+    protected Iterable<Batch<PhysicalPlan>> batches() {
+        return rules;
+    }
 }

@@ -1,0 +1,5 @@
+pr: 93279
+summary: "Script: Optimize for the expected non-intersecting case"
+area: Infra/Scripting
+type: enhancement
+issues: []

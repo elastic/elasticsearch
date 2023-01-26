@@ -163,7 +163,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 cacheFileReference
             );
 
-            final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, range.length()))];
+            final ByteBuffer copyBuffer = ByteBuffer.allocate(toIntBytes(Math.min(COPY_BUFFER_SIZE, range.length())));
 
             long totalBytesRead = 0L;
             final AtomicLong totalBytesWritten = new AtomicLong();
@@ -182,8 +182,12 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     // noinspection UnnecessaryLocalVariable
                     final ByteRange rangeToRead = rangeToWrite;
                     cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
-                        final ByteBuffer byteBuffer = ByteBuffer.wrap(copyBuffer, toIntBytes(start - readStart), toIntBytes(end - start));
-                        final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                        final int writtenBytes = positionalWrite(
+                            channel,
+                            start,
+                            copyBuffer.slice(toIntBytes(start - readStart), toIntBytes(end - start))
+                        );
+                        copyBuffer.clear();
                         logger.trace(
                             "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
                             start,

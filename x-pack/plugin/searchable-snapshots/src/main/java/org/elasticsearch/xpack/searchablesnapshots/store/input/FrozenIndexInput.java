@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.core.Strings.format;
 
 public class FrozenIndexInput extends MetadataCachingIndexInput {
@@ -276,7 +275,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             cacheFile
         );
         final long end = relativePos + length;
-        final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", relativePos, end, cacheFile));
 
         long bytesCopied = 0L;
@@ -284,20 +282,13 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final ByteBuffer buf = writeBuffer.get();
         buf.clear();
         while (remaining > 0L) {
-            final int bytesRead = MetadataCachingIndexInput.readSafe(input, copyBuffer, relativePos, end, remaining, cacheFile);
-            if (bytesRead > buf.remaining()) {
-                // always fill up buf to the max
-                final int bytesToAdd = buf.remaining();
-                buf.put(copyBuffer, 0, bytesToAdd);
-                assert buf.remaining() == 0;
-                long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-                bytesCopied += bytesWritten;
-                progressUpdater.accept(bytesCopied);
-                // add the remaining bytes to buf
-                buf.put(copyBuffer, bytesToAdd, bytesRead - bytesToAdd);
-            } else {
-                buf.put(copyBuffer, 0, bytesRead);
+            final int bytesRead = MetadataCachingIndexInput.readSafe(input, buf, relativePos, end, remaining, cacheFile);
+            if (buf.hasRemaining()) {
+                break;
             }
+            long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
+            bytesCopied += bytesWritten;
+            progressUpdater.accept(bytesCopied);
             remaining -= bytesRead;
         }
         // ensure that last write is aligned on 4k boundaries (= page size)

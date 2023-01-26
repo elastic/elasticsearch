@@ -564,7 +564,8 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        BigArrays bigArrays
     ) {
         try {
             return createComponents(

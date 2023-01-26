@@ -53,28 +53,28 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testIsEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
         assertTrue(plugin.isEnabled());
         assertNotNull(plugin.extender());
     }
 
     public void testIsNotPackageDistribution() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsImplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
@@ -162,7 +162,7 @@ public class SystemdPluginTests extends ESTestCase {
             }
 
         };
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertNotNull(plugin.extender());
         } else {

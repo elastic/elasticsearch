@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -69,7 +70,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        BigArrays bigArrays
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         return super.createComponents(
@@ -85,7 +87,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             indexNameExpressionResolver,
             repositoriesServiceSupplier,
             tracer,
-            allocationService
+            allocationService,
+            bigArrays
         );
     }
 

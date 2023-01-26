@@ -732,7 +732,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
                     tracer,
-                    clusterModule.getAllocationService()
+                    clusterModule.getAllocationService(),
+                    bigArrays
                 )
             ).toList();
 

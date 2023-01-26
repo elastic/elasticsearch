@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -83,6 +84,7 @@ public abstract class Plugin implements Closeable {
      *                                    is called, but will return the repositories service once the node is initialized.
      * @param tracer                      An interface for distributed tracing
      * @param allocationService           A service to manage shard allocation in the cluster
+     * @param bigArrays                   Proivdes recyclable arrays
      */
     public Collection<Object> createComponents(
         Client client,
@@ -97,7 +99,8 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        BigArrays bigArrays
     ) {
         return Collections.emptyList();
     }

@@ -40,14 +40,38 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     public CtxMap(Map<String, Object> source, T metadata) {
         this.source = source;
         this.metadata = metadata;
-        Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
-        if (badKeys.size() > 0) {
+        // since we don't expect any overlapping keys, do a check for any overlap before allocating an object to *hold* the intersection
+        if (hasOverlappingKeys(this.metadata.keySet(), this.source.keySet())) {
+            Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
             throw new IllegalArgumentException(
                 "unexpected metadata ["
                     + badKeys.stream().sorted().map(k -> k + ":" + this.source.get(k)).collect(Collectors.joining(", "))
                     + "] in source"
             );
         }
+    }
+
+    /**
+     * Compare two sets and return true if they have any overlapping keys. (That is, if there's an intersection.)
+     */
+    private static boolean hasOverlappingKeys(Set<String> set1, Set<String> set2) {
+        final Set<String> left;
+        final Set<String> right;
+        if (set1.size() < set2.size()) {
+            left = set1;
+            right = set2;
+        } else {
+            left = set2;
+            right = set1;
+        }
+
+        for (String key : left) {
+            if (right.contains(key)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

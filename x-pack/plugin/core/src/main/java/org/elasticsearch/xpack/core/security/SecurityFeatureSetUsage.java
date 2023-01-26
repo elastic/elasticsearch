@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,7 +52,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         realmsUsage = in.readMap();
         rolesStoreUsage = in.readMap();
         sslUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             tokenServiceUsage = in.readMap();
             apiKeyServiceUsage = in.readMap();
         }
@@ -61,16 +60,16 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         ipFilterUsage = in.readMap();
         anonymousUsage = in.readMap();
         roleMappingStoreUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             fips140Usage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             operatorPrivilegesUsage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             domainsUsage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             userProfileUsage = in.readMap();
         }
     }
@@ -118,7 +117,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(realmsUsage);
         out.writeGenericMap(rolesStoreUsage);
         out.writeGenericMap(sslUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeGenericMap(tokenServiceUsage);
             out.writeGenericMap(apiKeyServiceUsage);
         }
@@ -126,16 +125,16 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeGenericMap(fips140Usage);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeGenericMap(operatorPrivilegesUsage);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeGenericMap(domainsUsage);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeGenericMap(userProfileUsage);
         }
     }

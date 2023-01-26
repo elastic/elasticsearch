@@ -82,8 +82,8 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
  * Authentication also has a {@link #type} that indicates which mechanism the {@link #authenticatingSubject}
  * uses to perform the authentication.
  *
- * The Authentication's version is its {@link Subject}'s version, i.e. {@code getEffectiveSubject().getVersion()}.
- * It is guaranteed that the versions are identical for the two Subjects. Hence {@code getAuthenticatingSubject().getVersion()}
+ * The Authentication's version is its {@link Subject}'s version, i.e. {@code getEffectiveSubject().getTransportVersion()}.
+ * It is guaranteed that the versions are identical for the two Subjects. Hence {@code getAuthenticatingSubject().getTransportVersion()}
  * will give out the same result. But using {@code getEffectiveSubject()} is more idiomatic since most callers
  * of this class should just need to know about the {@link #effectiveSubject}. That is, often times, the caller
  * begins with {@code authentication.getEffectiveSubject()} for interrogating an Authentication object.

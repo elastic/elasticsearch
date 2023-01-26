@@ -57,6 +57,11 @@ public class ClassificationStatsTests extends AbstractBWCSerializationTestCase<C
         return createRandom();
     }
 
+    @Override
+    protected ClassificationStats mutateInstance(ClassificationStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ClassificationStats createRandom() {
         return new ClassificationStats(
             randomAlphaOfLength(10),

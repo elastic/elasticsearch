@@ -47,6 +47,11 @@ public class SlimConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<SlimC
     }
 
     @Override
+    protected SlimConfigUpdate mutateInstance(SlimConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected SlimConfigUpdate doParseInstance(XContentParser parser) throws IOException {
         return SlimConfigUpdate.fromXContentStrict(parser);
     }

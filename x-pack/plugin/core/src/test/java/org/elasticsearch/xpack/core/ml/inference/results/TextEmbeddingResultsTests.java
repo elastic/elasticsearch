@@ -38,6 +38,11 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
         return createRandomResults();
     }
 
+    @Override
+    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testAsMap() {
         TextEmbeddingResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();

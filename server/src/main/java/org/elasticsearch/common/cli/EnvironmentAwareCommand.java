@@ -18,8 +18,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.settings.KeyStoreLoader;
-import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -154,10 +152,5 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     /** Execute the command with the initialized {@link Environment}. */
     public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
-
-    protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
-        return new KeyStoreLoader();
-    }
 
 }

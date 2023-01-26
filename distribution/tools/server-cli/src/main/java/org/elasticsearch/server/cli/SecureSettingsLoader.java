@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.settings;
+package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
 import java.util.Optional;
@@ -42,5 +44,5 @@ public interface SecureSettingsLoader {
         }
     }
 
-    boolean supportsAutoConfigure();
+    boolean supportsSecurityAutoConfiguration();
 }

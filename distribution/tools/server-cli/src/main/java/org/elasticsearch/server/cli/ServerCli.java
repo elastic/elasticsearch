@@ -22,7 +22,6 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.settings.KeyStoreLoader;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -83,7 +82,7 @@ class ServerCli extends EnvironmentAwareCommand {
             var password = (loadedSecrets.password().isPresent()) ? loadedSecrets.password().get() : new SecureString(new char[0]);
         ) {
             SecureSettings secrets = loadedSecrets.secrets();
-            if (secureSettingsLoader.supportsAutoConfigure()) {
+            if (secureSettingsLoader.supportsSecurityAutoConfiguration()) {
                 env = autoConfigureSecurity(terminal, options, processInfo, env, password);
                 // reload or create the secrets
                 secrets = secureSettingsLoader.bootstrap(env, password);
@@ -143,7 +142,7 @@ class ServerCli extends EnvironmentAwareCommand {
         OptionSet options,
         ProcessInfo processInfo,
         Environment env,
-        SecureString optionalPassword
+        SecureString keystorePassword
     ) throws Exception {
         assert secureSettingsLoader(env) instanceof KeyStoreLoader;
 
@@ -161,7 +160,7 @@ class ServerCli extends EnvironmentAwareCommand {
         OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
 
         boolean changed = true;
-        try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, optionalPassword.clone())) {
+        try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
             autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
         } catch (UserException e) {
             boolean okCode = switch (e.exitCode) {
@@ -236,5 +235,11 @@ class ServerCli extends EnvironmentAwareCommand {
     // protected to allow tests to override
     protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
         return ServerProcess.start(terminal, processInfo, args);
+    }
+
+    // protected to allow tests to override
+    protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+        // TODO: Use the environment configuration to decide what kind of secrets store to load
+        return new KeyStoreLoader();
     }
 }

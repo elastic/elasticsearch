@@ -23,7 +23,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureSettingsLoader;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -470,11 +469,12 @@ public class ServerCliTests extends CommandTestCase {
         };
     }
 
-    class MockSecureSettingsLoader implements SecureSettingsLoader {
+    class MockSecureSettingsLoader implements  SecureSettingsLoader {
+
         @Override
-        public LoadedSecrets load(Environment environment, Terminal terminal) {
+        public SecureSettingsLoader.LoadedSecrets load(Environment environment, Terminal terminal) {
             terminal.println("Mock secure settings loader loaded");
-            return new LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
+            return new SecureSettingsLoader.LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
         }
 
         @Override
@@ -483,7 +483,7 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
-        public boolean supportsAutoConfigure() {
+        public boolean supportsSecurityAutoConfiguration() {
             return false;
         }
     }

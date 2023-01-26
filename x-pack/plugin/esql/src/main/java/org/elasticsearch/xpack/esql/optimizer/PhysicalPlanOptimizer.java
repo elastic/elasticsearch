@@ -57,9 +57,23 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
     private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
 
-    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules;
+    private static boolean optimizeForESSource = true;
 
-    static {
+    public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
+        this(context, true);
+    }
+
+    PhysicalPlanOptimizer(PhysicalOptimizerContext context, boolean optimizeForESSource) {
+        super(context);
+        PhysicalPlanOptimizer.optimizeForESSource = optimizeForESSource;
+    }
+
+    public PhysicalPlan optimize(PhysicalPlan plan) {
+        return execute(plan);
+    }
+
+    @Override
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
         // keep filters pushing before field extraction insertion
         var pushdown = new Batch<>("Global plan", Limiter.ONCE, new PushFiltersToSource());
         var exchange = new Batch<>("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit());
@@ -80,20 +94,11 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             new RemoveLocalPlanMarker()
         );
 
-        rules = asList(pushdown, exchange, parallelism, reducer, localPlanning);
-    }
-
-    public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
-        super(context);
-    }
-
-    public PhysicalPlan optimize(PhysicalPlan plan) {
-        return execute(plan);
-    }
-
-    @Override
-    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
-        return rules;
+        if (optimizeForESSource) {
+            return asList(pushdown, exchange, parallelism, reducer, localPlanning);
+        } else {
+            return asList(exchange, parallelism, reducer, localPlanning);
+        }
     }
 
     private static class MarkLocalPlan extends Rule<PhysicalPlan, PhysicalPlan> {

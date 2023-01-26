@@ -32,14 +32,18 @@ languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:long
 5 | 10035 | null | Chappelet | 10045
 ;
 
-whereWithAverage-Ignore
-// returns incorrect results. _Might_ be because of the filter... not sure yet.
-//Expected :[[3.133013149047619E8]]
-//Actual   :[[3.0161593432E8]]
+whereWithAverage
 from test | where languages == 5 | stats avg(avg_worked_seconds);
 
 avg(avg_worked_seconds):double
 313301314.9047619
+;
+
+whereWithCount
+from test | where languages == 1 | project languages | stats c=count(languages);
+
+c : long
+15
 ;
 
 averageByField
@@ -54,8 +58,7 @@ avg(avg_worked_seconds):double | languages:long
 2.978159518235294E8 | 3
 ;
 
-whereWithAverageBySubField-Ignore
-// the where is not applied :-(
+whereWithAverageBySubField
 from test | where languages + 1 == 6 | stats avg(avg_worked_seconds) by languages.long;
 
 avg(avg_worked_seconds):double | languages.long:long
@@ -159,20 +162,42 @@ med:double | languages:long
 38992.0 | 5
 ;
 
-projectFromWithFilterPushedToES-Ignore
-// this one doesn't work because the where is pushed directly to ES in the sourceoperator
-from test | project languages, emp_no, first_name, last_name | where emp_no > 10030 and x < 10040 | limit 5;
+multiConditionalWhere
+from test | eval abc = 1+2 | where (abc + emp_no > 10100 or languages == 1) or (abc + emp_no < 10005 and gender == "F") | project emp_no, languages, gender, first_name, abc;
+
+emp_no:long | languages:long | gender:keyword | first_name:keyword | abc:long
+10005 | 1 | M | Kyoichi | 3
+10009 | 1 | F | Sumant | 3
+10013 | 1 | null | Eberhardt | 3
+10019 | 1 | null | Lillian | 3
+10033 | 1 | M | null | 3
+10034 | 1 | M | null | 3
+10041 | 1 | F | Uri | 3
+10043 | 1 | M | Yishay | 3
+10044 | 1 | F | Mingsen | 3
+10052 | 1 | M | Heping | 3
+10061 | 1 | M | Tse | 3
+10083 | 1 | M | Vishv | 3
+10084 | 1 | M | Tuval | 3
+10086 | 1 | M | Somnath | 3
+10092 | 1 | F | Valdiodio | 3
+10098 | 4 | F | Sreekrishna | 3
+10099 | 2 | F | Valter | 3
+10100 | 4 | F | Hironobu | 3
+;
+
+projectFromWithFilterPushedToES
+from test | project languages, emp_no, first_name, last_name, x = emp_no | where emp_no > 10030 and x < 10040 | limit 5;
 
 languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:long
-null | 10021 | Ramzi | Erde | 10031
-null | 10022 | Shahaf | Famili | 10032
-null | 10023 | Bojan | Montemayor | 10033
-null | 10024 | Suzette | Pettey | 10034
-null | 10025 | Prasadram | Heyers | 10035
+4 | 10031 | null | Joslin | 10031
+3 | 10032 | null | Reistad | 10032
+1 | 10033 | null | Merlo | 10033
+1 | 10034 | null | Swan | 10034
+5 | 10035 | null | Chappelet | 10035
 ;
 
 projectFromWithStatsAfterLimit
-// this one doesn't have the null bucket in it. We need to talk about null handling by default in stats
 from test | project gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
 m:long | gender:keyword
@@ -254,7 +279,7 @@ avg(ratio):double
 27517.279737149947
 ;
 
-simpleWhere-Ignore
+simpleWhere
 from test | where salary > 70000 | project first_name, last_name, salary;
 
 first_name:keyword | last_name:keyword | salary:long
@@ -268,7 +293,7 @@ Remzi | Waschkowski | 71165
 Valter | Sullins | 73578
 ;
 
-whereAfterProject-Ignore
+whereAfterProject
 from test | project salary | where salary > 70000;
 
 salary:long

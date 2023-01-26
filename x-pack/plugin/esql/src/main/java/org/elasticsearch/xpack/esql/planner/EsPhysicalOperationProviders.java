@@ -67,7 +67,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+    public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         Set<String> indices = esQueryExec.index().concreteIndices();
         List<SearchExecutionContext> matchedSearchContexts = searchContexts.stream()
             .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
@@ -92,7 +92,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public Operator.OperatorFactory groupingOperatorFactory(
+    public final Operator.OperatorFactory groupingOperatorFactory(
         LocalExecutionPlanner.PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,

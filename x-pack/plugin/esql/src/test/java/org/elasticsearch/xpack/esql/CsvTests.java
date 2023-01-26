@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -161,7 +161,7 @@ public class CsvTests extends ESTestCase {
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = new LogicalPlanOptimizer().optimize(analyzed);
         var physicalPlan = new Mapper().map(logicalOptimized);
-        return new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan);
+        return new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan);
     }
 
     private Tuple<List<Page>, List<String>> getActualResults(LocalExecutionPlanner planner) {

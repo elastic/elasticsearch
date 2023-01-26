@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -54,7 +55,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     ExplainRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type);
         }

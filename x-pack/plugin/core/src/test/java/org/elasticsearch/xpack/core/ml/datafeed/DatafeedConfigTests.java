@@ -953,7 +953,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     @Override
-    protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
+    protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
         switch (between(0, 12)) {
             case 0:

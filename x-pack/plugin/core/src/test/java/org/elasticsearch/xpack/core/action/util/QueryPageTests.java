@@ -88,8 +88,7 @@ public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<Qu
     }
 
     @Override
-    protected QueryPage<QueryPageTests.QueryPageTester> mutateInstance(QueryPage<QueryPageTests.QueryPageTester> instance)
-        throws IOException {
+    protected QueryPage<QueryPageTests.QueryPageTester> mutateInstance(QueryPage<QueryPageTester> instance) {
         ParseField resultsField = instance.getResultsField();
         List<QueryPageTests.QueryPageTester> page = instance.results();
         long count = instance.count();

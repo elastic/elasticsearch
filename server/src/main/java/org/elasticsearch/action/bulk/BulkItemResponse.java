@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -237,7 +238,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          */
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 in.readString();
                 // can't make an assertion about type names here because too many tests still set their own
                 // types bypassing various checks

@@ -52,6 +52,11 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         return randomHealthMetadata();
     }
 
+    @Override
+    protected ClusterState.Custom mutateInstance(ClusterState.Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static HealthMetadata randomHealthMetadata() {
         return new HealthMetadata(randomDiskMetadata());
     }

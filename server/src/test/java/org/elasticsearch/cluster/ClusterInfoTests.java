@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,7 +34,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
     }
 
     @Override
-    protected ClusterInfo mutateInstance(ClusterInfo instance) throws IOException {
+    protected ClusterInfo mutateInstance(ClusterInfo instance) {
         return createTestInstance();
     }
 

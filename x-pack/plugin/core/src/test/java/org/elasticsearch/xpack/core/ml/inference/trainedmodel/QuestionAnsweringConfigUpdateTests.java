@@ -68,6 +68,11 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     }
 
     @Override
+    protected QuestionAnsweringConfigUpdate mutateInstance(QuestionAnsweringConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected QuestionAnsweringConfigUpdate mutateInstanceForVersion(QuestionAnsweringConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

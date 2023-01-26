@@ -36,7 +36,7 @@ public class IndexIdTests extends AbstractWireSerializingTestCase<IndexId> {
     }
 
     @Override
-    protected IndexId mutateInstance(IndexId instance) throws IOException {
+    protected IndexId mutateInstance(IndexId instance) {
         return switch (randomInt(1)) {
             case 0 -> new IndexId(randomValueOtherThan(instance.getName(), ESTestCase::randomIdentifier), instance.getId());
             case 1 -> new IndexId(instance.getName(), randomValueOtherThan(instance.getId(), UUIDs::randomBase64UUID));

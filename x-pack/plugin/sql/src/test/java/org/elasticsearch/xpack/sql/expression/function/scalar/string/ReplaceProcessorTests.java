@@ -29,6 +29,11 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
     }
 
     @Override
+    protected ReplaceFunctionProcessor mutateInstance(ReplaceFunctionProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<ReplaceFunctionProcessor> instanceReader() {
         return ReplaceFunctionProcessor::new;
     }

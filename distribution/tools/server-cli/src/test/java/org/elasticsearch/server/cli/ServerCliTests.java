@@ -27,8 +27,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,13 +48,15 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@ESTestCase.WithoutSecurityManager
 public class ServerCliTests extends CommandTestCase {
 
-    private boolean mockSecureSettingsLoader = false;
+    private SecureSettingsLoader mockSecureSettingsLoader;
 
     @Before
     public void setupMockConfig() throws IOException {
         Files.createFile(configDir.resolve("log4j2.properties"));
+        mockSecureSettingsLoader = null;
     }
 
     @Override
@@ -321,11 +323,11 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testSecureSettingsLoaders() throws Exception {
-        this.mockSecureSettingsLoader = true;
+        this.mockSecureSettingsLoader = new MockSecureSettingsLoader();
         Command command = newCommand();
         command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
-        assertThat(terminal.getOutput(), Matchers.containsString("Mock secure settings loader loaded"));
+        assertTrue(((MockSecureSettingsLoader)mockSecureSettingsLoader).loaded);
     }
 
     interface AutoConfigMethod {
@@ -460,8 +462,8 @@ public class ServerCliTests extends CommandTestCase {
 
             @Override
             protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-                if (mockSecureSettingsLoader) {
-                    return new MockSecureSettingsLoader();
+                if (mockSecureSettingsLoader != null) {
+                    return mockSecureSettingsLoader;
                 }
 
                 return super.secureSettingsLoader(env);
@@ -469,11 +471,12 @@ public class ServerCliTests extends CommandTestCase {
         };
     }
 
-    class MockSecureSettingsLoader implements  SecureSettingsLoader {
+    static class MockSecureSettingsLoader implements SecureSettingsLoader {
+        boolean loaded = false;
 
         @Override
         public SecureSettingsLoader.LoadedSecrets load(Environment environment, Terminal terminal) {
-            terminal.println("Mock secure settings loader loaded");
+            loaded = true;
             return new SecureSettingsLoader.LoadedSecrets(KeyStoreWrapper.create(), Optional.empty());
         }
 

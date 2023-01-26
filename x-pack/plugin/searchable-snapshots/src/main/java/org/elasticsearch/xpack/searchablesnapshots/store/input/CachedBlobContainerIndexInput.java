@@ -162,9 +162,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 range.end(),
                 cacheFileReference
             );
-
-            final ByteBuffer copyBuffer = ByteBuffer.allocate(toIntBytes(Math.min(COPY_BUFFER_SIZE, range.length())));
-
+            final ByteBuffer copyBuffer = writeBuffer.get();
             long totalBytesRead = 0L;
             final AtomicLong totalBytesWritten = new AtomicLong();
             long remainingBytes = range.length();
@@ -172,6 +170,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             try (InputStream input = openInputStreamFromBlobStore(range.start(), range.length())) {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
+                    copyBuffer.clear();
                     final int bytesRead = readSafe(input, copyBuffer, range.start(), range.end(), remainingBytes, cacheFileReference);
 
                     // The range to prewarm in cache
@@ -187,7 +186,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                             start,
                             copyBuffer.slice(toIntBytes(start - readStart), toIntBytes(end - start))
                         );
-                        copyBuffer.clear();
                         logger.trace(
                             "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
                             start,

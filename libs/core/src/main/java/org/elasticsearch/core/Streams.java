@@ -79,6 +79,15 @@ public class Streams {
         return copy(in, out, LOCAL_BUFFER.get(), true);
     }
 
+    /**
+     * Read up to {code count} bytes from {@code input} and store them into {@code buffer}.
+     * The buffers position will be incremented by the number of bytes read from the stream.
+     * @param input stream to read from
+     * @param buffer buffer to read into
+     * @param count maximum number of bytes to read
+     * @return number of bytes read from the stream
+     * @throws IOException in case of I/O errors
+     */
     public static int read(InputStream input, ByteBuffer buffer, int count) throws IOException {
         if (buffer.hasArray()) {
             return readToHeapBuffer(input, buffer, count);

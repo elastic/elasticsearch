@@ -19,7 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -53,7 +53,19 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIndexInput {
 
-    protected static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
+    /**
+     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
+     */
+    protected static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
+            "es.searchable.snapshot.shared_cache.write_buffer.size"
+        ).getBytes()
+    );
+
+    protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
+    );
 
     protected final CacheFileReference cacheFileReference;
 
@@ -293,8 +305,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert assertFileChannelOpen(fc);
         assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         final long length = end - start;
-        final ByteBuffer copyBuffer = ByteBuffer.allocate(toIntBytes(Math.min(COPY_BUFFER_SIZE, length)));
-        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", start, end, cacheFileReference));
+        final ByteBuffer copyBuffer = writeBuffer.get().clear();
+        logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
 
         long bytesCopied = 0L;
         long remaining = end - start;

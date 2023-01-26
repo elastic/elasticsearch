@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -242,20 +241,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         return bytesRead;
     }
 
-    /**
-     * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
-     */
-    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
-        ByteSizeValue.parseBytesSizeValue(
-            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
-            "es.searchable.snapshot.shared_cache.write_buffer.size"
-        ).getBytes()
-    );
-
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
-    );
-
     private void writeCacheFile(
         final SharedBytes.IO fc,
         final InputStream input,
@@ -279,8 +264,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
 
         long bytesCopied = 0L;
         long remaining = length;
-        final ByteBuffer buf = writeBuffer.get();
-        buf.clear();
+        final ByteBuffer buf = writeBuffer.get().clear();
         while (remaining > 0L) {
             final int bytesRead = MetadataCachingIndexInput.readSafe(input, buf, relativePos, end, remaining, cacheFile);
             if (buf.hasRemaining()) {

@@ -209,6 +209,14 @@ public final class Authentication implements ToXContentObject, Writeable {
         return maybeRewriteForOlderVersion(olderVersion, VERSION_REMOTE_ACCESS_REALM);
     }
 
+    /**
+     * @param remoteAccessRealmVersion using this instead of {@link #VERSION_REMOTE_ACCESS_REALM} enables us to test the new rewriting logic
+     *                                introduced to handle remote access authentication
+     *                                 (see {@link #maybeRewriteMetadataForRemoteAccessAuthentication(Version, Authentication)}
+     *                                we've introduced for future-proofing, while bypassing the remote access min version check.
+     *                                 This is only necessary in 8.7.
+     * TODO remove this method in 8.8, and inline {@link #VERSION_REMOTE_ACCESS_REALM}
+     */
     Authentication maybeRewriteForOlderVersion(Version olderVersion, TransportVersion remoteAccessRealmVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
@@ -996,7 +1004,7 @@ public final class Authentication implements ToXContentObject, Writeable {
         if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
             logger.info("Rewriting realm [" + realmRef + "] without domain");
             // security domain erasure
-            new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
+            return new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
         }
         return realmRef;
     }

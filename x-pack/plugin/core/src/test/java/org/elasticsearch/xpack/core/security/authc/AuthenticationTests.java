@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -603,10 +604,11 @@ public class AuthenticationTests extends ESTestCase {
             ? AuthenticationTestHelper.builder().remoteAccess().build()
             : AuthenticationTestHelper.builder().build();
 
+        final Version versionBeforeRemoteAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_7_0);
         final Version version = VersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_REALM_DOMAINS,
-            VersionUtils.getPreviousVersion(Version.V_8_7_0)
+            versionBeforeRemoteAccessRealm.minimumCompatibilityVersion(),
+            versionBeforeRemoteAccessRealm
         );
 
         if (authentication.isRemoteAccess()) {
@@ -628,23 +630,57 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithRemoteAccessRewritesAuthenticationInMetadata() throws IOException {
-        final Version fakeRemoteAccessRealmVersion = Version.V_8_6_0;
-        final Version version = VersionUtils.randomVersionBetween(random(), fakeRemoteAccessRealmVersion, Version.CURRENT);
+        // This is a hack for 8.7, to enable testing a scenario where a remote access authentication is rewritten for a node on an older
+        // version. There are two factors why we need this:
+        // We introduced a new rewrite mechanism for remote access authentication in 8.7, to stay future-proof.
+        // Rewriting a remote access authentication is only valid if it's towards a node on version 8.7 or later (it's prevented by an
+        // internal validation check).
+        // To test the new rewrite mechanism in 8.7, we call authentication.maybeRewriteForOlderVersion(version, remoteAccessRealmVersion)
+        // with a version that precedes 8.7, thus avoiding triggering internal validation
+        // TODO in 8.8, simply set remoteAccessRealmVersion to Authentication.VERSION_REMOTE_ACCESS_REALM
+        final Version remoteAccessRealmVersion = TransportVersion.CURRENT.equals(Authentication.VERSION_REMOTE_ACCESS_REALM)
+            ? VersionUtils.getPreviousVersion()
+            : Version.V_8_7_0;
+        final Version version = VersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, Version.CURRENT);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().version(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .remoteAccess(randomAlphaOfLength(20), new RemoteAccessAuthentication(innerAuthentication, RoleDescriptorsIntersection.EMPTY))
             .build();
         assertThat(authentication.getAuthenticatingSubject().getMetadata(), hasKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY));
 
-        final Version maybeOldVersion = VersionUtils.randomVersionBetween(random(), fakeRemoteAccessRealmVersion, version);
+        final Version maybeOldVersion = VersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, version);
         final Authentication rewritten = authentication.maybeRewriteForOlderVersion(
             maybeOldVersion,
-            fakeRemoteAccessRealmVersion.transportVersion
+            remoteAccessRealmVersion.transportVersion
         );
         final Authentication innerMaybeRewritten = AuthenticationContextSerializer.decode(
             (String) rewritten.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
         );
         assertThat(innerMaybeRewritten.getEffectiveSubject().getVersion(), equalTo(maybeOldVersion));
+    }
+
+    public void testMaybeRewriteMetadataForRemoteAccessAuthentication() throws IOException {
+        final Authentication innerAuthentication = AuthenticationTestHelper.builder().build();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(randomAlphaOfLength(20), new RemoteAccessAuthentication(innerAuthentication, RoleDescriptorsIntersection.EMPTY))
+            .build();
+        // pick a version before that of the authentication instance to force a rewrite
+        final Version previousVersion = VersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getVersion());
+        final Version olderVersion = VersionUtils.randomVersionBetween(
+            random(),
+            previousVersion.minimumCompatibilityVersion(),
+            previousVersion
+        );
+
+        final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForRemoteAccessAuthentication(
+            olderVersion,
+            authentication
+        );
+
+        final Authentication innerRewritten = AuthenticationContextSerializer.decode(
+            (String) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+        );
+        assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

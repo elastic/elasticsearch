@@ -41,6 +41,11 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
         return createRandomResults();
     }
 
+    @Override
+    protected PyTorchPassThroughResults mutateInstance(PyTorchPassThroughResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testAsMap() {
         PyTorchPassThroughResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();

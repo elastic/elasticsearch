@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +37,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     }
 
     @Override
-    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
+    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) {
         final List<QueryApiKeyResponse.Item> items = Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
         switch (randomIntBetween(0, 3)) {
             case 0:

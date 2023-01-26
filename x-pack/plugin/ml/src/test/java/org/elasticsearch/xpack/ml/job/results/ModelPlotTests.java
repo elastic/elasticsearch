@@ -33,6 +33,11 @@ public class ModelPlotTests extends AbstractXContentSerializingTestCase<ModelPlo
         return createTestInstance("foo");
     }
 
+    @Override
+    protected ModelPlot mutateInstance(ModelPlot instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public ModelPlot createTestInstance(String jobId) {
         ModelPlot modelPlot = new ModelPlot(jobId, randomDate(), randomNonNegativeLong(), randomInt());
         if (randomBoolean()) {

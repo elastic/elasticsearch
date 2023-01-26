@@ -95,6 +95,11 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
     }
 
     @Override
+    protected PassThroughConfigUpdate mutateInstance(PassThroughConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected PassThroughConfigUpdate mutateInstanceForVersion(PassThroughConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

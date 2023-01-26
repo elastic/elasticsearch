@@ -117,6 +117,11 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
     }
 
     @Override
+    protected DateHistogramGroupSource mutateInstance(DateHistogramGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<DateHistogramGroupSource> instanceReader() {
         return DateHistogramGroupSource::new;
     }

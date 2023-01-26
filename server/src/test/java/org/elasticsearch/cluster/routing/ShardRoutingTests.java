@@ -54,7 +54,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     }
 
     @Override
-    protected ShardRouting mutateInstance(ShardRouting instance) throws IOException {
+    protected ShardRouting mutateInstance(ShardRouting instance) {
         var mutation = randomInt(4);
         if (mutation == 0) {
             return mutateShardId(instance);

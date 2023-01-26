@@ -48,6 +48,11 @@ public class ParametersTests extends AbstractBWCSerializationTestCase<Parameters
         return createRandom();
     }
 
+    @Override
+    protected Parameters mutateInstance(Parameters instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Parameters createRandom() {
 
         return new Parameters(

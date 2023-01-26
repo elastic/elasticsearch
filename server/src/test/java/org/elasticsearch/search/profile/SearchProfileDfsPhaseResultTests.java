@@ -37,6 +37,11 @@ public class SearchProfileDfsPhaseResultTests extends AbstractXContentSerializin
     }
 
     @Override
+    protected SearchProfileDfsPhaseResult mutateInstance(SearchProfileDfsPhaseResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SearchProfileDfsPhaseResult> instanceReader() {
         return SearchProfileDfsPhaseResult::new;
     }

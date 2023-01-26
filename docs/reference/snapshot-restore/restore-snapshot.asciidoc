@@ -232,9 +232,9 @@ snapshot as well as each feature's indices.
 
 To restore a specific feature state from the snapshot, specify the
 `feature_name` from the response in the restore snapshot API's
-<<restore-snapshot-api-feature-states,`feature_states`>> parameter. When you
-restore a feature state, {es} closes and overwrites the feature's existing
-indices.
+<<restore-snapshot-api-feature-states,`feature_states`>> parameter. 
+
+NOTE: When you restore a feature state, {es} closes and overwrites the feature's existing indices.
 
 WARNING: Restoring the `security` feature state overwrites system indices
 used for authentication. If you use {ess}, ensure you have access to the {ess}
@@ -246,13 +246,18 @@ realm>> to ensure you'll still be able to access your cluster.
 ----
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
-  "feature_states": [ "geoip" ]
+  "feature_states": [ "geoip" ],
+  "include_global_state": false,    <1>  
+  "indices": "-*"                   <2>
 }
 ----
 // TEST[setup:setup-snapshots]
 // TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-// TEST[s/"feature_states": \[ "geoip" \]//]
+// TEST[s/"feature_states": \[ "geoip" \],//]
+
+<1> Exclude the cluster state from the restore operation. 
+<2> Exclude the other indices and data streams in the snapshot from the restore operation.
 
 [discrete]
 [[restore-entire-cluster]]

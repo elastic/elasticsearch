@@ -619,14 +619,17 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService(
-            CREATE_INDEX,
-            indexMetadata,
-            indicesQueryCache,
-            indicesFieldDataCache,
-            finalListeners,
-            indexingMemoryController
-        );
+        IndexService indexService;
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            indexService = createIndexService(
+                CREATE_INDEX,
+                indexMetadata,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController
+            );
+        }
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {

@@ -128,11 +128,9 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             } else {
                 future.addListener(
                     new ThreadedActionListener<>(
-                        logger,
-                        clusterService.threadPool(),
-                        ThreadPool.Names.MANAGEMENT,
-                        allMatchedTasksRemovedListener,
-                        false
+                        clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT),
+                        false,
+                        allMatchedTasksRemovedListener
                     )
                 );
                 var cancellable = clusterService.threadPool()

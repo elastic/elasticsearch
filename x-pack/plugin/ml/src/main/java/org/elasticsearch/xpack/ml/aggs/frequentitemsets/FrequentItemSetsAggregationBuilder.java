@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -31,6 +32,10 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValue
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import static org.elasticsearch.common.Strings.format;
 
 public final class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuilder<FrequentItemSetsAggregationBuilder> {
 
@@ -39,10 +44,12 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     public static final double DEFAULT_MINIMUM_SUPPORT = 0.01;
     public static final int DEFAULT_MINIMUM_SET_SIZE = 1;
     public static final int DEFAULT_SIZE = 10;
+    public static final Set<String> EXECUTION_HINT_ALLOWED_MODES = new TreeSet<>(Set.of("global_ordinals", "map"));
 
     public static final ParseField MINIMUM_SUPPORT = new ParseField("minimum_support");
     public static final ParseField MINIMUM_SET_SIZE = new ParseField("minimum_set_size");
     public static final ParseField FIELDS = new ParseField("fields");
+    public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
 
     public static final ConstructingObjectParser<FrequentItemSetsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -54,8 +61,9 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             int minimumSetSize = args[2] == null ? DEFAULT_MINIMUM_SET_SIZE : (int) args[2];
             int size = args[3] == null ? DEFAULT_SIZE : (int) args[3];
             QueryBuilder filter = (QueryBuilder) args[4];
+            String executionHint = (String) args[5];
 
-            return new FrequentItemSetsAggregationBuilder(context, fields, minimumSupport, minimumSetSize, size, filter);
+            return new FrequentItemSetsAggregationBuilder(context, fields, minimumSupport, minimumSetSize, size, filter, executionHint);
         }
     );
 
@@ -77,6 +85,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             MultiValuesSourceFieldConfig.FILTER,
             ObjectParser.ValueType.OBJECT
         );
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), EXECUTION_HINT_FIELD_NAME);
     }
 
     static final ValuesSourceRegistry.RegistryKey<ItemSetMapReduceValueSource.ValueSourceSupplier> REGISTRY_KEY =
@@ -104,6 +113,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     private final int minimumSetSize;
     private final int size;
     private final QueryBuilder filter;
+    private final String executionHint;
 
     public FrequentItemSetsAggregationBuilder(
         String name,
@@ -111,7 +121,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         double minimumSupport,
         int minimumSetSize,
         int size,
-        QueryBuilder filter
+        QueryBuilder filter,
+        String executionHint
     ) {
         super(name);
         this.fields = fields;
@@ -132,6 +143,18 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         }
         this.size = size;
         this.filter = filter;
+
+        if (executionHint != null && EXECUTION_HINT_ALLOWED_MODES.contains(executionHint) == false) {
+            throw new IllegalArgumentException(
+                format(
+                    "[execution_hint] must be one of [%s]. Found [%s]",
+                    Strings.collectionToCommaDelimitedString(EXECUTION_HINT_ALLOWED_MODES),
+                    executionHint
+                )
+            );
+        }
+
+        this.executionHint = executionHint;
     }
 
     public FrequentItemSetsAggregationBuilder(StreamInput in) throws IOException {
@@ -145,6 +168,11 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         } else {
             this.filter = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            this.executionHint = in.readOptionalString();
+        } else {
+            this.executionHint = null;
+        }
     }
 
     @Override
@@ -154,7 +182,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size, filter);
+        return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size, filter, executionHint);
     }
 
     @Override
@@ -170,6 +198,9 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         out.writeVInt(size);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
             out.writeOptionalNamedWriteable(filter);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeOptionalString(executionHint);
         }
     }
 
@@ -187,7 +218,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
             minimumSupport,
             minimumSetSize,
             size,
-            filter
+            filter,
+            executionHint
         );
     }
 

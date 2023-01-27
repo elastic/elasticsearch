@@ -31,7 +31,7 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
     }
 
     @Override
-    protected ListCursor mutateInstance(ListCursor instance) throws IOException {
+    protected ListCursor mutateInstance(ListCursor instance) {
         return new ListCursor(instance.data(), randomValueOtherThan(instance.pageSize(), () -> between(1, 20)), instance.columnCount());
     }
 

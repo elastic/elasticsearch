@@ -380,10 +380,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
         private final DatabaseNodeService databaseNodeService;
         private final ClusterService clusterService;
 
-        List<DatabaseReaderLazyLoader> getAllDatabases() {
-            return databaseNodeService.getAllDatabases();
-        }
-
         public Factory(DatabaseNodeService databaseNodeService, ClusterService clusterService) {
             this.databaseNodeService = databaseNodeService;
             this.clusterService = clusterService;

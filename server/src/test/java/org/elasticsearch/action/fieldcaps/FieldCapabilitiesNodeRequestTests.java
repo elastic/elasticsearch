@@ -20,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -94,7 +93,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) throws IOException {
+    protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) {
         switch (random().nextInt(7)) {
             case 0 -> {
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);

@@ -57,6 +57,11 @@ public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<G
     }
 
     @Override
+    protected GetProfilingResponse mutateInstance(GetProfilingResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetProfilingResponse> instanceReader() {
         return GetProfilingResponse::new;
     }

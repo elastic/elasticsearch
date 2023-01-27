@@ -37,4 +37,9 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
         );
         return rollupShardStatus;
     }
+
+    @Override
+    protected RollupShardStatus mutateInstance(RollupShardStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

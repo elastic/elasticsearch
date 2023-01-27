@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -18,12 +19,23 @@ import java.util.Set;
 
 public class HandshakeHeader extends MessageHeader {
 
+    /*
+     * These are fixed constants for now, using the versions represented in the protocol as of v8.7.0.
+     * These will be removed when the handshake protocol is fully separated from the message transport infrastructure
+     * and using its own version numbering scheme.
+     */
+
+    /*
+     * This is currently set to TransportVersion.CURRENT in the shared code used to send out messages
+     */
+    static final int CURRENT_HANDSHAKE_VERSION = TransportVersion.CURRENT.id;
     static final int EARLIEST_HANDSHAKE_VERSION = 6080099;
     static final int CAN_SEND_ERROR_RESPONSE = 7170099;
     static final int HAS_FEATURES = 8000099;
 
     private final Integer handshakeVersion;
     private String actionName;
+    private boolean readHeaders;
 
     public HandshakeHeader(int networkMessageSize, long requestId, byte status, int handshakeVersion) {
         super(networkMessageSize, requestId, status);
@@ -45,7 +57,7 @@ public class HandshakeHeader extends MessageHeader {
 
     @Override
     public boolean needsToReadVariableHeader() {
-        return false;
+        return readHeaders == false;
     }
 
     @Override
@@ -63,9 +75,10 @@ public class HandshakeHeader extends MessageHeader {
                 // discard features
                 input.readStringArray();
             }
-            this.actionName = input.readString();
+            actionName = input.readString();
         } else {
-            this.actionName = RESPONSE_NAME;
+            actionName = RESPONSE_NAME;
         }
+        readHeaders = true;
     }
 }

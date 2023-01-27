@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -149,9 +150,9 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(partialHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
 
-            final Header header = (Header) fragments.get(0);
+            MessageHeader header = (MessageHeader) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
-            assertEquals(preHeaderVariableInt, header.getVersion());
+            assertEquals(preHeaderVariableInt.id, header.getVersion());
             if (compressionScheme == null) {
                 assertFalse(header.isCompressed());
             } else {
@@ -206,9 +207,9 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
 
-            final Header header = (Header) fragments.get(0);
+            MessageHeader header = (MessageHeader)fragments.get(0);
             assertEquals(requestId, header.getRequestId());
-            assertEquals(handshakeCompat, header.getVersion());
+            assertEquals(handshakeCompat.id, header.getVersion());
             assertFalse(header.isCompressed());
             assertTrue(header.isHandshake());
             assertTrue(header.isRequest());
@@ -307,7 +308,7 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
-        TransportVersion handshakeCompat = TransportVersion.CURRENT.calculateMinimumCompatVersion().calculateMinimumCompatVersion();
+        TransportVersion handshakeCompat = TransportVersion.fromId(HandshakeHeader.EARLIEST_HANDSHAKE_VERSION);
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -329,9 +330,9 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
 
-            final Header header = (Header) fragments.get(0);
+            MessageHeader header = (MessageHeader) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
-            assertEquals(handshakeCompat, header.getVersion());
+            assertEquals(handshakeCompat.id, header.getVersion());
             assertTrue(header.isCompressed());
             assertTrue(header.isHandshake());
             assertTrue(header.isRequest());
@@ -344,7 +345,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersion.CURRENT.calculateMinimumCompatVersion().calculateMinimumCompatVersion();
+        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT.minimumCompatibilityVersion());
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -370,40 +371,51 @@ public class InboundDecoderTests extends ESTestCase {
         assertFalse(releasable1.hasReferences());
     }
 
-    public void testEnsureVersionCompatibility() throws IOException {
-        IllegalStateException ise = InboundDecoder.ensureVersionCompatibility(
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.CURRENT.minimumCompatibilityVersion(),
+    public void testCheckVersionCompatibility() {
+        try {
+            InboundDecoder.checkVersionCompatibility(
+                TransportVersionUtils.randomVersionBetween(
+                    random(),
+                    TransportVersion.CURRENT.minimumCompatibilityVersion(),
+                    TransportVersion.CURRENT
+                ),
                 TransportVersion.CURRENT
-            ),
-            TransportVersion.CURRENT,
-            randomBoolean()
-        );
-        assertNull(ise);
+            );
+        }
+        catch (IllegalStateException e) {
+            throw new AssertionError(e);
+        }
 
-        TransportVersion version = Version.fromString("7.0.0").transportVersion;
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0").transportVersion, version, true);
-        assertNull(ise);
+        TransportVersion version = TransportVersion.CURRENT;
+        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(version.minimumCompatibilityVersion());
+        try {
+            InboundDecoder.checkVersionCompatibility(invalid, version);
+            fail();
+        }
+        catch (IllegalStateException expected) {
+            assertEquals("Received message from unsupported version: [" + invalid + "] minimal compatible version is: ["
+                + version
+                + "]", expected.getMessage());
+        }
+    }
 
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0").transportVersion, version, false);
-        assertEquals(
-            "Received message from unsupported version: [6000099] minimal compatible version is: ["
-                + version.calculateMinimumCompatVersion()
-                + "]",
-            ise.getMessage()
-        );
+    public void testCheckHandshakeCompatibility() {
+        try {
+            InboundDecoder.checkHandshakeVersionCompatibility(randomIntBetween(HandshakeHeader.EARLIEST_HANDSHAKE_VERSION, HandshakeHeader.CURRENT_HANDSHAKE_VERSION));
+        }
+        catch (IllegalStateException e) {
+            throw new AssertionError(e);
+        }
 
-        // For handshake we are compatible with N-2
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0").transportVersion, version, true);
-        assertNull(ise);
-
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0").transportVersion, version, false);
-        assertEquals(
-            "Received message from unsupported version: [5060099] minimal compatible version is: ["
-                + version.calculateMinimumCompatVersion()
-                + "]",
-            ise.getMessage()
-        );
+        int invalid = HandshakeHeader.EARLIEST_HANDSHAKE_VERSION - 1;
+        try {
+            InboundDecoder.checkHandshakeVersionCompatibility(invalid);
+            fail();
+        }
+        catch (IllegalStateException expected) {
+            assertEquals("Received message from unsupported version: [" + invalid + "] minimal compatible version is: ["
+                + HandshakeHeader.EARLIEST_HANDSHAKE_VERSION
+                + "]", expected.getMessage());
+        }
     }
 }

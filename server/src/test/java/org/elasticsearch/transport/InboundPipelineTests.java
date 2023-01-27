@@ -49,7 +49,7 @@ public class InboundPipelineTests extends ESTestCase {
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
         final BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {
             try {
-                final Header header = m.getHeader();
+                final Header header = (Header)m.getHeader();
                 final MessageData actualData;
                 final TransportVersion version = header.getVersion();
                 final boolean isRequest = header.isRequest();
@@ -217,8 +217,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final TransportVersion invalidVersion = TransportVersion.CURRENT.calculateMinimumCompatVersion()
-                .calculateMinimumCompatVersion();
+            final TransportVersion invalidVersion = TransportVersion.fromId(TransportVersion.CURRENT.minimumCompatibilityVersion().id - 1);
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();

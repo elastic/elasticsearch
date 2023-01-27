@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -74,7 +75,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     public static class TestPlugin extends Plugin implements ClusterPlugin, EnginePlugin {
 
         volatile int numIndexingCopies = 1;
-        volatile String nodeToExclusivelyHoldUnpromotableShards = null;
+        static final String NODE_ATTR_UNPROMOTABLE_ONLY = "unpromotableonly";
 
         @Override
         public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
@@ -106,8 +107,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                    if (nodeToExclusivelyHoldUnpromotableShards != null) {
-                        if (node.node().getName().equals(nodeToExclusivelyHoldUnpromotableShards)) {
+                    var nodeWithUnpromotableOnly = allocation.getClusterState()
+                        .nodes()
+                        .stream()
+                        .filter(n -> Objects.equals("true", n.getAttributes().get(NODE_ATTR_UNPROMOTABLE_ONLY)))
+                        .findAny();
+                    if (nodeWithUnpromotableOnly.isPresent()) {
+                        if (node.node().getName().equals(nodeWithUnpromotableOnly.get().getName())) {
                             if (shardRouting.isPromotableToPrimary()) {
                                 return Decision.NO;
                             }
@@ -618,15 +624,16 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = routingTableWatcher.numIndexingCopies; // meaning: only 1 unpromotable replica per shard
         internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numReplicas + 1);
-        final var nodeWithUnpromotables = internalCluster().startDataOnlyNode();
+        final String nodeWithUnpromotableOnly = internalCluster().startDataOnlyNode(
+            Settings.builder().put("node.attr." + TestPlugin.NODE_ATTR_UNPROMOTABLE_ONLY, "true").build()
+        );
         installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
-        getMasterNodePlugin().nodeToExclusivelyHoldUnpromotableShards = nodeWithUnpromotables;
 
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (connection.getNode().getName().equals(nodeWithUnpromotables)) {
+                if (connection.getNode().getName().equals(nodeWithUnpromotableOnly)) {
                     assertThat(action, not(containsString("[r]")));
                 }
                 connection.sendRequest(requestId, action, request, options);

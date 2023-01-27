@@ -713,11 +713,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Set<ShardRouting> shardRoutings = Sets.newHashSetWithExpectedSize(routingTable.size());
             for (int copy = 0; copy < routingTable.size(); copy++) {
                 ShardRouting shardRouting = routingTable.shard(copy);
-                if (shardRouting.isPromotableToPrimary()) shardRoutings.add(shardRouting);
+                if (shardRouting.isPromotableToPrimary()) {
+                    shardRoutings.add(shardRouting);
+                }
             }
-
-            // include relocation targets
-            shardRoutings.addAll(routingTable.assignedShards().stream().filter(ShardRouting::isPromotableToPrimary).toList());
 
             if (shardRoutings.stream()
                 .allMatch(

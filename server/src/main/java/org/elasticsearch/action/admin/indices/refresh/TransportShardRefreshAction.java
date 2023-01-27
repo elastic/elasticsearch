@@ -120,6 +120,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
                         )
                     );
                 });
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

@@ -219,43 +219,56 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final RecoveryState recoveryState = recoveryTarget.state();
         final RecoveryState.Timer timer = recoveryState.getTimer();
         final IndexShard indexShard = recoveryTarget.indexShard();
-        final boolean promotableToPrimary = indexShard.routingEntry().isPromotableToPrimary();
+
+        final var failureHandler = ActionListener.notifyOnce(ActionListener.runBefore(ActionListener.noop().delegateResponse((l, e) -> {
+            // this will be logged as warning later on...
+            logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+            onGoingRecoveries.failRecovery(
+                recoveryId,
+                new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
+                true
+            );
+        }), recoveryRef::close));
+
+        if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+            assert preExistingRequest == null;
+            assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
+            try {
+                indexShard.preRecovery(failureHandler.map(v -> {
+                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                    indexShard.prepareForIndexRecovery();
+                    // Skip unnecessary intermediate stages
+                    recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+                    recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+                    indexShard.openEngineAndSkipTranslogRecovery();
+                    recoveryState.getIndex().setFileDetailsComplete();
+                    recoveryState.setStage(RecoveryState.Stage.FINALIZE);
+                    onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                    return null;
+                }));
+            } catch (Exception e) {
+                failureHandler.onFailure(e);
+            }
+
+            return;
+        }
 
         record StartRecoveryRequestToSend(StartRecoveryRequest startRecoveryRequest, String actionName, TransportRequest requestToSend) {}
-        final ActionListener<StartRecoveryRequestToSend> toSendListener = ActionListener.notifyOnce(
-            ActionListener.runBefore(new ActionListener<>() {
-                @Override
-                public void onResponse(StartRecoveryRequestToSend r) {
-                    logger.trace(
-                        "{} [{}]: recovery from {}",
-                        r.startRecoveryRequest().shardId(),
-                        r.actionName(),
-                        r.startRecoveryRequest().sourceNode()
-                    );
-                    if (promotableToPrimary) {
-                        transportService.sendRequest(
-                            r.startRecoveryRequest().sourceNode(),
-                            r.actionName(),
-                            r.requestToSend(),
-                            new RecoveryResponseHandler(r.startRecoveryRequest(), timer)
-                        );
-                    } else {
-                        onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // this will be logged as warning later on...
-                    logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
-                    onGoingRecoveries.failRecovery(
-                        recoveryId,
-                        new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
-                        true
-                    );
-                }
-            }, recoveryRef::close)
-        );
+        final ActionListener<StartRecoveryRequestToSend> toSendListener = failureHandler.map(r -> {
+            logger.trace(
+                "{} [{}]: recovery from {}",
+                r.startRecoveryRequest().shardId(),
+                r.actionName(),
+                r.startRecoveryRequest().sourceNode()
+            );
+            transportService.sendRequest(
+                r.startRecoveryRequest().sourceNode(),
+                r.actionName(),
+                r.requestToSend(),
+                new RecoveryResponseHandler(r.startRecoveryRequest(), timer)
+            );
+            return null;
+        });
 
         if (preExistingRequest == null) {
             try {
@@ -273,17 +286,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             store.decRef();
                         }
                     }
-                    long startingSeqNo = UNASSIGNED_SEQ_NO;
-                    if (promotableToPrimary) {
-                        startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
-                    } else {
-                        // Skip unnecessary intermediate stages
-                        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
-                        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-                        indexShard.openEngineAndSkipTranslogRecovery();
-                        recoveryState.getIndex().setFileDetailsComplete();
-                        recoveryState.setStage(RecoveryState.Stage.FINALIZE);
-                    }
+                    final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);

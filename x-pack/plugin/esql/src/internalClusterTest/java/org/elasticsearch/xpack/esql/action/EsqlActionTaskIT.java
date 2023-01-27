@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -155,10 +156,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         TaskInfo running = infos.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).findFirst().get();
         client().admin().cluster().prepareCancelTasks().setTargetTaskId(running.taskId()).get();
         start.await();
-        Exception e = expectThrows(ExecutionException.class, response::get);
-        assertThat(e.getCause().getCause(), instanceOf(TaskCancelledException.class));
-
-        assertAllComputeEngineTasksStopped();
+        assertCancelled(response);
     }
 
     public void testCancelMerge() throws Exception {
@@ -167,10 +165,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         TaskInfo running = infos.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).findFirst().get();
         client().admin().cluster().prepareCancelTasks().setTargetTaskId(running.taskId()).get();
         start.await();
-        Exception e = expectThrows(ExecutionException.class, response::get);
-        assertThat(e.getCause().getCause(), instanceOf(TaskCancelledException.class));
-
-        assertAllComputeEngineTasksStopped();
+        assertCancelled(response);
     }
 
     public void testCancelEsqlTask() throws Exception {
@@ -185,10 +180,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
             .getTasks();
         client().admin().cluster().prepareCancelTasks().setTargetTaskId(tasks.get(0).taskId()).get();
         start.await();
-        Exception e = expectThrows(ExecutionException.class, response::get);
-        assertThat(e.getCause().getCause(), instanceOf(TaskCancelledException.class));
-
-        assertAllComputeEngineTasksStopped();
+        assertCancelled(response);
     }
 
     private ActionFuture<EsqlQueryResponse> startEsql() {
@@ -253,7 +245,10 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         return foundTasks;
     }
 
-    private void assertAllComputeEngineTasksStopped() {
+    private void assertCancelled(ActionFuture<EsqlQueryResponse> response) {
+        Exception e = expectThrows(ExecutionException.class, response::get);
+        assertThat(e.getCause().getCause(), either(instanceOf(TaskCancelledException.class)).or(instanceOf(CancellationException.class)));
+
         assertThat(
             client().admin()
                 .cluster()

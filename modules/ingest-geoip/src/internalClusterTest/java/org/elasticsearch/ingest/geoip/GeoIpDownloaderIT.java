@@ -477,7 +477,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     /**
-     * This creates a pipeline with a geoip processor, which ought to cause the geoip downloader to beging (assuming it is enabled).
+     * This creates a pipeline with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is enabled).
      * @throws IOException
      */
     private void putGeoIpPipeline() throws IOException {
@@ -485,7 +485,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     /**
-     * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to beging (assuming it is
+     * This creates a pipeline named pipelineId with a geoip processor, which ought to cause the geoip downloader to begin (assuming it is
      * enabled).
      * @param pipelineId The name of the new pipeline with a geoip processor
      * @throws IOException

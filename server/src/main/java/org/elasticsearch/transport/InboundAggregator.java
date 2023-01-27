@@ -30,7 +30,7 @@ public class InboundAggregator implements Releasable {
 
     private ReleasableBytesReference firstContent;
     private ArrayList<ReleasableBytesReference> contentAggregation;
-    private Header currentHeader;
+    private MessageHeader currentHeader;
     private Exception aggregationException;
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
@@ -57,7 +57,7 @@ public class InboundAggregator implements Releasable {
         this.requestCanTripBreaker = requestCanTripBreaker;
     }
 
-    public void headerReceived(Header header) {
+    public void headerReceived(MessageHeader header) {
         ensureOpen();
         assert isAggregating() == false;
         assert firstContent == null && contentAggregation == null;
@@ -200,11 +200,11 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    private static boolean uncompressedOrSchemeDefined(Header header) {
+    private static boolean uncompressedOrSchemeDefined(MessageHeader header) {
         return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
-    private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
+    private void checkBreaker(final MessageHeader header, final int contentLength, final BreakerControl breakerControl) {
         if (header.isRequest() == false) {
             return;
         }

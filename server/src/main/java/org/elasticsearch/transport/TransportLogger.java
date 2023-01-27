@@ -123,7 +123,7 @@ public final class TransportLogger {
             sb.append(" [ping]").append(' ').append(event).append(": ").append(6).append('B');
         } else {
             boolean success = false;
-            Header header = message.getHeader();
+            MessageHeader header = message.getHeader();
             int networkMessageSize = header.getNetworkMessageSize();
             int messageLengthWithHeader = HEADER_SIZE + networkMessageSize;
             StreamInput streamInput = message.openOrGetStreamInput();

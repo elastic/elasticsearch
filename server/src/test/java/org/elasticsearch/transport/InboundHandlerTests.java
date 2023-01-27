@@ -227,7 +227,7 @@ public class InboundHandlerTests extends ESTestCase {
         handler.inboundMessage(channel, requestMessage);
 
         final BytesReference responseBytesReference = channel.getMessageCaptor().get();
-        final Header responseHeader = InboundDecoder.readHeader(remoteVersion, responseBytesReference.length(), responseBytesReference);
+        MessageHeader responseHeader = InboundDecoder.readHeader(remoteVersion, responseBytesReference.length(), responseBytesReference);
         assertTrue(responseHeader.isResponse());
         assertTrue(responseHeader.isError());
     }

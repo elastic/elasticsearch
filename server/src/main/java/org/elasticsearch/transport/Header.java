@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class Header {
+public class Header implements MessageHeader {
 
     private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
@@ -31,65 +31,77 @@ public class Header {
     private Compression.Scheme compressionScheme = null;
 
     Header(int networkMessageSize, long requestId, byte status, TransportVersion version) {
+        if (TransportStatus.isHandshake(status)) {
+            throw new IllegalArgumentException("Normal header cannot represent a handshake");
+        }
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
         this.status = status;
     }
 
+    @Override
     public int getNetworkMessageSize() {
         return networkMessageSize;
     }
 
-    TransportVersion getVersion() {
+    @Override
+    public TransportVersion getVersion() {
         return version;
     }
 
-    long getRequestId() {
+    @Override
+    public long getRequestId() {
         return requestId;
     }
 
-    byte getStatus() {
-        return status;
-    }
-
-    boolean isRequest() {
+    @Override
+    public boolean isRequest() {
         return TransportStatus.isRequest(status);
     }
 
-    boolean isResponse() {
+    @Override
+    public boolean isResponse() {
         return TransportStatus.isRequest(status) == false;
     }
 
-    boolean isError() {
+    @Override
+    public boolean isError() {
         return TransportStatus.isError(status);
     }
 
-    boolean isHandshake() {
-        return TransportStatus.isHandshake(status);
+    @Override
+    public boolean isHandshake() {
+        return false;
     }
 
-    boolean isCompressed() {
+    @Override
+    public boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }
 
+    @Override
     public String getActionName() {
         return actionName;
     }
 
+    @Override
     public Compression.Scheme getCompressionScheme() {
         return compressionScheme;
     }
 
-    boolean needsToReadVariableHeader() {
+    @Override
+    public boolean needsToReadVariableHeader() {
         return headers == null;
     }
 
-    Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
+    @Override
+    public Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
         return headers;
     }
 
-    void finishParsingHeader(StreamInput input) throws IOException {
+    @Override
+    public void finishParsingHeader(StreamInput input) throws IOException {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
@@ -103,7 +115,8 @@ public class Header {
         }
     }
 
-    void setCompressionScheme(Compression.Scheme compressionScheme) {
+    @Override
+    public void setCompressionScheme(Compression.Scheme compressionScheme) {
         assert isCompressed();
         this.compressionScheme = compressionScheme;
     }

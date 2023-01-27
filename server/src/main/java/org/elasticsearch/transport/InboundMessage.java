@@ -20,14 +20,14 @@ import java.util.Objects;
 
 public class InboundMessage extends AbstractRefCounted {
 
-    private final Header header;
+    private final MessageHeader header;
     private final ReleasableBytesReference content;
     private final Exception exception;
     private final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
 
-    public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
+    public InboundMessage(MessageHeader header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
         this.content = content;
         this.breakerRelease = breakerRelease;
@@ -35,7 +35,7 @@ public class InboundMessage extends AbstractRefCounted {
         this.isPing = false;
     }
 
-    public InboundMessage(Header header, Exception exception) {
+    public InboundMessage(MessageHeader header, Exception exception) {
         this.header = header;
         this.content = null;
         this.breakerRelease = null;
@@ -43,7 +43,7 @@ public class InboundMessage extends AbstractRefCounted {
         this.isPing = false;
     }
 
-    public InboundMessage(Header header, boolean isPing) {
+    public InboundMessage(MessageHeader header, boolean isPing) {
         this.header = header;
         this.content = null;
         this.breakerRelease = null;
@@ -51,7 +51,7 @@ public class InboundMessage extends AbstractRefCounted {
         this.isPing = isPing;
     }
 
-    public Header getHeader() {
+    public MessageHeader getHeader() {
         return header;
     }
 
@@ -86,7 +86,10 @@ public class InboundMessage extends AbstractRefCounted {
         assert hasReferences();
         if (streamInput == null) {
             streamInput = content.streamInput();
-            streamInput.setTransportVersion(header.getVersion());
+            if (header instanceof Header h) {
+                // use the version specified in the header
+                streamInput.setTransportVersion(h.getVersion());
+            }
         }
         return streamInput;
     }

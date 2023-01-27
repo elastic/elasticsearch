@@ -103,7 +103,7 @@ public class InboundHandler {
 
     private void messageReceived(TcpChannel channel, InboundMessage message, long startTime) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
-        final Header header = message.getHeader();
+        final MessageHeader header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
 
         TransportResponseHandler<?> responseHandler = null;
@@ -137,7 +137,9 @@ public class InboundHandler {
                 if (responseHandler != null) {
                     if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.CURRENT) == false) {
                         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
-                        assertRemoteVersion(streamInput, header.getVersion());
+                        if (header instanceof Header h) {
+                            assertRemoteVersion(streamInput, h.getVersion());
+                        }
                         if (header.isError()) {
                             handlerResponseError(streamInput, message, responseHandler);
                         } else {
@@ -174,7 +176,7 @@ public class InboundHandler {
         }
     }
 
-    private void verifyResponseReadFully(Header header, TransportResponseHandler<?> responseHandler, StreamInput streamInput)
+    private void verifyResponseReadFully(MessageHeader header, TransportResponseHandler<?> responseHandler, StreamInput streamInput)
         throws IOException {
         // Check the entire message has been read
         final int nextByte = streamInput.read();
@@ -194,22 +196,21 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
+    private <T extends TransportRequest> void handleRequest(TcpChannel channel, MessageHeader header, InboundMessage message) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
-        final TransportVersion version = header.getVersion();
         if (header.isHandshake()) {
+            assert header instanceof HandshakeHeader;
             messageListener.onRequestReceived(requestId, action);
             // Cannot short circuit handshakes
             assert message.isShortCircuit() == false;
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-            assertRemoteVersion(stream, header.getVersion());
             final TransportChannel transportChannel = new TcpTransportChannel(
                 outboundHandler,
                 channel,
                 action,
                 requestId,
-                version,
+                TransportVersion.CURRENT,   // no message version available, use CURRENT (handshake format hasn't changed in a long time)
                 header.getCompressionScheme(),
                 header.isHandshake(),
                 message.takeBreakerReleaseControl()
@@ -217,7 +218,7 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                if (TransportVersion.CURRENT.isCompatible(header.getVersion())) {
+                if (((HandshakeHeader)header).getVersion() >= HandshakeHeader.CAN_SEND_ERROR_RESPONSE) {
                     sendErrorResponse(action, transportChannel, e);
                 } else {
                     logger.warn(
@@ -232,6 +233,7 @@ public class InboundHandler {
                 }
             }
         } else {
+            final TransportVersion version = ((Header)header).getVersion();
             final TransportChannel transportChannel = new TcpTransportChannel(
                 outboundHandler,
                 channel,
@@ -248,7 +250,7 @@ public class InboundHandler {
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
-                    assertRemoteVersion(stream, header.getVersion());
+                    assertRemoteVersion(stream, version);
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
                     assert reg != null;
                     final T request;
@@ -378,7 +380,7 @@ public class InboundHandler {
         TransportResponseHandler<T> handler,
         InetSocketAddress remoteAddress,
         final StreamInput stream,
-        final Header header,
+        final MessageHeader header,
         Releasable releaseResponseBuffer
     ) {
         final T response;

@@ -269,6 +269,28 @@ public class LimitedRoleTests extends ESTestCase {
         }
     }
 
+    public void testCheckIndicesActionWithNestedRole() {
+        Role role = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1").build();
+        assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
+        assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
+
+        final int depth = randomIntBetween(2, 4);
+        boolean areAnyNone = false;
+        for (int i = 0; i < depth; i++) {
+            final IndexPrivilege privilege = randomBoolean() ? IndexPrivilege.NONE : IndexPrivilege.READ;
+            areAnyNone = areAnyNone || privilege.equals(IndexPrivilege.NONE);
+            final Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role-" + i).add(privilege, "ind-1").build();
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(role);
+            } else {
+                role = role.limitedBy(limitedByRole);
+            }
+        }
+
+        assertThat(role.checkIndicesAction(SearchAction.NAME), is(false == areAnyNone));
+        assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
+    }
+
     public void testAllowedIndicesMatcher() {
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
         assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));

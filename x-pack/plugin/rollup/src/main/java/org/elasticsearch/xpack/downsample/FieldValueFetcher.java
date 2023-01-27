@@ -86,7 +86,6 @@ class FieldValueFetcher {
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    // TODO: look for a better way to distinguish histograms
                     if (isHistogramField(fieldType)) {
                         fetchers.add(new HistogramFieldValueFetcher(fieldType, (IndexHistogramFieldData) fieldData));
                     } else {

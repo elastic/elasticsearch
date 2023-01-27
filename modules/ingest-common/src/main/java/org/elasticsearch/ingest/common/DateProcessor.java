@@ -21,6 +21,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
+import java.lang.ref.SoftReference;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -222,12 +223,11 @@ public final class DateProcessor extends AbstractProcessor {
         }
     }
 
-    private static final class Cache {
-
-        private final ConcurrentMap<Key, Function<String, ZonedDateTime>> map;
+    static final class Cache {
+        private final ConcurrentMap<Key, SoftReference<Function<String, ZonedDateTime>>> map;
         private final int capacity;
 
-        private Cache(int capacity) {
+        Cache(int capacity) {
             if (capacity <= 0) {
                 throw new IllegalArgumentException("cache capacity must be a value greater than 0 but was " + capacity);
             }
@@ -236,18 +236,18 @@ public final class DateProcessor extends AbstractProcessor {
         }
 
         Function<String, ZonedDateTime> getOrCompute(Key key, Supplier<Function<String, ZonedDateTime>> supplier) {
+            Function<String, ZonedDateTime> fn;
             var element = map.get(key);
-
-            if (element != null) {
-                return element;
+            // element exist and wasn't GCed
+            if (element != null && (fn = element.get()) != null) {
+                return fn;
             }
-
-            element = supplier.get();
             if (map.size() >= capacity) {
                 map.clear();
             }
-            map.put(key, element);
-            return element;
+            fn = supplier.get();
+            map.put(key, new SoftReference<>(fn));
+            return fn;
         }
 
         record Key(String format, ZoneId zoneId, Locale locale) {}

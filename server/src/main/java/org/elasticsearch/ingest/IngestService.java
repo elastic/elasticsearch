@@ -755,14 +755,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private void executePipelines(
-        final Iterator<String> it,
+        final Iterator<String> pipelineIds,
         final boolean hasFinalPipeline,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
         final ActionListener<Boolean> listener
     ) {
-        assert it.hasNext();
-        final String pipelineId = it.next();
+        assert pipelineIds.hasNext();
+        final String pipelineId = pipelineIds.next();
         try {
             final PipelineHolder holder = pipelines.get(pipelineId);
             if (holder == null) {
@@ -817,28 +817,28 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     return; // document failed!
                 }
 
-                Iterator<String> newIt = it;
+                Iterator<String> newPipelineIds = pipelineIds;
                 boolean newHasFinalPipeline = hasFinalPipeline;
                 final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
-                    if (hasFinalPipeline && it.hasNext() == false) {
+                    if (hasFinalPipeline && pipelineIds.hasNext() == false) {
                         listener.onFailure(new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index"));
                         return; // document failed!
                     } else {
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
                         if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                            newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                            newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;
                         } else {
-                            newIt = Collections.emptyIterator();
+                            newPipelineIds = Collections.emptyIterator();
                         }
                     }
                 }
 
-                if (newIt.hasNext()) {
-                    executePipelines(newIt, newHasFinalPipeline, indexRequest, ingestDocument, listener);
+                if (newPipelineIds.hasNext()) {
+                    executePipelines(newPipelineIds, newHasFinalPipeline, indexRequest, ingestDocument, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);

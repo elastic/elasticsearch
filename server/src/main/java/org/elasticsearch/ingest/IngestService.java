@@ -819,7 +819,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 Iterator<String> newIt = it;
                 boolean newHasFinalPipeline = hasFinalPipeline;
-                String newIndex = indexRequest.indices()[0];
+                final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     if (hasFinalPipeline && it.hasNext() == false) {

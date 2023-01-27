@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @SuppressWarnings("resource")
 public class ShardRoutingRoleIT extends ESIntegTestCase {
@@ -115,6 +116,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     try {
                         config.getStore().createEmpty();
                     } catch (IOException e) {
+                        logger.error("Error creating empty store", e);
                         throw new RuntimeException(e);
                     }
 
@@ -220,7 +222,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (routingTableWatcher.numIndexingCopies == 1) {
-                    assertThat("no recovery action should be exchanged", action, not(containsString("recovery")));
+                    assertThat("no recovery action should be exchanged", action, not(startsWith("internal:index/shard/recovery/")));
                     assertThat("no replicated action should be exchanged", action, not(containsString("[r]")));
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -278,7 +280,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
             indexRandom(randomBoolean(), INDEX_NAME, randomIntBetween(50, 100));
-            ensureGreen(INDEX_NAME);
 
             // removing replicas drops SEARCH_ONLY copies first
             while (routingTableWatcher.numReplicas > 0) {

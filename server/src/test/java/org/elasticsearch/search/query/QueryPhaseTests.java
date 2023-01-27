@@ -379,7 +379,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.setSize(0);
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(1)));
+            assertThat(
+                context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value,
+                equalTo((long) countDocUpTo.applyAsInt(1))
+            );
             assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
 
@@ -428,7 +431,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertTrue(context.queryResult().terminatedEarly());
             // TotalHitCountCollector counts num docs in the first leaf
             int numDocsInFirstLeaf = reader.leaves().get(0).reader().numDocs();
-            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocsInFirstLeaf));
+            assertThat(
+                context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value,
+                equalTo((long) numDocsInFirstLeaf)
+            );
             assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(numDocsInFirstLeaf));
         }
@@ -445,7 +451,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             if (trackTotalHits == -1) {
                 assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(0L));
             } else {
-                assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(10)));
+                assertThat(
+                    context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value,
+                    equalTo((long) countDocUpTo.applyAsInt(10))
+                );
             }
             assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(countDocUpTo.applyAsInt(10)));
@@ -640,7 +649,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
         QueryPhase.executeInternal(context);
         assertEquals(5, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
-        assertEquals(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
+        assertEquals(
+            context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.relation,
+            TotalHits.Relation.EQUAL_TO
+        );
         assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(3));
 
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW }));
@@ -649,7 +661,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
         QueryPhase.executeInternal(context);
         assertEquals(5, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
         assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(3));
-        assertEquals(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.relation, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        assertEquals(
+            context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.relation,
+            TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+        );
 
         reader.close();
         dir.close();

@@ -151,7 +151,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 topDocs = new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS);
             }
-            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null); // TODO: how do we handle multi query?
+            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null); // TODO: how do we handle multi
+                                                                                                             // query?
         }
     }
 
@@ -199,7 +200,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
-            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt); // TODO: how do we handle multi query?
+            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt); // TODO: how do
+                                                                                                                             // we handle
+                                                                                                                             // multi query?
         }
     }
 
@@ -317,7 +320,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             final TopDocsAndMaxScore topDocs = newTopDocs();
-            result.getSingleQueryResults().get(0).topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats); // TODO: how do we handle multi query?
+            result.getSingleQueryResults().get(0).topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats); // TODO: how do
+                                                                                                                            // we handle
+                                                                                                                            // multi query?
         }
     }
 
@@ -370,7 +375,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     scrollContext.lastEmittedDoc = topDocs.topDocs.scoreDocs[topDocs.topDocs.scoreDocs.length - 1];
                 }
             }
-            result.getSingleQueryResults().get(0).topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats); // TODO: how do we handle multi query?
+            result.getSingleQueryResults().get(0).topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats); // TODO: how do
+                                                                                                                            // we handle
+                                                                                                                            // multi query?
         }
     }
 

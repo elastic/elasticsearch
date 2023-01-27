@@ -185,8 +185,11 @@ class TopHitsAggregator extends MetricsAggregator {
             maxScore = collectors.maxScoreCollector.getMaxScore();
         }
         final TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
-        subSearchContext.queryResult().getSingleQueryResults().get(0)
-            .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats); // TODO: how do we handle multi query?
+        subSearchContext.queryResult()
+            .getSingleQueryResults()
+            .get(0)
+            .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats); // TODO: how do we
+                                                                                                                    // handle multi query?
         int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;

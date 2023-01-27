@@ -67,7 +67,9 @@ public class QuerySearchResultTests extends ESTestCase {
         }
         TopDocs topDocs = new TopDocs(new TotalHits(randomLongBetween(0, Long.MAX_VALUE), TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
         // TODO: multi query? vvv
-        result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
+        result.getSingleQueryResults()
+            .get(0)
+            .topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
         result.getSingleQueryResults().get(0).size(randomInt());
         result.getSingleQueryResults().get(0).from(randomInt());
         if (randomBoolean()) {
@@ -91,8 +93,15 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         // TODO: multi query? vvv
-        assertEquals(querySearchResult.getSingleQueryResults().get(0).topDocs().maxScore, deserialized.getSingleQueryResults().get(0).topDocs().maxScore, 0f);
-        assertEquals(querySearchResult.getSingleQueryResults().get(0).topDocs().topDocs.totalHits, deserialized.getSingleQueryResults().get(0).topDocs().topDocs.totalHits);
+        assertEquals(
+            querySearchResult.getSingleQueryResults().get(0).topDocs().maxScore,
+            deserialized.getSingleQueryResults().get(0).topDocs().maxScore,
+            0f
+        );
+        assertEquals(
+            querySearchResult.getSingleQueryResults().get(0).topDocs().topDocs.totalHits,
+            deserialized.getSingleQueryResults().get(0).topDocs().topDocs.totalHits
+        );
         assertEquals(querySearchResult.getSingleQueryResults().get(0).from(), deserialized.getSingleQueryResults().get(0).from());
         assertEquals(querySearchResult.getSingleQueryResults().get(0).size(), deserialized.getSingleQueryResults().get(0).size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());

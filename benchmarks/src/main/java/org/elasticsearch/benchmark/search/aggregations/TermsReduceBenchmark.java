@@ -169,13 +169,15 @@ public class TermsReduceBenchmark {
             result.setShardIndex(i);
             result.getSingleQueryResults().get(0).from(0); // TODO: multi query?
             result.getSingleQueryResults().get(0).size(0);
-            result.getSingleQueryResults().get(0).topDocs(
-                new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(1000, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]),
-                    Float.NaN
-                ),
-                new DocValueFormat[] { DocValueFormat.RAW }
-            );
+            result.getSingleQueryResults()
+                .get(0)
+                .topDocs(
+                    new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(1000, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), new ScoreDoc[0]),
+                        Float.NaN
+                    ),
+                    new DocValueFormat[] { DocValueFormat.RAW }
+                );
             result.aggregations(candidateList.get(i));
             result.setSearchShardTarget(new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null));
             shards.add(result);

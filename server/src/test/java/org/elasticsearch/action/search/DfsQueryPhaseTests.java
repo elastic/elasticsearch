@@ -75,13 +75,15 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.getSingleQueryResults().get(0).topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
                     queryResult.getSingleQueryResults().get(0).size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.contextId().getId() == 2) {
@@ -90,13 +92,15 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node2", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.getSingleQueryResults().get(0).topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
                     queryResult.getSingleQueryResults().get(0).size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else {
@@ -166,13 +170,15 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.getSingleQueryResults().get(0).topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
                     queryResult.getSingleQueryResults().get(0).size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.contextId().getId() == 2) {
@@ -246,13 +252,15 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.getSingleQueryResults().get(0).topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
                     queryResult.getSingleQueryResults().get(0).size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.contextId().getId() == 2) {

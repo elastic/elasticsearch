@@ -467,7 +467,8 @@ public final class SearchPhaseController {
         final List<TopDocs> topDocs = new ArrayList<>();
         for (SearchPhaseResult sortedResult : queryResults) {
             QuerySearchResult queryResult = sortedResult.queryResult();
-            final TopDocsAndMaxScore td = queryResult.getSingleQueryResults().get(0).consumeTopDocs(); // TODO: what do we do about multi query
+            final TopDocsAndMaxScore td = queryResult.getSingleQueryResults().get(0).consumeTopDocs(); // TODO: what do we do about multi
+                                                                                                       // query
             assert td != null;
             topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
             // make sure we set the shard index before we add it - the consumer didn't do that yet
@@ -540,7 +541,8 @@ public final class SearchPhaseController {
         DocValueFormat[] sortValueFormats = null;
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
-            QuerySearchResult.SingleQueryResult single = entry.queryResult().getSingleQueryResults().get(0); // TODO: what do we do about multi query
+            QuerySearchResult.SingleQueryResult single = entry.queryResult().getSingleQueryResults().get(0); // TODO: what do we do about
+                                                                                                             // multi query
             from = single.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(single.size(), size);

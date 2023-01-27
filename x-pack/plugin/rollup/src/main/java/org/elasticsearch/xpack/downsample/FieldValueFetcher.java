@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -27,7 +26,7 @@ import java.util.List;
 class FieldValueFetcher {
 
     protected final MappedFieldType fieldType;
-    private final IndexFieldData<?> fieldData;
+    protected final IndexFieldData<?> fieldData;
     private final AbstractRollupFieldProducer rollupFieldProducer;
 
     protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
@@ -86,11 +85,7 @@ class FieldValueFetcher {
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    if (isHistogramField(fieldType)) {
-                        fetchers.add(new HistogramFieldValueFetcher(fieldType, (IndexHistogramFieldData) fieldData));
-                    } else {
-                        fetchers.add(new FieldValueFetcher(fieldType, fieldData));
-                    }
+                    fetchers.add(new FieldValueFetcher(fieldType, fieldData));
                 }
             }
         }

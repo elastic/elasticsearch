@@ -1889,7 +1889,7 @@
                               "type": "long"
                             }
                           }
-                        },
+                        }
                       }
                     },
                     "type": {
@@ -1899,7 +1899,7 @@
                     "type_tag": {
                       "ignore_above": 1024,
                       "type": "keyword"
-                    },
+                    }
                   }
                 },
                 "total": {

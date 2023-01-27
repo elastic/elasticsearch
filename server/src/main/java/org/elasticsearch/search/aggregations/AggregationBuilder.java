@@ -41,6 +41,18 @@ public abstract class AggregationBuilder
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
     /**
+     * This is a kludge to make it easier for me to get the right behavior in tests.  Hopefully we never have a production release where
+     * this method is needed.
+     *
+     * Metric aggs should just return true or false.  Bucketing aggs need to look down the tree and figure out if their children
+     * can run in the new mode.
+     */
+    public boolean canUseCollectedAggregator() {
+        // NOCOMMIT - get rid of this method
+        return false;
+    }
+
+    /**
      * Constructs a new aggregation builder.
      *
      * @param name  The aggregation name

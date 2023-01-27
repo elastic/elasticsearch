@@ -253,6 +253,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public BigArrays bigArraysForResults() {
+            return bigArrays;
+        }
+
+        @Override
         public IndexSearcher searcher() {
             return null;
         }

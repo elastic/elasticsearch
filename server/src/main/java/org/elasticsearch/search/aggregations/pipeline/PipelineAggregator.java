@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xcontent.ParseField;
@@ -115,4 +116,9 @@ public abstract class PipelineAggregator {
     }
 
     public abstract InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext);
+
+    public CollectedAggregator reduce(CollectedAggregator aggregation, AggregationReduceContext reduceContext) {
+        // NOCOMMIT - implement this
+        throw new UnsupportedOperationException("Hoom, this is going to be a journey.");
+    }
 }

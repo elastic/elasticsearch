@@ -11,15 +11,19 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.RefCountedReleasable;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.CollectedAggregator;
+import org.elasticsearch.search.aggregations.CollectedAggregators;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -29,6 +33,7 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -49,7 +54,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * them until just before we need them.
      */
     private DelayableWriteable<InternalAggregations> aggregations;
+    private final CollectedAggregators newAggregations;
+    private final RefCounted refCounted;
     private boolean hasAggs;
+    // Adding a new flag for the new aggs format - parallel world plan
+    private boolean hasNewAggs;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -81,9 +90,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
             isNull = false;
         }
         if (isNull == false) {
+            newAggregations = new CollectedAggregators();
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
+        } else {
+            newAggregations = null;
         }
+        refCounted = newAggregations == null ? null : new RefCountedReleasable(newAggregations);
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -91,10 +104,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
+        newAggregations = new CollectedAggregators();
+        refCounted = new RefCountedReleasable(newAggregations);
     }
 
     private QuerySearchResult(boolean isNull) {
         this.isNull = isNull;
+        newAggregations = null;
+        refCounted = null;
     }
 
     /**
@@ -220,6 +237,29 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
+    /**
+     * I think this gets called once on the data node after serializing the aggregations,
+     * and once on the coordinating node after reducing the aggs?  Maybe?
+     */
+    public void releaseNewAggs() {
+        if (newAggregations != null) {
+            newAggregations.close();
+        }
+    }
+
+    // this almost definitely needs to be something smarter than a plain list, but for now.
+    public void addNewAggregations(List<CollectedAggregator> collectedAggregators) {
+        hasNewAggs = collectedAggregators.isEmpty() == false;
+        for (CollectedAggregator agg : collectedAggregators) {
+            newAggregations.add(agg);
+        }
+    }
+
+    /**
+     * Add legacy aggregations which use the {@link InternalAggregations} form, instead of the
+     * newer {@link org.elasticsearch.search.aggregations.CollectedAggregator} form
+     * @param aggregations
+     */
     public void aggregations(InternalAggregations aggregations) {
         assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
@@ -360,6 +400,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
                 }
             }
+            hasNewAggs = in.readBoolean();
+            if (hasNewAggs) {
+                assert hasAggs == false : "Deserialized both new and old aggregations";
+                newAggregations.readFrom(in);
+            }
             if (in.readBoolean()) {
                 suggest = new Suggest(in);
             }
@@ -377,13 +422,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } finally {
             if (success == false) {
                 // in case we were not able to deserialize the full message we must release the aggregation buffer
-                Releasables.close(aggregations);
+                Releasables.close(aggregations, newAggregations);
             }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert (aggregations != null && newAggregations != null) == false : "cannot have both new and old aggregation format";
         // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
         if (aggregations != null && aggregations.isSerialized()) {
             throw new IllegalStateException("cannot send serialized version since it will leak");
@@ -398,6 +444,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
+        assert (aggregations != null && newAggregations != null) == false : "cannot have both new and old aggregation format";
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {
@@ -410,6 +457,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         writeTopDocs(out, topDocsAndMaxScore);
         out.writeOptionalWriteable(aggregations);
+        // NOCOMMIT: Version gate here? Or does VersionedNamedWriteable already take care of that?
+        if (newAggregations == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            newAggregations.writeTo(out);
+        }
         if (suggest == null) {
             out.writeBoolean(false);
         } else {
@@ -433,5 +487,38 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    @Override
+    public void incRef() {
+        if (refCounted != null) {
+            refCounted.incRef();
+        } else {
+            super.incRef();
+        }
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (refCounted != null) {
+            return refCounted.tryIncRef();
+        }
+        return super.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted != null) {
+            return refCounted.decRef();
+        }
+        return super.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        if (refCounted != null) {
+            return refCounted.hasReferences();
+        }
+        return super.hasReferences();
     }
 }

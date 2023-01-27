@@ -232,7 +232,7 @@ public final class Authentication implements ToXContentObject, Writeable {
             );
         }
 
-        final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion);
+        final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
         final Authentication newAuthentication;
         if (isRunAs()) {
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
@@ -269,13 +269,13 @@ public final class Authentication implements ToXContentObject, Writeable {
         return newAuthentication;
     }
 
-    private Map<String, Object> maybeRewriteMetadata(TransportVersion olderVersion) {
-        if (isAuthenticatedAsApiKey()) {
-            return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
-        } else if (isRemoteAccess()) {
-            return maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, this);
+    private static Map<String, Object> maybeRewriteMetadata(TransportVersion olderVersion, Authentication authentication) {
+        if (authentication.isAuthenticatedAsApiKey()) {
+            return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
+        } else if (authentication.isRemoteAccess()) {
+            return maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, authentication);
         } else {
-            return getAuthenticatingSubject().getMetadata();
+            return authentication.getAuthenticatingSubject().getMetadata();
         }
     }
 

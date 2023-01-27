@@ -14,14 +14,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,12 +28,10 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -167,7 +163,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         final DiscoveryNode node = new DiscoveryNode(
             "test-id",
             buildNewFakeTransportAddress(),
-            Collections.singletonMap("test-attr", "val"),
+            Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
             Version.CURRENT
         );
@@ -189,39 +185,40 @@ public class DiscoveryNodeTests extends ESTestCase {
             "test-hostname",
             "test-hostaddr",
             transportAddress,
-            Collections.singletonMap("test-attr", "val"),
+            Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
             Version.CURRENT,
             withExternalId ? "test-external-id" : null
         );
 
-        final String jsonString = Strings.toString(node, randomBoolean(), randomBoolean());
-        final Map<String, Object> topLevelMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), jsonString, randomBoolean());
-
-        assertThat(topLevelMap.toString(), topLevelMap.size(), equalTo(1));
-        assertTrue(topLevelMap.toString(), topLevelMap.containsKey("test-id"));
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> detailsMap = (Map<String, Object>) topLevelMap.get("test-id");
-
-        assertThat(topLevelMap.toString(), detailsMap.remove("name"), equalTo("test-name"));
-        assertThat(topLevelMap.toString(), detailsMap.remove("ephemeral_id"), equalTo("test-ephemeral-id"));
-        assertThat(topLevelMap.toString(), detailsMap.remove("transport_address"), equalTo(transportAddress.toString()));
-        assertThat(
-            topLevelMap.toString(),
-            detailsMap.remove("external_id"),
-            withExternalId ? equalTo("test-external-id") : equalTo("test-name")
-        );
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> attributes = (Map<String, Object>) detailsMap.remove("attributes");
-        assertThat(topLevelMap.toString(), attributes.get("test-attr"), equalTo("val"));
-
-        @SuppressWarnings("unchecked")
-        final List<String> roles = (List<String>) detailsMap.remove("roles");
-        assertThat(roles, hasItems("master", "data_content", "remote_cluster_client"));
-
-        assertThat(detailsMap.toString(), detailsMap, anEmptyMap());
+        assertThat(Strings.toString(node, true, false), equalTo(String.format(Locale.ROOT, """
+            {
+              "test-id" : {
+                "name" : "test-name",
+                "ephemeral_id" : "test-ephemeral-id",
+                "transport_address" : "%s",
+                "external_id" : "%s",
+                "attributes" : {
+                  "test-attr" : "val"
+                },
+                "roles" : [
+                  "data",
+                  "data_cold",
+                  "data_content",
+                  "data_frozen",
+                  "data_hot",
+                  "data_warm",
+                  "index",
+                  "ingest",
+                  "master",
+                  "ml",
+                  "remote_cluster_client",
+                  "search",
+                  "transform",
+                  "voting_only"
+                ],
+                "version" : "%s"
+              }
+            }""", transportAddress, withExternalId ? "test-external-id" : "test-name", Version.CURRENT)));
     }
-
 }

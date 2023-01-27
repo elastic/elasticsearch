@@ -577,6 +577,7 @@ For example, the offset of `+19d` will have buckets with names like `2022-01-20`
   { "key_as_string": "2022-08-20", "key": 1660953600000, "doc_count": 1 }
 ]
 --------------------------------------------------
+// TESTRESPONSE[skip:no setup made for this example yet]
 
 If we increase the offset to `+20d`, each document will appear in a bucket for the previous month,
 with all bucket keys ending with the same day of the month, as normal.
@@ -596,6 +597,7 @@ we will find that what used to be a February bucket has now become `"2022-03-01"
   { "key_as_string": "2022-07-29", "key": 1659052800000, "doc_count": 1 }
 ]
 --------------------------------------------------
+// TESTRESPONSE[skip:no setup made for this example yet]
 
 If we continue to increase the offset, the 30-day months will also shift into the next month,
 so that 3 of the 8 buckets have different days than the other five.
@@ -614,6 +616,7 @@ For example, for `+50d` we see:
   { "key_as_string": "2022-08-20", "key": 1660953600000, "doc_count": 1 }
 ]
 --------------------------------------------------
+// TESTRESPONSE[skip:no setup made for this example yet]
 
 It is therefor always important when using `offset` with `calendar_interval` bucket sizes
 to understand the consequences of using offsets larger than the interval size.

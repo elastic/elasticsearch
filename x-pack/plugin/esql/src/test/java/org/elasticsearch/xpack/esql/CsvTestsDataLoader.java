@@ -199,6 +199,11 @@ public class CsvTestsDataLoader {
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
                     LogManager.getLogger(CsvTestsDataLoader.class).info("Data loading OK");
+                    request = new Request("POST", "/" + TEST_INDEX_SIMPLE + "/_forcemerge?max_num_segments=1");
+                    response = client.performRequest(request);
+                    if (response.getStatusLine().getStatusCode() != 200) {
+                        LogManager.getLogger(CsvTestsDataLoader.class).info("Force-merge to 1 segment failed: " + response.getStatusLine());
+                    }
                 } else {
                     LogManager.getLogger(CsvTestsDataLoader.class).info("Data loading FAILED");
                 }

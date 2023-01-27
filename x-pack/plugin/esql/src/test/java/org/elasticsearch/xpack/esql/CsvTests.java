@@ -63,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadPage;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
@@ -97,7 +98,7 @@ public class CsvTests extends ESTestCase {
 
     private static IndexResolution loadIndexResolution() {
         var mapping = new TreeMap<String, EsField>(EsqlTestUtils.loadMapping("mapping-default.json"));
-        return IndexResolution.valid(new EsIndex("test", mapping));
+        return IndexResolution.valid(new EsIndex(TEST_INDEX_SIMPLE, mapping));
     }
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")

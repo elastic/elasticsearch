@@ -1,10 +1,4 @@
 
-
-// languages and salary are not long data type fields, but integer.
-// TestFieldExtractOperator is mimicking ES atm (ValuesSourceReaderOperator is returning always Longs).
-// The same goes for TestHashAggregationOperator. It's always creating a Long Block when it's encountering a numeric field.
-
-
 projectFrom
 from test | project languages, emp_no, first_name, last_name | limit 10;
 
@@ -49,7 +43,6 @@ c : long
 averageByField
 from test | stats avg(avg_worked_seconds) by languages;
 
-// languages is not of type Long, but Integer. See https://github.com/elastic/elasticsearch-internal/issues/652
 avg(avg_worked_seconds):double | languages:integer
 3.0318626831578946E8 | 2
 3.133013149047619E8 | 5
@@ -89,7 +82,7 @@ avg:double | min:long | max:long | languages.long:long
 ;
 
 avgOfIntegerByNotNullKeyword-Ignore
-// https://github.com/elastic/elasticsearch-internal/issues/654
+// the returned results are correct but not in the expected order. Needs further investigation
 from test | stats avg(salary) by still_hired;
 
 avg(salary):double | still_hired:keyword
@@ -197,8 +190,7 @@ languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:long
 5 | 10035 | null | Chappelet | 10035
 ;
 
-projectFromWithStatsAfterLimit-Ignore
-// it seems the limit is not applied. Needs further investigation
+projectFromWithStatsAfterLimit
 from test | project gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
 m:long | gender:keyword
@@ -207,7 +199,6 @@ m:long | gender:keyword
 ;
 
 projectFromWithStatsAndSort-Ignore
-// this one doesn't work because we generate one page per document, instead of one page
 // https://github.com/elastic/elasticsearch-internal/issues/414
 from test | project gender, avg_worked_seconds, first_name, last_name | stats m = max(avg_worked_seconds) by last_name | sort m desc;
 
@@ -261,7 +252,6 @@ height:double | languages.long:long | still_hired:keyword
 simpleEvalWithSortAndLimitOne
 from test | eval x = languages + 7 | sort x | limit 1;
 
-// https://github.com/elastic/elasticsearch-internal/issues/652
 avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:long
 244294991 | 10005 | Kyoichi | M | 2.05 | 1 | 1 | Maliniak | 63528 | true | 8
 ;
@@ -324,12 +314,52 @@ x:double
 48248.55
 ;
 
-statsByDouble-Ignore
-// There are only two flavors of BlockHash: Long and BytesRef
-// https://github.com/elastic/elasticsearch-internal/issues/654
+statsByDouble
 from test | eval abc=1+2 | where abc + languages > 4 | stats count(height) by height;
 
-?:?
+count(height):long | height:double
+2 | 2.03
+1 | 2.08
+3 | 1.83
+2 | 1.78
+1 | 1.56
+4 | 1.7
+4 | 2.1
+1 | 1.5
+2 | 1.97
+1 | 1.99
+2 | 1.66
+1 | 1.54
+2 | 1.74
+1 | 1.92
+2 | 1.68
+3 | 1.81
+2 | 1.61
+3 | 2.0
+2 | 1.53
+2 | 1.55
+1 | 1.9
+2 | 1.44
+3 | 1.52
+1 | 1.96
+1 | 1.89
+2 | 1.58
+2 | 1.82
+1 | 2.04
+2 | 1.57
+3 | 1.59
+1 | 1.48
+1 | 1.42
+1 | 1.93
+4 | 1.77
+1 | 2.07
+1 | 1.64
+2 | 1.94
+1 | 1.8
+1 | 2.01
+1 | 1.91
+1 | 2.09
+1 | 1.69
 ;
 
 whereNegatedCondition
@@ -362,7 +392,7 @@ x:long | y:long
 ;
 
 projectRenameEval
-// the types for x2 and y2 should be integer, but in fact they are long :-|
+// x and y should be integers but they are longs
 from test | project x = languages, y = languages | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
 
 x:long | y:long | x2:long | y2:long
@@ -372,7 +402,7 @@ x:long | y:long | x2:long | y2:long
 ;
 
 projectRenameEvalProject
-// the type for z should be integer, but in fact they are long :-|
+// x and y should be integers but they are longs
 from test | project x = languages, y = languages | eval z = x + y | project x, y, z | limit 3;
 
 x:long | y:long | z:long

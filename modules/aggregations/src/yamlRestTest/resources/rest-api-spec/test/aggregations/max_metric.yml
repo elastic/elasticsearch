@@ -262,4 +262,4 @@ setup:
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { aggregations.the_counter_max.value: 2 }
+  - match: { aggregations.the_counter_max.value: 4 }

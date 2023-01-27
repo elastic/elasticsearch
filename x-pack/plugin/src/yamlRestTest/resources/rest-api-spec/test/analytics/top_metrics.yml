@@ -721,8 +721,10 @@
           mappings:
             properties:
               counter_field:
-                type : long
+                type: long
                 time_series_metric: counter
+              number_field:
+                type: long
 
   - do:
       bulk:
@@ -731,13 +733,13 @@
           - index:
               _index: myindex
               _id:    "1"
-          - host_field: "hosta"
-          - counter_field: 2
+          - number_field: 1
+            counter_field: 2
           - index:
               _index: myindex
               _id:    "2"
-          - host_field: "hostb"
-          - counter_field: 4
+          - number_field: 2
+            counter_field: 4
   - do:
       search:
         rest_total_hits_as_int: true
@@ -749,9 +751,9 @@
                 metrics:
                   field: counter_field
                 sort:
-                  host: asc
+                  number_field: asc
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { aggregations.the_counter_top_metrics.0.sort: ["hosta"] }
-  - match: { aggregations.the_counter_top_metrics.0.metrics.counter_field: 2 }
+  - match: { aggregations.the_counter_top_metrics.top.0.sort: [1] }
+  - match: { aggregations.the_counter_top_metrics.top.0.metrics.counter_field: 2 }

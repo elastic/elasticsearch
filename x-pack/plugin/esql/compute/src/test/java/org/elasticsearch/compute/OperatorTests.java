@@ -30,8 +30,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -51,7 +49,6 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -111,6 +108,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
+import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -951,22 +949,5 @@ public class OperatorTests extends ESTestCase {
      */
     private BigArrays bigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-    }
-
-    public static void runToCompletion(Executor executor, List<Driver> drivers) {
-        if (drivers.isEmpty()) {
-            return;
-        }
-        PlainActionFuture<List<Driver.Result>> listener = new PlainActionFuture<>();
-        new DriverRunner() {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> done) {
-                Driver.start(executor, driver, done);
-            }
-        }.runToCompletion(drivers, listener);
-        RuntimeException e = Driver.Result.collectFailures(listener.actionGet());
-        if (e != null) {
-            throw e;
-        }
     }
 }

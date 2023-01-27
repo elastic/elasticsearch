@@ -167,7 +167,19 @@ public class HashAggregationOperator implements Operator {
         Releasables.close(blockHash, () -> Releasables.close(aggregators));
     }
 
-    private static void checkState(boolean condition, String msg) {
+    protected int groupByChannel() {
+        return groupByChannel;
+    }
+
+    protected BlockHash blockHash() {
+        return blockHash;
+    }
+
+    protected List<GroupingAggregator> aggregators() {
+        return aggregators;
+    }
+
+    protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }

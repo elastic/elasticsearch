@@ -8,10 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * Run a set of drivers to completion.
@@ -59,6 +61,23 @@ public abstract class DriverRunner {
                 }
             };
             start(driver, done);
+        }
+    }
+
+    public static void runToCompletion(Executor executor, List<Driver> drivers) {
+        if (drivers.isEmpty()) {
+            return;
+        }
+        PlainActionFuture<List<Driver.Result>> listener = new PlainActionFuture<>();
+        new DriverRunner() {
+            @Override
+            protected void start(Driver driver, ActionListener<Void> done) {
+                Driver.start(executor, driver, done);
+            }
+        }.runToCompletion(drivers, listener);
+        RuntimeException e = Driver.Result.collectFailures(listener.actionGet());
+        if (e != null) {
+            throw e;
         }
     }
 }

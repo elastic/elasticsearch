@@ -57,9 +57,17 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
     private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
 
-    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules;
+    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
 
-    static {
+    public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
+        super(context);
+    }
+
+    public PhysicalPlan optimize(PhysicalPlan plan) {
+        return execute(plan);
+    }
+
+    static Iterable<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
         // keep filters pushing before field extraction insertion
         var pushdown = new Batch<>("Global plan", Limiter.ONCE, new PushFiltersToSource());
         var exchange = new Batch<>("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit());
@@ -81,15 +89,12 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             new RemoveLocalPlanMarker()
         );
 
-        rules = asList(pushdown, exchange, parallelism, reducer, localPlanning);
-    }
-
-    public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
-        super(context);
-    }
-
-    public PhysicalPlan optimize(PhysicalPlan plan) {
-        return execute(plan);
+        if (isOptimizedForEsSource) {
+            return asList(pushdown, exchange, parallelism, reducer, localPlanning);
+        } else {
+            // this is for unit-testing where we don't need to push anything to ES
+            return asList(exchange, parallelism, reducer, localPlanning);
+        }
     }
 
     @Override

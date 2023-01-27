@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 public class LabelFieldProducerTests extends AggregatorTestCase {
@@ -147,7 +148,7 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
             public SortedBinaryDocValues getBytesValues() {
                 return new SortedBinaryDocValues() {
                     @Override
-                    public boolean advanceExact(int doc) throws IOException {
+                    public boolean advanceExact(int doc) {
                         return true;
                     }
 
@@ -157,8 +158,8 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
                     }
 
                     @Override
-                    public BytesRef nextValue() throws IOException {
-                        return new BytesRef("dummy".getBytes());
+                    public BytesRef nextValue() {
+                        return new BytesRef("dummy".getBytes(StandardCharsets.UTF_8));
                     }
                 };
             }

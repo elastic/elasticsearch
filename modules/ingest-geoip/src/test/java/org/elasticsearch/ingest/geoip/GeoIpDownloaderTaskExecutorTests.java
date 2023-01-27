@@ -33,28 +33,44 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(clusterState.getMetadata()).thenReturn(metadata);
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors();
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();
-        for (String pipeline : expectHitsInputs) {
+        {
+            // Test that hasAtLeastOneGeoipProcessor returns true for any pipeline with a geoip processor:
+            for (String pipeline : expectHitsInputs) {
+                configs.clear();
+                configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON));
+                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            }
+        }
+        {
+            // Test that hasAtLeastOneGeoipProcessor returns false for any pipeline without a geoip processor:
+            for (String pipeline : expectMissesInputs) {
+                configs.clear();
+                configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON));
+                assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            }
+        }
+        {
+            /*
+             * Now test that hasAtLeastOneGeoipProcessor returns true for a mix of pipelines, some which have geoip processors and some
+             * which do not:
+             */
             configs.clear();
-            configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON));
+            for (String pipeline : expectHitsInputs) {
+                String id = randomAlphaOfLength(20);
+                configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
+            }
+            for (String pipeline : expectMissesInputs) {
+                String id = randomAlphaOfLength(20);
+                configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
+            }
             assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
         }
-        for (String pipeline : expectMissesInputs) {
-            configs.clear();
-            configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON));
-            assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
-        }
-        configs.clear();
-        for (String pipeline : expectHitsInputs) {
-            String id = randomAlphaOfLength(20);
-            configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
-        }
-        for (String pipeline : expectMissesInputs) {
-            String id = randomAlphaOfLength(20);
-            configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
-        }
-        assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
     }
 
+    /*
+     * This method returns an assorted list of pipelines that have geoip processors -- ones that ought to cause hasAtLeastOneGeoipProcessor
+     *  to return true.
+     */
     private List<String> getPipelinesWithGeoIpProcessors() {
         String simpleGeoIpProcessor = """
             {
@@ -192,6 +208,10 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         );
     }
 
+    /*
+     * This method returns an assorted list of pipelines that _do not_ have geoip processors -- ones that ought to cause
+     * hasAtLeastOneGeoipProcessor to return false.
+     */
     private List<String> getPipelinesWithoutGeoIpProcessors() {
         String empty = """
             {

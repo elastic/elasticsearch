@@ -137,7 +137,8 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // Autoconfiguration of SecureSettings is currently only supported for KeyStore based secure settings
-    private Environment autoConfigureSecurity(
+    // package private for testing
+    Environment autoConfigureSecurity(
         Terminal terminal,
         OptionSet options,
         ProcessInfo processInfo,
@@ -186,7 +187,8 @@ class ServerCli extends EnvironmentAwareCommand {
         return env;
     }
 
-    private void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+    // package private for testing
+    void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
         String pluginCliLibs = "lib/tools/plugin-cli";
         Command cmd = loadTool("sync-plugins", pluginCliLibs);
         assert cmd instanceof EnvironmentAwareCommand;

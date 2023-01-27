@@ -26,10 +26,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -240,6 +239,17 @@ class RollupShardIndexer {
             .build();
     }
 
+    private record FieldValueHolder(AbstractRollupFieldProducer fieldProducer, LeafFieldData leafFieldData) {
+
+        public AbstractRollupFieldProducer getRollupFieldProducer() {
+            return fieldProducer;
+        }
+
+        public LeafFieldData getLeafFieldData() {
+            return leafFieldData;
+        }
+    }
+
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor bulkProcessor;
         private final RollupBucketBuilder rollupBucketBuilder;
@@ -263,8 +273,8 @@ class RollupShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the rollup field producer and the field value leaf
-            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> fieldValueTuples = fieldValueFetchers.stream()
-                .map(fetcher -> Tuple.tuple(fetcher.rollupFieldProducer(), fetcher.getLeaf(ctx)))
+            final List<FieldValueHolder> fieldValueHolders = fieldValueFetchers.stream()
+                .map(fetcher -> new FieldValueHolder(fetcher.rollupFieldProducer(), fetcher.getLeafFieldData(ctx)))
                 .toList();
 
             return new LeafBucketCollector() {
@@ -333,10 +343,8 @@ class RollupShardIndexer {
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
                     // Iterate over all field values and collect the doc_values for this docId
-                    for (Tuple<AbstractRollupFieldProducer, FormattedDocValues> tuple : fieldValueTuples) {
-                        AbstractRollupFieldProducer rollupFieldProducer = tuple.v1();
-                        FormattedDocValues docValues = tuple.v2();
-                        rollupFieldProducer.collect(docValues, docId);
+                    for (final FieldValueHolder fieldValueHolder : fieldValueHolders) {
+                        fieldValueHolder.getRollupFieldProducer().collect(fieldValueHolder.getLeafFieldData(), docId);
                     }
                     docsProcessed++;
                 }

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,8 +30,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
      */
     private final List<Metric> metrics;
 
-    MetricFieldProducer(String name, List<Metric> metrics) {
-        super(name);
+    MetricFieldProducer(final MappedFieldType fieldType, final String name, final List<Metric> metrics) {
+        super(fieldType, name);
         this.metrics = metrics;
     }
 
@@ -54,7 +57,9 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, int docId) throws IOException {
+    public void collect(LeafFieldData leafFieldData, int docId) throws IOException {
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        final FormattedDocValues docValues = leafFieldData.getFormattedValues(format);
         if (docValues.advanceExact(docId) == false) {
             return;
         }
@@ -232,18 +237,18 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
      */
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
-        CounterMetricFieldProducer(String name) {
-            super(name, Collections.singletonList(new LastValue()));
+        CounterMetricFieldProducer(final MappedFieldType fieldType, final String name) {
+            super(fieldType, name, Collections.singletonList(new LastValue()));
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        public void collect(final LeafFieldData leafFieldData, int docId) throws IOException {
             // Counter producers only collect the last_value. Since documents are
             // collected by descending timestamp order, the producer should only
             // process the first value for every tsid. So, it will only collect the
             // field if no value has been set before.
             if (isEmpty()) {
-                super.collect(docValues, docId);
+                super.collect(leafFieldData, docId);
             }
         }
 
@@ -265,12 +270,12 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
      */
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
-        GaugeMetricFieldProducer(String name) {
-            this(name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+        GaugeMetricFieldProducer(final MappedFieldType fieldType, final String name) {
+            this(fieldType, name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
         }
 
-        GaugeMetricFieldProducer(String name, List<Metric> metrics) {
-            super(name, metrics);
+        GaugeMetricFieldProducer(final MappedFieldType fieldType, final String name, final List<Metric> metrics) {
+            super(fieldType, name, metrics);
         }
 
         @Override

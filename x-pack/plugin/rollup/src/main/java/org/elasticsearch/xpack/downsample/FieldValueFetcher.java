@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,7 +26,7 @@ import java.util.List;
  */
 class FieldValueFetcher {
 
-    private final MappedFieldType fieldType;
+    protected final MappedFieldType fieldType;
     private final IndexFieldData<?> fieldData;
     private final AbstractRollupFieldProducer rollupFieldProducer;
 
@@ -43,9 +44,8 @@ class FieldValueFetcher {
         return fieldType;
     }
 
-    public FormattedDocValues getLeaf(LeafReaderContext context) {
-        DocValueFormat format = fieldType.docValueFormat(null, null);
-        return fieldData.load(context).getFormattedValues(format);
+    public LeafFieldData getLeafFieldData(LeafReaderContext context) {
+        return fieldData.load(context);
     }
 
     public AbstractRollupFieldProducer rollupFieldProducer() {
@@ -55,12 +55,13 @@ class FieldValueFetcher {
     private AbstractRollupFieldProducer createRollupFieldProducer() {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
-                case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
-                case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(name());
+                case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(fieldType, name());
+                case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(fieldType, name());
             };
+        } else if (isHistogramField(fieldType)) {
+            return new LabelFieldProducer.HistogramLabelFieldProducer(fieldType, name());
         } else {
-            // If field is not a metric, we downsample it as a label
-            return new LabelFieldProducer.LabelLastValueFieldProducer(name());
+            return new LabelFieldProducer.LabelLastValueFieldProducer(fieldType, name());
         }
     }
 
@@ -85,10 +86,19 @@ class FieldValueFetcher {
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    fetchers.add(new FieldValueFetcher(fieldType, fieldData));
+                    // TODO: look for a better way to distinguish histograms
+                    if (isHistogramField(fieldType)) {
+                        fetchers.add(new HistogramFieldValueFetcher(fieldType, (IndexHistogramFieldData) fieldData));
+                    } else {
+                        fetchers.add(new FieldValueFetcher(fieldType, fieldData));
+                    }
                 }
             }
         }
         return Collections.unmodifiableList(fetchers);
+    }
+
+    private static boolean isHistogramField(final MappedFieldType fieldType) {
+        return HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
     }
 }

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -115,7 +117,8 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testCounterMetricFieldProducer() throws IOException {
         final String field = "field";
-        var producer = new MetricFieldProducer.CounterMetricFieldProducer(field);
+        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        var producer = new MetricFieldProducer.CounterMetricFieldProducer(fieldType, field);
         assertTrue(producer.isEmpty());
         producer.collect(55.0);
         producer.collect(12.2);
@@ -134,7 +137,8 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testGaugeMetricFieldProducer() throws IOException {
         final String field = "field";
-        MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer(field);
+        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer(fieldType, field);
         assertTrue(producer.isEmpty());
         producer.collect(55.0);
         producer.collect(12.2);

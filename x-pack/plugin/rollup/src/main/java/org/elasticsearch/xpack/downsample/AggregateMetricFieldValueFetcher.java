@@ -56,10 +56,14 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
                 // To compute value_count summary, we must sum all field values
                 case value_count -> new MetricFieldProducer.Sum(AggregateDoubleMetricFieldMapper.Metric.value_count.name());
             };
-            return new MetricFieldProducer.GaugeMetricFieldProducer(aggMetricFieldType.name(), List.of(metricOperation));
+            return new MetricFieldProducer.GaugeMetricFieldProducer(fieldType, aggMetricFieldType.name(), List.of(metricOperation));
         } else {
             // If field is not a metric, we downsample it as a label
-            return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);
+            return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(
+                fieldType,
+                aggMetricFieldType.name(),
+                metric
+            );
         }
     }
 }

@@ -8,18 +8,26 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.HistogramValue;
+import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Class that produces values for a label field.
  */
 abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
 
-    LabelFieldProducer(String name) {
-        super(name);
+    LabelFieldProducer(final MappedFieldType fieldType, final String name) {
+        super(fieldType, name);
     }
 
     abstract Label label();
@@ -85,15 +93,15 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
      * {@link LabelFieldProducer} implementation for a last value label
      */
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
-        private final LastValueLabel label;
+        protected final LastValueLabel label;
 
-        LabelLastValueFieldProducer(String name, LastValueLabel label) {
-            super(name);
+        LabelLastValueFieldProducer(final MappedFieldType fieldType, final String name, final LastValueLabel label) {
+            super(fieldType, name);
             this.label = label;
         }
 
-        LabelLastValueFieldProducer(String name) {
-            this(name, new LastValueLabel());
+        LabelLastValueFieldProducer(final MappedFieldType fieldType, final String name) {
+            this(fieldType, name, new LastValueLabel());
         }
 
         @Override
@@ -109,10 +117,12 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        public void collect(final LeafFieldData leafFieldData, int docId) throws IOException {
             if (isEmpty() == false) {
                 return;
             }
+            DocValueFormat format = fieldType.docValueFormat(null, null);
+            final FormattedDocValues docValues = leafFieldData.getFormattedValues(format);
             if (docValues.advanceExact(docId) == false) {
                 return;
             }
@@ -140,8 +150,40 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
 
     static class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
 
-        AggregateMetricFieldProducer(String name, Metric metric) {
-            super(name, new LastValueLabel(metric.name()));
+        AggregateMetricFieldProducer(final MappedFieldType fieldType, final String name, final Metric metric) {
+            super(fieldType, name, new LastValueLabel(metric.name()));
+        }
+    }
+
+    static class HistogramLabelFieldProducer extends LabelLastValueFieldProducer {
+
+        HistogramLabelFieldProducer(final MappedFieldType fieldType, final String name) {
+            super(fieldType, name, new LastValueLabel());
+        }
+
+        @Override
+        public void collect(final LeafFieldData leafFieldData, int docId) throws IOException {
+            if (isEmpty() == false) {
+                return;
+            }
+            final HistogramValues histogramValues = ((LeafHistogramFieldData) leafFieldData).getHistogramValues();
+            if (histogramValues.advanceExact(docId) == false) {
+                return;
+            }
+            isEmpty = false;
+            label.collect(histogramValues.histogram());
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            final HistogramValue histogramValue = (HistogramValue) label.get();
+            final List<Double> values = new ArrayList<>();
+            final List<Integer> counts = new ArrayList<>();
+            while (histogramValue.next()) {
+                values.add(histogramValue.value());
+                counts.add(histogramValue.count());
+            }
+            builder.startObject(name()).field("counts", counts.toArray()).field("values", values.toArray()).endObject();
         }
     }
 }

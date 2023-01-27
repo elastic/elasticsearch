@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
@@ -17,10 +18,12 @@ import java.io.IOException;
 abstract class AbstractRollupFieldProducer implements RollupFieldSerializer {
 
     private final String name;
+    protected MappedFieldType fieldType;
     protected boolean isEmpty;
 
-    AbstractRollupFieldProducer(String name) {
+    AbstractRollupFieldProducer(final MappedFieldType fieldType, final String name) {
         this.name = name;
+        this.fieldType = fieldType;
         this.isEmpty = true;
     }
 
@@ -43,5 +46,5 @@ abstract class AbstractRollupFieldProducer implements RollupFieldSerializer {
         return isEmpty;
     }
 
-    public abstract void collect(FormattedDocValues docValues, int docId) throws IOException;
+    public abstract void collect(LeafFieldData leafFieldData, int docId) throws IOException;
 }

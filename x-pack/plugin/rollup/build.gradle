@@ -9,6 +9,7 @@ esplugin {
 archivesBaseName = 'x-pack-rollup'
 
 dependencies {
+  implementation project(path: xpackModule('analytics')) // HistogramFieldMapper
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:data-streams')
   compileOnly project(path: xpackModule('ilm'))

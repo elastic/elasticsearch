@@ -7,10 +7,20 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.HistogramValue;
+import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class LabelFieldProducerTests extends AggregatorTestCase {
 
@@ -64,31 +74,108 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
         assertNull(label.get());
     }
 
-    public void testLabelFieldProducer() throws IOException {
-        final LabelFieldProducer producer = new LabelFieldProducer.LabelLastValueFieldProducer("dummy");
+    public void testHistogramLabelFieldProducer() throws IOException {
+        final MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("histogram", Collections.emptyMap());
+        final LabelFieldProducer producer = new LabelFieldProducer.LabelLastValueFieldProducer(fieldType, "dummy");
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
         assertEquals("last_value", producer.label().name());
-        FormattedDocValues docValues = new FormattedDocValues() {
+        final LeafHistogramFieldData histogramFieldData = new LeafHistogramFieldData() {
             @Override
-            public boolean advanceExact(int docId) {
-                return true;
+            public HistogramValues getHistogramValues() throws IOException {
+                return new HistogramValues() {
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return true;
+                    }
+
+                    @Override
+                    public HistogramValue histogram() throws IOException {
+                        return new HistogramValue() {
+                            @Override
+                            public boolean next() throws IOException {
+                                return true;
+                            }
+
+                            @Override
+                            public double value() {
+                                return 1.0;
+                            }
+
+                            @Override
+                            public int count() {
+                                return 10;
+                            }
+                        };
+                    }
+                };
             }
 
             @Override
-            public int docValueCount() {
-                return 1;
+            public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+                throw new UnsupportedOperationException(name);
             }
 
             @Override
-            public Object nextValue() {
-                return "aaaa";
+            public SortedBinaryDocValues getBytesValues() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    public void testLabelFieldProducer() throws IOException {
+        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        final LabelFieldProducer producer = new LabelFieldProducer.LabelLastValueFieldProducer(fieldType, "dummy");
+        assertTrue(producer.isEmpty());
+        assertEquals("dummy", producer.name());
+        assertEquals("last_value", producer.label().name());
+        LeafFieldData leafFieldData = new LeafFieldData() {
+            @Override
+            public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+                throw new UnsupportedOperationException(name);
+            }
+
+            @Override
+            public SortedBinaryDocValues getBytesValues() {
+                return new SortedBinaryDocValues() {
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return true;
+                    }
+
+                    @Override
+                    public int docValueCount() {
+                        return 1;
+                    }
+
+                    @Override
+                    public BytesRef nextValue() throws IOException {
+                        return new BytesRef("dummy".getBytes());
+                    }
+                };
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {
+
             }
         };
-        producer.collect(docValues, 1);
-        // producer.collect("dummy", "aaaa");
+        producer.collect(leafFieldData, 1);
         assertFalse(producer.isEmpty());
-        assertEquals("aaaa", producer.label().get());
+        assertEquals("dummy", producer.label().get());
         producer.reset();
         assertTrue(producer.isEmpty());
         assertNull(producer.label().get());

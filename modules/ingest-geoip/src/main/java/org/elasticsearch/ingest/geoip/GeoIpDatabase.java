@@ -10,7 +10,6 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
-
 import com.maxmind.geoip2.model.CountryResponse;
 
 import org.elasticsearch.core.Nullable;

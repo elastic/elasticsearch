@@ -805,7 +805,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // In that case, we catch and wrap the exception, so we can include more details
                     listener.onFailure(
                         new IllegalArgumentException(
-                            format("Failed to generate the source document for ingest pipeline [%s]", pipelineId),
+                            format(
+                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                                pipelineId,
+                                indexRequest.index(),
+                                indexRequest.id()
+                            ),
                             ex
                         )
                     );

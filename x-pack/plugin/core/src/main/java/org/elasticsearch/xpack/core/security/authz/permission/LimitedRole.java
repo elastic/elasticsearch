@@ -166,22 +166,14 @@ public final class LimitedRole implements Role {
         Set<String> checkForPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        boolean baseRoleCheck = baseRole.checkIndicesPrivileges(
-            checkForIndexPatterns,
-            allowRestrictedIndices,
-            checkForPrivileges,
-            resourcePrivilegesMapBuilder
-        );
+        boolean baseRoleCheck = baseRole.indices()
+            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, resourcePrivilegesMapBuilder);
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
             // short-circuit only if not interested in the detailed individual check results
             return false;
         }
-        boolean limitedByRoleCheck = limitedByRole.checkIndicesPrivileges(
-            checkForIndexPatterns,
-            allowRestrictedIndices,
-            checkForPrivileges,
-            resourcePrivilegesMapBuilder
-        );
+        boolean limitedByRoleCheck = limitedByRole.indices()
+            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, resourcePrivilegesMapBuilder);
         return baseRoleCheck && limitedByRoleCheck;
     }
 
@@ -237,24 +229,26 @@ public final class LimitedRole implements Role {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        boolean baseRoleCheck = baseRole.checkApplicationResourcePrivileges(
-            applicationName,
-            checkForResources,
-            checkForPrivilegeNames,
-            storedPrivileges,
-            resourcePrivilegesMapBuilder
-        );
+        boolean baseRoleCheck = baseRole.application()
+            .checkResourcePrivileges(
+                applicationName,
+                checkForResources,
+                checkForPrivilegeNames,
+                storedPrivileges,
+                resourcePrivilegesMapBuilder
+            );
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
             // short-circuit only if not interested in the detailed individual check results
             return false;
         }
-        boolean limitedByRoleCheck = limitedByRole.checkApplicationResourcePrivileges(
-            applicationName,
-            checkForResources,
-            checkForPrivilegeNames,
-            storedPrivileges,
-            resourcePrivilegesMapBuilder
-        );
+        boolean limitedByRoleCheck = limitedByRole.application()
+            .checkResourcePrivileges(
+                applicationName,
+                checkForResources,
+                checkForPrivilegeNames,
+                storedPrivileges,
+                resourcePrivilegesMapBuilder
+            );
         return baseRoleCheck && limitedByRoleCheck;
     }
 

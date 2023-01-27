@@ -7,25 +7,21 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 public class RestEsqlQueryAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestEsqlQueryAction.class);
 
     @Override
     public String getName() {
@@ -43,27 +39,15 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = EsqlQueryRequest.fromXContent(parser);
         }
-        return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(EsqlQueryResponse esqlQueryResponse) {
-                try {
-                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), null, true);
-                    esqlQueryResponse.toXContent(builder, request);
-                    channel.sendResponse(new RestResponse(RestStatus.OK, builder));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    channel.sendResponse(new RestResponse(channel, e));
-                } catch (Exception inner) {
-                    inner.addSuppressed(e);
-                    logger.error("failed to send failure response", inner);
-                }
-            }
-        });
+        return channel -> {
+            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(EsqlQueryAction.INSTANCE, esqlRequest, new EsqlResponseListener(channel, request, esqlRequest));
+        };
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(URL_PARAM_DELIMITER);
     }
 }

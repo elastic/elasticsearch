@@ -15,8 +15,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
@@ -188,31 +191,137 @@ public class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
-        Request request = new Request("POST", "/_esql");
-        request.addParameter("error_trace", "true");
-        String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
+    public void testTextMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = builder().query("from test | project keyword, integer").build();
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
+    }
 
-        try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
-            request.setEntity(new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType)));
+    public void testCSVMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = builder().query("from test | project keyword, integer").build();
+        assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
+    }
+
+    public void testTSVMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = builder().query("from test | project keyword, integer").build();
+        assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
+    }
+
+    public void testCSVNoHeaderMode() throws IOException {
+        bulkLoadTestData(1);
+        var builder = builder().query("from test | project keyword, integer").build();
+        Request request = prepareRequest();
+        String mediaType = attachBody(builder, request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", "text/csv; header=absent");
+        request.setOptions(options);
+        HttpEntity entity = performRequest(request);
+        String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        assertEquals("keyword0,0\r\n", actual);
+    }
+
+    private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {
+        StringBuilder sb = new StringBuilder();
+        switch (format) {
+            case "txt" -> {
+                sb.append("    keyword    |    integer    \n");
+                sb.append("---------------+---------------\n");
+            }
+            case "csv" -> sb.append("keyword").append(csvDelimiter).append("integer\r\n");
+            case "tsv" -> sb.append("keyword\tinteger\n");
+            default -> {
+                assert false : "unexpected format type [" + format + "]";
+            }
         }
+        for (int i = 0; i < count; i++) {
+            sb.append("keyword").append(i);
+            int iLen = String.valueOf(i).length();
+            switch (format) {
+                case "txt" -> sb.append(" ".repeat(8 - iLen)).append("|");
+                case "csv" -> sb.append(csvDelimiter);
+                case "tsv" -> sb.append('\t');
+            }
+            sb.append(i);
+            if (format.equals("txt")) {
+                sb.append(" ".repeat(15 - iLen));
+            }
+            sb.append(format.equals("csv") ? "\r\n" : "\n");
+        }
+        return sb.toString();
+    }
+
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
+        Request request = prepareRequest();
+        String mediaType = attachBody(requestObject, request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
         } else {
             request.addParameter("format", requestObject.contentType().queryParameter());
         }
-        options.addHeader("Content-Type", mediaType);
         request.setOptions(options);
 
-        Response response = client().performRequest(request);
-        HttpEntity entity = response.getEntity();
+        HttpEntity entity = performRequest(request);
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
             assertEquals(requestObject.contentType(), xContentType);
             return XContentHelper.convertToMap(xContentType.xContent(), content, false);
         }
+    }
+
+    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter) throws IOException {
+        Request request = prepareRequest();
+        String mediaType = attachBody(builder, request);
+
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+
+        if (randomBoolean()) {
+            request.addParameter("format", format);
+        } else {
+            switch (format) {
+                case "txt" -> options.addHeader("Accept", "text/plain");
+                case "csv" -> options.addHeader("Accept", "text/csv");
+                case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+            }
+        }
+        if (delimiter != null) {
+            request.addParameter("delimiter", String.valueOf(delimiter));
+        }
+        request.setOptions(options);
+
+        HttpEntity entity = performRequest(request);
+        return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+    }
+
+    private static Request prepareRequest() {
+        Request request = new Request("POST", "/_esql");
+        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
+        request.addParameter("pretty", "true");        // Improves error reporting readability
+        return request;
+    }
+
+    private static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
+        String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
+        try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
+            request.setEntity(new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType)));
+        }
+        return mediaType;
+    }
+
+    private static HttpEntity performRequest(Request request) throws IOException {
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        return response.getEntity();
     }
 
     private static void bulkLoadTestData(int count) throws IOException {

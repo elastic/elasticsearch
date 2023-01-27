@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField COLUMNAR_FIELD = new ParseField("columnar"); // TODO -> "mode"?
+    private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");

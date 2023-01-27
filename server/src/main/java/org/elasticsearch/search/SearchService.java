@@ -1386,13 +1386,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             completionSuggestions = Collections.emptyList();
         }
         if (context.request().scroll() != null) {
-            TopDocs topDocs = context.queryResult().topDocs().topDocs;
+            TopDocs topDocs = context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs; // TODO: how do we handle multi query?
             docIdsToLoad = new int[topDocs.scoreDocs.length + numSuggestDocs];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[docsOffset++] = topDocs.scoreDocs[i].doc;
             }
         } else {
-            TopDocs topDocs = context.queryResult().topDocs().topDocs;
+            TopDocs topDocs = context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs; // TODO: how do we handle multi query?
             if (topDocs.scoreDocs.length < context.from()) {
                 // no more docs...
                 docIdsToLoad = new int[numSuggestDocs];

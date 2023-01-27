@@ -104,10 +104,10 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
             && getRequest().scroll() == null
             // top docs are already consumed if the query was cancelled or in error.
-            && queryResult.hasConsumedTopDocs() == false
-            && queryResult.topDocs() != null
-            && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
-            TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
+            && queryResult.getSingleQueryResults().get(0).hasConsumedTopDocs() == false
+            && queryResult.getSingleQueryResults().get(0).topDocs() != null
+            && queryResult.getSingleQueryResults().get(0).topDocs().topDocs.getClass() == TopFieldDocs.class) {
+            TopFieldDocs topDocs = (TopFieldDocs) queryResult.getSingleQueryResults().get(0).topDocs().topDocs;
             if (bottomSortCollector == null) {
                 synchronized (this) {
                     if (bottomSortCollector == null) {
@@ -115,7 +115,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                     }
                 }
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.getSingleQueryResults().get(0).sortValueFormats());
         }
         super.onShardResult(result, shardIt);
     }

@@ -61,11 +61,11 @@ public class QueryPhase {
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
-            searchContext.queryResult()
+            searchContext.queryResult().getSingleQueryResults().add(new QuerySearchResult.SingleQueryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]
-                );
+                ));
             return;
         }
 
@@ -100,9 +100,11 @@ public class QueryPhase {
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
+        QuerySearchResult.SingleQueryResult singleQueryResult = new QuerySearchResult.SingleQueryResult();
+        queryResult.getSingleQueryResults().add(singleQueryResult);
         try {
-            queryResult.from(searchContext.from());
-            queryResult.size(searchContext.size());
+            singleQueryResult.from(searchContext.from());
+            singleQueryResult.size(searchContext.size());
             Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
 
@@ -182,8 +184,8 @@ public class QueryPhase {
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
                     : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
                 if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
-                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                    queryResult.getSingleQueryResults().get(0).nodeQueueSize(rExecutor.getCurrentQueueSize()); // TODO: what do we do about multi query
+                    queryResult.getSingleQueryResults().get(0).serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA()); // TODO: what do we do about multi query
                 }
                 return shouldRescore;
             } finally {

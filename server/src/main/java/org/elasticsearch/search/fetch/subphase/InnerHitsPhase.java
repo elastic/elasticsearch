@@ -84,7 +84,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             if (results == null) {
                 hit.setInnerHits(results = new HashMap<>());
             }
-            innerHitsContext.queryResult().topDocs(topDoc, innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats);
+            innerHitsContext.queryResult().getSingleQueryResults().get(0).topDocs(topDoc, innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats); // TODO: how do we handle multi query?
             int[] docIdsToLoad = new int[topDoc.topDocs.scoreDocs.length];
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;

@@ -95,6 +95,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+// TODO: multi query?
+
 public class SearchPhaseControllerTests extends ESTestCase {
     private ThreadPool threadPool;
     private EsThreadPoolExecutor fixedExecutor;
@@ -150,8 +152,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
         int from = 0, size = 0;
         if (first.isPresent()) {
-            from = first.get().queryResult().from();
-            size = first.get().queryResult().size();
+            from = first.get().queryResult().getSingleQueryResults().get(0).from();
+            size = first.get().queryResult().getSingleQueryResults().get(0).size();
         }
         int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
         List<CompletionSuggestion> reducedCompletionSuggestions = reducedSuggest(results);
@@ -162,7 +164,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         List<TopDocs> topDocsList = new ArrayList<>();
         for (SearchPhaseResult result : results.asList()) {
             QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            TopDocs topDocs = queryResult.getSingleQueryResults().get(0).consumeTopDocs().topDocs;
             SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
             topDocsList.add(topDocs);
         }
@@ -186,13 +188,13 @@ public class SearchPhaseControllerTests extends ESTestCase {
         Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
         int from = 0, size = 0;
         if (first.isPresent()) {
-            from = first.get().queryResult().from();
-            size = first.get().queryResult().size();
+            from = first.get().queryResult().getSingleQueryResults().get(0).from();
+            size = first.get().queryResult().getSingleQueryResults().get(0).size();
         }
         List<TopDocs> topDocsList = new ArrayList<>();
         for (SearchPhaseResult result : results.asList()) {
             QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            TopDocs topDocs = queryResult.getSingleQueryResults().get(0).consumeTopDocs().topDocs;
             topDocsList.add(topDocs);
             SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
         }
@@ -202,7 +204,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         topDocsList = new ArrayList<>();
         for (SearchPhaseResult result : results.asList()) {
             QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+            TopDocs topDocs = queryResult.getSingleQueryResults().get(0).consumeTopDocs().topDocs;
             topDocsList.add(topDocs);
             SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
         }
@@ -369,8 +371,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 suggestion.setShardIndex(shardIndex);
                 shardSuggestion.add(suggestion);
             }
-            querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), null);
-            querySearchResult.size(searchHitsSize);
+            querySearchResult.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, maxScore), null);
+            querySearchResult.getSingleQueryResults().get(0).size(searchHitsSize);
             querySearchResult.suggest(new Suggest(new ArrayList<>(shardSuggestion)));
             querySearchResult.setShardIndex(shardIndex);
             if (profile) {
@@ -386,7 +388,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     private static int getTotalQueryHits(AtomicArray<SearchPhaseResult> results) {
         int resultCount = 0;
         for (SearchPhaseResult shardResult : results.asList()) {
-            TopDocs topDocs = shardResult.queryResult().topDocs().topDocs;
+            TopDocs topDocs = shardResult.queryResult().getSingleQueryResults().get(0).topDocs().topDocs;
             assert topDocs.totalHits.relation == Relation.EQUAL_TO;
             resultCount += topDocs.totalHits.value;
         }
@@ -498,7 +500,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new SearchShardTarget("node", new ShardId("a", "b", 0), null),
             null
         );
-        result.topDocs(
+        result.getSingleQueryResults().get(0).topDocs(
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
             new DocValueFormat[0]
         );
@@ -512,7 +514,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new SearchShardTarget("node", new ShardId("a", "b", 0), null),
             null
         );
-        result.topDocs(
+        result.getSingleQueryResults().get(0).topDocs(
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
             new DocValueFormat[0]
         );
@@ -526,7 +528,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new SearchShardTarget("node", new ShardId("a", "b", 0), null),
             null
         );
-        result.topDocs(
+        result.getSingleQueryResults().get(0).topDocs(
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
             new DocValueFormat[0]
         );
@@ -603,7 +605,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new SearchShardTarget("node", new ShardId("a", "b", id), null),
                     null
                 );
-                result.topDocs(
+                result.getSingleQueryResults().get(0).topDocs(
                     new TopDocsAndMaxScore(
                         new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
                         number
@@ -615,7 +617,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 );
                 result.aggregations(aggs);
                 result.setShardIndex(id);
-                result.size(1);
+                result.getSingleQueryResults().get(0).size(1);
                 consumer.consumeResult(result, latch::countDown);
 
             });
@@ -665,7 +667,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 new SearchShardTarget("node", new ShardId("a", "b", i), null),
                 null
             );
-            result.topDocs(
+            result.getSingleQueryResults().get(0).topDocs(
                 new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
                 new DocValueFormat[0]
             );
@@ -674,7 +676,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             );
             result.aggregations(aggs);
             result.setShardIndex(i);
-            result.size(1);
+            result.getSingleQueryResults().get(0).size(1);
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
@@ -719,7 +721,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 new SearchShardTarget("node", new ShardId("a", "b", i), null),
                 null
             );
-            result.topDocs(
+            result.getSingleQueryResults().get(0).topDocs(
                 new TopDocsAndMaxScore(
                     new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
                     number
@@ -727,7 +729,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 new DocValueFormat[0]
             );
             result.setShardIndex(i);
-            result.size(1);
+            result.getSingleQueryResults().get(0).size(1);
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
@@ -780,13 +782,13 @@ public class SearchPhaseControllerTests extends ESTestCase {
             for (int j = 0; j < docs.length; j++) {
                 docs[j] = new ScoreDoc(0, score--);
             }
-            result.topDocs(
+            result.getSingleQueryResults().get(0).topDocs(
                 new TopDocsAndMaxScore(new TopDocs(new TotalHits(3, TotalHits.Relation.EQUAL_TO), docs), docs[0].score),
                 new DocValueFormat[0]
             );
             result.setShardIndex(i);
-            result.size(5);
-            result.from(5);
+            result.getSingleQueryResults().get(0).size(5);
+            result.getSingleQueryResults().get(0).from(5);
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
@@ -832,9 +834,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 new SearchShardTarget("node", new ShardId("a", "b", i), null),
                 null
             );
-            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
+            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
             result.setShardIndex(i);
-            result.size(size);
+            result.getSingleQueryResults().get(0).size(size);
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
@@ -882,9 +884,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 new SearchShardTarget("node", new ShardId("a", "b", i), null),
                 null
             );
-            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
+            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
             result.setShardIndex(i);
-            result.size(size);
+            result.getSingleQueryResults().get(0).size(size);
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
@@ -972,9 +974,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 suggestions.add(completionSuggestion);
             }
             result.suggest(new Suggest(suggestions));
-            result.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+            result.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
             result.setShardIndex(i);
-            result.size(0);
+            result.getSingleQueryResults().get(0).size(0);
             consumer.consumeResult(result, latch::countDown);
         }
         latch.await();
@@ -1069,7 +1071,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         new SearchShardTarget("node", new ShardId("a", "b", id), null),
                         null
                     );
-                    result.topDocs(
+                    result.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
                             number
@@ -1081,7 +1083,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     );
                     result.aggregations(aggs);
                     result.setShardIndex(id);
-                    result.size(1);
+                    result.getSingleQueryResults().get(0).size(1);
                     consumer.consumeResult(result, latch::countDown);
                 });
                 threads[i].start();
@@ -1149,7 +1151,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new SearchShardTarget("node", new ShardId("a", "b", index), null),
                     null
                 );
-                result.topDocs(
+                result.getSingleQueryResults().get(0).topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]
                 );
@@ -1158,7 +1160,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 );
                 result.aggregations(aggs);
                 result.setShardIndex(index);
-                result.size(1);
+                result.getSingleQueryResults().get(0).size(1);
                 consumer.consumeResult(result, latch::countDown);
             });
             threads[index].start();
@@ -1210,13 +1212,13 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new SearchShardTarget("node", new ShardId("a", "b", index), null),
                     null
                 );
-                result.topDocs(
+                result.getSingleQueryResults().get(0).topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]
                 );
                 result.aggregations(null);
                 result.setShardIndex(index);
-                result.size(1);
+                result.getSingleQueryResults().get(0).size(1);
                 expectThrows(Exception.class, () -> consumer.consumeResult(result, () -> {}));
             }
             assertNull(consumer.reduce().aggregations());

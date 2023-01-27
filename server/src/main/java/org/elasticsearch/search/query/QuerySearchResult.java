@@ -10,7 +10,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,18 +29,132 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
-    private int from;
-    private int size;
-    private TopDocsAndMaxScore topDocsAndMaxScore;
-    private boolean hasScoreDocs;
-    private TotalHits totalHits;
-    private float maxScore = Float.NaN;
-    private DocValueFormat[] sortValueFormats;
+
+    public final static class SingleQueryResult {
+
+        private int from;
+        private int size;
+        private TopDocsAndMaxScore topDocsAndMaxScore;
+        private boolean hasScoreDocs;
+        private float maxScore = Float.NaN;
+        private DocValueFormat[] sortValueFormats;
+        private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
+
+        private long serviceTimeEWMA = -1;
+        private int nodeQueueSize = -1;
+
+        public TopDocsAndMaxScore topDocs() {
+            if (topDocsAndMaxScore == null) {
+                throw new IllegalStateException("topDocs already consumed");
+            }
+            return topDocsAndMaxScore;
+        }
+
+        /**
+         * Returns <code>true</code> iff the top docs have already been consumed.
+         */
+        public boolean hasConsumedTopDocs() {
+            return topDocsAndMaxScore == null;
+        }
+
+        /**
+         * Returns and nulls out the top docs for this search results. This allows to free up memory once the top docs are consumed.
+         * @throws IllegalStateException if the top docs have already been consumed.
+         */
+        public TopDocsAndMaxScore consumeTopDocs() {
+            TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
+            if (topDocsAndMaxScore == null) {
+                throw new IllegalStateException("topDocs already consumed");
+            }
+            this.topDocsAndMaxScore = null;
+            return topDocsAndMaxScore;
+        }
+
+        public SingleQueryResult topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
+            setTopDocs(topDocs);
+            if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
+                int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
+                if (numFields != sortValueFormats.length) {
+                    throw new IllegalArgumentException(
+                        "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                    );
+                }
+            }
+            this.sortValueFormats = sortValueFormats;
+            return this;
+        }
+
+        private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
+            this.topDocsAndMaxScore = topDocsAndMaxScore;
+            this.maxScore = topDocsAndMaxScore.maxScore;
+            this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
+        }
+
+        public DocValueFormat[] sortValueFormats() {
+            return sortValueFormats;
+        }
+
+        public int from() {
+            return from;
+        }
+
+        public SingleQueryResult from(int from) {
+            this.from = from;
+            return this;
+        }
+
+        /**
+         * Returns the maximum size of this results top docs.
+         */
+        public int size() {
+            return size;
+        }
+
+        public SingleQueryResult size(int size) {
+            this.size = size;
+            return this;
+        }
+
+        public long serviceTimeEWMA() {
+            return this.serviceTimeEWMA;
+        }
+
+        public SingleQueryResult serviceTimeEWMA(long serviceTimeEWMA) {
+            this.serviceTimeEWMA = serviceTimeEWMA;
+            return this;
+        }
+
+        public int nodeQueueSize() {
+            return this.nodeQueueSize;
+        }
+
+        public SingleQueryResult nodeQueueSize(int nodeQueueSize) {
+            this.nodeQueueSize = nodeQueueSize;
+            return this;
+        }
+
+        public float getMaxScore() {
+            return maxScore;
+        }
+
+        public RescoreDocIds getRescoreDocIds() {
+            return rescoreDocIds;
+        }
+
+        public SingleQueryResult setRescoreDocIds(RescoreDocIds rescoreDocIds) {
+            this.rescoreDocIds = rescoreDocIds;
+            return this;
+        }
+    }
+
+    List<SingleQueryResult> singleQueryResults = new ArrayList<>();
     /**
      * Aggregation results. We wrap them in
      * {@linkplain DelayableWriteable} because
@@ -50,13 +164,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     private DelayableWriteable<InternalAggregations> aggregations;
     private boolean hasAggs;
+    private TotalHits totalHits;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
+
     private SearchProfileQueryPhaseResult profileShardResults;
     private boolean hasProfileResults;
-    private long serviceTimeEWMA = -1;
-    private int nodeQueueSize = -1;
 
     private final boolean isNull;
 
@@ -75,7 +189,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             isNull = in.readBoolean();
         } else {
             isNull = false;
@@ -123,6 +237,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public List<SingleQueryResult> getSingleQueryResults() {
+        return singleQueryResults;
+    }
+
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
     }
@@ -137,57 +255,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public Boolean terminatedEarly() {
         return this.terminatedEarly;
-    }
-
-    public TopDocsAndMaxScore topDocs() {
-        if (topDocsAndMaxScore == null) {
-            throw new IllegalStateException("topDocs already consumed");
-        }
-        return topDocsAndMaxScore;
-    }
-
-    /**
-     * Returns <code>true</code> iff the top docs have already been consumed.
-     */
-    public boolean hasConsumedTopDocs() {
-        return topDocsAndMaxScore == null;
-    }
-
-    /**
-     * Returns and nulls out the top docs for this search results. This allows to free up memory once the top docs are consumed.
-     * @throws IllegalStateException if the top docs have already been consumed.
-     */
-    public TopDocsAndMaxScore consumeTopDocs() {
-        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
-        if (topDocsAndMaxScore == null) {
-            throw new IllegalStateException("topDocs already consumed");
-        }
-        this.topDocsAndMaxScore = null;
-        return topDocsAndMaxScore;
-    }
-
-    public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
-        setTopDocs(topDocs);
-        if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
-            int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
-            if (numFields != sortValueFormats.length) {
-                throw new IllegalArgumentException(
-                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
-                );
-            }
-        }
-        this.sortValueFormats = sortValueFormats;
-    }
-
-    private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
-        this.topDocsAndMaxScore = topDocsAndMaxScore;
-        this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
-        this.maxScore = topDocsAndMaxScore.maxScore;
-        this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
-    }
-
-    public DocValueFormat[] sortValueFormats() {
-        return sortValueFormats;
     }
 
     /**
@@ -259,8 +326,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (hasProfileResults()) {
             consumeProfileResult();
         }
-        if (hasConsumedTopDocs() == false) {
-            consumeTopDocs();
+        for (SingleQueryResult singleQueryResult : singleQueryResults) {
+            if (singleQueryResult.hasConsumedTopDocs() == false) {
+                singleQueryResult.consumeTopDocs();
+            }
         }
         releaseAggs();
     }
@@ -282,45 +351,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.suggest = suggest;
     }
 
-    public int from() {
-        return from;
-    }
-
-    public QuerySearchResult from(int from) {
-        this.from = from;
-        return this;
-    }
-
-    /**
-     * Returns the maximum size of this results top docs.
-     */
-    public int size() {
-        return size;
-    }
-
-    public QuerySearchResult size(int size) {
-        this.size = size;
-        return this;
-    }
-
-    public long serviceTimeEWMA() {
-        return this.serviceTimeEWMA;
-    }
-
-    public QuerySearchResult serviceTimeEWMA(long serviceTimeEWMA) {
-        this.serviceTimeEWMA = serviceTimeEWMA;
-        return this;
-    }
-
-    public int nodeQueueSize() {
-        return this.nodeQueueSize;
-    }
-
-    public QuerySearchResult nodeQueueSize(int nodeQueueSize) {
-        this.nodeQueueSize = nodeQueueSize;
-        return this;
-    }
-
     /**
      * Returns <code>true</code> if this result has any suggest score docs
      */
@@ -329,7 +359,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public boolean hasSearchContext() {
-        return hasScoreDocs || hasSuggestHits();
+        return singleQueryResults.stream().anyMatch(sqr -> sqr.hasScoreDocs) || hasSuggestHits();
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
@@ -337,41 +367,81 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
-        this.contextId = id;
-        from = in.readVInt();
-        size = in.readVInt();
-        int numSortFieldsPlus1 = in.readVInt();
-        if (numSortFieldsPlus1 == 0) {
-            sortValueFormats = null;
-        } else {
-            sortValueFormats = new DocValueFormat[numSortFieldsPlus1 - 1];
-            for (int i = 0; i < sortValueFormats.length; ++i) {
-                sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
-            }
-        }
-        setTopDocs(readTopDocs(in));
-        hasAggs = in.readBoolean();
         boolean success = false;
         try {
-            if (hasAggs) {
-                if (delayedAggregations) {
-                    aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
-                } else {
-                    aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+            this.contextId = id;
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                int singleQueryResultsSize = in.readVInt();
+                for (int singleQueryResultIndex = 0; singleQueryResultIndex < singleQueryResultsSize; ++singleQueryResultIndex) {
+                    SingleQueryResult singleQueryResult = new SingleQueryResult();
+                    singleQueryResult.from = in.readVInt();
+                    singleQueryResult.size = in.readVInt();
+                    int numSortFieldsPlus1 = in.readVInt();
+                    if (numSortFieldsPlus1 == 0) {
+                        singleQueryResult.sortValueFormats = null;
+                    } else {
+                        singleQueryResult.sortValueFormats = new DocValueFormat[numSortFieldsPlus1 - 1];
+                        for (int i = 0; i < singleQueryResult.sortValueFormats.length; ++i) {
+                            singleQueryResult.sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
+                        }
+                    }
+                    singleQueryResult.setTopDocs(readTopDocs(in));
+                    singleQueryResult.serviceTimeEWMA = in.readZLong();
+                    singleQueryResult.nodeQueueSize = in.readInt();
+                    setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+                    singleQueryResult.setRescoreDocIds(new RescoreDocIds(in));
+                    singleQueryResults.add(singleQueryResult);
                 }
-            }
-            if (in.readBoolean()) {
-                suggest = new Suggest(in);
-            }
-            searchTimedOut = in.readBoolean();
-            terminatedEarly = in.readOptionalBoolean();
-            profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
-            hasProfileResults = profileShardResults != null;
-            serviceTimeEWMA = in.readZLong();
-            nodeQueueSize = in.readInt();
-            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-                setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-                setRescoreDocIds(new RescoreDocIds(in));
+                hasAggs = in.readBoolean();
+                if (hasAggs) {
+                    if (delayedAggregations) {
+                        aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                    } else {
+                        aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                    }
+                }
+                if (in.readBoolean()) {
+                    suggest = new Suggest(in);
+                }
+                searchTimedOut = in.readBoolean();
+                terminatedEarly = in.readOptionalBoolean();
+                profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
+                hasProfileResults = profileShardResults != null;
+            } else {
+                SingleQueryResult singleQueryResult = new SingleQueryResult();
+                singleQueryResult.from = in.readVInt();
+                singleQueryResult.size = in.readVInt();
+                int numSortFieldsPlus1 = in.readVInt();
+                if (numSortFieldsPlus1 == 0) {
+                    singleQueryResult.sortValueFormats = null;
+                } else {
+                    singleQueryResult.sortValueFormats = new DocValueFormat[numSortFieldsPlus1 - 1];
+                    for (int i = 0; i < singleQueryResult.sortValueFormats.length; ++i) {
+                        singleQueryResult.sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
+                    }
+                }
+                singleQueryResult.setTopDocs(readTopDocs(in));
+                hasAggs = in.readBoolean();
+                if (hasAggs) {
+                    if (delayedAggregations) {
+                        aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                    } else {
+                        aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                    }
+                }
+                if (in.readBoolean()) {
+                    suggest = new Suggest(in);
+                }
+                searchTimedOut = in.readBoolean();
+                terminatedEarly = in.readOptionalBoolean();
+                profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
+                hasProfileResults = profileShardResults != null;
+                singleQueryResult.serviceTimeEWMA = in.readZLong();
+                singleQueryResult.nodeQueueSize = in.readInt();
+                if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+                    setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+                    singleQueryResult.setRescoreDocIds(new RescoreDocIds(in));
+                }
             }
             success = true;
         } finally {
@@ -388,7 +458,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (aggregations != null && aggregations.isSerialized()) {
             throw new IllegalStateException("cannot send serialized version since it will leak");
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             out.writeBoolean(isNull);
         }
         if (isNull == false) {
@@ -398,40 +468,73 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
-        out.writeVInt(from);
-        out.writeVInt(size);
-        if (sortValueFormats == null) {
-            out.writeVInt(0);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeVInt(singleQueryResults.size());
+            for (SingleQueryResult singleQueryResult : singleQueryResults) {
+                out.writeVInt(singleQueryResult.from);
+                out.writeVInt(singleQueryResult.size);
+                if (singleQueryResult.sortValueFormats == null) {
+                    out.writeVInt(0);
+                } else {
+                    out.writeVInt(1 + singleQueryResult.sortValueFormats.length);
+                    for (int i = 0; i < singleQueryResult.sortValueFormats.length; ++i) {
+                        out.writeNamedWriteable(singleQueryResult.sortValueFormats[i]);
+                    }
+                }
+                writeTopDocs(out, singleQueryResult.topDocsAndMaxScore);
+                out.writeZLong(singleQueryResult.serviceTimeEWMA);
+                out.writeInt(singleQueryResult.nodeQueueSize);
+                out.writeOptionalWriteable(getShardSearchRequest());
+                singleQueryResult.getRescoreDocIds().writeTo(out);
+            }
+            out.writeOptionalWriteable(aggregations);
+            if (suggest == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                suggest.writeTo(out);
+            }
+            out.writeBoolean(searchTimedOut);
+            out.writeOptionalBoolean(terminatedEarly);
+            out.writeOptionalWriteable(profileShardResults);
         } else {
-            out.writeVInt(1 + sortValueFormats.length);
-            for (int i = 0; i < sortValueFormats.length; ++i) {
-                out.writeNamedWriteable(sortValueFormats[i]);
+            SingleQueryResult singleQueryResult = singleQueryResults.get(0);
+            out.writeVInt(singleQueryResult.from);
+            out.writeVInt(singleQueryResult.size);
+            if (singleQueryResult.sortValueFormats == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(1 + singleQueryResult.sortValueFormats.length);
+                for (int i = 0; i < singleQueryResult.sortValueFormats.length; ++i) {
+                    out.writeNamedWriteable(singleQueryResult.sortValueFormats[i]);
+                }
+            }
+            writeTopDocs(out, singleQueryResult.topDocsAndMaxScore);
+            out.writeOptionalWriteable(aggregations);
+            if (suggest == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                suggest.writeTo(out);
+            }
+            out.writeBoolean(searchTimedOut);
+            out.writeOptionalBoolean(terminatedEarly);
+            out.writeOptionalWriteable(profileShardResults);
+            out.writeZLong(singleQueryResult.serviceTimeEWMA);
+            out.writeInt(singleQueryResult.nodeQueueSize);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+                out.writeOptionalWriteable(getShardSearchRequest());
+                singleQueryResult.getRescoreDocIds().writeTo(out);
             }
         }
-        writeTopDocs(out, topDocsAndMaxScore);
-        out.writeOptionalWriteable(aggregations);
-        if (suggest == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            suggest.writeTo(out);
-        }
-        out.writeBoolean(searchTimedOut);
-        out.writeOptionalBoolean(terminatedEarly);
-        out.writeOptionalWriteable(profileShardResults);
-        out.writeZLong(serviceTimeEWMA);
-        out.writeInt(nodeQueueSize);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(getShardSearchRequest());
-            getRescoreDocIds().writeTo(out);
-        }
+    }
+
+    public QuerySearchResult setTotalHits(TotalHits totalHits) {
+        this.totalHits = totalHits;
+        return this;
     }
 
     public TotalHits getTotalHits() {
         return totalHits;
-    }
-
-    public float getMaxScore() {
-        return maxScore;
     }
 }

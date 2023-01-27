@@ -58,6 +58,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+// TODO: multi query?
+
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
@@ -112,7 +114,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (withCollapse) {
-                    queryResult.topDocs(
+                    queryResult.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldGroups(
                                 "collapse_field",
@@ -126,7 +128,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new DocValueFormat[] { DocValueFormat.RAW }
                     );
                 } else {
-                    queryResult.topDocs(
+                    queryResult.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldDocs(
                                 new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
@@ -138,8 +140,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new DocValueFormat[] { DocValueFormat.RAW }
                     );
                 }
-                queryResult.from(0);
-                queryResult.size(1);
+                queryResult.getSingleQueryResults().get(0).from(0);
+                queryResult.getSingleQueryResults().get(0).size(1);
                 successfulOps.incrementAndGet();
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }
@@ -409,7 +411,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (shardId == 0) {
-                    queryResult.topDocs(
+                    queryResult.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldDocs(
                                 new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
@@ -421,7 +423,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new DocValueFormat[] { DocValueFormat.RAW }
                     );
                 } else if (shardId == 1) {
-                    queryResult.topDocs(
+                    queryResult.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldDocs(
                                 new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
@@ -433,8 +435,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new DocValueFormat[] { DocValueFormat.RAW }
                     );
                 }
-                queryResult.from(0);
-                queryResult.size(1);
+                queryResult.getSingleQueryResults().get(0).from(0);
+                queryResult.getSingleQueryResults().get(0).size(1);
                 successfulOps.incrementAndGet();
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }
@@ -553,7 +555,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (shardId == 0) {
-                    queryResult.topDocs(
+                    queryResult.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldDocs(
                                 new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
@@ -565,7 +567,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new DocValueFormat[] { DocValueFormat.RAW }
                     );
                 } else if (shardId == 1) {
-                    queryResult.topDocs(
+                    queryResult.getSingleQueryResults().get(0).topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldDocs(
                                 new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
@@ -577,8 +579,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new DocValueFormat[] { DocValueFormat.RAW }
                     );
                 }
-                queryResult.from(0);
-                queryResult.size(1);
+                queryResult.getSingleQueryResults().get(0).from(0);
+                queryResult.getSingleQueryResults().get(0).size(1);
                 successfulOps.incrementAndGet();
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }

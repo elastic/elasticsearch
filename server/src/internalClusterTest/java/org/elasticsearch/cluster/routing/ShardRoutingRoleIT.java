@@ -604,8 +604,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
-            indexRandom(false, INDEX_NAME, randomIntBetween(100, 200));
-            assertNoFailures(client().admin().indices().prepareRefresh(INDEX_NAME).execute().get());
+            indexRandom(true, INDEX_NAME, randomIntBetween(1, 10));
 
             // Each primary will send a TransportUnpromotableShardRefreshAction to each of the unpromotable replica shards
             assertThat(

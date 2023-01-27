@@ -138,6 +138,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 ProcessUtils.stopHandle(process.toHandle(), forcibly);
                 ProcessReaper.instance().unregister(getServiceName());
             }
+            deletePortsFiles();
         }
 
         public void waitForExit() {

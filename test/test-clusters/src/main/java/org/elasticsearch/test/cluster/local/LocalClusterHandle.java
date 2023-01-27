@@ -75,7 +75,6 @@ public class LocalClusterHandle implements ClusterHandle {
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
             execute(() -> nodes.parallelStream().forEach(n -> n.stop(forcibly)));
-            execute(() -> nodes.parallelStream().forEach(Node::deletePortsFiles));
         } else {
             // Make sure the process is stopped, otherwise wait
             execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
@@ -132,7 +131,6 @@ public class LocalClusterHandle implements ClusterHandle {
         Node node = nodes.get(index);
         node.stop(false);
         LOGGER.info("Upgrading node '{}' to version {}", node.getSpec().getName(), version);
-        node.deletePortsFiles();
         node.start(version);
         waitUntilReady();
     }

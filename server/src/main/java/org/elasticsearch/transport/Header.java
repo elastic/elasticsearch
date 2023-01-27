@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -22,7 +22,7 @@ public class Header {
     private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
     private final int networkMessageSize;
-    private final Version version;
+    private final TransportVersion version;
     private final long requestId;
     private final byte status;
     // These are directly set by tests
@@ -30,7 +30,7 @@ public class Header {
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     private Compression.Scheme compressionScheme = null;
 
-    Header(int networkMessageSize, long requestId, byte status, Version version) {
+    Header(int networkMessageSize, long requestId, byte status, TransportVersion version) {
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
@@ -41,7 +41,7 @@ public class Header {
         return networkMessageSize;
     }
 
-    Version getVersion() {
+    TransportVersion getVersion() {
         return version;
     }
 
@@ -93,7 +93,7 @@ public class Header {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
-            if (version.before(Version.V_8_0_0)) {
+            if (version.before(TransportVersion.V_8_0_0)) {
                 // discard features
                 input.readStringArray();
             }

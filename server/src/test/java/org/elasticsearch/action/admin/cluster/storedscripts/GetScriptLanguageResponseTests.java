@@ -47,7 +47,7 @@ public class GetScriptLanguageResponseTests extends AbstractXContentSerializingT
     }
 
     @Override
-    protected GetScriptLanguageResponse mutateInstance(GetScriptLanguageResponse instance) throws IOException {
+    protected GetScriptLanguageResponse mutateInstance(GetScriptLanguageResponse instance) {
         switch (randomInt(2)) {
             case 0:
                 // mutate typesAllowed

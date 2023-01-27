@@ -50,6 +50,13 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
     private static String[] WORDS = new String[] { "apple", "banana", "orange", "peach", "strawberry" };
 
+    @Override
+    protected InternalItemSetMapReduceAggregation<WordCounts, WordCounts, WordCounts, WordCounts> mutateInstance(
+        InternalItemSetMapReduceAggregation<WordCounts, WordCounts, WordCounts, WordCounts> instance
+    ) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static class WordCountMapReducer extends AbstractItemSetMapReducer<WordCounts, WordCounts, WordCounts, WordCounts> {
 
         static class WordCounts implements ToXContent, Writeable, Closeable {

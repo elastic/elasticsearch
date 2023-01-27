@@ -73,6 +73,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
     }
 
     @Override
+    protected DeprecationInfoAction.Response mutateInstance(DeprecationInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<DeprecationInfoAction.Response> instanceReader() {
         return DeprecationInfoAction.Response::new;
     }

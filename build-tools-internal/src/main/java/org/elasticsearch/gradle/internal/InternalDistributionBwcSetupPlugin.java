@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -120,6 +121,35 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             buildBwcTaskProvider,
             "assemble"
         );
+
+        // for versions before 8.7.0, we do not need to set up stable API bwc
+        if (bwcVersion.get().before(Version.fromString("8.7.0"))) {
+            return;
+        }
+
+        for (Project stableApiProject : resolveStableProjects(project)) {
+
+            String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
+
+            DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
+                new File(
+                    checkoutDir.get(),
+                    relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
+                ),
+                null
+            );
+
+            createBuildBwcTask(
+                bwcSetupExtension,
+                project,
+                bwcVersion,
+                stableApiProject.getName(),
+                "libs/" + stableApiProject.getName(),
+                stableAnalysisPluginProjectArtifact,
+                buildBwcTaskProvider,
+                "assemble"
+            );
+        }
     }
 
     private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
@@ -209,7 +239,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }).collect(Collectors.toList());
     }
 
-    private static String buildBwcTaskName(String projectName) {
+    private static List<Project> resolveStableProjects(Project project) {
+        Set<String> stableProjectNames = Set.of("elasticsearch-logging", "elasticsearch-plugin-api", "elasticsearch-plugin-analysis-api");
+        return project.findProject(":libs")
+            .getSubprojects()
+            .stream()
+            .filter(subproject -> stableProjectNames.contains(subproject.getName()))
+            .toList();
+    }
+
+    public static String buildBwcTaskName(String projectName) {
         return "buildBwc"
             + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
                 .collect(Collectors.joining());

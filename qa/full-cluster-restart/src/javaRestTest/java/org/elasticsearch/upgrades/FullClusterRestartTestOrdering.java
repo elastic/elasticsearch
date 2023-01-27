@@ -19,6 +19,6 @@ public class FullClusterRestartTestOrdering implements Comparator<TestMethodAndP
     }
 
     private int getOrdinal(TestMethodAndParams t) {
-        return ((FullClustRestartUpgradeStatus) t.getInstanceArguments().get(0)).ordinal();
+        return ((FullClusterRestartUpgradeStatus) t.getInstanceArguments().get(0)).ordinal();
     }
 }

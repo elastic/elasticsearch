@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
 
@@ -65,7 +65,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    public MLModelDeploymentFullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public MLModelDeploymentFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

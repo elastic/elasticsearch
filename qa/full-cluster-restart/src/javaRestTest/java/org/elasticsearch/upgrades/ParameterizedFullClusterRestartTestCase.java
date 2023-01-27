@@ -21,8 +21,8 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Locale;
 
-import static org.elasticsearch.upgrades.FullClustRestartUpgradeStatus.OLD;
-import static org.elasticsearch.upgrades.FullClustRestartUpgradeStatus.UPGRADED;
+import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.OLD;
+import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADED;
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
@@ -30,15 +30,15 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private static boolean upgradeFailed = false;
     private static boolean upgraded = false;
-    private final FullClustRestartUpgradeStatus requestedUpgradeStatus;
+    private final FullClusterRestartUpgradeStatus requestedUpgradeStatus;
 
-    public ParameterizedFullClusterRestartTestCase(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public ParameterizedFullClusterRestartTestCase(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         this.requestedUpgradeStatus = upgradeStatus;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return Arrays.stream(FullClustRestartUpgradeStatus.values()).map(v -> new Object[] { v }).toList();
+        return Arrays.stream(FullClusterRestartUpgradeStatus.values()).map(v -> new Object[] { v }).toList();
     }
 
     @Before

@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -36,7 +36,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFull
     private static final String OLD_CLUSTER_JOB_ID = "ml-config-mappings-old-cluster-job";
     private static final String NEW_CLUSTER_JOB_ID = "ml-config-mappings-new-cluster-job";
 
-    public MlConfigIndexMappingsFullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public MlConfigIndexMappingsFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

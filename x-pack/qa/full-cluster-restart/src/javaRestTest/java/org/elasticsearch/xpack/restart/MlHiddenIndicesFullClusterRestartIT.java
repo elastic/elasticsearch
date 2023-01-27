@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
@@ -51,7 +51,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
     );
 
-    public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

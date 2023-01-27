@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -44,7 +44,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractXpackFullClusterRes
     private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-old-cluster-closed-job";
     private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-old-cluster-stopped-datafeed";
 
-    public MlMigrationFullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public MlMigrationFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

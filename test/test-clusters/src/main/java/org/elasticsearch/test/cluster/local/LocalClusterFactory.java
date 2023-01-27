@@ -213,12 +213,12 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             }
         }
 
-        private void initializeWorkingDirectory(boolean preserverWorkingDirectory) {
+        private void initializeWorkingDirectory(boolean preserveWorkingDirectory) {
             try {
-                if (preserverWorkingDirectory == false) {
-                    IOUtils.deleteWithRetry(workingDir);
-                } else {
+                if (preserveWorkingDirectory) {
                     IOUtils.deleteWithRetry(distributionDir);
+                } else {
+                    IOUtils.deleteWithRetry(workingDir);
                 }
                 try {
                     IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);

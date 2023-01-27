@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -68,7 +68,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
     public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
 
-    public FullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

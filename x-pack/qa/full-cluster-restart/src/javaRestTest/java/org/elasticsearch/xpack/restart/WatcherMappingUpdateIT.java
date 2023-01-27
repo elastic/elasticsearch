@@ -16,7 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.not;
 
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
-    public WatcherMappingUpdateIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

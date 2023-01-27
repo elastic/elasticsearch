@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.restart;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -30,7 +30,7 @@ public class QueryBuilderBWCIT extends org.elasticsearch.upgrades.QueryBuilderBW
             .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
     }
 
-    public QueryBuilderBWCIT(FullClustRestartUpgradeStatus upgradeStatus) {
+    public QueryBuilderBWCIT(FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

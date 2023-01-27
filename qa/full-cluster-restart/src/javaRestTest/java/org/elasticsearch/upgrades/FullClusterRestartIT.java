@@ -112,7 +112,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     private String index;
 
-    public FullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

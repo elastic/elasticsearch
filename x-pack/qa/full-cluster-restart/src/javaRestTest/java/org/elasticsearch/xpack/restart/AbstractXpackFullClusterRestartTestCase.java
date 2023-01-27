@@ -11,7 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.junit.ClassRule;
 
@@ -38,7 +38,7 @@ public abstract class AbstractXpackFullClusterRestartTestCase extends Parameteri
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 
-    public AbstractXpackFullClusterRestartTestCase(FullClustRestartUpgradeStatus upgradeStatus) {
+    public AbstractXpackFullClusterRestartTestCase(FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

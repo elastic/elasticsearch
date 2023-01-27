@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.upgrades.FullClustRestartUpgradeStatus;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.FullClusterRestartIT;
 
 import java.nio.charset.StandardCharsets;
@@ -33,7 +33,7 @@ public class CoreFullClusterRestartIT extends FullClusterRestartIT {
             .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
     }
 
-    public CoreFullClusterRestartIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public CoreFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

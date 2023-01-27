@@ -79,7 +79,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         return cluster;
     }
 
-    public QueryBuilderBWCIT(@Name("cluster") FullClustRestartUpgradeStatus upgradeStatus) {
+    public QueryBuilderBWCIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

@@ -77,24 +77,24 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
 
     public void testHistogramLabelFieldProducer() throws IOException {
         final MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("histogram", Collections.emptyMap());
-        final LabelFieldProducer producer = new LabelFieldProducer.LabelLastValueFieldProducer(fieldType, "dummy");
+        final LabelFieldProducer producer = new LabelFieldProducer.HistogramLabelFieldProducer(fieldType, "dummy");
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
         assertEquals("last_value", producer.label().name());
         final LeafHistogramFieldData histogramFieldData = new LeafHistogramFieldData() {
             @Override
-            public HistogramValues getHistogramValues() throws IOException {
+            public HistogramValues getHistogramValues() {
                 return new HistogramValues() {
                     @Override
-                    public boolean advanceExact(int doc) throws IOException {
+                    public boolean advanceExact(int doc) {
                         return true;
                     }
 
                     @Override
-                    public HistogramValue histogram() throws IOException {
+                    public HistogramValue histogram() {
                         return new HistogramValue() {
                             @Override
-                            public boolean next() throws IOException {
+                            public boolean next() {
                                 return true;
                             }
 
@@ -130,6 +130,14 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
             @Override
             public void close() {}
         };
+
+        producer.collect(histogramFieldData, 1);
+        assertFalse(producer.isEmpty());
+        assertEquals(1.0D, ((HistogramValue) producer.label().get()).value(), 0.01);
+        assertEquals(10, ((HistogramValue) producer.label().get()).count());
+        producer.reset();
+        assertTrue(producer.isEmpty());
+        assertNull(producer.label().get());
     }
 
     public void testLabelFieldProducer() throws IOException {

@@ -183,5 +183,6 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
             }
             builder.startObject(name()).field("counts", counts.toArray()).field("values", values.toArray()).endObject();
         }
+
     }
 }

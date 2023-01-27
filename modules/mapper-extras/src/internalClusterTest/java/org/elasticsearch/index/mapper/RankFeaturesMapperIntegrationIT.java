@@ -47,10 +47,12 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
             assertThat(hit.getScore(), equalTo(20f));
         }
 
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(2f)).get();
+        response = client().prepareSearch(INDEX_NAME)
+            .setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(100f))
+            .get();
         assertThat(response.getHits().getTotalHits().value, equalTo(2L));
         for (SearchHit hit : response.getHits().getHits()) {
-            assertThat(hit.getScore(), equalTo(40f));
+            assertThat(hit.getScore(), equalTo(2000f));
         }
 
         response = client().prepareSearch(INDEX_NAME)

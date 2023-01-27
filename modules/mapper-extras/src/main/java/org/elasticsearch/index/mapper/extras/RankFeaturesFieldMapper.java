@@ -9,10 +9,8 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -79,6 +77,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         private final boolean positiveScoreImpact;
 
+        private static final RankFeatureQueryBuilder.ScoreFunction.Linear TERM_QUERY_BUILDER =
+            new RankFeatureQueryBuilder.ScoreFunction.Linear();
+
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.positiveScoreImpact = positiveScoreImpact;
@@ -110,11 +111,14 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return new LinearRankFeatureTermQuery(new Term(name(), indexedValueForSearch(value)));
+            return TERM_QUERY_BUILDER.toQuery(name(), indexedValueForSearch(value), true);
         }
 
-        private static BytesRef indexedValueForSearch(Object value) {
-            return BytesRefs.toBytesRef(value);
+        private static String indexedValueForSearch(Object value) {
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            }
+            return value.toString();
         }
     }
 

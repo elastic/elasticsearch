@@ -126,7 +126,7 @@ public abstract class ItemSetMapReduceAggregator<
             )
             : null;
 
-        List<ItemSetMapReduceValueSource.ValueCollector> valueCollectors = new ArrayList<>();
+        List<ItemSetMapReduceValueSource.ValueCollector> valueCollectors = new ArrayList<>(valueSources.size());
         for (ItemSetMapReduceValueSource valueSource : valueSources) {
             valueCollectors.add(valueSource.getValueCollector(ctx.getLeafReaderContext()));
         }

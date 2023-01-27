@@ -81,6 +81,8 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
         assertEquals("last_value", producer.label().name());
+        double[] histogramValues = new double[] { 1.0, 2.0, 3.0 };
+        int[] histogramCounts = new int[] { 10, 20, 30 };
         final LeafHistogramFieldData histogramFieldData = new LeafHistogramFieldData() {
             @Override
             public HistogramValues getHistogramValues() {
@@ -93,19 +95,23 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
                     @Override
                     public HistogramValue histogram() {
                         return new HistogramValue() {
+                            int current = -1;
+
                             @Override
                             public boolean next() {
-                                return true;
+                                boolean hasNext = current < histogramCounts.length;
+                                current++;
+                                return hasNext;
                             }
 
                             @Override
                             public double value() {
-                                return 1.0;
+                                return histogramValues[current];
                             }
 
                             @Override
                             public int count() {
-                                return 10;
+                                return histogramCounts[current];
                             }
                         };
                     }
@@ -131,10 +137,14 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
             public void close() {}
         };
 
-        producer.collect(histogramFieldData, 1);
+        producer.collect(histogramFieldData, 0);
         assertFalse(producer.isEmpty());
-        assertEquals(1.0D, ((HistogramValue) producer.label().get()).value(), 0.01);
-        assertEquals(10, ((HistogramValue) producer.label().get()).count());
+        HistogramValue histogramValue = (HistogramValue) producer.label().get();
+        for (int i = 0; i < histogramCounts.length; i++) {
+            assertTrue(histogramValue.next());
+            assertEquals(histogramValues[i], histogramValue.value(), 0.1);
+            assertEquals(histogramCounts[i], histogramValue.count());
+        }
         producer.reset();
         assertTrue(producer.isEmpty());
         assertNull(producer.label().get());

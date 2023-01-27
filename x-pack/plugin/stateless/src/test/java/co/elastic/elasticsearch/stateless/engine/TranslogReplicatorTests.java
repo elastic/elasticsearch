@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -33,16 +34,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 public class TranslogReplicatorTests extends ESTestCase {
 
@@ -75,7 +80,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             references.add(bytesStreamOutput.bytes());
             listener.onResponse(null);
         };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, client);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -102,7 +107,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         TriConsumer<String, BytesReference, ActionListener<Void>> client = (fileName, bytesReference, listener) -> {
             listener.onResponse(null);
         };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, client);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -148,7 +153,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             }
             listener.onResponse(null);
         };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, client);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -191,7 +196,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             references.add(bytesStreamOutput.bytes());
             listener.onResponse(null);
         };
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, client);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, client);
         translogReplicator.doStart();
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
@@ -234,5 +239,46 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertNull(metadata.get(shardId1));
         assertThat(metadata.get(shardId2).getMinSeqNo(), equalTo(2L));
         assertThat(metadata.get(shardId2).getMaxSeqNo(), equalTo(2L));
+    }
+
+    public void testDefaultFlushInterval() {
+        var threadPool = Mockito.mock(ThreadPool.class);
+        var scheduler = Mockito.mock(ScheduledExecutorService.class);
+        Mockito.when(threadPool.scheduler()).thenReturn(scheduler);
+        try (var translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, (f, b, s) -> {})) {
+            translogReplicator.doStart();
+            Mockito.verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(200L), eq(200L), eq(TimeUnit.MILLISECONDS));
+        }
+    }
+
+    public void testCustomFlushInterval() {
+        var threadPool = Mockito.mock(ThreadPool.class);
+        var scheduler = Mockito.mock(ScheduledExecutorService.class);
+        Mockito.when(threadPool.scheduler()).thenReturn(scheduler);
+        try (
+            var translogReplicator = new TranslogReplicator(
+                threadPool,
+                Settings.builder().put("stateless.translog.flush_interval", new TimeValue(1, TimeUnit.SECONDS)).build(),
+                (f, b, s) -> {}
+            )
+        ) {
+            translogReplicator.doStart();
+            Mockito.verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(1L), eq(1L), eq(TimeUnit.SECONDS));
+        }
+    }
+
+    public void testMinFlushInterval() {
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogReplicator(
+                threadPool,
+                Settings.builder().put("stateless.translog.flush_interval", new TimeValue(5, TimeUnit.MILLISECONDS)).build(),
+                (f, b, s) -> {}
+            )
+        );
+        assertEquals(
+            "failed to parse value [5ms] for setting [stateless.translog.flush_interval], must be >= [10ms]",
+            exception.getMessage()
+        );
     }
 }

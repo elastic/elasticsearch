@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -92,11 +93,12 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
 
     public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
-        if (resolvedHasher.equals(configuredHasher) == false && resolvedHasher == Hasher.NOOP) {
+        if (resolvedHasher.equals(configuredHasher) == false
+            && Hasher.getAvailableAlgoStoredHash().contains(resolvedHasher.name().toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException(
-                "The provided password hash could not be resolved to a known hash algorithm. "
-                    + "If attempting to use a plain text hash then 'clear_text' must be explicitly configured "
-                    + "as hashing algorithm to allow plain text hashes."
+                "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
+                    + "The supported password hash algorithms are "
+                    + Hasher.getAvailableAlgoStoredHash().toString()
             );
         }
         if (request.passwordHash() != null) {

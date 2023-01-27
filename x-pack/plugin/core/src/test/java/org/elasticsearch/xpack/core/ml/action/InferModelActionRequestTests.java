@@ -62,6 +62,11 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(
             RegressionConfigUpdateTests.randomRegressionConfigUpdate(),

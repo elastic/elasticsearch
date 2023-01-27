@@ -51,6 +51,11 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
     }
 
     @Override
+    protected TextEmbeddingConfig mutateInstance(TextEmbeddingConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected TextEmbeddingConfig mutateInstanceForVersion(TextEmbeddingConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

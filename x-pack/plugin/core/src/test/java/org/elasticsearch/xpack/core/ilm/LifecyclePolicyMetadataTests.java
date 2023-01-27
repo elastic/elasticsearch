@@ -127,7 +127,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     }
 
     @Override
-    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) throws IOException {
+    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) {
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
         long version = instance.getVersion();

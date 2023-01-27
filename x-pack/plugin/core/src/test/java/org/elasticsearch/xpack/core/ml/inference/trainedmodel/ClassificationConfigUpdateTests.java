@@ -116,6 +116,11 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     }
 
     @Override
+    protected ClassificationConfigUpdate mutateInstance(ClassificationConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ClassificationConfigUpdate> instanceReader() {
         return ClassificationConfigUpdate::new;
     }

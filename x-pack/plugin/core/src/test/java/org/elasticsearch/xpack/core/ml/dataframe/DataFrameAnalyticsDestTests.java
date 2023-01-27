@@ -25,6 +25,11 @@ public class DataFrameAnalyticsDestTests extends AbstractBWCSerializationTestCas
         return createRandom();
     }
 
+    @Override
+    protected DataFrameAnalyticsDest mutateInstance(DataFrameAnalyticsDest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataFrameAnalyticsDest createRandom() {
         String index = randomAlphaOfLength(10);
         String resultsField = randomBoolean() ? null : randomAlphaOfLength(10);

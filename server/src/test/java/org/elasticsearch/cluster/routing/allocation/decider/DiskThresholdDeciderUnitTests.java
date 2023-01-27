@@ -529,10 +529,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
         assertEquals(0L, DiskThresholdDecider.getExpectedShardSize(test_3, 0L, allocation));
 
+        boolean primary = randomBoolean();
         ShardRouting other_0 = ShardRouting.newUnassigned(
             new ShardId("other", "5678", 0),
-            randomBoolean(),
-            PeerRecoverySource.INSTANCE,
+            primary,
+            primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
@@ -594,7 +595,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                     ShardRouting.newUnassigned(
                         new ShardId(index, nodeShardCounter++),
                         true,
-                        PeerRecoverySource.INSTANCE,
+                        EmptyStoreRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
                         ShardRouting.Role.DEFAULT
                     ),
@@ -657,7 +658,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         var unassigned = ShardRouting.newUnassigned(
             new ShardId(index, i),
             true,
-            PeerRecoverySource.INSTANCE,
+            EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );

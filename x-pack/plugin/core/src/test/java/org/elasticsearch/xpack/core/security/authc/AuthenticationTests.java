@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +40,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AuthenticationTests extends ESTestCase {
@@ -289,7 +292,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(test.isAssignedToDomain(), is(true));
         assertThat(test.getDomain(), is(lookupRealmRef.getDomain()));
         // api key run-as
-        test = randomApiKeyAuthentication(randomUser(), randomAlphaOfLengthBetween(10, 20), Version.CURRENT);
+        test = randomApiKeyAuthentication(randomUser(), randomAlphaOfLengthBetween(10, 20), TransportVersion.CURRENT);
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
         if (randomBoolean()) {
@@ -397,10 +400,10 @@ public class AuthenticationTests extends ESTestCase {
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(Version.V_8_0_0);
+            out.setTransportVersion(TransportVersion.V_8_0_0);
             test.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setVersion(Version.V_8_0_0);
+            in.setTransportVersion(TransportVersion.V_8_0_0);
             Authentication testBack = new Authentication(in);
             assertThat(testBack.getDomain(), nullValue());
             assertThat(testBack.isAssignedToDomain(), is(false));
@@ -480,16 +483,17 @@ public class AuthenticationTests extends ESTestCase {
         // Version 6.6.1
         final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";
         final Authentication authenticationV6 = AuthenticationContextSerializer.decode(headerV6);
-        assertThat(authenticationV6.getEffectiveSubject().getVersion(), equalTo(Version.fromString("6.6.1")));
+        assertThat(authenticationV6.getEffectiveSubject().getTransportVersion(), equalTo(TransportVersion.fromId(6_06_01_99)));
         assertThat(authenticationV6.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "superuser")));
         assertThat(authenticationV6.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(authenticationV6.isRunAs(), is(false));
         assertThat(authenticationV6.encode(), equalTo(headerV6));
 
         // Rewrite for a different version
-        final Version nodeVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(nodeVersion);
-        assertThat(rewrittenAuthentication.getEffectiveSubject().getVersion(), equalTo(nodeVersion));
+        final Version nodeVersion = VersionUtils.randomIndexCompatibleVersion(random());// TODO are we going to use transport version for
+                                                                                        // index compatibility?
+        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(nodeVersion.transportVersion);
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(nodeVersion.transportVersion));
         assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
         assertThat(rewrittenAuthentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(rewrittenAuthentication.isRunAs(), is(false));
@@ -497,11 +501,80 @@ public class AuthenticationTests extends ESTestCase {
         // Version 7.2.1
         final String headerV7 = "p72sAwANZWxhc3RpYy1hZG1pbgENX2VzX3Rlc3Rfcm9vdAoAAAABAARub2RlBWZpbGUxBGZpbGUAAAoA";
         final Authentication authenticationV7 = AuthenticationContextSerializer.decode(headerV7);
-        assertThat(authenticationV7.getEffectiveSubject().getVersion(), equalTo(Version.fromString("7.2.1")));
+        assertThat(authenticationV7.getEffectiveSubject().getTransportVersion(), equalTo(TransportVersion.fromId(7_02_01_99)));
         assertThat(authenticationV7.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "_es_test_root")));
         assertThat(authenticationV7.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(authenticationV7.isRunAs(), is(false));
         assertThat(authenticationV7.encode(), equalTo(headerV7));
+    }
+
+    public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
+        final TransportVersion olderVersion = TransportVersionUtils.randomPreviousCompatibleVersion(
+            random(),
+            Authentication.VERSION_REALM_DOMAINS
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
+            .transportVersion(TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null))
+            .build();
+        assertThat(authentication.getEffectiveSubject().getTransportVersion().after(olderVersion), is(true));
+
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
+
+        assertThat(actual.getEffectiveSubject().getTransportVersion(), equalTo(olderVersion));
+        assertThat(actual.getAuthenticatingSubject().getRealm().getDomain(), nullValue());
+        assertThat(actual.getEffectiveSubject().getRealm().getDomain(), nullValue());
+    }
+
+    public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_REALM_DOMAINS,
+            // Don't include CURRENT, so we always have at least one newer version available below
+            TransportVersionUtils.getPreviousVersion()
+        );
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
+            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
+            .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.CURRENT : transportVersion)
+            .build();
+
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
+
+        assertThat(
+            actual.getAuthenticatingSubject().getRealm().getDomain(),
+            equalTo(authentication.getAuthenticatingSubject().getRealm().getDomain())
+        );
+        assertThat(
+            actual.getEffectiveSubject().getRealm().getDomain(),
+            equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
+        );
+    }
+
+    public void testMaybeRewriteRealmRef() {
+        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
+        assertThat(realmRefWithDomain.getDomain(), notNullValue());
+
+        assertThat(
+            Authentication.maybeRewriteRealmRef(
+                TransportVersionUtils.randomVersionBetween(
+                    random(),
+                    null,
+                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
+                ),
+                realmRefWithDomain
+            ).getDomain(),
+            nullValue()
+        );
+
+        assertThat(
+            Authentication.maybeRewriteRealmRef(
+                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
+                realmRefWithDomain
+            ),
+            equalTo(realmRefWithDomain)
+        );
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {
@@ -542,7 +615,7 @@ public class AuthenticationTests extends ESTestCase {
 
     /**
      * Randomly create an authentication that has either realm or token authentication type.
-     * The authentication can have any version from 7.0.0 to current and random metadata.
+     * The authentication can have any version from 7.0.0 (or from 8.2.0, if the realm has a domain) to current and random metadata.
      */
     public static Authentication randomAuthentication(User user, RealmRef realmRef) {
         return randomAuthentication(user, realmRef, randomBoolean());
@@ -555,7 +628,9 @@ public class AuthenticationTests extends ESTestCase {
         if (realmRef == null) {
             realmRef = randomRealmRef(false);
         }
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+        // If the realm is expected to have a domain, we need a version that's at least compatible with domains
+        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersion.V_7_0_0;
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.CURRENT);
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -564,14 +639,18 @@ public class AuthenticationTests extends ESTestCase {
                 .distinct()
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
         }
-        return AuthenticationTestHelper.builder().user(user).realmRef(realmRef).version(version).metadata(metadata).build(isRunAs);
+        return AuthenticationTestHelper.builder().user(user).realmRef(realmRef).transportVersion(version).metadata(metadata).build(isRunAs);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
-        return randomApiKeyAuthentication(user, apiKeyId, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT));
+        return randomApiKeyAuthentication(
+            user,
+            apiKeyId,
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.CURRENT)
+        );
     }
 
-    public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, Version version) {
+    public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, TransportVersion version) {
         return randomApiKeyAuthentication(
             user,
             apiKeyId,
@@ -586,12 +665,12 @@ public class AuthenticationTests extends ESTestCase {
         String apiKeyId,
         String creatorRealmName,
         String creatorRealmType,
-        Version version
+        TransportVersion version
     ) {
         return AuthenticationTestHelper.builder()
             .apiKey(apiKeyId)
             .user(user)
-            .version(version)
+            .transportVersion(version)
             .metadata(
                 Map.of(
                     AuthenticationField.API_KEY_CREATOR_REALM_NAME,

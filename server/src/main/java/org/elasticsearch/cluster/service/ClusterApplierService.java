@@ -537,6 +537,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try (Releasable ignored = stopWatch.record(name)) {
                 applier.applyClusterState(clusterChangedEvent);
             }
+            // TODO assert "ClusterStateApplier must not set response headers in the ClusterApplierService"
         }
     }
 
@@ -560,6 +561,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
             }
+            // TODO assert "ClusterStateApplier must not set response headers in the ClusterStateListener"
         }
     }
 

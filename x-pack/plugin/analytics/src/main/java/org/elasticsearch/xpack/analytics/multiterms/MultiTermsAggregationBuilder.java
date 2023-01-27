@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -436,7 +436,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_12_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_12_0;
     }
 }

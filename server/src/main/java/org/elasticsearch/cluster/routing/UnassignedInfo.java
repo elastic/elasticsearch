@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -47,8 +47,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
      * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
      */
-    private static final Version VERSION_LAST_ALLOCATED_NODE_ADDED = Version.V_7_15_0;
-    private static final Version VERSION_UNPROMOTABLE_REPLICA_ADDED = Version.V_8_7_0;
+    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersion.V_7_15_0;
+    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersion.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -302,7 +302,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
         this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             this.lastAllocatedNodeId = in.readOptionalString();
         } else {
             this.lastAllocatedNodeId = null;
@@ -310,9 +310,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (reason.equals(Reason.NODE_RESTARTING) && out.getVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+        if (reason.equals(Reason.NODE_RESTARTING) && out.getTransportVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeByte((byte) Reason.NODE_LEFT.ordinal());
-        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
+        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
             out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
@@ -325,7 +325,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeOptionalString(lastAllocatedNodeId);
         }
     }

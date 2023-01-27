@@ -119,7 +119,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     }
 
     @Override
-    protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) throws IOException {
+    protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) {
         return switch (randomInt(3)) {
             case 0 -> new DesiredBalanceResponse(
                 randomValueOtherThan(instance.getStats(), this::randomDesiredBalanceStats),

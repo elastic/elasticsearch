@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -41,17 +41,17 @@ public class Subject {
         SERVICE_ACCOUNT,
     }
 
-    private final Version version;
+    private final TransportVersion version;
     private final User user;
     private final Authentication.RealmRef realm;
     private final Type type;
     private final Map<String, Object> metadata;
 
     public Subject(User user, Authentication.RealmRef realm) {
-        this(user, realm, Version.CURRENT, Map.of());
+        this(user, realm, TransportVersion.CURRENT, Map.of());
     }
 
-    public Subject(User user, Authentication.RealmRef realm, Version version, Map<String, Object> metadata) {
+    public Subject(User user, Authentication.RealmRef realm, TransportVersion version, Map<String, Object> metadata) {
         this.version = version;
         this.user = user;
         this.realm = realm;
@@ -87,7 +87,7 @@ public class Subject {
         return metadata;
     }
 
-    public Version getVersion() {
+    public TransportVersion getTransportVersion() {
         return version;
     }
 

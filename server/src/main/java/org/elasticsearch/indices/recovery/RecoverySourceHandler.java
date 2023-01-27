@@ -286,13 +286,7 @@ public class RecoverySourceHandler {
                             // new one later on in the recovery.
                             shard.removePeerRecoveryRetentionLease(
                                 request.targetNode().getId(),
-                                new ThreadedActionListener<>(
-                                    logger,
-                                    shard.getThreadPool(),
-                                    ThreadPool.Names.GENERIC,
-                                    deleteRetentionLeaseStep,
-                                    false
-                                )
+                                new ThreadedActionListener<>(shard.getThreadPool().generic(), deleteRetentionLeaseStep)
                             );
                         } catch (RetentionLeaseNotFoundException e) {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
@@ -416,6 +410,8 @@ public class RecoverySourceHandler {
     ) {
         cancellableThreads.execute(() -> {
             CompletableFuture<Releasable> permit = new CompletableFuture<>();
+
+            // this wrapping looks unnecessary necessary, see #93290; TODO remove it
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -981,7 +977,7 @@ public class RecoverySourceHandler {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), cloneRetentionLeaseStep)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                 cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
@@ -996,7 +992,7 @@ public class RecoverySourceHandler {
                 final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
                     estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
+                    new ThreadedActionListener<>(shard.getThreadPool().generic(), addRetentionLeaseStep)
                 );
                 addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);

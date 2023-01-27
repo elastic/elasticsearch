@@ -71,7 +71,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.compute.operator.LimitOperator.LimitOperatorFactory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 

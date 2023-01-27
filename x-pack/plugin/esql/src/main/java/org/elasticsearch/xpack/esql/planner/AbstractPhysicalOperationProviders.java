@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
@@ -22,13 +23,11 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
 abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
@@ -100,12 +99,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             }
             layout.appendChannel(grpAttribIds);
 
-            final Supplier<BlockHash> blockHash;
-            if (grpAttrib.dataType() == DataTypes.KEYWORD) {
-                blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays());
-            } else {
-                blockHash = () -> BlockHash.newLongHash(context.bigArrays());
-            }
+            final BlockHash.Type blockHashType = BlockHash.Type.mapFromDataType(grpAttrib.dataType().typeName());
 
             for (NamedExpression ne : aggregateExec.aggregates()) {
 
@@ -146,9 +140,16 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             final Integer inputChannel = source.layout.getChannel(attrSource.id());
 
             if (inputChannel == null) {
-                operatorFactory = groupingOperatorFactory(source, aggregateExec, aggregatorFactories, attrSource, blockHash);
+                operatorFactory = groupingOperatorFactory(
+                    source,
+                    aggregateExec,
+                    aggregatorFactories,
+                    attrSource,
+                    blockHashType,
+                    context.bigArrays()
+                );
             } else {
-                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHash);
+                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHashType, context.bigArrays());
             }
         }
         if (operatorFactory != null) {
@@ -162,6 +163,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
         Attribute attrSource,
-        Supplier<BlockHash> blockHash
+        BlockHash.Type blockHashType,
+        BigArrays bigArrays
     );
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -69,10 +70,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
         Attribute attrSource,
-        Supplier<BlockHash> blockHash
+        BlockHash.Type blockHashType,
+        BigArrays bigArrays
     ) {
         int channelIndex = source.layout.numberOfChannels();
-        return new TestHashAggregationOperatorFactory(channelIndex, aggregatorFactories, blockHash, attrSource.name());
+        return new TestHashAggregationOperatorFactory(channelIndex, aggregatorFactories, blockHashType, bigArrays, attrSource.name());
     }
 
     private class TestSourceOperator extends SourceOperator {
@@ -214,7 +216,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             checkState(needsInput(), "Operator is already finishing");
             requireNonNull(page, "page is null");
 
-            Block block = maybeConvertToLongBlock(extractBlockForColumn(page, columnName));
+            // Block block = maybeConvertToLongBlock(extractBlockForColumn(page, columnName));
+            Block block = extractBlockForColumn(page, columnName);
             int positionCount = block.getPositionCount();
 
             final LongBlock groupIdBlock;
@@ -253,24 +256,32 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private class TestHashAggregationOperatorFactory implements Operator.OperatorFactory {
         private int groupByChannel;
         private List<GroupingAggregator.GroupingAggregatorFactory> aggregators;
-        private Supplier<BlockHash> blockHash;
+        private BlockHash.Type blockHashType;
+        private BigArrays bigArrays;
         private String columnName;
 
         TestHashAggregationOperatorFactory(
             int channelIndex,
             List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
-            Supplier<BlockHash> blockHash,
+            BlockHash.Type blockHashType,
+            BigArrays bigArrays,
             String name
         ) {
             this.groupByChannel = channelIndex;
             this.aggregators = aggregatorFactories;
-            this.blockHash = blockHash;
+            this.blockHashType = blockHashType;
+            this.bigArrays = bigArrays;
             this.columnName = name;
         }
 
         @Override
         public Operator get() {
-            return new TestHashAggregationOperator(groupByChannel, aggregators, blockHash, columnName);
+            return new TestHashAggregationOperator(
+                groupByChannel,
+                aggregators,
+                () -> BlockHash.newHashForType(blockHashType, bigArrays),
+                columnName
+            );
         }
 
         @Override

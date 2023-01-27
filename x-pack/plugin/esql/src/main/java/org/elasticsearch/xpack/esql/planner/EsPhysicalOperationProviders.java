@@ -29,7 +29,8 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
+
+import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
 
@@ -77,7 +78,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             matchedSearchContexts,
             ctx -> ctx.toQuery(esQueryExec.query()).query(),
             context.dataPartitioning(),
-            context.taskConcurrency()
+            context.taskConcurrency(),
+            esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT
         );
         Layout.Builder layout = new Layout.Builder();
         for (int i = 0; i < esQueryExec.output().size(); i++) {
@@ -97,7 +99,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         AggregateExec aggregateExec,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories,
         Attribute attrSource,
-        Supplier<BlockHash> blockHash
+        BlockHash.Type blockHashType,
+        BigArrays bigArrays
     ) {
         var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
         var luceneDocRef = new LuceneDocRef(

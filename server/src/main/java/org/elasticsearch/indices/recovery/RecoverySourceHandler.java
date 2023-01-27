@@ -410,6 +410,8 @@ public class RecoverySourceHandler {
     ) {
         cancellableThreads.execute(() -> {
             CompletableFuture<Releasable> permit = new CompletableFuture<>();
+
+            // this wrapping looks unnecessary necessary, see #93290; TODO remove it
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {

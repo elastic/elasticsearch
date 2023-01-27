@@ -35,9 +35,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -54,6 +54,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * the service as a listener to cluster state changes, so that we can enable the file watcher thread when this
  * node becomes a master node.
  */
+// this will become file watch service, and it can take file-action objects?
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
@@ -104,15 +105,20 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.clusterService = clusterService;
         this.stateService = stateService;
         this.eventListeners = new CopyOnWriteArrayList<>();
+        // initialize file settings map
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
         WatchableFileSettings watchableFileSettings = new WatchableFileSettings(operatorSettings);
         watchableFileSettings.settingsFileName = SETTINGS_FILE_NAME;
         fileSettingsMap.put(OPERATOR_DIRECTORY, watchableFileSettings);
     }
 
-    // TODO[wrb]: refactor to interface
+    // TODO[wrb]: update for testing
     public Path operatorSettingsDir() {
         return fileSettingsMap.get(OPERATOR_DIRECTORY).operatorSettingsDir;
+    }
+
+    public List<Path> operatorSettingsDirList() {
+        return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir).distinct().toList();
     }
 
     // TODO[wrb]: refactor to interface
@@ -146,7 +152,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.active = Files.exists(operatorSettingsDir().getParent());
+        this.active = fileSettingsMap.values().stream().map(e -> e.operatorSettingsDir.getParent()).anyMatch(Files::exists);
         if (active == false) {
             // we don't have a config directory, we can't possibly launch the file settings service
             return;
@@ -227,6 +233,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      */
     private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
         if (watching()) {
+            // TODO[wrb]: this is only checking one file: can we check all?
             ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
             // like snapshot restores.
@@ -244,6 +251,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return watcherThread != null;
     }
 
+    // need to start all the watchers here
     synchronized void startWatcher(ClusterState clusterState) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
@@ -259,7 +267,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
          *  - any changes to files inside the operator directory if it exists, filtering for settings.json
          */
         try {
-            Path settingsDirPath = operatorSettingsDir();
+            // TODO[wrb]: can we assume that all our settings are on the same filesystem? for now throw error if this isn't the case
+            List<Path> settingsDirPathList = operatorSettingsDirList();
+            assert settingsDirPathList.stream().map(Path::getParent).map(Path::getFileSystem).distinct().count() == 1;
+            Path settingsDirPath = settingsDirPathList.stream().findAny().orElseThrow();
             this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
             if (Files.exists(settingsDirPath)) {
                 WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
@@ -286,6 +297,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
 
+        // thread for each? thread for both?
         watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
         watcherThread.start();
     }
@@ -322,8 +334,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                  * After we get an indication that something has changed, we check the timestamp, file id,
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
-                Path settingsPath = operatorSettingsDir();
-                if (Files.exists(settingsPath)) {
+                List<Path> settingsPathList = operatorSettingsDirList();
+
+                if (settingsPathList.stream().anyMatch(Files::exists)) {
                     try {
                         if (logger.isDebugEnabled()) {
                             key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
@@ -336,8 +349,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
-                        WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
-                        oss.settingsDirWatchKey = enableSettingsWatcher(oss.settingsDirWatchKey, settingsPath);
+                        for (WatchableFileSettings watchableFileSettings : fileSettingsMap.values()) {
+                            watchableFileSettings.settingsDirWatchKey = enableSettingsWatcher(
+                                watchableFileSettings.settingsDirWatchKey,
+                                watchableFileSettings.operatorSettingsDir
+                            );
+                        }
 
                         if (watchedFileChanged(path)) {
                             processSettingsAndNotifyListeners();
@@ -369,6 +386,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // need to stop all the watchers
     synchronized void stopWatcher() {
         if (watching()) {
             logger.debug("stopping watcher ...");

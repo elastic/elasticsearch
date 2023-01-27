@@ -111,17 +111,14 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     if (nodeToExclusivelyHoldUnpromotableShards != null) {
                         if (node.node().getName().equals(nodeToExclusivelyHoldUnpromotableShards)) {
                             if (shardRouting.isPromotableToPrimary()) {
-                                logger.warn("Returning1 NO for node [{}] and shard [{}]", node, shardRouting);
                                 return Decision.NO;
                             }
                         } else {
                             if (shardRouting.isPromotableToPrimary() == false) {
-                                logger.warn("Returning2 NO for node [{}] and shard [{}]", node, shardRouting);
                                 return Decision.NO;
                             }
                         }
                     }
-                    logger.warn("Returning ALWAYS for node [{}] and shard [{}]", node, shardRouting);
                     return Decision.ALWAYS;
                 }
             });

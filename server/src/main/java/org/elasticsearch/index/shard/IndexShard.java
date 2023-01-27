@@ -1672,13 +1672,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (state == IndexShardState.STARTED) {
                     throw new IndexShardStartedException(shardId);
                 }
-                if (routingEntry().isPromotableToPrimary() == false) {
-                    // Swiftly skip intermediate stages
-                    recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
-                    recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-                    recoveryState.getIndex().setFileDetailsComplete();
-                    recoveryState.setStage(RecoveryState.Stage.FINALIZE);
-                }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
             }
@@ -1946,9 +1939,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        recoveryState.validateCurrentStage(
-            routingEntry().isPromotableToPrimary() ? RecoveryState.Stage.TRANSLOG : RecoveryState.Stage.INDEX
-        );
+        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
@@ -1985,9 +1976,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         assert assertSequenceNumbersInCommit();
-        recoveryState.validateCurrentStage(
-            routingEntry().isPromotableToPrimary() ? RecoveryState.Stage.TRANSLOG : RecoveryState.Stage.INDEX
-        );
+        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {

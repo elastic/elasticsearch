@@ -232,13 +232,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         r.actionName(),
                         r.startRecoveryRequest().sourceNode()
                     );
-                    RecoveryResponseHandler recoveryResponseHandler = new RecoveryResponseHandler(r.startRecoveryRequest(), timer);
                     if (promotableToPrimary) {
                         transportService.sendRequest(
                             r.startRecoveryRequest().sourceNode(),
                             r.actionName(),
                             r.requestToSend(),
-                            recoveryResponseHandler
+                            new RecoveryResponseHandler(r.startRecoveryRequest(), timer)
                         );
                     } else {
                         onGoingRecoveries.markRecoveryAsDone(recoveryId);
@@ -278,7 +277,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     if (promotableToPrimary) {
                         startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     } else {
+                        // Skip intermediate stages until the translog stage
+                        final RecoveryState recoveryState = recoveryTarget.state();
+                        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+                        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
                         indexShard.openEngineAndSkipTranslogRecovery();
+                        recoveryState.getIndex().setFileDetailsComplete();
+                        recoveryState.setStage(RecoveryState.Stage.FINALIZE);
                     }
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";

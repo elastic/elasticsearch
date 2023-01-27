@@ -139,48 +139,28 @@ final class DfsQueryPhase extends SearchPhase {
 
         SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
 
-        if (true) {//source.rerankBuilder() != null && source.rerankBuilder().rrfBuilder() != null) {
-            RerankQueryBuilder rerankQueryBuilder = new RerankQueryBuilder();
-            for (DfsKnnResults dfsKnnResults : knnResults) {
-                List<ScoreDoc> scoreDocs = new ArrayList<>();
-                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                        scoreDocs.add(scoreDoc);
-                    }
-                }
-                scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-                rerankQueryBuilder.addQuery(new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0])));
-            }
-
-            if (source.query() != null) {
-                rerankQueryBuilder.addQuery(source.query());
-            }
-
-            newSource.query(rerankQueryBuilder);
-        } else {
-            List<ScoreDoc> scoreDocs = new ArrayList<>();
-            for (DfsKnnResults dfsKnnResults : knnResults) {
-                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                    if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                        scoreDocs.add(scoreDoc);
-                    }
+        List<ScoreDoc> scoreDocs = new ArrayList<>();
+        for (DfsKnnResults dfsKnnResults : knnResults) {
+            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                    scoreDocs.add(scoreDoc);
                 }
             }
-            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-            // It is possible that the different results refer to the same doc.
-            for (int i = 0; i < scoreDocs.size() - 1; i++) {
-                ScoreDoc scoreDoc = scoreDocs.get(i);
-                int j = i + 1;
-                for (; j < scoreDocs.size(); j++) {
-                    ScoreDoc otherScoreDoc = scoreDocs.get(j);
-                    if (otherScoreDoc.doc != scoreDoc.doc) {
-                        break;
-                    }
-                    scoreDoc.score += otherScoreDoc.score;
+        }
+        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        // It is possible that the different results refer to the same doc.
+        for (int i = 0; i < scoreDocs.size() - 1; i++) {
+            ScoreDoc scoreDoc = scoreDocs.get(i);
+            int j = i + 1;
+            for (; j < scoreDocs.size(); j++) {
+                ScoreDoc otherScoreDoc = scoreDocs.get(j);
+                if (otherScoreDoc.doc != scoreDoc.doc) {
+                    break;
                 }
-                if (j > i + 1) {
-                    scoreDocs.subList(i + 1, j).clear();
-                }
+                scoreDoc.score += otherScoreDoc.score;
+            }
+            if (j > i + 1) {
+                scoreDocs.subList(i + 1, j).clear();
             }
 
             KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));

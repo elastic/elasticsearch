@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -1601,7 +1602,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomAlphaOfLength(8),
             apiKeyCreatorRealm,
             "file",
-            Version.CURRENT
+            TransportVersion.CURRENT
         );
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication)), contains(apiKeyCreatorRealm));
         assertThat(Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.token())), contains(apiKeyCreatorRealm));
@@ -2037,7 +2038,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Authentication authentication,
             Set<RoleDescriptor> userRoles,
             List<RoleDescriptor> keyRoles,
-            Version version
+            TransportVersion version
         ) throws Exception {
             XContentBuilder keyDocSource = ApiKeyService.newDocument(
                 getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray())),
@@ -2106,7 +2107,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 authentication,
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
                 null,
-                Version.CURRENT
+                TransportVersion.CURRENT
             );
         }
     }

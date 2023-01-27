@@ -194,7 +194,7 @@ public class PutRoleRequestTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )

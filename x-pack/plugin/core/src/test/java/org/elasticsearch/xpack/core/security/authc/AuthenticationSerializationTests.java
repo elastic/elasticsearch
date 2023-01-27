@@ -109,7 +109,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
             final StreamInput in = out.bytes().streamInput();
             in.setTransportVersion(out.getTransportVersion());
             final Authentication readFrom = new Authentication(in);
-            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getVersion())));
+            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getTransportVersion())));
         }
     }
 

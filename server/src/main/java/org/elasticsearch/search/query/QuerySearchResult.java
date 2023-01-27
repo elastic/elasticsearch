@@ -389,7 +389,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult from(int from) {
-        primarySearchResult.size();
+        primarySearchResult.from(from);
         return this;
     }
 

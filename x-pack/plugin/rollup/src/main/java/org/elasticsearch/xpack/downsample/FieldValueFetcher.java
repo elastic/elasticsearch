@@ -29,10 +29,38 @@ class FieldValueFetcher {
     protected final IndexFieldData<?> fieldData;
     private final AbstractRollupFieldProducer rollupFieldProducer;
 
+    private static class RollupFieldProducersFactory {
+
+        static AbstractRollupFieldProducer createProducer(final MappedFieldType fieldType, final String name) {
+            if (fieldType.getMetricType() == null) {
+                return createLabelFieldProducer(fieldType, name);
+            }
+            return createMetricFieldProducer(fieldType, name);
+        }
+
+        private static AbstractRollupFieldProducer createMetricFieldProducer(final MappedFieldType fieldType, final String name) {
+            return switch (fieldType.getMetricType()) {
+                case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(fieldType, name);
+                case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(fieldType, name);
+            };
+        }
+
+        private static AbstractRollupFieldProducer createLabelFieldProducer(final MappedFieldType fieldType, final String name) {
+            if (isHistogramField(fieldType)) {
+                return new LabelFieldProducer.HistogramLabelFieldProducer(fieldType, name);
+            }
+            return new LabelFieldProducer.LabelLastValueFieldProducer(fieldType, name);
+        }
+
+        private static boolean isHistogramField(final MappedFieldType fieldType) {
+            return HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
+        }
+    }
+
     protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.fieldType = fieldType;
         this.fieldData = fieldData;
-        this.rollupFieldProducer = createRollupFieldProducer();
+        this.rollupFieldProducer = RollupFieldProducersFactory.createProducer(fieldType, name());
     }
 
     public String name() {
@@ -49,19 +77,6 @@ class FieldValueFetcher {
 
     public AbstractRollupFieldProducer rollupFieldProducer() {
         return rollupFieldProducer;
-    }
-
-    private AbstractRollupFieldProducer createRollupFieldProducer() {
-        if (fieldType.getMetricType() != null) {
-            return switch (fieldType.getMetricType()) {
-                case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(fieldType, name());
-                case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(fieldType, name());
-            };
-        } else if (isHistogramField(fieldType)) {
-            return new LabelFieldProducer.HistogramLabelFieldProducer(fieldType, name());
-        } else {
-            return new LabelFieldProducer.LabelLastValueFieldProducer(fieldType, name());
-        }
     }
 
     /**

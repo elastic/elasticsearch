@@ -46,9 +46,6 @@ import java.util.TreeMap;
  */
 public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
-    /*
-     * Legacy transport versions that match the node version
-     */
     public static final TransportVersion V_7_0_0 = new TransportVersion(7_00_00_99, "7505fd05-d982-43ce-a63f-ff4c6c8bdeec");
     public static final TransportVersion V_7_0_1 = new TransportVersion(7_00_01_99, "ae772780-e6f9-46a1-b0a0-20ed0cae37f7");
     public static final TransportVersion V_7_1_0 = new TransportVersion(7_01_00_99, "fd09007c-1c54-450a-af99-9f941e1a53c2");
@@ -133,6 +130,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_5_4 = new TransportVersion(8_05_04_99, "97ee525c-555d-45ca-83dc-59cd592c8e86");
     public static final TransportVersion V_8_6_0 = new TransportVersion(8_06_00_99, "e209c5ed-3488-4415-b561-33492ca3b789");
     public static final TransportVersion V_8_6_1 = new TransportVersion(8_06_01_99, "9f113acb-1b21-4fda-bef9-2a3e669b5c7b");
+    public static final TransportVersion V_8_6_2 = new TransportVersion(8_06_02_99, "5a82fb68-b265-4a06-97c5-53496f823f51");
     public static final TransportVersion V_8_7_0 = new TransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS

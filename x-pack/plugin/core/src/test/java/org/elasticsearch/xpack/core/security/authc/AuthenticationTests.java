@@ -511,7 +511,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_REALM_DOMAINS.calculateMinimumCompatVersion(),
+            TransportVersion.V_7_0_0,
             TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

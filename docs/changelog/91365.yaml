@@ -1,6 +1,0 @@
-pr: 91365
-summary: Reduce memory required for search responses when many shards are unavailable
-area: Search
-type: bug
-issues:
- - 90622

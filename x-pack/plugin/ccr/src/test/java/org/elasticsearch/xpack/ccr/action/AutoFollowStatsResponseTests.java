@@ -37,6 +37,11 @@ public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCas
         return new CcrStatsAction.Response(autoFollowStats, statsResponse);
     }
 
+    @Override
+    protected CcrStatsAction.Response mutateInstance(CcrStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(
             createTestInstance(),

@@ -57,6 +57,11 @@ public class RegressionStatsTests extends AbstractBWCSerializationTestCase<Regre
         return createRandom();
     }
 
+    @Override
+    protected RegressionStats mutateInstance(RegressionStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static RegressionStats createRandom() {
         return new RegressionStats(
             randomAlphaOfLength(10),

@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -636,6 +637,11 @@ public class TasksIT extends ESIntegTestCase {
 
                     @Override
                     public void onTaskUnregistered(Task task) {}
+
+                    @Override
+                    public void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {
+                        waitForWaitingToStart.countDown();
+                    }
                 });
             }
 

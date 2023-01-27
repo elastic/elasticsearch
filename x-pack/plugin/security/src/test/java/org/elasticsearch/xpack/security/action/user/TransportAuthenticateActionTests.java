@@ -155,7 +155,10 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             }
             assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(authentication.getAuthenticatingSubject().getRealm()));
             assertThat(auth.getEffectiveSubject().getRealm(), sameInstance(authentication.getEffectiveSubject().getRealm()));
-            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(authentication.getEffectiveSubject().getVersion()));
+            assertThat(
+                auth.getEffectiveSubject().getTransportVersion(),
+                sameInstance(authentication.getEffectiveSubject().getTransportVersion())
+            );
             assertThat(auth.getAuthenticationType(), sameInstance(authentication.getAuthenticationType()));
             assertThat(
                 auth.getAuthenticatingSubject().getMetadata(),

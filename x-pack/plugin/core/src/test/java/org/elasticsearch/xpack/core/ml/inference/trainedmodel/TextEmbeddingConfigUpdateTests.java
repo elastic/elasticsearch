@@ -95,6 +95,11 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
     }
 
     @Override
+    protected TextEmbeddingConfigUpdate mutateInstance(TextEmbeddingConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected TextEmbeddingConfigUpdate mutateInstanceForVersion(TextEmbeddingConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }

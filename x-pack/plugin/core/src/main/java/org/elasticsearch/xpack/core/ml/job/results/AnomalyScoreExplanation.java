@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -82,7 +82,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         this.upperConfidenceBound = in.readOptionalDouble();
         this.highVariancePenalty = in.readOptionalBoolean();
         this.incompleteBucketPenalty = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.multimodalDistribution = in.readOptionalBoolean();
         }
     }
@@ -99,7 +99,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         out.writeOptionalDouble(upperConfidenceBound);
         out.writeOptionalBoolean(highVariancePenalty);
         out.writeOptionalBoolean(incompleteBucketPenalty);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalBoolean(multimodalDistribution);
         }
     }

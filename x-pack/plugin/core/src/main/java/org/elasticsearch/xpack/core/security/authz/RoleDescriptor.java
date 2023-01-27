@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -53,7 +53,7 @@ import java.util.Objects;
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final String ROLE_TYPE = "role";
-    public static final Version VERSION_REMOTE_INDICES = Version.V_8_6_0;
+    public static final TransportVersion VERSION_REMOTE_INDICES = TransportVersion.V_8_6_0;
 
     private final String name;
     private final String[] clusterPrivileges;
@@ -166,7 +166,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
             this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
@@ -337,14 +337,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_REMOTE_INDICES)) {
             out.writeArray(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_REMOTE_INDICES
                     + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getVersion()
+                    + out.getTransportVersion()
                     + "]"
             );
         }
@@ -1034,7 +1034,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.
      */
-    public static class IndicesPrivileges implements ToXContentObject, Writeable {
+    public static class IndicesPrivileges implements ToXContentObject, Writeable, Comparable<IndicesPrivileges> {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
@@ -1212,6 +1212,35 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         public static void write(StreamOutput out, IndicesPrivileges privileges) throws IOException {
             privileges.writeTo(out);
+        }
+
+        @Override
+        public int compareTo(IndicesPrivileges o) {
+            if (this == o) {
+                return 0;
+            }
+            int cmp = Boolean.compare(allowRestrictedIndices, o.allowRestrictedIndices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(indices, o.indices);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(privileges, o.privileges);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Objects.compare(query, o.query, Comparator.nullsFirst(BytesReference::compareTo));
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(grantedFields, o.grantedFields);
+            if (cmp != 0) {
+                return cmp;
+            }
+            cmp = Arrays.compare(deniedFields, o.deniedFields);
+            return cmp;
         }
 
         public static class Builder {

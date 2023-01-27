@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -104,7 +105,7 @@ public class InferenceIT extends InferenceTestCase {
 
     private Response infer(String modelId, String body) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [%s] }
             """, body));
         return client().performRequest(request);

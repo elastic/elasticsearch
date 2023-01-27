@@ -503,7 +503,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 retentionLeaseSyncer,
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                relativeTimeSupplier
+                relativeTimeSupplier,
+                null,
+                ReplicationTracker.DEFAULT_FACTORY
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -675,7 +677,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     public static void updateRoutingEntry(IndexShard shard, ShardRouting shardRouting) throws IOException {
         Set<String> inSyncIds = shardRouting.active() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
-        IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(shardRouting.shardId()).addShard(shardRouting).build();
+        final var builder = new IndexShardRoutingTable.Builder(shardRouting.shardId());
+        if (shardRouting.primary() == false) {
+            builder.addShard(TestShardRouting.newShardRouting(shardRouting.shardId(), "ignored", true, ShardRoutingState.STARTED));
+        }
+        IndexShardRoutingTable newRoutingTable = builder.addShard(shardRouting).build();
         shard.updateShardState(
             shardRouting,
             shard.getPendingPrimaryTerm(),
@@ -856,9 +862,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             replica.routingEntry().allocationId()
         );
 
-        final IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(routingTable).removeShard(replica.routingEntry())
-            .addShard(routingEntry)
-            .build();
+        final IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(routingTable).removeShard(
+            routingTable.primaryShard()
+        ).removeShard(replica.routingEntry()).addShard(routingEntry).build();
         replica.updateShardState(
             routingEntry,
             replica.getPendingPrimaryTerm() + 1,
@@ -1051,7 +1057,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     null,
                     snapshotStatus,
                     Version.CURRENT,
-                    Collections.emptyMap(),
                     randomMillisUpToYear9999(),
                     future
                 )

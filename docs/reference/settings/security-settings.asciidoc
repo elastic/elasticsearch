@@ -45,6 +45,18 @@ starting {es} for the first time, which means that you must
 <<manually-configure-security,manually configure security>>.
 --
 
+`xpack.security.enrollment.enabled`::
+(<<static-cluster-setting,Static>>)
+Defaults to `false`. Controls enrollment (of nodes and {kib}) to a local node
+that's been <<configuring-stack-security, autoconfigured for security>>.
+When set to `true`, the local node can generate new enrollment tokens. Existing
+tokens can be used for enrollment if they are still valid.
++
+--
+The security autoconfiguration process will set this to `true` unless
+an administrator sets it to `false` before starting {es}.
+--
+
 `xpack.security.hide_settings`::
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
@@ -1501,6 +1513,7 @@ This setting cannot be used with `ssl.truststore.password`.
 // tag::saml-ssl-verification-mode-tag[]
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::saml-ssl-verification-mode-tag[]
 
@@ -2010,13 +2023,24 @@ In addition to the <<ref-realm-settings,settings that are valid for all realms>>
 can specify the following settings.
 // end::jwt-description-tag[]
 
+// tag::jwt-token-type-tag[]
+`token_type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The token type, `id_token` or `access_token`, that the JWT realm uses to verify
+incoming JWTs. Defaults to `id_token`.
+// end::jwt-token-type-tag[]
+
 // tag::jwt-allowed-audiences-tag[]
 `allowed_audiences` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 A list of allowed JWT audiences that {es} should verify. {es} will only consume
 JWTs that were intended for any of these audiences, as denoted by the `aud`
-claim in the JWT). Examples of `aud` claim are `https://example.com/client1`
-and `other_service,elasticsearch`.
+claim in the JWT).
+The audiences are compared with exact string matches and do not support wildcards or regex.
+Examples of `aud` claim are `https://example.com/client1`
+and `other_service,elasticsearch`. When `token_type` is `access_token`, the audiences can
+be optionally denoted by a different claim in the JWT if `aud` does not exist.
+See also <<security-settings-jwt-fallback-claims-aud,`fallback_claims.aud`>>.
 // end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-allowed-clock-skew-tag[]
@@ -2034,8 +2058,60 @@ Identifier is usually a case sensitive URL using the https scheme that contains
 scheme, host, and optionally, port number and path components and no query or
 fragment components. However, it can be any string. The value for this setting
 should be provided by your JWT Issuer.
+The issuer is compared with exact string matches and do not support wildcards or regex.
 Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 // end::jwt-allowed-issuer-tag[]
+
+// tag::jwt-allowed-subjects-tag[]
+`allowed_subjects` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A list of allowed JWT subjects that {es} should verify. {es} will only consume
+JWTs that were issued for any of these subjects, as denoted by the `sub`
+claim in the JWT.
+The subjects are compared with exact string matches and do not support wildcards or regex.
+Examples of `sub` claim are `https://example.com/user1`
+and `user_1,user2`.
+When `token_type` is `access_token`, this setting is mandatory and the subject can be
+optionally denoted by a different claim in the JWT if `sub` does not exist.
+See also <<security-settings-jwt-fallback-claims-sub,`fallback_claims.sub`>>.
+// end::jwt-allowed-subjects-tag[]
+
+// tag::jwt-fallback-claims-sub-tag[]
+[[security-settings-jwt-fallback-claims-sub]]
+`fallback_claims.sub` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The alternative claim to look for the subject information if the `sub` claim
+does not exist. It is configurable only when the `token_type` is `access_token`.
+The fallback is applied everywhere the `sub` claim is used.
+// end::jwt-fallback-claims-sub-tag[]
+
+// tag::jwt-fallback-claims-aud-tag[]
+[[security-settings-jwt-fallback-claims-aud]]
+`fallback_claims.aud` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The alternative claim to look for the audiences information if the `aud` claim
+does not exist. It is configurable only when the `token_type` is `access_token`.
+The fallback is applied everywhere the `aud` claim is used.
+// end::jwt-fallback-claims-aud-tag[]
+
+// tag::jwt-required-claims-tag[]
+`required_claims` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Additional claims and associated values that {es} should verify.
+This is a group setting that takes key/value pairs, where the key is a string
+and the value must be either a string or an array of strings.
+The values are compared with exact string matches and do not support wildcards or regex.
+
+For example:
+
+[source, yaml]
+------------------------------------------------------------
+xpack.security.authc.realms.jwt.jwt1:
+  required_claims:
+    token_use: "id"
+    versions: ["1.0", "2.0"]
+------------------------------------------------------------
+// end::jwt-required-claims-tag[]
 
 // tag::jwt-allowed-signature-algorithms-tag[]
 `allowed_signature_algorithms` {ess-icon}::

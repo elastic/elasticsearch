@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -365,7 +366,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
     private void putModelDefinitionPart(String modelId, int totalSize, int numParts, int partNumber) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/" + partNumber);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "total_definition_length": %s,
               "definition": "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZW==",

@@ -17,6 +17,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +53,8 @@ import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     static class ClassAndName {
@@ -61,6 +65,16 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             this.fieldType = fieldType;
             this.clazz = clazz;
         }
+    }
+
+    private IndexReader indexReader;
+
+    @Before
+    public void setUpMocks() {
+        indexReader = mock(IndexReader.class);
+        IndexReaderContext indexReaderContext = mock(IndexReaderContext.class);
+        when(indexReaderContext.leaves()).thenReturn(List.of());
+        when(indexReader.getContext()).thenReturn(indexReaderContext);
     }
 
     public void testRandomLong() throws IOException {
@@ -275,6 +289,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         sources[i] = new GlobalOrdinalValuesSource(
                             bigArrays,
                             fieldType,
+                            DocValues.getSortedSet(reader.leaves().get(0).reader(), fieldType.name()).getValueCount(),
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
                             missingBucket,
@@ -308,7 +323,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     final CompositeValuesCollectorQueue queue = new CompositeValuesCollectorQueue(
                         BigArrays.NON_RECYCLING_INSTANCE,
                         sources,
-                        size
+                        size,
+                        indexReader
                     );
                     if (last != null) {
                         queue.setAfterKey(last);

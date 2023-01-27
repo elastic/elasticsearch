@@ -133,15 +133,15 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String badPolicyJSON = """
             {
-                "my_timeseries_lifecycle": {
-                    "phase": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+              "my_timeseries_lifecycle": {
+                "phase": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
                     }
+                  }
                 }
+              }
             }""";
 
         assertEquals(
@@ -169,29 +169,29 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String twoPoliciesJSON = """
             {
-                "my_timeseries_lifecycle": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+              "my_timeseries_lifecycle": {
+                "phases": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
                     }
-                },
-                "my_timeseries_lifecycle1": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        },
-                        "delete": {
-                            "min_age": "30s",
-                            "actions": {
-                            }
-                        }
-                    }
+                  }
                 }
+              },
+              "my_timeseries_lifecycle1": {
+                "phases": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
+                    }
+                  },
+                  "delete": {
+                    "min_age": "30s",
+                    "actions": {
+                    }
+                  }
+                }
+              }
             }""";
 
         prevState = updatedState;
@@ -204,15 +204,15 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String onePolicyRemovedJSON = """
             {
-                "my_timeseries_lifecycle": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+              "my_timeseries_lifecycle": {
+                "phases": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
                     }
+                  }
                 }
+              }
             }""";
 
         prevState = updatedState;
@@ -223,15 +223,15 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String onePolicyRenamedJSON = """
             {
-                "my_timeseries_lifecycle2": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+              "my_timeseries_lifecycle2": {
+                "phases": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
                     }
+                  }
                 }
+              }
             }""";
 
         prevState = updatedState;
@@ -301,55 +301,55 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String testJSON = """
             {
-                 "metadata": {
-                     "version": "1234",
-                     "compatibility": "8.4.0"
-                 },
-                 "state": {
-                     "cluster_settings": {
-                         "indices.recovery.max_bytes_per_sec": "50mb"
-                     },
-                     "ilm": {
-                         "my_timeseries_lifecycle": {
-                             "phases": {
-                                 "hot": {
-                                     "min_age": "10s",
-                                     "actions": {
-                                        "rollover": {
-                                           "max_primary_shard_size": "50gb",
-                                           "max_age": "30d"
-                                        }
-                                     }
-                                 },
-                                 "delete": {
-                                     "min_age": "30s",
-                                     "actions": {
-                                     }
-                                 }
-                             }
-                         },
-                         "my_timeseries_lifecycle1": {
-                             "phases": {
-                                 "warm": {
-                                     "min_age": "10s",
-                                     "actions": {
-                                        "shrink": {
-                                          "number_of_shards": 1
-                                        },
-                                        "forcemerge": {
-                                          "max_num_segments": 1
-                                        }
-                                     }
-                                 },
-                                 "delete": {
-                                     "min_age": "30s",
-                                     "actions": {
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                 }
+              "metadata": {
+                "version": "1234",
+                "compatibility": "8.4.0"
+              },
+              "state": {
+                "cluster_settings": {
+                  "indices.recovery.max_bytes_per_sec": "50mb"
+                },
+                "ilm": {
+                  "my_timeseries_lifecycle": {
+                    "phases": {
+                      "hot": {
+                        "min_age": "10s",
+                        "actions": {
+                           "rollover": {
+                              "max_primary_shard_size": "50gb",
+                              "max_age": "30d"
+                           }
+                        }
+                      },
+                      "delete": {
+                        "min_age": "30s",
+                        "actions": {
+                        }
+                      }
+                    }
+                  },
+                  "my_timeseries_lifecycle1": {
+                    "phases": {
+                      "warm": {
+                        "min_age": "10s",
+                        "actions": {
+                          "shrink": {
+                            "number_of_shards": 1
+                          },
+                          "forcemerge": {
+                            "max_num_segments": 1
+                          }
+                        }
+                      },
+                      "delete": {
+                        "min_age": "30s",
+                        "actions": {
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }""";
 
         AtomicReference<Exception> x = new AtomicReference<>();

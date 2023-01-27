@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,6 +88,10 @@ public class AuthenticationTestHelper {
             ESTestCase.randomAlphaOfLengthBetween(3, 8),
             ESTestCase.randomArray(1, 3, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 8))
         );
+    }
+
+    public static User randomInternalUser() {
+        return ESTestCase.randomFrom(INTERNAL_USERS);
     }
 
     public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
@@ -230,7 +234,7 @@ public class AuthenticationTestHelper {
     }
 
     public static class AuthenticationTestBuilder {
-        private Version version;
+        private TransportVersion transportVersion;
         private Authentication authenticatingAuthentication;
         private User user;
         private Authentication.RealmRef realmRef;
@@ -244,7 +248,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder(Authentication authentication) {
             assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
-            this.version = authentication.getEffectiveSubject().getVersion();
+            this.transportVersion = authentication.getEffectiveSubject().getTransportVersion();
         }
 
         public AuthenticationTestBuilder realm() {
@@ -342,11 +346,11 @@ public class AuthenticationTestHelper {
             return this;
         }
 
-        public AuthenticationTestBuilder version(Version version) {
+        public AuthenticationTestBuilder transportVersion(TransportVersion version) {
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot set version for run-as authentication");
             }
-            this.version = Objects.requireNonNull(version);
+            this.transportVersion = Objects.requireNonNull(version);
             return this;
         }
 
@@ -373,7 +377,12 @@ public class AuthenticationTestHelper {
             return build(ESTestCase.randomBoolean());
         }
 
-        public Authentication build(boolean runAsIfNotAlready) {
+        /**
+         * @param maybeRunAsIfNotAlready If the authentication is *not* run-as and the subject is a realm user, it will be transformed
+         *                               into a run-as authentication by moving the realm user to be the run-as user. The authenticating
+         *                               subject can be either a realm user or an API key (in general any subject type that can run-as).
+         */
+        public Authentication build(boolean maybeRunAsIfNotAlready) {
             if (authenticatingAuthentication != null) {
                 if (user == null) {
                     user = randomUser();
@@ -398,7 +407,7 @@ public class AuthenticationTestHelper {
                             realmRef = randomRealmRef(isRealmUnderDomain == null ? ESTestCase.randomBoolean() : isRealmUnderDomain);
                         }
                         assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "use dedicate methods for synthetic realms";
-                        if (runAsIfNotAlready) {
+                        if (maybeRunAsIfNotAlready) {
                             authentication = builder().runAs().user(user).realmRef(realmRef).build();
                         } else {
                             authentication = Authentication.newRealmAuthentication(user, realmRef);
@@ -490,20 +499,20 @@ public class AuthenticationTestHelper {
                         String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
                         if (user == SystemUser.INSTANCE) {
                             authentication = ESTestCase.randomFrom(
-                                Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName),
+                                Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName),
                                 Authentication.newInternalFallbackAuthentication(user, nodeName)
                             );
                         } else {
-                            authentication = Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName);
+                            authentication = Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName);
                         }
                     }
                     default -> throw new IllegalArgumentException("unknown authentication type [" + authenticationType + "]");
                 }
-                if (version == null) {
-                    version = Version.CURRENT;
+                if (transportVersion == null) {
+                    transportVersion = TransportVersion.CURRENT;
                 }
-                if (version.before(authentication.getEffectiveSubject().getVersion())) {
-                    return authentication.maybeRewriteForOlderVersion(version);
+                if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
+                    return authentication.maybeRewriteForOlderVersion(transportVersion);
                 } else {
                     return authentication;
                 }

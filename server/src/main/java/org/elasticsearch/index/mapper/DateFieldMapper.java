@@ -17,8 +17,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -245,7 +245,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Resolution resolution;
         private final Version indexCreatedVersion;
@@ -303,9 +303,13 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, buildFormatter())
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(
+                    name,
+                    script.get().getParams(),
+                    lookup,
+                    buildFormatter(),
+                    OnScriptError.FAIL
+                ).newInstance(ctx).runForDoc(doc, consumer::accept);
         }
 
         @Override
@@ -785,7 +789,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType().getValuesSourceType(),
                     sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
+                    searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );
             }

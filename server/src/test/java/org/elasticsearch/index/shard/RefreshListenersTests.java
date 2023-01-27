@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -65,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -152,7 +152,9 @@ public class RefreshListenersTests extends ESTestCase {
             () -> primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            System::nanoTime
+            System::nanoTime,
+            null,
+            true
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
@@ -401,11 +403,11 @@ public class RefreshListenersTests extends ESTestCase {
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
         for (int thread = 0; thread < threadCount; thread++) {
-            final String threadId = formatted("%04d", thread);
+            final String threadId = Strings.format("%04d", thread);
             indexers[thread] = new Thread(() -> {
                 for (int iteration = 1; iteration <= 50; iteration++) {
                     try {
-                        String testFieldValue = String.format(Locale.ROOT, "%s%04d", threadId, iteration);
+                        String testFieldValue = Strings.format("%s%04d", threadId, iteration);
                         Engine.IndexResult index = index(threadId, testFieldValue);
                         assertEquals(iteration, index.getVersion());
 

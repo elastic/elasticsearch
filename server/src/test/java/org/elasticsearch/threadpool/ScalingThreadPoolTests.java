@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -48,12 +49,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = randomIntBetween(0, 8);
             builder.put("thread_pool." + threadPoolName + ".core", core);
         } else {
-            // the defaults
-            core = switch (threadPoolName) {
-                case "generic" -> 4;
-                case "management" -> 2;
-                default -> 1;
-            };
+            core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
         }
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
@@ -73,7 +69,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             expectedMax = randomIntBetween(Math.max(1, core), 16);
             builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
         } else {
-            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT) ? 10 : maxBasedOnNumberOfProcessors;
+            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT)
+                ? getMaxSnapshotThreadPoolSize(processors)
+                : maxBasedOnNumberOfProcessors;
         }
 
         final long keepAlive;
@@ -111,7 +109,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
         final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));
-        sizes.put(ThreadPool.Names.MANAGEMENT, n -> ThreadPool.boundedBy(n, 2, 5));
+        sizes.put(ThreadPool.Names.MANAGEMENT, n -> ThreadPool.boundedBy(n, 1, 5));
         sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfAllocatedProcessorsMaxTen);
         sizes.put(ThreadPool.Names.WARMER, ThreadPool::halfAllocatedProcessorsMaxFive);
@@ -154,11 +152,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        final int min = switch (threadPoolName) {
-            case "generic" -> 4;
-            case "management" -> 2;
-            default -> 1;
-        };
+        final int min = "generic".equals(threadPoolName) ? 4 : 1;
         final Settings settings = Settings.builder()
             .put("thread_pool." + threadPoolName + ".max", 128)
             .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")

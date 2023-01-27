@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -77,7 +78,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
             Version.V_7_2_0,
             VersionUtils.getPreviousVersion(TransformDeprecations.MIN_TRANSFORM_VERSION)
         );
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "bar"
@@ -122,6 +123,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
 
         StartTransformAction.Request startTransformRequest = new StartTransformAction.Request(
             transformId,
+            null,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
         );
 

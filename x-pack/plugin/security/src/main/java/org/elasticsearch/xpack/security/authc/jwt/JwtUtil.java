@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.JSONObjectUtils;
-import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -55,9 +54,6 @@ import java.security.MessageDigest;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.Collection;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -255,7 +251,7 @@ public class JwtUtil {
                 final RequestConfig requestConfig = RequestConfig.custom()
                     .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
                     .setConnectionRequestTimeout(
-                        Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getSeconds())
+                        Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
                     )
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
@@ -335,39 +331,6 @@ public class JwtUtil {
             sb.append(secureStrings[i]); // allow null
         }
         return new SecureString(sb.toString().toCharArray());
-    }
-
-    /**
-     * Format and filter JWT contents as user metadata.
-     *   JWSHeader: Header are not support.
-     *   JWTClaimsSet: Claims are supported. Claim keys are prefixed by "jwt_claim_".
-     *   Base64URL: Signature is not supported.
-     * @return Map of formatted and filtered values to be used as user metadata.
-     */
-    // Values will be filtered by type using isAllowedTypeForClaim().
-    public static Map<String, Object> toUserMetadata(JWTClaimsSet claimsSet) {
-        return claimsSet.getClaims()
-            .entrySet()
-            .stream()
-            .filter(entry -> JwtUtil.isAllowedTypeForClaim(entry.getValue()))
-            .collect(Collectors.toUnmodifiableMap(entry -> "jwt_claim_" + entry.getKey(), Map.Entry::getValue));
-    }
-
-    /**
-     * JWTClaimsSet values are only allowed to be String, Boolean, Number, or Collection.
-     * Collections are only allowed to contain String, Boolean, or Number.
-     * Collections recursion is not allowed.
-     * Maps are not allowed.
-     * Nulls are not allowed.
-     * @param value Claim value object.
-     * @return True if the claim value is allowed, otherwise false.
-     */
-    static boolean isAllowedTypeForClaim(final Object value) {
-        return (value instanceof String
-            || value instanceof Boolean
-            || value instanceof Number
-            || (value instanceof Collection
-                && ((Collection<?>) value).stream().allMatch(e -> e instanceof String || e instanceof Boolean || e instanceof Number)));
     }
 
     public static byte[] sha256(final CharSequence charSequence) {

@@ -25,6 +25,11 @@ public class HealthNodeTaskParamsTests extends AbstractNamedWriteableTestCase<He
     }
 
     @Override
+    protected HealthNodeTaskParams mutateInstance(HealthNodeTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected HealthNodeTaskParams copyInstance(HealthNodeTaskParams instance, Version version) throws IOException {
         return new HealthNodeTaskParams();
     }

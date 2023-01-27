@@ -16,10 +16,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,12 +48,25 @@ public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
+    private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
     protected final MeanMetric iterations = new MeanMetric();
 
-    public DesiredBalanceComputer(ShardsAllocator delegateAllocator) {
+    public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.progress_log_interval",
+        TimeValue.timeValueMinutes(1),
+        TimeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private TimeValue progressLogInterval;
+
+    public DesiredBalanceComputer(ClusterSettings clusterSettings, ThreadPool threadPool, ShardsAllocator delegateAllocator) {
+        this.threadPool = threadPool;
         this.delegateAllocator = delegateAllocator;
+        clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
     }
 
     public DesiredBalance compute(
@@ -211,6 +229,11 @@ public class DesiredBalanceComputer {
             }
         }
 
+        final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
+        final long timeWarningInterval = progressLogInterval.millis();
+        final long computationStartedTime = threadPool.relativeTimeInMillis();
+        long nextReportTime = computationStartedTime + timeWarningInterval;
+
         int i = 0;
         boolean hasChanges = false;
         while (true) {
@@ -246,30 +269,45 @@ public class DesiredBalanceComputer {
             }
 
             i++;
+            final int iterations = i;
+            final long currentTime = threadPool.relativeTimeInMillis();
+            final boolean reportByTime = nextReportTime <= currentTime;
+            final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
+            if (reportByTime || reportByIterationCount) {
+                nextReportTime = currentTime + timeWarningInterval;
+            }
+
             if (hasChanges == false) {
-                logger.debug("Desired balance computation for [{}] converged after [{}] iterations", desiredBalanceInput.index(), i);
+                logger.debug(
+                    "Desired balance computation for [{}] converged after [{}] and [{}] iterations",
+                    desiredBalanceInput.index(),
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    i
+                );
                 break;
             }
             if (isFresh.test(desiredBalanceInput) == false) {
                 // we run at least one iteration, but if another reroute happened meanwhile
                 // then publish the interim state and restart the calculation
-                logger.debug("""
-                    Newer cluster state received after [{}] iterations, publishing incomplete desired balance for [{}] and restarting \
-                    computation
-                    """, i, desiredBalanceInput.index());
+                logger.debug(
+                    "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations as newer cluster state received. "
+                        + "Publishing intermediate desired balance and restarting computation",
+                    desiredBalanceInput.index(),
+                    i,
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                );
                 break;
             }
-            if (i % 100 == 0) {
-                // TODO this warning should be time based, iteration count should be proportional to the number of shards
-                logger.log(
-                    i % 1000000 == 0 ? Level.INFO : Level.DEBUG,
-                    Strings.format(
-                        "Desired balance computation for [%d] is still not converged after [%d] iterations",
-                        desiredBalanceInput.index(),
-                        i
-                    )
-                );
-            }
+
+            logger.log(
+                reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
+                () -> Strings.format(
+                    "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
+                    desiredBalanceInput.index(),
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    iterations
+                )
+            );
         }
         iterations.inc(i);
 
@@ -346,5 +384,14 @@ public class DesiredBalanceComputer {
             info.getFailedNodeIds(),
             info.getLastAllocatedNodeId()
         );
+    }
+
+    private static int computeIterationCountReportInterval(RoutingAllocation allocation) {
+        final int relativeSize = allocation.metadata().getTotalNumberOfShards();
+        int iterations = 1000;
+        while (iterations < relativeSize && iterations < 1_000_000_000) {
+            iterations *= 10;
+        }
+        return iterations;
     }
 }

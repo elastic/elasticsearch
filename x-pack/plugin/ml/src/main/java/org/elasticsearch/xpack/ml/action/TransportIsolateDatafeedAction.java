@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.List;
@@ -71,9 +72,9 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<
         assert taskOperationFailures.size() <= 1 : "more than 1 item in taskOperationFailures: " + taskOperationFailures.size();
         assert failedNodeExceptions.size() <= 1 : "more than 1 item in failedNodeExceptions: " + failedNodeExceptions.size();
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw failedNodeExceptions.get(0);
         } else if (tasks.isEmpty() == false) {
             return tasks.get(0);
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -518,6 +519,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     public void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
+        TimeValue timeout,
         boolean allowNoMatch,
         ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     ) {
@@ -533,6 +535,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setFrom(pageParams.getFrom())
             .setTrackTotalHits(true)
             .setSize(pageParams.getSize())
+            .setTimeout(timeout)
             .setQuery(queryBuilder)
             .request();
 
@@ -588,13 +591,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void getAllTransformIds(ActionListener<Set<String>> listener) {
-        expandAllTransformIds(false, MAX_RESULTS_WINDOW, ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure));
+    public void getAllTransformIds(TimeValue timeout, ActionListener<Set<String>> listener) {
+        expandAllTransformIds(
+            false,
+            MAX_RESULTS_WINDOW,
+            timeout,
+            ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure)
+        );
     }
 
     @Override
-    public void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener) {
-        expandAllTransformIds(true, MAX_RESULTS_WINDOW, listener);
+    public void getAllOutdatedTransformIds(TimeValue timeout, ActionListener<Tuple<Long, Set<String>>> listener) {
+        expandAllTransformIds(true, MAX_RESULTS_WINDOW, timeout, listener);
     }
 
     @Override
@@ -781,7 +789,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener) {
+    public void getTransformStoredDocs(
+        Collection<String> transformIds,
+        TimeValue timeout,
+        ActionListener<List<TransformStoredDoc>> listener
+    ) {
         QueryBuilder builder = QueryBuilders.constantScoreQuery(
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), transformIds))
@@ -797,6 +809,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setQuery(builder)
             // the limit for getting stats and transforms is 1000, as long as we do not have 10 indices this works
             .setSize(Math.min(transformIds.size(), 10_000))
+            .setTimeout(timeout)
             .request();
 
         executeAsyncWithOrigin(
@@ -904,13 +917,19 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
      *
      * @param filterForOutdated if true, only returns outdated ids (after de-duplication)
      * @param maxResultWindow the max result window size (exposed for testing)
+     * @param timeout timeout applied to all the spawned requests
      * @param listener listener to call containing transform ids
      */
-    void expandAllTransformIds(boolean filterForOutdated, int maxResultWindow, ActionListener<Tuple<Long, Set<String>>> listener) {
+    void expandAllTransformIds(
+        boolean filterForOutdated,
+        int maxResultWindow,
+        TimeValue timeout,
+        ActionListener<Tuple<Long, Set<String>>> listener
+    ) {
         PageParams startPage = new PageParams(0, maxResultWindow);
 
         Set<String> collectedIds = new HashSet<>();
-        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, maxResultWindow, null, startPage, listener);
+        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, maxResultWindow, null, startPage, timeout, listener);
     }
 
     private void recursiveExpandAllTransformIds(
@@ -920,6 +939,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         int maxResultWindow,
         String lastId,
         PageParams page,
+        TimeValue timeout,
         ActionListener<Tuple<Long, Set<String>>> listener
     ) {
         SearchRequest request = client.prepareSearch(
@@ -930,6 +950,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .addSort("_index", SortOrder.DESC)
             .setFrom(page.getFrom())
             .setSize(page.getSize())
+            .setTimeout(timeout)
             .setFetchSource(false)
             .addDocValueField(TransformField.ID.getPreferredName())
             .setQuery(
@@ -973,6 +994,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                         maxResultWindow,
                         idOfLastHit,
                         nextPage,
+                        timeout,
                         listener
                     );
                     return;

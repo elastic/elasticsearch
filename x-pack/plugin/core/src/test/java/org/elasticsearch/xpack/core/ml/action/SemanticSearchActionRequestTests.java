@@ -79,6 +79,11 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
         );
     }
 
+    @Override
+    protected SemanticSearchAction.Request mutateInstance(SemanticSearchAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidate() {
         var validAction = createTestInstance();
         assertNull(validAction.validate());
@@ -101,7 +106,7 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));
-        assertThat(validation.validationErrors().get(0), containsString("query_string cannot be null"));
+        assertThat(validation.validationErrors().get(0), containsString("model_text cannot be null"));
         assertThat(validation.validationErrors().get(1), containsString("model_id cannot be null"));
         assertThat(validation.validationErrors().get(2), containsString("knn cannot be null"));
     }

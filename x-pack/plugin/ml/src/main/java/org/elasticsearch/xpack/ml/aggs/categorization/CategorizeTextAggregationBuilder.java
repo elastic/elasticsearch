@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -54,7 +54,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     // some nodes are pre-8.3 and others are newer, so we throw an error in
     // this situation. The aggregation was experimental at the time this change
     // was made, so this is acceptable.
-    public static final Version ALGORITHM_CHANGED_VERSION = Version.V_8_3_0;
+    public static final TransportVersion ALGORITHM_CHANGED_VERSION = TransportVersion.V_8_3_0;
 
     static final ParseField FIELD_NAME = new ParseField("field");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
@@ -125,7 +125,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     public CategorizeTextAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (in.getVersion().before(ALGORITHM_CHANGED_VERSION)) {
+        if (in.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
             throw new ElasticsearchException(
                 "["
                     + NAME
@@ -281,7 +281,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (out.getVersion().before(ALGORITHM_CHANGED_VERSION)) {
+        if (out.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
             throw new ElasticsearchException(
                 "["
                     + NAME
@@ -344,7 +344,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         // This isn't strictly true, as the categorize_text aggregation has existed since 7.16.
         // However, the implementation completely changed in 8.3, so it's best that if the
         // coordinating node is on 8.3 or above then it should refuse to use this aggregation

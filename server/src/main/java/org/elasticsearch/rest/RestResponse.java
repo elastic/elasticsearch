@@ -122,7 +122,7 @@ public class RestResponse {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
-            this.responseMediaType = builder.contentType().mediaType();
+            this.responseMediaType = builder.getResponseContentTypeString();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));

@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -30,6 +31,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorEncoding;
@@ -350,7 +353,17 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return getDelegate().getByteVectorValues(field);
+        }
+
+        @Override
         public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
             return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
         }
 
@@ -380,6 +393,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
         @Override
         public Fields getTermVectors(int docID) throws IOException {
             return getDelegate().getTermVectors(docID);
+        }
+
+        @Override
+        public TermVectors termVectors() throws IOException {
+            return getDelegate().termVectors();
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            return getDelegate().storedFields();
         }
 
         @Override

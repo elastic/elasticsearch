@@ -20,7 +20,7 @@ import java.util.Objects;
  * for {@link org.elasticsearch.test.ESIntegTestCase} because the Security Plugin is really LocalStateSecurity in those tests.
  */
 public class LocalReservedSecurityStateHandlerProvider implements ReservedClusterStateHandlerProvider {
-    private final LocalStateSecurity plugin;
+    protected final LocalStateSecurity plugin;
 
     public LocalReservedSecurityStateHandlerProvider() {
         throw new IllegalStateException("Provider must be constructed using PluginsService");

@@ -19,7 +19,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 
 import java.io.IOException;
@@ -140,7 +140,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
-            .stats(indicesStatsRequest, new RestToXContentListener<>(channel));
+            .stats(indicesStatsRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     @Override

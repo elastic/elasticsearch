@@ -12,7 +12,7 @@ restResources {
 }
 
 // randomise between sniff and proxy modes
-boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean proxyMode = BuildParams.random.nextBoolean()
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   setting 'xpack.security.enabled', 'true'

@@ -31,7 +31,7 @@ public class PainlessSemanticHeaderPhase extends DefaultSemanticHeaderPhase {
 
             if (functionTable.getFunction(functionKey) != null) {
                 throw userFunctionNode.createError(
-                    new IllegalArgumentException("invalid function definition: " + "found duplicate function [" + functionKey + "].")
+                    new IllegalArgumentException("invalid function definition: found duplicate function [" + functionKey + "].")
                 );
             }
 

@@ -20,6 +20,10 @@ class JwtRealmInspector {
 
     private JwtRealmInspector() {}
 
+    public static JwtRealmSettings.TokenType getTokenType(JwtRealm realm) {
+        return realm.getConfig().getSetting(JwtRealmSettings.TOKEN_TYPE);
+    }
+
     public static String getJwkSetPath(JwtRealm realm) {
         return realm.getConfig().getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
     }

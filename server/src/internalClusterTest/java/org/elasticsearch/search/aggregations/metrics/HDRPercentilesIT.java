@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92822")
 public class HDRPercentilesIT extends AbstractNumericTestCase {
 
     @Override

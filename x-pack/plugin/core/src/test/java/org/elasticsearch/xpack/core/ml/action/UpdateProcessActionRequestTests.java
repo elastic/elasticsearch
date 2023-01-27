@@ -53,6 +53,11 @@ public class UpdateProcessActionRequestTests extends AbstractWireSerializingTest
     }
 
     @Override
+    protected UpdateProcessAction.Request mutateInstance(UpdateProcessAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<UpdateProcessAction.Request> instanceReader() {
         return UpdateProcessAction.Request::new;
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public Version getVersion() {
+    public TransportVersion getVersion() {
         return channel.getVersion();
     }
 

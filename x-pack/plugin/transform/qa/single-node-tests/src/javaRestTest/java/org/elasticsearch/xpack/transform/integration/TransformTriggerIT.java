@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformTriggerIT extends TransformRestTestCase {
@@ -154,6 +156,10 @@ public class TransformTriggerIT extends TransformRestTestCase {
         // Verify the new data is in the source index but not yet in the destination index
         verifyNumberOfSourceDocs(sourceIndex, newUser, 2);
         verifyDestDoc(destIndex, newUser, 1, 7.0);
+
+        // Try triggering all the transforms at once using _all wildcard, it is *not* supported
+        ResponseException e = expectThrows(ResponseException.class, () -> triggerTransform("_all"));
+        assertThat(e.getMessage(), containsString("_trigger API does not support _all wildcard"));
 
         // Trigger the transform to force processing the new data despite 1h-long interval
         triggerTransform(transformId);

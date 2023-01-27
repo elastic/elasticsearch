@@ -13,12 +13,15 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,8 +42,8 @@ public class TriggerTransformAction extends ActionType<TriggerTransformAction.Re
         private final String id;
 
         public Request(String id, TimeValue timeout) {
-            this.id = id;
-            this.setTimeout(timeout);
+            this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
+            this.setTimeout(ExceptionsHelper.requireNonNull(timeout, TransformField.TIMEOUT.getPreferredName()));
         }
 
         public Request(StreamInput in) throws IOException {
@@ -54,6 +57,11 @@ public class TriggerTransformAction extends ActionType<TriggerTransformAction.Re
 
         @Override
         public ActionRequestValidationException validate() {
+            if (Metadata.ALL.equals(id)) {
+                ActionRequestValidationException e = new ActionRequestValidationException();
+                e.addValidationError("_trigger API does not support _all wildcard");
+                return e;
+            }
             return null;
         }
 

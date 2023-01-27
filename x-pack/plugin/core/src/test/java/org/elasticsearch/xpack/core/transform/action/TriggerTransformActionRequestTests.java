@@ -7,20 +7,22 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.TriggerTransformAction.Request;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 public class TriggerTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : Metadata.ALL,
-            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
-        );
+        return new Request(randomAlphaOfLengthBetween(1, 20), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 
     @Override
@@ -40,5 +42,17 @@ public class TriggerTransformActionRequestTests extends AbstractWireSerializingT
         }
 
         return new TriggerTransformAction.Request(id, timeout);
+    }
+
+    public void testValidationSuccess() {
+        Request request = new Request("id", TimeValue.ZERO);
+        assertThat(request.validate(), is(nullValue()));
+    }
+
+    public void testValidationFailure() {
+        Request request = new Request("_all", TimeValue.ZERO);
+        ActionRequestValidationException e = request.validate();
+        assertThat(e, is(notNullValue()));
+        assertThat(e.validationErrors(), contains("_trigger API does not support _all wildcard"));
     }
 }

@@ -11,22 +11,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -40,7 +36,6 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
@@ -49,7 +44,6 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
 
     private static final Logger logger = LogManager.getLogger(TransportTriggerTransformAction.class);
     private final TransformScheduler transformScheduler;
-    private final ThreadPool threadPool;
     private final SecurityContext securityContext;
 
     @Inject
@@ -73,7 +67,6 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
         );
 
         this.transformScheduler = transformServices.getScheduler();
-        this.threadPool = threadPool;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -84,28 +77,7 @@ public class TransportTriggerTransformAction extends TransportTasksAction<Transf
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        final DiscoveryNodes nodes = clusterState.nodes();
-        if (nodes.isLocalNodeElectedMaster() == false) {
-            // Delegates trigger transform to elected master node so it becomes the coordinating node.
-            if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException());
-            } else {
-                transportService.sendRequest(
-                    nodes.getMasterNode(),
-                    actionName,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
-                );
-            }
-            return;
-        }
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            // set headers to run transform as calling user
-            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
-                threadPool.getThreadContext(),
-                clusterService.state()
-            );
-
             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
 
             // to send a request to trigger the transform at runtime, several requirements must be met:

@@ -150,6 +150,13 @@ teardown:
   - match: { acknowledged: true }
 
 ---
+"Test trigger all transforms":
+  - do:
+      catch: /_trigger API does not support _all wildcard/
+      transform.trigger_transform:
+        transform_id: "_all"
+
+---
 "Verify start transform creates destination index with appropriate mapping":
   - do:
       transform.start_transform:

@@ -216,7 +216,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
         final RecoveryTarget recoveryTarget = recoveryRef.target();
         assert recoveryTarget.sourceNode() != null : "cannot do a recovery without a source node";
-        final RecoveryState.Timer timer = recoveryTarget.state().getTimer();
+        final RecoveryState recoveryState = recoveryTarget.state();
+        final RecoveryState.Timer timer = recoveryState.getTimer();
         final IndexShard indexShard = recoveryTarget.indexShard();
         final boolean promotableToPrimary = indexShard.routingEntry().isPromotableToPrimary();
 
@@ -226,9 +227,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 @Override
                 public void onResponse(StartRecoveryRequestToSend r) {
                     logger.trace(
-                        "{}{} [{}]: recovery from {}",
+                        "{} [{}]: recovery from {}",
                         r.startRecoveryRequest().shardId(),
-                        promotableToPrimary ? " (promotable)" : "",
                         r.actionName(),
                         r.startRecoveryRequest().sourceNode()
                     );
@@ -277,8 +277,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     if (promotableToPrimary) {
                         startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     } else {
-                        // Skip intermediate stages until the translog stage
-                        final RecoveryState recoveryState = recoveryTarget.state();
+                        // Skip unnecessary intermediate stages
                         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
                         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
                         indexShard.openEngineAndSkipTranslogRecovery();
@@ -294,7 +293,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 toSendListener.onFailure(e);
             }
         } else {
-            assert indexShard.routingEntry().isPromotableToPrimary();
             toSendListener.onResponse(
                 new StartRecoveryRequestToSend(
                     preExistingRequest,

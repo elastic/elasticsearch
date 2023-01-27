@@ -540,7 +540,7 @@ public interface ActionListener<Response> {
                 private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("first run"));
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException(delegate.toString()));
                     assert previousRun == null : previousRun; // reports the stack traces of both completions
                 }
 

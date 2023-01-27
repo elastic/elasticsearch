@@ -631,6 +631,23 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
 
+    /**
+     * Test that we don't error on exceeding field size if field is neither indexed nor has doc values
+     */
+    public void testKeywordFieldUtf8LongerThan32766SourceOnly() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("index", false);
+            b.field("doc_values", false);
+            b.field("store", false);
+        }));
+        StringBuilder stringBuilder = new StringBuilder(32768);
+        for (int i = 0; i < 32768; i++) {
+            stringBuilder.append("a");
+        }
+        mapper.parse(source(b -> b.field("field", stringBuilder.toString())));
+    }
+
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;

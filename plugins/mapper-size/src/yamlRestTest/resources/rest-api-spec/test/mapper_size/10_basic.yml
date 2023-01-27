@@ -3,6 +3,9 @@
 
 ---
 "Mapper Size":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/93303"
 
     - do:
         indices.create:

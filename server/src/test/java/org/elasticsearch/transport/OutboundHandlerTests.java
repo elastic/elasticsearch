@@ -90,7 +90,7 @@ public class OutboundHandlerTests extends ESTestCase {
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 Streams.copy(m.openOrGetStreamInput(), streamOutput);
-                message.set(new Tuple<>((Header)m.getHeader(), streamOutput.bytes()));
+                message.set(new Tuple<>((Header) m.getHeader(), streamOutput.bytes()));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

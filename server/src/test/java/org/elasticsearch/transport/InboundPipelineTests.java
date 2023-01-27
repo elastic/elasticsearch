@@ -49,7 +49,7 @@ public class InboundPipelineTests extends ESTestCase {
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
         final BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {
             try {
-                final Header header = (Header)m.getHeader();
+                final Header header = (Header) m.getHeader();
                 final MessageData actualData;
                 final TransportVersion version = header.getVersion();
                 final boolean isRequest = header.isRequest();

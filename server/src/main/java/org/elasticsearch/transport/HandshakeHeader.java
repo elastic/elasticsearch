@@ -30,7 +30,6 @@ public class HandshakeHeader extends MessageHeader {
      */
     static final int CURRENT_HANDSHAKE_VERSION = TransportVersion.CURRENT.id;
     static final int EARLIEST_HANDSHAKE_VERSION = 6080099;
-    static final int CAN_SEND_ERROR_RESPONSE = 7170099;
     static final int HAS_FEATURES = 8000099;
 
     private final Integer handshakeVersion;

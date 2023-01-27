@@ -8,9 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -207,7 +205,7 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
 
-            MessageHeader header = (MessageHeader)fragments.get(0);
+            MessageHeader header = (MessageHeader) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
             assertEquals(handshakeCompat.id, header.getVersion());
             assertFalse(header.isCompressed());
@@ -345,7 +343,9 @@ public class InboundDecoderTests extends ESTestCase {
     public void testVersionIncompatibilityDecodeException() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT.minimumCompatibilityVersion());
+        TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.CURRENT.minimumCompatibilityVersion()
+        );
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),
@@ -381,8 +381,7 @@ public class InboundDecoderTests extends ESTestCase {
                 ),
                 TransportVersion.CURRENT
             );
-        }
-        catch (IllegalStateException e) {
+        } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
@@ -391,19 +390,20 @@ public class InboundDecoderTests extends ESTestCase {
         try {
             InboundDecoder.checkVersionCompatibility(invalid, version);
             fail();
-        }
-        catch (IllegalStateException expected) {
-            assertEquals("Received message from unsupported version: [" + invalid + "] minimal compatible version is: ["
-                + version
-                + "]", expected.getMessage());
+        } catch (IllegalStateException expected) {
+            assertEquals(
+                "Received message from unsupported version: [" + invalid + "] minimal compatible version is: [" + version + "]",
+                expected.getMessage()
+            );
         }
     }
 
     public void testCheckHandshakeCompatibility() {
         try {
-            InboundDecoder.checkHandshakeVersionCompatibility(randomIntBetween(HandshakeHeader.EARLIEST_HANDSHAKE_VERSION, HandshakeHeader.CURRENT_HANDSHAKE_VERSION));
-        }
-        catch (IllegalStateException e) {
+            InboundDecoder.checkHandshakeVersionCompatibility(
+                randomIntBetween(HandshakeHeader.EARLIEST_HANDSHAKE_VERSION, HandshakeHeader.CURRENT_HANDSHAKE_VERSION)
+            );
+        } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
@@ -411,11 +411,15 @@ public class InboundDecoderTests extends ESTestCase {
         try {
             InboundDecoder.checkHandshakeVersionCompatibility(invalid);
             fail();
-        }
-        catch (IllegalStateException expected) {
-            assertEquals("Received message from unsupported version: [" + invalid + "] minimal compatible version is: ["
-                + HandshakeHeader.EARLIEST_HANDSHAKE_VERSION
-                + "]", expected.getMessage());
+        } catch (IllegalStateException expected) {
+            assertEquals(
+                "Received message from unsupported version: ["
+                    + invalid
+                    + "] minimal compatible version is: ["
+                    + HandshakeHeader.EARLIEST_HANDSHAKE_VERSION
+                    + "]",
+                expected.getMessage()
+            );
         }
     }
 }

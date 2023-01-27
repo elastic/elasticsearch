@@ -219,19 +219,8 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                if (((HandshakeHeader) header).getVersion() >= HandshakeHeader.CAN_SEND_ERROR_RESPONSE) {
-                    sendErrorResponse(action, transportChannel, e);
-                } else {
-                    logger.warn(
-                        () -> format(
-                            "could not send error response to handshake received on [%s] using wire format version [%s], closing channel",
-                            channel,
-                            header.getVersion()
-                        ),
-                        e
-                    );
-                    channel.close();
-                }
+                logger.warn(() -> format("error processing handshake received on [%s], closing channel", channel), e);
+                channel.close();
             }
         } else {
             final TransportVersion version = ((Header) header).getVersion();

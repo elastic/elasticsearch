@@ -399,15 +399,17 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final var response = client().execute(
-            GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("template*")
-        ).get();
+        assertBusy(() -> {
+            final var response = client().execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request("template*")
+            ).get();
 
-        assertThat(
-            response.indexTemplates().keySet().stream().collect(Collectors.toSet()),
-            containsInAnyOrder("template_1", "template_2", "template_other")
-        );
+            assertThat(
+                response.indexTemplates().keySet().stream().collect(Collectors.toSet()),
+                containsInAnyOrder("template_1", "template_2", "template_other")
+            );
+        }, 60L, TimeUnit.SECONDS);
 
         assertTrue(
             expectThrows(
@@ -531,7 +533,6 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93202")
     public void testSettingsApplied() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

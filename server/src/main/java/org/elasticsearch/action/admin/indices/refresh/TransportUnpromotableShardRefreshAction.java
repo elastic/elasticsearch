@@ -24,26 +24,24 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportUnpromotableReplicaRefreshAction extends HandledTransportAction<
-    UnpromotableReplicaRefreshRequest,
-    ActionResponse.Empty> {
+public class TransportUnpromotableShardRefreshAction extends HandledTransportAction<UnpromotableShardRefreshRequest, ActionResponse.Empty> {
     public static final String NAME = RefreshAction.NAME + "[u]";
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(NAME, in -> ActionResponse.Empty.INSTANCE);
-    private static final Logger logger = LogManager.getLogger(TransportUnpromotableReplicaRefreshAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportUnpromotableShardRefreshAction.class);
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final Client client;
 
     @Inject
-    public TransportUnpromotableReplicaRefreshAction(
+    public TransportUnpromotableShardRefreshAction(
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
         IndicesService indicesService,
         Client client
     ) {
-        super(NAME, transportService, actionFilters, UnpromotableReplicaRefreshRequest::new);
+        super(NAME, transportService, actionFilters, UnpromotableShardRefreshRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
@@ -51,12 +49,13 @@ public class TransportUnpromotableReplicaRefreshAction extends HandledTransportA
     }
 
     @Override
-    protected void doExecute(Task task, UnpromotableReplicaRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
-        ActionListener.completeWith(listener, () -> {
+    protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
+        try {
             assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
             IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
             shard.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> ActionResponse.Empty.INSTANCE));
-            return ActionResponse.Empty.INSTANCE;
-        });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

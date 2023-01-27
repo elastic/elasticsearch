@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableReplicaRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -488,7 +488,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
-    public void testSearchRefresh() throws Exception {
+    public void testRefreshOfSearchShards() throws Exception {
         var routingTableWatcher = new RoutingTableWatcher();
 
         var numDataNodes = routingTableWatcher.numReplicas + 2;
@@ -504,13 +504,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 if (action.startsWith(TransportShardRefreshAction.NAME + "[r]")) {
                     refreshReplicaActions.incrementAndGet();
                 }
-                if (action.startsWith(TransportUnpromotableReplicaRefreshAction.NAME)) {
+                if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
                     refreshUnpromotableActions.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
             mockTransportService.addRequestHandlingBehavior(
-                TransportUnpromotableReplicaRefreshAction.NAME,
+                TransportUnpromotableShardRefreshAction.NAME,
                 (handler, request, channel, task) -> {
                     // Skip handling the request and send an immediate empty response
                     channel.sendResponse(ActionResponse.Empty.INSTANCE);
@@ -543,7 +543,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 is(equalTo((routingTableWatcher.numIndexingCopies - 1) * routingTableWatcher.numShards))
             );
 
-            // Each primary will send a TransportUnpromotableReplicaRefreshAction to each of the unpromotable replica / search shards
+            // Each primary will send a TransportUnpromotableShardRefreshAction to each of the unpromotable replica / search shards
             assertThat(
                 refreshUnpromotableActions.get(),
                 is(equalTo((routingTableWatcher.numReplicas - (routingTableWatcher.numIndexingCopies - 1)) * routingTableWatcher.numShards))

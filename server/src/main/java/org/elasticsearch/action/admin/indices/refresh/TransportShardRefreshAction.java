@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -84,38 +85,38 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndexShard primary,
         ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener
     ) {
-        try (
-            var listeners = new RefCountingListener(
-                listener.map(ignored -> { return new PrimaryResult<>(shardRequest, new ReplicationResponse()); })
-            )
-        ) {
+        try (var listeners = new RefCountingListener(listener.map(v -> new PrimaryResult<>(shardRequest, new ReplicationResponse())))) {
             var refreshResult = primary.refresh(SOURCE_API);
             logger.trace("{} refresh request executed on primary", primary.shardId());
 
             // Forward the request to all nodes that hold unpromotable replica shards
             final ClusterState clusterState = clusterService.state();
-            clusterService.state()
-                .routingTable()
+            final Task parentTaskId = taskManager.getTask(shardRequest.getParentTask().getId());
+            clusterState.routingTable()
                 .shardRoutingTable(shardRequest.shardId())
-                .replicaShards()
+                .assignedShards()
                 .stream()
                 .filter(Predicate.not(ShardRouting::isPromotableToPrimary))
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toUnmodifiableSet())
                 .forEach(nodeId -> {
                     final DiscoveryNode node = clusterState.nodes().get(nodeId);
-                    UnpromotableReplicaRefreshRequest request = new UnpromotableReplicaRefreshRequest(
+                    UnpromotableShardRefreshRequest request = new UnpromotableShardRefreshRequest(
                         primary.shardId(),
                         refreshResult.generation()
                     );
                     logger.trace("forwarding refresh request [{}] to node [{}]", request, node);
                     transportService.sendChildRequest(
                         node,
-                        TransportUnpromotableReplicaRefreshAction.NAME,
+                        TransportUnpromotableShardRefreshAction.NAME,
                         request,
-                        taskManager.getTask(shardRequest.getParentTask().getId()),
+                        parentTaskId,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(listeners.acquire(ignored -> {}), (in) -> TransportResponse.Empty.INSTANCE)
+                        new ActionListenerResponseHandler<>(
+                            listeners.acquire(ignored -> {}),
+                            (in) -> TransportResponse.Empty.INSTANCE,
+                            ThreadPool.Names.REFRESH
+                        )
                     );
                 });
         }

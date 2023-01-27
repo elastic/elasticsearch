@@ -16,17 +16,17 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class UnpromotableReplicaRefreshRequest extends ActionRequest {
+public class UnpromotableShardRefreshRequest extends ActionRequest {
 
     private final ShardId shardId;
     private final long segmentGeneration;
 
-    public UnpromotableReplicaRefreshRequest(final ShardId shardId, long segmentGeneration) {
+    public UnpromotableShardRefreshRequest(final ShardId shardId, long segmentGeneration) {
         this.shardId = shardId;
         this.segmentGeneration = segmentGeneration;
     }
 
-    public UnpromotableReplicaRefreshRequest(StreamInput in) throws IOException {
+    public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
         segmentGeneration = in.readVLong();
@@ -54,6 +54,6 @@ public class UnpromotableReplicaRefreshRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "UnpromotableReplicaRefreshRequest{" + "shardId=" + shardId + ", segmentGeneration=" + segmentGeneration + '}';
+        return "UnpromotableShardRefreshRequest{" + "shardId=" + shardId + ", segmentGeneration=" + segmentGeneration + '}';
     }
 }

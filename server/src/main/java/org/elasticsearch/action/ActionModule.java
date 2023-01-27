@@ -161,7 +161,7 @@ import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableReplicaRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
@@ -709,7 +709,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportNodesListShardStoreMetadata.TYPE, TransportNodesListShardStoreMetadata.class);
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
-        actions.register(TransportUnpromotableReplicaRefreshAction.TYPE, TransportUnpromotableReplicaRefreshAction.class);
+        actions.register(TransportUnpromotableShardRefreshAction.TYPE, TransportUnpromotableShardRefreshAction.class);
         actions.register(TransportPrevalidateShardPathAction.TYPE, TransportPrevalidateShardPathAction.class);
 
         // desired nodes

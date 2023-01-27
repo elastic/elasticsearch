@@ -2,7 +2,7 @@ pr: 93329
 summary: Handle a default/request pipeline and a final pipeline with minimal additional
   overhead
 area: Ingest Node
-type: refactoring
+type: "bug, refactoring"
 issues:
  - 92843
  - 81244

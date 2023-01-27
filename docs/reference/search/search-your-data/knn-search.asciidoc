@@ -461,6 +461,62 @@ score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title
 ```
 
 [discrete]
+==== Search with a previously stored vector
+
+When using approximate kNN search, it is possible to run a search with a previously stored vector.
+
+. Create an index for storing query vectors
++
+[source,console]
+----
+PUT stored_vector
+{
+  "mappings": {
+    "properties": {
+      "my_vector": { "enabled": false }
+    }
+  }
+}
+----
+// TEST[continued]
+
+. Index a query vector to use
++
+[source,console]
+----
+PUT stored_vector/_doc/image_vector_0?refresh
+{
+  "my_vector": [20, 120, -1]
+}
+----
+// TEST[continued]
+
+. Use the stored vector when executing a kNN query
++
+[source,console]
+----
+POST image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector_builder": {
+      "indexed_query_vector": {
+        "index": "stored_vector",
+        "id": "image_vector_0",
+        "path": "my_vector"
+      }
+    },
+    "k": 5,
+    "num_candidates": 50,
+    "boost": 0.1
+  }
+}
+----
+//TEST[continued]
+
+The above will search with the previous stored vector of `[20, 120, -1]`.
+
+[discrete]
 [[knn-indexing-considerations]]
 ==== Indexing considerations
 

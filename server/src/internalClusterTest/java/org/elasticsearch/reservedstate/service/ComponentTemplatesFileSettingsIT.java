@@ -531,6 +531,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93202")
     public void testSettingsApplied() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

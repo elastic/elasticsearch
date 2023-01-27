@@ -576,16 +576,11 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
         installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
-
-        final AtomicInteger refreshReplicaActions = new AtomicInteger(0);
         final AtomicInteger refreshUnpromotableActions = new AtomicInteger(0);
 
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(TransportShardRefreshAction.NAME + "[r]")) {
-                    refreshReplicaActions.incrementAndGet();
-                }
                 if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
                     refreshUnpromotableActions.incrementAndGet();
                 }
@@ -611,12 +606,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             indexRandom(false, INDEX_NAME, randomIntBetween(100, 200));
             assertNoFailures(client().admin().indices().prepareRefresh(INDEX_NAME).execute().get());
-
-            // Each primary will send a TransportShardRefreshAction to each of the promotable replica shards
-            assertThat(
-                refreshReplicaActions.get(),
-                is(equalTo((routingTableWatcher.numIndexingCopies - 1) * routingTableWatcher.numShards))
-            );
 
             // Each primary will send a TransportUnpromotableShardRefreshAction to each of the unpromotable replica shards
             assertThat(

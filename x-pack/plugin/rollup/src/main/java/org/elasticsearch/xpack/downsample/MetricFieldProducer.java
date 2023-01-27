@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -58,8 +57,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
 
     @Override
     public void collect(LeafFieldData leafFieldData, int docId) throws IOException {
-        DocValueFormat format = fieldType.docValueFormat(null, null);
-        final FormattedDocValues docValues = leafFieldData.getFormattedValues(format);
+        final FormattedDocValues docValues = leafFieldData.getFormattedValues(fieldType.docValueFormat(null, null));
         if (docValues.advanceExact(docId) == false) {
             return;
         }

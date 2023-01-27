@@ -13,7 +13,6 @@ import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
@@ -121,8 +120,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
             if (isEmpty() == false) {
                 return;
             }
-            DocValueFormat format = fieldType.docValueFormat(null, null);
-            final FormattedDocValues docValues = leafFieldData.getFormattedValues(format);
+            final FormattedDocValues docValues = leafFieldData.getFormattedValues(fieldType.docValueFormat(null, null));
             if (docValues.advanceExact(docId) == false) {
                 return;
             }

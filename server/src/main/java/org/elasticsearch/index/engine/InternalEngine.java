@@ -51,7 +51,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -91,7 +90,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -842,12 +840,7 @@ public class InternalEngine extends Engine {
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
                 if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                    docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
-                        searcher.getIndexReader(),
-                        op.uid(),
-                        op.id(),
-                        loadSeqNo
-                    );
+                    docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), op.id(), loadSeqNo);
                 } else {
                     docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo);
                 }

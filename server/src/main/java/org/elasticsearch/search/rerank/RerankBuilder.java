@@ -27,9 +27,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class RerankBuilder implements Writeable, ToXContent {
 
-    public final static ParseField RRF_FIELD = new ParseField("rrf");
+    public static final ParseField RRF_FIELD = new ParseField("rrf");
 
-    private final static ConstructingObjectParser<RerankBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RerankBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rerank",
         args -> new RerankBuilder((RRFBuilder) args[0])
     );

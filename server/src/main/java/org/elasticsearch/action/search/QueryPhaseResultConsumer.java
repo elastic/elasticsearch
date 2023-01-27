@@ -472,14 +472,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         public synchronized TopDocsStats consumeTopDocsStats() {
             for (QuerySearchResult result : buffer) {
-                topDocsStats.add(result.getSingleQueryResults().get(0).topDocs(), result.searchTimedOut(), result.terminatedEarly()); // TODO:
-                                                                                                                                      // what
-                                                                                                                                      // do
-                                                                                                                                      // we
-                                                                                                                                      // do
-                                                                                                                                      // about
-                                                                                                                                      // multi
-                                                                                                                                      // query
+                // TODO: multi query? vvv
+                topDocsStats.add(result.getSingleQueryResults().get(0).topDocs(), result.searchTimedOut(), result.terminatedEarly());
             }
             return topDocsStats;
         }

@@ -114,7 +114,7 @@ public class RerankQueryBuilder extends AbstractQueryBuilder<RerankQueryBuilder>
     public boolean doEquals(RerankQueryBuilder o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         return Objects.equals(queryBuilders, o.queryBuilders);
     }
 

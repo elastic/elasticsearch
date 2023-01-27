@@ -62,8 +62,7 @@ public class QueryPhase {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()
-                .getSingleQueryResults()
-                .add(
+                .addSingleQueryResult(
                     new QuerySearchResult.SingleQueryResult().topDocs(
                         new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),

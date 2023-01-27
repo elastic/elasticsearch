@@ -38,7 +38,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
 
-    public final static class SingleQueryResult {
+    public static final class SingleQueryResult {
 
         private int from;
         private int size;

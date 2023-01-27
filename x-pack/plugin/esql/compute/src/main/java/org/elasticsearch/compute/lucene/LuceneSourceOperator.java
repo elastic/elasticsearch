@@ -74,6 +74,11 @@ public class LuceneSourceOperator extends SourceOperator {
     private int currentScorerPos;
     private int pagesEmitted;
 
+    private int numCollectedDocs = 0;
+    private final int maxCollectedDocs;
+
+    public static final int NO_LIMIT = Integer.MAX_VALUE;
+
     public static class LuceneSourceOperatorFactory implements SourceOperatorFactory {
 
         private final Function<SearchExecutionContext, Query> queryFunction;
@@ -86,19 +91,23 @@ public class LuceneSourceOperator extends SourceOperator {
 
         private final int taskConcurrency;
 
+        private final int limit;
+
         private Iterator<LuceneSourceOperator> iterator;
 
         public LuceneSourceOperatorFactory(
             List<SearchExecutionContext> matchedSearchContexts,
             Function<SearchExecutionContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
-            int taskConcurrency
+            int taskConcurrency,
+            int limit
         ) {
             this.matchedSearchContexts = matchedSearchContexts;
             this.queryFunction = queryFunction;
             this.dataPartitioning = dataPartitioning;
             this.taskConcurrency = taskConcurrency;
             this.maxPageSize = PAGE_SIZE;
+            this.limit = limit;
         }
 
         @Override
@@ -118,7 +127,13 @@ public class LuceneSourceOperator extends SourceOperator {
             for (int shardIndex = 0; shardIndex < matchedSearchContexts.size(); shardIndex++) {
                 final SearchExecutionContext ctx = matchedSearchContexts.get(shardIndex);
                 final Query query = queryFunction.apply(ctx);
-                final LuceneSourceOperator queryOperator = new LuceneSourceOperator(ctx.getIndexReader(), shardIndex, query, maxPageSize);
+                final LuceneSourceOperator queryOperator = new LuceneSourceOperator(
+                    ctx.getIndexReader(),
+                    shardIndex,
+                    query,
+                    maxPageSize,
+                    limit
+                );
                 switch (dataPartitioning) {
                     case SHARD -> luceneOperators.add(queryOperator);
                     case SEGMENT -> luceneOperators.addAll(queryOperator.segmentSlice());
@@ -142,10 +157,10 @@ public class LuceneSourceOperator extends SourceOperator {
     }
 
     public LuceneSourceOperator(IndexReader reader, int shardId, Query query) {
-        this(reader, shardId, query, PAGE_SIZE);
+        this(reader, shardId, query, PAGE_SIZE, NO_LIMIT);
     }
 
-    public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize) {
+    public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit) {
         this.indexReader = reader;
         this.shardId = shardId;
         this.leaves = reader.leaves().stream().map(PartialLeafReaderContext::new).collect(Collectors.toList());
@@ -153,9 +168,10 @@ public class LuceneSourceOperator extends SourceOperator {
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
         currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
+        maxCollectedDocs = limit;
     }
 
-    private LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
+    private LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize, int limit) {
         this.indexReader = null;
         this.shardId = shardId;
         this.leaves = leaves;
@@ -164,6 +180,7 @@ public class LuceneSourceOperator extends SourceOperator {
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
         currentBlockBuilder = IntBlock.newBlockBuilder(maxPageSize);
+        maxCollectedDocs = limit;
     }
 
     @Override
@@ -173,7 +190,7 @@ public class LuceneSourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
-        return currentLeaf >= leaves.size();
+        return currentLeaf >= leaves.size() || numCollectedDocs >= maxCollectedDocs;
     }
 
     /**
@@ -187,7 +204,7 @@ public class LuceneSourceOperator extends SourceOperator {
 
         List<LuceneSourceOperator> operators = new ArrayList<>();
         for (List<PartialLeafReaderContext> slice : docSlices(indexReader, numSlices)) {
-            operators.add(new LuceneSourceOperator(weight, shardId, slice, maxPageSize));
+            operators.add(new LuceneSourceOperator(weight, shardId, slice, maxPageSize, maxCollectedDocs));
         }
         return operators;
     }
@@ -257,7 +274,8 @@ public class LuceneSourceOperator extends SourceOperator {
                     weight,
                     shardId,
                     Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
-                    maxPageSize
+                    maxPageSize,
+                    maxCollectedDocs
                 )
             );
         }
@@ -316,16 +334,24 @@ public class LuceneSourceOperator extends SourceOperator {
 
                 @Override
                 public void collect(int doc) {
-                    currentBlockBuilder.appendInt(doc);
-                    currentPagePos++;
+                    if (numCollectedDocs < maxCollectedDocs) {
+                        currentBlockBuilder.appendInt(doc);
+                        numCollectedDocs++;
+                        currentPagePos++;
+                    }
                 }
             },
                 currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
                 currentScorerPos,
+                // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
+                // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
+                // alleviates this issue.
                 Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
             );
 
-            if (currentPagePos >= minPageSize || currentScorerPos >= currentLeafReaderContext.maxDoc) {
+            if (currentPagePos >= minPageSize
+                || currentScorerPos >= currentLeafReaderContext.maxDoc
+                || numCollectedDocs >= maxCollectedDocs) {
                 page = new Page(
                     currentPagePos,
                     currentBlockBuilder.build(),

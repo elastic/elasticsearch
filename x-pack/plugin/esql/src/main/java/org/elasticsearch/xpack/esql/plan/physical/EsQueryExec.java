@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -38,6 +39,7 @@ public class EsQueryExec extends LeafExec {
 
     private final EsIndex index;
     private final QueryBuilder query;
+    private final Expression limit;
     private final List<Attribute> attrs;
 
     public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
@@ -49,20 +51,22 @@ public class EsQueryExec extends LeafExec {
                 new FieldAttribute(source, SEGMENT_ID_FIELD.getName(), SEGMENT_ID_FIELD),
                 new FieldAttribute(source, SHARD_ID_FIELD.getName(), SHARD_ID_FIELD)
             ),
-            query
+            query,
+            null
         );
     }
 
-    public EsQueryExec(Source source, EsIndex index, List<Attribute> attrs, QueryBuilder query) {
+    public EsQueryExec(Source source, EsIndex index, List<Attribute> attrs, QueryBuilder query, Expression limit) {
         super(source);
         this.index = index;
         this.query = query;
         this.attrs = attrs;
+        this.limit = limit;
     }
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query);
+        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query, limit);
     }
 
     public EsIndex index() {
@@ -78,9 +82,17 @@ public class EsQueryExec extends LeafExec {
         return attrs;
     }
 
+    public Expression limit() {
+        return limit;
+    }
+
+    public EsQueryExec withLimit(Expression limit) {
+        return new EsQueryExec(source(), index, attrs, query, limit);
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(index, attrs, query);
+        return Objects.hash(index, attrs, query, limit);
     }
 
     @Override
@@ -94,7 +106,10 @@ public class EsQueryExec extends LeafExec {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(index, other.index) && Objects.equals(attrs, other.attrs) && Objects.equals(query, other.query);
+        return Objects.equals(index, other.index)
+            && Objects.equals(attrs, other.attrs)
+            && Objects.equals(query, other.query)
+            && Objects.equals(limit, other.limit);
     }
 
     @Override
@@ -110,6 +125,9 @@ public class EsQueryExec extends LeafExec {
             + "], query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"
-            + NodeUtils.limitedToString(attrs);
+            + NodeUtils.limitedToString(attrs)
+            + ", limit["
+            + (limit != null ? limit.toString() : "")
+            + "]";
     }
 }

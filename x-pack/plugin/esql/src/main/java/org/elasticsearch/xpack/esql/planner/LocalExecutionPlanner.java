@@ -87,6 +87,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.compute.operator.LimitOperator.LimitOperatorFactory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 
@@ -315,7 +316,8 @@ public class LocalExecutionPlanner {
             matchedSearchContexts,
             ctx -> ctx.toQuery(esQuery.query()).query(),
             context.dataPartitioning,
-            context.taskConcurrency
+            context.taskConcurrency,
+            esQuery.limit() != null ? (Integer) esQuery.limit().fold() : NO_LIMIT
         );
         Layout.Builder layout = new Layout.Builder();
         for (int i = 0; i < esQuery.output().size(); i++) {

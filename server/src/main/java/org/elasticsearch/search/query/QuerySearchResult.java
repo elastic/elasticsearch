@@ -30,6 +30,7 @@ import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
@@ -238,7 +239,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public List<SingleQueryResult> getSingleQueryResults() {
-        return singleQueryResults;
+        if (singleQueryResults.isEmpty()) {
+            return List.of(new SingleQueryResult());
+        }
+        return Collections.unmodifiableList(singleQueryResults);
+    }
+
+    public void addSingleQueryResult(SingleQueryResult singleQueryResult) {
+        singleQueryResults.add(singleQueryResult);
     }
 
     public void searchTimedOut(boolean searchTimedOut) {

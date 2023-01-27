@@ -107,7 +107,7 @@ public class QueryPhase {
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
         QuerySearchResult.SingleQueryResult singleQueryResult = new QuerySearchResult.SingleQueryResult();
-        queryResult.getSingleQueryResults().add(singleQueryResult);
+        queryResult.addSingleQueryResult(singleQueryResult);
         try {
             singleQueryResult.from(searchContext.from());
             singleQueryResult.size(searchContext.size());

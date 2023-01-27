@@ -186,12 +186,12 @@ public class InboundDecoder implements Releasable {
                     throw new IOException("Handshake attempt returned an error - resetting channel");
                 }
 
+                HandshakeHeader header = new HandshakeHeader(networkMessageSize, requestId, status, messageVersion);
                 if (messageVersion >= TcpHeader.VERSION_WITH_HEADER_SIZE.id) {
-                    streamInput.readInt();  // no request headers
-                    streamInput.readVInt(); // no response headers
+                    streamInput.readInt();
+                    header.finishParsingHeader(streamInput);
                 }
-
-                return new HandshakeHeader(networkMessageSize, requestId, status, messageVersion);
+                return header;
             } else {
                 TransportVersion remoteVersion = TransportVersion.fromId(messageVersion);
                 checkVersionCompatibility(remoteVersion, currentVersion);

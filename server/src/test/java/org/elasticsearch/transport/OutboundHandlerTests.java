@@ -57,7 +57,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
-    private final AtomicReference<Tuple<Header, BytesReference>> message = new AtomicReference<>();
+    private final AtomicReference<Tuple<MessageHeader, BytesReference>> message = new AtomicReference<>();
     private final BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
     private InboundPipeline pipeline;
     private OutboundHandler handler;
@@ -90,7 +90,7 @@ public class OutboundHandlerTests extends ESTestCase {
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 Streams.copy(m.openOrGetStreamInput(), streamOutput);
-                message.set(new Tuple<>((Header) m.getHeader(), streamOutput.bytes()));
+                message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -127,12 +127,78 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(bytesArray, reference);
     }
 
-    public void testSendRequest() throws IOException {
+    public void testSendHandshakeRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
         TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersion.CURRENT.minimumCompatibilityVersion());
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
-        boolean isHandshake = randomBoolean();
+        boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
+        String value = "message";
+        TestRequest request = new TestRequest(value);
+
+        AtomicReference<DiscoveryNode> nodeRef = new AtomicReference<>();
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportRequest> requestRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options
+            ) {
+                nodeRef.set(node);
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                requestRef.set(request);
+            }
+        });
+        if (compress) {
+            handler.sendRequest(node, channel, requestId, action, request, options, version, compressionScheme, true);
+        } else {
+            handler.sendRequest(node, channel, requestId, action, request, options, version, null, true);
+        }
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertEquals(node, nodeRef.get());
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(request, requestRef.get());
+
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        final Tuple<MessageHeader, BytesReference> tuple = message.get();
+        final MessageHeader header = tuple.v1();
+        final TestRequest message = new TestRequest(tuple.v2().streamInput());
+        assertEquals(version.id, header.getVersion());
+        assertEquals(requestId, header.getRequestId());
+        assertTrue(header.isRequest());
+        assertFalse(header.isResponse());
+        assertTrue(header.isHandshake());
+        if (compress && compressUnsupportedDueToVersion == false) {
+            assertTrue(header.isCompressed());
+        } else {
+            assertFalse(header.isCompressed());
+        }
+
+        assertEquals(value, message.value);
+        assertTrue(header.getHeaders().v1().isEmpty());
+    }
+
+    public void testSendRequest() throws IOException {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersion.CURRENT.minimumCompatibilityVersion());
+        String action = "action";
+        long requestId = randomLongBetween(0, 300);
         boolean compress = randomBoolean();
         boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
             && version.before(Compression.Scheme.LZ4_VERSION);
@@ -160,9 +226,9 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         });
         if (compress) {
-            handler.sendRequest(node, channel, requestId, action, request, options, version, compressionScheme, isHandshake);
+            handler.sendRequest(node, channel, requestId, action, request, options, version, compressionScheme, false);
         } else {
-            handler.sendRequest(node, channel, requestId, action, request, options, version, null, isHandshake);
+            handler.sendRequest(node, channel, requestId, action, request, options, version, null, false);
         }
 
         BytesReference reference = channel.getMessageCaptor().get();
@@ -178,18 +244,14 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(request, requestRef.get());
 
         pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
-        final Tuple<Header, BytesReference> tuple = message.get();
-        final Header header = tuple.v1();
+        final Tuple<MessageHeader, BytesReference> tuple = message.get();
+        final MessageHeader header = tuple.v1();
         final TestRequest message = new TestRequest(tuple.v2().streamInput());
         assertEquals(version, header.getVersion());
         assertEquals(requestId, header.getRequestId());
         assertTrue(header.isRequest());
         assertFalse(header.isResponse());
-        if (isHandshake) {
-            assertTrue(header.isHandshake());
-        } else {
-            assertFalse(header.isHandshake());
-        }
+        assertFalse(header.isHandshake());
         if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
@@ -200,12 +262,72 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 
+    public void testSendHandshakeResponse() throws IOException {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersion.CURRENT.minimumCompatibilityVersion());
+        String action = "handshake";
+        long requestId = randomLongBetween(0, 300);
+        boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
+
+        String value = "message";
+        TestResponse response = new TestResponse(value);
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                responseRef.set(response);
+            }
+        });
+        if (compress) {
+            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, true);
+        } else {
+            handler.sendResponse(version, channel, requestId, action, response, null, true);
+        }
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(response, responseRef.get());
+
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        final Tuple<MessageHeader, BytesReference> tuple = message.get();
+        final MessageHeader header = tuple.v1();
+        final TestResponse message = new TestResponse(tuple.v2().streamInput());
+        assertEquals(version.id, header.getVersion());
+        assertEquals(requestId, header.getRequestId());
+        assertFalse(header.isRequest());
+        assertTrue(header.isResponse());
+        assertTrue(header.isHandshake());
+        if (compress && compressUnsupportedDueToVersion == false) {
+            assertTrue(header.isCompressed());
+        } else {
+            assertFalse(header.isCompressed());
+        }
+
+        assertFalse(header.isError());
+
+        assertEquals(value, message.value);
+        assertTrue(header.getHeaders().v1().isEmpty());
+    }
+
     public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
         TransportVersion version = randomFrom(TransportVersion.CURRENT, TransportVersion.CURRENT.minimumCompatibilityVersion());
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
-        boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
         boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
             && version.before(Compression.Scheme.LZ4_VERSION);
@@ -226,9 +348,9 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         });
         if (compress) {
-            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, false);
         } else {
-            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, null, false);
         }
 
         BytesReference reference = channel.getMessageCaptor().get();
@@ -243,18 +365,14 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(response, responseRef.get());
 
         pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
-        final Tuple<Header, BytesReference> tuple = message.get();
-        final Header header = tuple.v1();
+        final Tuple<MessageHeader, BytesReference> tuple = message.get();
+        final MessageHeader header = tuple.v1();
         final TestResponse message = new TestResponse(tuple.v2().streamInput());
         assertEquals(version, header.getVersion());
         assertEquals(requestId, header.getRequestId());
         assertFalse(header.isRequest());
         assertTrue(header.isResponse());
-        if (isHandshake) {
-            assertTrue(header.isHandshake());
-        } else {
-            assertFalse(header.isHandshake());
-        }
+        assertFalse(header.isHandshake());
         if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
@@ -300,8 +418,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(error, responseRef.get());
 
         pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
-        final Tuple<Header, BytesReference> tuple = message.get();
-        final Header header = tuple.v1();
+        final Tuple<MessageHeader, BytesReference> tuple = message.get();
+        final MessageHeader header = tuple.v1();
         assertEquals(version, header.getVersion());
         assertEquals(requestId, header.getRequestId());
         assertFalse(header.isRequest());

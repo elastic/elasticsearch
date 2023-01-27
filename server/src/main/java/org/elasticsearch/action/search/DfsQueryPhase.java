@@ -136,8 +136,6 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
-
         List<ScoreDoc> scoreDocs = new ArrayList<>();
         for (DfsKnnResults dfsKnnResults : knnResults) {
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
@@ -161,14 +159,14 @@ final class DfsQueryPhase extends SearchPhase {
             if (j > i + 1) {
                 scoreDocs.subList(i + 1, j).clear();
             }
+        }
 
-            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-
-            if (source.query() == null) {
-                newSource.query(knnQuery);
-            } else {
-                newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
-            }
+        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
+        if (source.query() == null) {
+            newSource.query(knnQuery);
+        } else {
+            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
         }
 
         request.source(newSource);

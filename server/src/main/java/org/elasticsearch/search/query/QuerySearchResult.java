@@ -46,6 +46,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         private boolean hasScoreDocs;
         private float maxScore = Float.NaN;
         private DocValueFormat[] sortValueFormats;
+        private TotalHits totalHits;
         private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
 
         private long serviceTimeEWMA = -1;
@@ -94,6 +95,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
         private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
             this.topDocsAndMaxScore = topDocsAndMaxScore;
+            this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
             this.maxScore = topDocsAndMaxScore.maxScore;
             this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
         }
@@ -145,6 +147,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
             return maxScore;
         }
 
+        public TotalHits getTotalHits() {
+            return totalHits;
+        }
+
         public RescoreDocIds getRescoreDocIds() {
             return rescoreDocIds;
         }
@@ -165,7 +171,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     private DelayableWriteable<InternalAggregations> aggregations;
     private boolean hasAggs;
-    private TotalHits totalHits;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -239,6 +244,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public List<SingleQueryResult> getSingleQueryResults() {
+        if (singleQueryResults.size() > 1) {
+            throw new IllegalStateException("HERE");
+        }
         if (singleQueryResults.isEmpty()) {
             return List.of(new SingleQueryResult());
         }
@@ -535,14 +543,5 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 singleQueryResult.getRescoreDocIds().writeTo(out);
             }
         }
-    }
-
-    public QuerySearchResult setTotalHits(TotalHits totalHits) {
-        this.totalHits = totalHits;
-        return this;
-    }
-
-    public TotalHits getTotalHits() {
-        return totalHits;
     }
 }

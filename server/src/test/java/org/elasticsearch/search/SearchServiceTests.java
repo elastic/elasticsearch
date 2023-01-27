@@ -1671,7 +1671,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         service.executeQueryPhase(request, task, future);
         SearchPhaseResult searchPhaseResult = future.actionGet();
-        assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
+        assertEquals(1, searchPhaseResult.queryResult().getSingleQueryResults().get(0).getTotalHits().value);
     }
 
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {

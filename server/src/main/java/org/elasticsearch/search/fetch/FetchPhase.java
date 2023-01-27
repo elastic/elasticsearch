@@ -67,7 +67,7 @@ public class FetchPhase {
             // no individual hits to process, so we shortcut
             SearchHits hits = new SearchHits(
                 new SearchHit[0],
-                context.queryResult().getTotalHits(),
+                context.queryResult().getSingleQueryResults().get(0).getTotalHits(),
                 context.queryResult().getSingleQueryResults().get(0).getMaxScore()
             ); // TODO: how do we handle multi query?
             context.fetchResult().shardResult(hits, null);
@@ -168,7 +168,7 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        TotalHits totalHits = context.queryResult().getTotalHits();
+        TotalHits totalHits = context.queryResult().getSingleQueryResults().get(0).getTotalHits();
         return new SearchHits(hits, totalHits, context.queryResult().getSingleQueryResults().get(0).getMaxScore()); // TODO: how do we
                                                                                                                     // handle multi query?
     }

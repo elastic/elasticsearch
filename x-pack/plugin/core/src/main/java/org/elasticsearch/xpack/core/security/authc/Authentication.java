@@ -999,7 +999,8 @@ public final class Authentication implements ToXContentObject, Writeable {
         return authentication;
     }
 
-    private static RealmRef maybeRewriteRealmRef(TransportVersion streamVersion, RealmRef realmRef) {
+    // pkg-private for testing
+    static RealmRef maybeRewriteRealmRef(TransportVersion streamVersion, RealmRef realmRef) {
         if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
             logger.info("Rewriting realm [" + realmRef + "] without domain");
             // security domain erasure

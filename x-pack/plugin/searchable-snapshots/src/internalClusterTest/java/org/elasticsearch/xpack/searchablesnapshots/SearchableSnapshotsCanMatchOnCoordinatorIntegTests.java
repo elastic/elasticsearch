@@ -100,10 +100,18 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // Either add data outside of the range, or documents that don't have timestamp data
         final boolean indexDataWithTimestamp = randomBoolean();
+        // Add enough documents to have non-metadata segment files in all shards,
+        // otherwise the mount operation might go through as the read won't be
+        // blocked
+        final int numberOfDocsInIndexOutsideSearchRange = between(350, 1000);
         if (indexDataWithTimestamp) {
-            indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+            indexDocumentsWithTimestampWithinDate(
+                indexOutsideSearchRange,
+                numberOfDocsInIndexOutsideSearchRange,
+                "2020-11-26T%02d:%02d:%02d.%09dZ"
+            );
         } else {
-            indexRandomDocs(indexOutsideSearchRange, between(0, 1000));
+            indexRandomDocs(indexOutsideSearchRange, numberOfDocsInIndexOutsideSearchRange);
         }
 
         // Index enough documents to ensure that all shards have at least some documents

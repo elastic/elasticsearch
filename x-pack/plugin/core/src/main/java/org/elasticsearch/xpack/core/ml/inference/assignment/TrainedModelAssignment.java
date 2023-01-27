@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -143,7 +143,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             this.maxAssignedAllocations = in.readVInt();
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
@@ -302,7 +302,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
         }
     }

@@ -51,6 +51,11 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
         return new TrainedModelAssignmentMetadata(new HashMap<>());
     }
 
+    @Override
+    protected TrainedModelAssignmentMetadata mutateInstance(TrainedModelAssignmentMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testIsAllocated() {
         String allocatedModelId = "test_model_id";
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()

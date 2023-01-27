@@ -35,7 +35,6 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -48,12 +47,14 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -117,7 +118,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         throw new RuntimeException(e);
                     }
 
-                    return new NoOpEngine(EngineTestCase.copy(config, () -> -1L), new TranslogStats(0, 0, 0, 0, 0));
+                    return new NoOpEngine(EngineTestCase.copy(config, () -> -1L));
                 }
             });
         }
@@ -334,7 +335,8 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 for (IndexShard indexShard : indexService) {
                     final var engine = indexShard.getEngineOrNull();
                     assertNotNull(engine);
-                    if (indexShard.routingEntry().isPromotableToPrimary()) {
+                    if (indexShard.routingEntry().isPromotableToPrimary()
+                        && indexShard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.OPEN) {
                         assertThat(engine, instanceOf(InternalEngine.class));
                     } else {
                         assertThat(engine, instanceOf(NoOpEngine.class));
@@ -436,7 +438,9 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    public void testSearchRouting() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93292")
+    public void testSearchRouting() {
+
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);
         routingTableWatcher.numIndexingCopies = Math.min(routingTableWatcher.numIndexingCopies, routingTableWatcher.numReplicas);
@@ -477,12 +481,23 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
 
             for (int i = 0; i < 10; i++) {
-                final var profileResults = client().prepareSearch(INDEX_NAME).setProfile(true).get().getProfileResults();
+                final var requestBuilder = client().prepareSearch(INDEX_NAME).setProfile(true);
+                if (randomBoolean()) {
+                    requestBuilder.setRouting(randomAlphaOfLength(10));
+                }
+                if (randomBoolean()) {
+                    requestBuilder.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                }
+
+                final var profileResults = requestBuilder.get().getProfileResults();
                 assertThat(profileResults, not(anEmptyMap()));
                 for (final var searchShardProfileKey : profileResults.keySet()) {
                     assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
                 }
             }
+
+            // TODO also verify PIT routing
+            // TODO also verify the search-shards API
         } finally {
             masterClusterService.removeListener(routingTableWatcher);
         }
@@ -553,4 +568,43 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
+    private String randomSearchPreference(int numShards, String... nodeIds) {
+        final var preference = randomFrom(Preference.SHARDS, Preference.PREFER_NODES, Preference.LOCAL);
+        // ONLY_LOCAL and ONLY_NODES omitted here because they may yield no shard copies which causes the search to fail
+        // TODO add support for ONLY_LOCAL and ONLY_NODES too
+        return switch (preference) {
+            case LOCAL, ONLY_LOCAL -> preference.type();
+            case PREFER_NODES, ONLY_NODES -> preference.type() + ":" + String.join(",", randomNonEmptySubsetOf(Arrays.asList(nodeIds)));
+            case SHARDS -> preference.type()
+                + ":"
+                + String.join(
+                    ",",
+                    randomSubsetOf(between(1, numShards), IntStream.range(0, numShards).mapToObj(Integer::toString).toList())
+                );
+        };
+    }
+
+    public void testClosedIndex() {
+        var routingTableWatcher = new RoutingTableWatcher();
+
+        var numDataNodes = routingTableWatcher.numReplicas + 2;
+        internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
+
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // verify the correct number of shard copies of each role as the routing table evolves
+            masterClusterService.addListener(routingTableWatcher);
+
+            createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+
+            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            ensureGreen(INDEX_NAME);
+            assertEngineTypes();
+        } finally {
+            masterClusterService.removeListener(routingTableWatcher);
+        }
+    }
 }

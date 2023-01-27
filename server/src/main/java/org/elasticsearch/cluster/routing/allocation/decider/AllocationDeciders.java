@@ -142,6 +142,14 @@ public class AllocationDeciders {
             Decision decision = allocationDecider.canAllocate(indexMetadata, node, allocation);
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "Can not allocate [{}] on node [{}] due to [{}]",
+                        indexMetadata.getIndex().getName(),
+                        node.node(),
+                        allocationDecider.getClass().getSimpleName()
+                    );
+                }
                 if (allocation.debugDecision() == false) {
                     return Decision.NO;
                 } else {
@@ -178,6 +186,13 @@ public class AllocationDeciders {
             Decision decision = allocationDecider.canAllocate(shardRouting, allocation);
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "Can not allocate [{}] on any node due to [{}]",
+                        shardRouting,
+                        allocationDecider.getClass().getSimpleName()
+                    );
+                }
                 if (allocation.debugDecision() == false) {
                     return Decision.NO;
                 } else {

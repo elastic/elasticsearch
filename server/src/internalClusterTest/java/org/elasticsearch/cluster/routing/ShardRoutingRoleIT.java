@@ -225,6 +225,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
+            mockTransportService.addRequestHandlingBehavior(
+                TransportUnpromotableShardRefreshAction.NAME,
+                (handler, request, channel, task) -> {
+                    // Skip handling the request and send an immediate empty response
+                    channel.sendResponse(ActionResponse.Empty.INSTANCE);
+                }
+            );
         }
     }
 
@@ -439,7 +446,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93292")
-    public void testSearchRouting() {
+    public void testSearchRouting() throws Exception {
 
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);
@@ -508,6 +515,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         var numDataNodes = routingTableWatcher.numReplicas + 2;
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
         final AtomicInteger refreshReplicaActions = new AtomicInteger(0);
@@ -524,13 +532,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
-            mockTransportService.addRequestHandlingBehavior(
-                TransportUnpromotableShardRefreshAction.NAME,
-                (handler, request, channel, task) -> {
-                    // Skip handling the request and send an immediate empty response
-                    channel.sendResponse(ActionResponse.Empty.INSTANCE);
-                }
-            );
         }
 
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -589,6 +590,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         var numDataNodes = routingTableWatcher.numReplicas + 2;
         internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        installMockTransportVerifications(routingTableWatcher);
         getMasterNodePlugin().numIndexingCopies = routingTableWatcher.numIndexingCopies;
 
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);

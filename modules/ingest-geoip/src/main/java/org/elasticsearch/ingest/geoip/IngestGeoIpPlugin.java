@@ -86,9 +86,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         return Arrays.asList(
             CACHE_SIZE,
             GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
-            GeoIpDownloaderTaskExecutor.ENABLED_SETTING
+            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING
         );
     }
 

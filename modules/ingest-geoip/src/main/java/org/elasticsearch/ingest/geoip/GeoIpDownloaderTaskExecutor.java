@@ -199,7 +199,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         if (taskIsBootstrapped.getAndSet(true) == false) {
-            this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(clusterService.state());
+            this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
             if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                 startTask(() -> taskIsBootstrapped.set(false));
             } else {

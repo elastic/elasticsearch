@@ -99,8 +99,10 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
                 request.addParameter("timeout", "70s");
             }));
             waitForDeploymentStarted(modelId);
-            assertInfer(modelId);
-            assertNewInfer(modelId);
+            assertBusy(() -> {
+                assertInfer(modelId);
+                assertNewInfer(modelId);
+            }, 90, TimeUnit.SECONDS);
             stopDeployment(modelId);
         }
     }

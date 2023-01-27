@@ -17,6 +17,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportUnpromotableShardRefreshAction extends HandledTransportAction<UnpromotableShardRefreshRequest, ActionResponse.Empty> {
@@ -30,7 +31,7 @@ public class TransportUnpromotableShardRefreshAction extends HandledTransportAct
         ActionFilters actionFilters,
         IndicesService indicesService
     ) {
-        super(NAME, transportService, actionFilters, UnpromotableShardRefreshRequest::new);
+        super(NAME, transportService, actionFilters, UnpromotableShardRefreshRequest::new, ThreadPool.Names.REFRESH);
         this.indicesService = indicesService;
     }
 

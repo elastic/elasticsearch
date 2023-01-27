@@ -501,7 +501,7 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
 
     static int bloomFilterSize(int maxDocs) {
         // 10% saturation (i.e., 10 bits for each term)
-        final long numBits = Math.max(maxDocs, 100_000) * 10L;
+        final long numBits = maxDocs * 10L;
         if (numBits > Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
         } else {

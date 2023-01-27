@@ -9,6 +9,7 @@ package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -16,6 +17,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -32,6 +34,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class VersionsTests extends ESTestCase {
@@ -209,5 +212,40 @@ public class VersionsTests extends ESTestCase {
         // future version, should be the same version as today
         version = Version.fromId(Version.CURRENT.id + 100);
         assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
+    }
+
+    public void testVersionsTimeSeries() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), 1000L, randomBoolean()), nullValue());
+
+        Document doc = new Document();
+        doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));
+        writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
+
+        doc = new Document();
+        doc.add(new Field(IdFieldMapper.NAME, "2", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 10_000));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, 0L));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, 1L));
+        writer.updateDocument(new Term(IdFieldMapper.NAME, "2"), doc);
+        directoryReader = reopen(directoryReader);
+
+        long randomTimestamp = randomLongBetween(1000, 10000);
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomTimestamp, true), notNullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "2"), randomTimestamp, true), notNullValue());
+        randomTimestamp = randomBoolean() ? randomLongBetween(0, 999) : randomLongBetween(10001, Long.MAX_VALUE);
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomTimestamp, true), nullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "2"), randomTimestamp, true), nullValue());
+
+        directoryReader.close();
+        writer.close();
+        dir.close();
     }
 }

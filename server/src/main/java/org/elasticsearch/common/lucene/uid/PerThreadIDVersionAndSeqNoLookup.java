@@ -100,7 +100,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
         } else {
             minTimestamp = 0;
-            maxTimestamp = Integer.MAX_VALUE;
+            maxTimestamp = Long.MAX_VALUE;
         }
     }
 

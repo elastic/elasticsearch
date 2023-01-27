@@ -150,6 +150,22 @@ public final class VersionsAndSeqNoResolver {
         return null;
     }
 
+    /**
+     * A special variant of loading docid and version in case of time series indices.
+     * <p>
+     * Makes use of the fact that timestamp is part of the id, existence of @timestamp field and
+     * that segments are sorted by {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER}.
+     * This allows this method to know whether there is no document with the specified id without loading the docid for
+     * the specified id.
+     *
+     * @param reader    The reader load docid, version and seqno from.
+     * @param term      The term that describes the id of the document to load docid, version and seqno for.
+     * @param timestamp The timestamp that is encoded into the id that allows to skip checking the id for entire segments
+     * @param loadSeqNo Whether to lead seqno
+     * @return the internal doc ID and version for the specified term from the specified reader or
+     *         returning <code>null</code> if no document was found for the specified id
+     * @throws IOException In case of an i/o related failure
+     */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, long timestamp, boolean loadSeqNo) throws IOException {
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), true);
         List<LeafReaderContext> leaves = reader.leaves();

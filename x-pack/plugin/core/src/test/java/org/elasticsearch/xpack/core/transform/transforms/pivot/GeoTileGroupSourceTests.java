@@ -52,6 +52,11 @@ public class GeoTileGroupSourceTests extends AbstractXContentSerializingTestCase
     }
 
     @Override
+    protected GeoTileGroupSource mutateInstance(GeoTileGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<GeoTileGroupSource> instanceReader() {
         return GeoTileGroupSource::new;
     }

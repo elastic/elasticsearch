@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +22,7 @@ public class DataTiersFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected DataTiersFeatureSetUsage mutateInstance(DataTiersFeatureSetUsage instance) throws IOException {
+    protected DataTiersFeatureSetUsage mutateInstance(DataTiersFeatureSetUsage instance) {
         return randomValueOtherThan(instance, DataTiersFeatureSetUsageTests::randomUsage);
     }
 

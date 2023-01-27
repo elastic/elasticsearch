@@ -32,6 +32,11 @@ public class DataStreamTemplateTests extends AbstractXContentSerializingTestCase
         return randomInstance();
     }
 
+    @Override
+    protected DataStreamTemplate mutateInstance(DataStreamTemplate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataStreamTemplate randomInstance() {
         IndexMode indexMode = randomBoolean() ? randomFrom(IndexMode.values()) : null;
         return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean());

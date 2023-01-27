@@ -1,0 +1,57 @@
+pr: 93329
+summary: Handle a default/request pipeline and a final pipeline with minimal additional
+  overhead
+area: Ingest Node
+type: refactoring
+issues:
+ - 92843
+ - 81244
+ - 93118
+highlight:
+  title: Handle a default/request pipeline and a final pipeline with minimal additional
+    overhead
+  body: |-
+    Closes #81244 Closes #92843 Closes #93118
+
+    Tightens up the document handling aspects of `executePipelines` and its
+    callees. `innerExecute` becomes trivial, and nearly drops out (renamed
+    to `executePipeline` where it remains just to adapt handler shapes).
+
+    At a high level, the execution goes from:
+
+    ```
+    - pipeline 1 (default/request pipeline):
+      - parse json
+      - execute processors
+      - generate json
+    - pipeline 2 (final pipeline):
+      - parse json
+      - execute processors
+      - generate json
+    ```
+
+    to
+
+    ```
+    - parse json
+    - pipeline 1 (default/request pipeline):
+      - execute processors
+    - pipeline 2 (final pipeline):
+      - execute processors
+    - generate json
+    ```
+
+    The difference in the flame graph is pretty clear. Before:
+
+    <img width="1792" alt="Screen Shot 2023-01-25 at 3 29 39 PM"
+    src="https://user-images.githubusercontent.com/187034/214683083-9537b47a-971a-4a2a-afec-1e351ab6c003.png">
+
+    After:
+
+    <img width="1738" alt="Screen Shot 2023-01-27 at 12 59 31 PM"
+    src="https://user-images.githubusercontent.com/187034/215160676-61133594-04b9-4570-b2cc-3e9025436797.png">
+
+    And the performance is much better, as one would expect, with the total
+    time spent in any ingest code for the nightly security benchmark
+    dropping from 4994128 to 3568490 millis -- a decrease of 29%.
+  notable: true

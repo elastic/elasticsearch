@@ -223,16 +223,40 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     @SuppressWarnings("unchecked")
-    private boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
+    static boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
         List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
         return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
             Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
-            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineMap.get(Pipeline.PROCESSORS_KEY);
-            if (processors != null) {
-                return processors.stream().anyMatch(processor -> processor.containsKey(GeoIpProcessor.TYPE));
-            }
-            return false;
+            return hasAtLeastOneGeoipProcessor((List<Map<String, Object>>) pipelineMap.get(Pipeline.PROCESSORS_KEY));
         });
+    }
+
+    private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors) {
+        return processors != null && processors.stream().anyMatch(GeoIpDownloaderTaskExecutor::hasAtLeastOneGeoipProcessor);
+    }
+
+    private static boolean hasAtLeastOneGeoipProcessor(Map<String, Object> processor) {
+        return processor != null
+            && (processor.containsKey(GeoIpProcessor.TYPE)
+                || isProcessorWithOnFailureGeoIpProcessor(processor)
+                || isForeachProcessorWithGeoipProcessor(processor));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isProcessorWithOnFailureGeoIpProcessor(Map<String, Object> processor) {
+        return processor != null
+            && processor.values()
+                .stream()
+                .anyMatch(
+                    value -> value instanceof Map
+                        && hasAtLeastOneGeoipProcessor(((Map<String, List<Map<String, Object>>>) value).get("on_failure"))
+                );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isForeachProcessorWithGeoipProcessor(Map<String, Object> processor) {
+        return processor.containsKey("foreach")
+            && hasAtLeastOneGeoipProcessor(((Map<String, Map<String, Object>>) processor.get("foreach")).get("processor"));
     }
 
     private void startTask(Runnable onFailure) {

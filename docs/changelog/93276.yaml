@@ -1,0 +1,5 @@
+pr: 93276
+summary: Fix domain erasure in realm rewriting
+area: Authentication
+type: bug
+issues: []

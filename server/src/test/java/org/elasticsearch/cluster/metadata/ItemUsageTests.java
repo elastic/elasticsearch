@@ -41,7 +41,7 @@ public class ItemUsageTests extends AbstractWireTestCase<ItemUsage> {
     }
 
     @Override
-    protected ItemUsage mutateInstance(ItemUsage instance) throws IOException {
-        return super.mutateInstance(instance);
+    protected ItemUsage mutateInstance(ItemUsage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

@@ -31,6 +31,11 @@ public class SlimResultsTests extends InferenceResultsTestCase<SlimResults> {
     }
 
     @Override
+    protected SlimResults mutateInstance(SlimResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     void assertFieldValues(SlimResults createdInstance, IngestDocument document, String resultsField) {
         var ingestedTokens = (List<Map<String, Object>>) document.getFieldValue(

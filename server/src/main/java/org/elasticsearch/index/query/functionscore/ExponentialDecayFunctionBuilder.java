@@ -9,7 +9,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -83,7 +83,7 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

@@ -635,7 +635,7 @@ public class NodeStatsTests extends ESTestCase {
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
             true,
-            RecoverySource.PeerRecoverySource.INSTANCE,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
             ShardRouting.Role.DEFAULT
         );

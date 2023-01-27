@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -239,12 +238,7 @@ public class LocalExecutionPlanner {
             }
             layout.appendChannel(grpAttribIds);
 
-            final Supplier<BlockHash> blockHash;
-            if (grpAttrib.dataType() == DataTypes.KEYWORD) {
-                blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays);
-            } else {
-                blockHash = () -> BlockHash.newLongHash(context.bigArrays);
-            }
+            final BlockHash.Type blockHashType = BlockHash.Type.mapFromDataType(grpAttrib.dataType().typeName());
 
             for (NamedExpression ne : aggregate.aggregates()) {
 
@@ -301,7 +295,7 @@ public class LocalExecutionPlanner {
                     BigArrays.NON_RECYCLING_INSTANCE
                 );
             } else {
-                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHash);
+                operatorFactory = new HashAggregationOperatorFactory(inputChannel, aggregatorFactories, blockHashType, context.bigArrays);
             }
         }
 

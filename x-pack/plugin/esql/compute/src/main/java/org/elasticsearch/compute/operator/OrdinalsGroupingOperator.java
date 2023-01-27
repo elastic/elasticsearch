@@ -373,11 +373,10 @@ public class OrdinalsGroupingOperator implements Operator {
             BigArrays bigArrays
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, luceneDocRef);
-            boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
             this.aggregator = new HashAggregationOperator(
                 channelIndex,
                 aggregatorFactories,
-                bytesValues ? () -> BlockHash.newBytesRefHash(bigArrays) : () -> BlockHash.newLongHash(bigArrays)
+                () -> BlockHash.newHashForType(sources.get(0).source(), sources.get(0).type(), bigArrays)
             );
         }
 

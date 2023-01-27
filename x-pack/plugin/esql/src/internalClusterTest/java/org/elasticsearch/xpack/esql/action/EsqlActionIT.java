@@ -595,6 +595,46 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), containsInAnyOrder(List.of(1L), List.of(2L)));
     }
 
+    public void testRowStatsProjectGroupByInt() {
+        EsqlQueryResponse results = run("row a = 1, b = 2 | stats count(b) by a | project a");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
+        assertThat(results.values(), contains(List.of(1)));
+    }
+
+    public void testRowStatsProjectGroupByLong() {
+        EsqlQueryResponse results = run("row a = 1000000000000, b = 2 | stats count(b) by a | project a");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
+        assertThat(results.values(), contains(List.of(1000000000000L)));
+    }
+
+    public void testRowStatsProjectGroupByDouble() {
+        EsqlQueryResponse results = run("row a = 1.0, b = 2 | stats count(b) by a | project a");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+        assertThat(results.values(), contains(List.of(1.0)));
+    }
+
+    public void testRowStatsProjectGroupByKeyword() {
+        EsqlQueryResponse results = run("row a = \"hello\", b = 2 | stats count(b) by a | project a");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("keyword"));
+        assertThat(results.values(), contains(List.of("hello")));
+    }
+
+    public void testFromStatsProjectGroupByDouble() {
+        EsqlQueryResponse results = run("from test | stats count(count) by data_d | project data_d");
+        logger.info(results);
+        assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data_d"));
+        assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
+        assertThat(results.values(), containsInAnyOrder(List.of(1.0), List.of(2.0)));
+    }
+
     public void testFromStatsProjectGroupWithAlias() {
         EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | project d = data, d2 = data");
         logger.info(results);

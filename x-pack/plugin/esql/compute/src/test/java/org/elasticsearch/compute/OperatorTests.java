@@ -594,7 +594,7 @@ public class OperatorTests extends ESTestCase {
                                         3
                                     )
                                 ),
-                                () -> BlockHash.newLongHash(bigArrays)
+                                () -> BlockHash.newHashForType(BlockHash.Type.LONG, bigArrays)
                             ),
                             new HashAggregationOperator(
                                 0, // group by channel
@@ -606,14 +606,14 @@ public class OperatorTests extends ESTestCase {
                                         1
                                     )
                                 ),
-                                () -> BlockHash.newLongHash(bigArrays)
+                                () -> BlockHash.newHashForType(BlockHash.Type.LONG, bigArrays)
                             ),
                             new HashAggregationOperator(
                                 0, // group by channel
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                                 ),
-                                () -> BlockHash.newLongHash(bigArrays)
+                                () -> BlockHash.newHashForType(BlockHash.Type.LONG, bigArrays)
                             )
                         ),
                         new PageConsumerOperator(page -> {
@@ -679,7 +679,7 @@ public class OperatorTests extends ESTestCase {
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                             ),
-                            () -> BlockHash.newBytesRefHash(bigArrays)
+                            () -> BlockHash.newHashForType(BlockHash.Type.BYTES_REF, bigArrays)
                         )
                     ),
                     new PageConsumerOperator(page -> {

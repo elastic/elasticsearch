@@ -88,7 +88,7 @@ public class AggregatorBenchmark {
             return new HashAggregationOperator(
                 0,
                 List.of(new GroupingAggregator.GroupingAggregatorFactory(BIG_ARRAYS, factory, AggregatorMode.SINGLE, 1)),
-                () -> BlockHash.newLongHash(BIG_ARRAYS)
+                () -> BlockHash.newHashForType(BlockHash.Type.LONG, BIG_ARRAYS)
             );
         }
         AggregatorFunction.Factory factory = switch (op) {

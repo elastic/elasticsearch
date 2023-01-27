@@ -221,4 +221,22 @@ public class DiscoveryNodeTests extends ESTestCase {
               }
             }""", transportAddress, withExternalId ? "test-external-id" : "test-name", Version.CURRENT)));
     }
+
+    public void testDiscoveryNodeToString() {
+        var node = new DiscoveryNode(
+            "test-id",
+            buildNewFakeTransportAddress(),
+            Map.of("test-attr", "val"),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+        var toString = node.toString();
+
+        assertThat(toString, containsString("{" + node.getId() + "}"));
+        assertThat(toString, containsString("{" + node.getEphemeralId() + "}"));
+        assertThat(toString, containsString("{" + node.getAddress() + "}"));
+        assertThat(toString, containsString("{IScdfhilmrstvw}"));// roles
+        assertThat(toString, containsString("{" + node.getVersion() + "}"));
+        assertThat(toString, containsString("{test-attr=val}"));// attributes
+    }
 }

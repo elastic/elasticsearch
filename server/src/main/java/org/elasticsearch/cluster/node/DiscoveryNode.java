@@ -604,6 +604,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
             stringBuilder.append('}');
         }
+        stringBuilder.append('{').append(version).append('}');
     }
 
     public String descriptionWithoutAttributes() {

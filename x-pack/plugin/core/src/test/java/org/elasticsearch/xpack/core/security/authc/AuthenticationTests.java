@@ -643,25 +643,26 @@ public class AuthenticationTests extends ESTestCase {
         // To test the new rewrite mechanism in 8.7, we call authentication.maybeRewriteForOlderVersion(version, remoteAccessRealmVersion)
         // with a version that precedes 8.7, thus circumventing the internal validation error
         // TODO in 8.8, simply set remoteAccessRealmVersion to Authentication.VERSION_REMOTE_ACCESS_REALM
-        final Version remoteAccessRealmVersion = TransportVersion.CURRENT.equals(Authentication.VERSION_REMOTE_ACCESS_REALM)
-            ? VersionUtils.getPreviousVersion()
-            : Version.V_8_7_0;
-        final Version version = VersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, Version.CURRENT);
-        final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version.transportVersion).build();
+        final TransportVersion remoteAccessRealmVersion = TransportVersion.CURRENT.equals(Authentication.VERSION_REMOTE_ACCESS_REALM)
+            ? TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REMOTE_ACCESS_REALM)
+            : Authentication.VERSION_REMOTE_ACCESS_REALM;
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            remoteAccessRealmVersion,
+            TransportVersion.CURRENT
+        );
+        final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .remoteAccess(randomAlphaOfLength(20), new RemoteAccessAuthentication(innerAuthentication, RoleDescriptorsIntersection.EMPTY))
             .build();
-        assertThat(authentication.getAuthenticatingSubject().getMetadata(), hasKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY));
+        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, version);
 
-        final Version maybeOldVersion = VersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, version);
-        final Authentication rewritten = authentication.maybeRewriteForOlderVersion(
-            maybeOldVersion.transportVersion,
-            remoteAccessRealmVersion.transportVersion
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion, remoteAccessRealmVersion);
+
+        final Authentication innerActualAuthentication = AuthenticationContextSerializer.decode(
+            (String) actual.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
         );
-        final Authentication innerMaybeRewritten = AuthenticationContextSerializer.decode(
-            (String) rewritten.getAuthenticatingSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-        );
-        assertThat(innerMaybeRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion.transportVersion)));
+        assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
     }
 
     public void testMaybeRewriteMetadataForRemoteAccessAuthentication() throws IOException {

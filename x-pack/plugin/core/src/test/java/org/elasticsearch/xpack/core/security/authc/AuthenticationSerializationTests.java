@@ -82,13 +82,9 @@ public class AuthenticationSerializationTests extends ESTestCase {
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeRemoteAccessRealm = TransportVersionUtils.getPreviousVersion(
-            Authentication.VERSION_REMOTE_ACCESS_REALM
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
             random(),
-            versionBeforeRemoteAccessRealm.calculateMinimumCompatVersion(),
-            versionBeforeRemoteAccessRealm
+            Authentication.VERSION_REMOTE_ACCESS_REALM
         );
         out.setTransportVersion(version);
 

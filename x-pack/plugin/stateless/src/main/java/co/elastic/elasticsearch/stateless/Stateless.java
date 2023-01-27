@@ -141,7 +141,7 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
     ) {
         var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, client);
         this.objectStoreService.set(objectStoreService);
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, objectStoreService::pushTranslogFile);
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService::pushTranslogFile);
         this.translogReplicator.set(translogReplicator);
         return List.of(objectStoreService, translogReplicator);
     }
@@ -154,7 +154,8 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,
             IndexEngine.INDEX_FLUSH_INTERVAL_SETTING,
-            ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT
+            ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT,
+            TranslogReplicator.FLUSH_INTERVAL_SETTING
         );
     }
 

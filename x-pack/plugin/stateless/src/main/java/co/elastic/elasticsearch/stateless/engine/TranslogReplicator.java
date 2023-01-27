@@ -24,10 +24,13 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -51,6 +54,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(TranslogReplicator.class);
 
+    public static final Setting<TimeValue> FLUSH_INTERVAL_SETTING = Setting.timeSetting(
+        "stateless.translog.flush_interval",
+        new TimeValue(200, TimeUnit.MILLISECONDS),
+        new TimeValue(10, TimeUnit.MILLISECONDS),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     // TODO: Find Recycling Instance
     private final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     private final TriConsumer<String, BytesReference, ActionListener<Void>> client;
@@ -58,10 +69,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStateByShardId = new ConcurrentHashMap<>();
     private final Object generateFlushLock = new Object();
     private final AtomicLong fileName = new AtomicLong(0);
+    private final TimeValue flushInterval;
 
-    public TranslogReplicator(final ThreadPool threadPool, final TriConsumer<String, BytesReference, ActionListener<Void>> client) {
+    public TranslogReplicator(
+        final ThreadPool threadPool,
+        final Settings settings,
+        final TriConsumer<String, BytesReference, ActionListener<Void>> client
+    ) {
         this.threadPool = threadPool;
         this.client = client;
+        this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
     }
 
     @Override
@@ -77,7 +94,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             protected void doRun() throws IOException {
                 flush();
             }
-        }, 200, 200, TimeUnit.MILLISECONDS);
+        }, flushInterval.duration(), flushInterval.duration(), flushInterval.timeUnit());
     }
 
     @Override

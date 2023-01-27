@@ -106,8 +106,4 @@ class FieldValueFetcher {
         }
         return Collections.unmodifiableList(fetchers);
     }
-
-    private static boolean isHistogramField(final MappedFieldType fieldType) {
-        return HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
-    }
 }

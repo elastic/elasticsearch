@@ -11,8 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.FullClusterRestartIT;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;

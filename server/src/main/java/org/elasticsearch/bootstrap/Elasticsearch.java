@@ -21,7 +21,6 @@ import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -144,14 +143,9 @@ class Elasticsearch {
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
         final ServerArgs args = bootstrap.args();
-        final SecureSettings keystore;
-        try {
-            keystore = KeyStoreWrapper.bootstrap(args.configDir(), args::keystorePassword);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        bootstrap.setSecureSettings(keystore);
-        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), keystore);
+        final SecureSettings secrets = args.secrets();
+        bootstrap.setSecureSettings(secrets);
+        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), secrets);
         bootstrap.setEnvironment(nodeEnv);
 
         initPidFile(args.pidFile());

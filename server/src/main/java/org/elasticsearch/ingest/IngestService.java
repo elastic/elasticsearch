@@ -823,7 +823,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     if (hasFinalPipeline && pipelineIds.hasNext() == false) {
-                        listener.onFailure(new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index"));
+                        listener.onFailure(
+                            new IllegalStateException(
+                                format(
+                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                    pipelineId,
+                                    originalIndex,
+                                    newIndex,
+                                    indexRequest.id()
+                                )
+                            )
+                        );
                         return; // document failed!
                     } else {
                         indexRequest.isPipelineResolved(false);

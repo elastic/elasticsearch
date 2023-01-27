@@ -14,9 +14,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
@@ -153,21 +155,27 @@ public final class VersionsAndSeqNoResolver {
     /**
      * A special variant of loading docid and version in case of time series indices.
      * <p>
-     * Makes use of the fact that timestamp is part of the id, existence of @timestamp field and
+     * Makes use of the fact that timestamp is part of the id, the existence of @timestamp field and
      * that segments are sorted by {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER}.
      * This allows this method to know whether there is no document with the specified id without loading the docid for
      * the specified id.
      *
      * @param reader    The reader load docid, version and seqno from.
-     * @param term      The term that describes the id of the document to load docid, version and seqno for.
-     * @param timestamp The timestamp that is encoded into the id that allows to skip checking the id for entire segments
-     * @param loadSeqNo Whether to lead seqno
+     * @param uid       The term that describes the uid of the document to load docid, version and seqno for.
+     * @param id        The id that contains the encoded timestamp. The timestamp is used to skip checking the id for entire segments.
+     * @param loadSeqNo Whether to load sequence number from _seq_no doc values field.
      * @return the internal doc ID and version for the specified term from the specified reader or
      *         returning <code>null</code> if no document was found for the specified id
      * @throws IOException In case of an i/o related failure
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, long timestamp, boolean loadSeqNo) throws IOException {
-        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), true);
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term uid, String id, boolean loadSeqNo) throws IOException {
+        byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
+        assert idAsBytes.length == 20;
+        // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
+        // @timestamp)
+        long timestamp = ByteUtils.readLongBE(idAsBytes, 12);
+
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, uid.field(), true);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate in default order, the segments should be sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
         long prevMaxTimestamp = Long.MAX_VALUE;
@@ -181,7 +189,7 @@ public final class VersionsAndSeqNoResolver {
             if (timestamp > lookup.maxTimestamp) {
                 return null;
             }
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
+            DocIdAndVersion result = lookup.lookupVersion(uid.bytes(), loadSeqNo, leaf);
             if (result != null) {
                 return result;
             }

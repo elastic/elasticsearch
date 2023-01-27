@@ -16,10 +16,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -33,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
+import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createId;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -218,7 +224,8 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), 1000L, randomBoolean()), nullValue());
+        String id = createTSDBId(1000L);
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), id, randomBoolean()), nullValue());
 
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
@@ -237,15 +244,27 @@ public class VersionsTests extends ESTestCase {
         writer.updateDocument(new Term(IdFieldMapper.NAME, "2"), doc);
         directoryReader = reopen(directoryReader);
 
-        long randomTimestamp = randomLongBetween(1000, 10000);
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomTimestamp, true), notNullValue());
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "2"), randomTimestamp, true), notNullValue());
-        randomTimestamp = randomBoolean() ? randomLongBetween(0, 999) : randomLongBetween(10001, Long.MAX_VALUE);
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomTimestamp, true), nullValue());
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "2"), randomTimestamp, true), nullValue());
+        id = createTSDBId(randomLongBetween(1000, 10000));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), id, true), notNullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "2"), id, true), notNullValue());
+        id = createTSDBId(randomBoolean() ? randomLongBetween(0, 999) : randomLongBetween(10001, Long.MAX_VALUE));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), id, true), nullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "2"), id, true), nullValue());
 
         directoryReader.close();
         writer.close();
         dir.close();
+    }
+
+    private static String createTSDBId(long timestamp) {
+        Settings.Builder b = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
+        IndexMetadata indexMetadata = IndexMetadata.builder("idx").settings(b).numberOfShards(1).numberOfReplicas(0).build();
+        IndexRouting.ExtractFromSource.Builder routingBuilder = ((IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(
+            indexMetadata
+        )).builder();
+        routingBuilder.addMatching("field", new BytesRef("value"));
+        return createId(false, routingBuilder, new BytesRef("tsid"), timestamp, new byte[16]);
     }
 }

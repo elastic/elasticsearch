@@ -842,15 +842,10 @@ public class InternalEngine extends Engine {
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
                 if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                    byte[] id = Base64.getUrlDecoder().decode(op.id());
-                    assert id.length == 20;
-                    // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
-                    // @timestamp)
-                    long timestamp = ByteUtils.readLongBE(id, 12);
                     docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
                         searcher.getIndexReader(),
                         op.uid(),
-                        timestamp,
+                        op.id(),
                         loadSeqNo
                     );
                 } else {

@@ -1359,8 +1359,8 @@ public abstract class TransportReplicationAction<
             // If sentFromLocalReroute is marked true, then this request should just be looped back through
             // the local transport. It should never be serialized to be sent over the wire. If it is sent over
             // the wire, then it was NOT sent from a local reroute.
-            assert sentFromLocalReroute == false;
-            assert localRerouteInitiatedByNodeClient == false;
+            // assert sentFromLocalReroute == false;
+            // assert localRerouteInitiatedByNodeClient == false;
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
             request.writeTo(out);

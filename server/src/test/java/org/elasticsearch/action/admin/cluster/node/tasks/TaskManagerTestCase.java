@@ -202,7 +202,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
                 taskManager,
-                Tracer.NOOP
+                Tracer.NOOP,
+                null
             );
             taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();

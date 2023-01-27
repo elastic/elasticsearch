@@ -74,7 +74,8 @@ public abstract class DisruptableMockTransport extends MockTransport {
             localNodeFactory,
             clusterSettings,
             new TaskManager(settings, threadPool, taskHeaders),
-            Tracer.NOOP
+            Tracer.NOOP,
+            null
         );
     }
 

@@ -816,7 +816,8 @@ public class Node implements Closeable {
                 localNodeFactory,
                 settingsModule.getClusterSettings(),
                 taskManager,
-                tracer
+                tracer,
+                namedWriteableRegistry
             );
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1275,9 +1276,20 @@ public class Node implements Closeable {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer
+        Tracer tracer,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
+        return new TransportService(
+            settings,
+            transport,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskManager,
+            tracer,
+            namedWriteableRegistry
+        );
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {

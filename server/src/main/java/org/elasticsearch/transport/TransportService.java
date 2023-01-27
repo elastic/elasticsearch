@@ -18,7 +18,11 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -111,6 +115,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     private final RemoteClusterService remoteClusterService;
 
+    private final boolean test = true;
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
@@ -168,6 +173,7 @@ public class TransportService extends AbstractLifecycleComponent
             return "local node connection";
         }
     };
+    private NamedWriteableRegistry namedWriteableRegistry;
 
     public TransportService(
         Settings settings,
@@ -184,8 +190,11 @@ public class TransportService extends AbstractLifecycleComponent
     /**
      * Build the service.
      *
-     * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     * @param clusterSettings        if non null, the {@linkplain TransportService} will register
+     *                               with the {@link ClusterSettings} for settings
+     *                               updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING}
+     *                               and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     * @param namedWriteableRegistry
      */
     public TransportService(
         Settings settings,
@@ -195,7 +204,8 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer
+        Tracer tracer,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this(
             settings,
@@ -208,6 +218,7 @@ public class TransportService extends AbstractLifecycleComponent
             taskManager,
             tracer
         );
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     // NOTE: Only for use in tests
@@ -899,6 +910,21 @@ public class TransportService extends AbstractLifecycleComponent
             if (timeoutHandler != null) {
                 assert options.timeout() != null;
                 timeoutHandler.scheduleTimeout(options.timeout());
+            }
+            if (test) {
+                try {
+                    var bso = new BytesStreamOutput();
+                    request.writeTo(bso);
+                    var bsi = ReleasableBytesReference.wrap(bso.bytes()).streamInput();
+                    // intpustream has to be named aware
+                    var namedStream = new NamedWriteableAwareStreamInput(bsi, namedWriteableRegistry);
+                    transport.getRequestHandlers().getHandler(action).newRequest(namedStream);
+                } catch (Throwable e) {
+                    // e.printStackTrace();
+                    logger.info("Deserialised class not equal to input " + request.getClass(), e);
+                    throw e;
+                }
+                // assert read.equals(request) : "Deserialised class not equal to input " +request.getClass();
             }
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {

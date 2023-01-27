@@ -162,6 +162,34 @@ avg(s):double
 NaN
 ;
 
+rowStatsProjectGroupByInt
+row a = 1, b = 2 | stats count(b) by a | project a;
+
+a:integer
+1
+;
+
+rowStatsProjectGroupByLong
+row a = 1000000000000, b = 2 | stats count(b) by a | project a;
+
+a:long
+1000000000000
+;
+
+rowStatsProjectGroupByDouble
+row a = 1.0, b = 2 | stats count(b) by a | project a;
+
+a:double
+1.0
+;
+
+rowStatsProjectGroupByLong
+row a = "hello world", b = 2 | stats count(b) by a | project a;
+
+a:keyword
+"hello world"
+;
+
 limitRow-Ignore
 row a = 1 | limit 0;
 

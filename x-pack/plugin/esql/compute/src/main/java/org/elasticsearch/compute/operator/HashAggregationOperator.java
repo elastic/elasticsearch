@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -44,11 +45,12 @@ public class HashAggregationOperator implements Operator {
     public record HashAggregationOperatorFactory(
         int groupByChannel,
         List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
-        Supplier<BlockHash> blockHash
+        BlockHash.Type blockHashType,
+        BigArrays bigArrays
     ) implements OperatorFactory {
         @Override
         public Operator get() {
-            return new HashAggregationOperator(groupByChannel, aggregators, blockHash);
+            return new HashAggregationOperator(groupByChannel, aggregators, () -> BlockHash.newHashForType(blockHashType, bigArrays));
         }
 
         @Override

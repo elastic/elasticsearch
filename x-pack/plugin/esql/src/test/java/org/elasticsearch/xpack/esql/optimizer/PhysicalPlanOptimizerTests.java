@@ -161,7 +161,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
 
-        var ource = source(extract.child());
+        var source = source(extract.child());
     }
 
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
@@ -428,8 +428,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var limit = as(fieldExtract.child(), LimitExec.class);
-        var source = source(limit.child());
+        var source = source(fieldExtract.child());
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -527,8 +526,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var limit = as(fieldExtract.child(), LimitExec.class);
-        var source = source(limit.child());
+        var source = source(fieldExtract.child());
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -557,8 +555,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var limit = as(fieldExtract.child(), LimitExec.class);
-        var source = source(limit.child());
+        var source = source(fieldExtract.child());
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -588,8 +585,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var limit = as(fieldExtract.child(), LimitExec.class);
-        var source = source(limit.child());
+        var source = source(fieldExtract.child());
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -623,9 +619,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var limit = as(fieldExtract.child(), LimitExec.class);
-        assertThat(limit.limit().fold(), is(10));
-        source(limit.child());
+        var source = source(fieldExtract.child());
+        assertThat(source.limit().fold(), is(10));
     }
 
     public void testExtractorForEvalWithoutProject() throws Exception {
@@ -664,6 +659,49 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(topNLocal.child(), FieldExtractExec.class);
     }
 
+    public void testPushLimitToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | eval emp_no_10 = emp_no * 10
+            | limit 10
+            """));
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtractRest = as(project.child(), FieldExtractExec.class);
+        var eval = as(fieldExtractRest.child(), EvalExec.class);
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        var leaves = fieldExtract.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit().fold(), is(10));
+    }
+
+    public void testPushLimitAndFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | eval emp_no_10 = emp_no * 10
+            | where emp_no > 0
+            | limit 10
+            """));
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtractRest = as(project.child(), FieldExtractExec.class);
+        var eval = as(fieldExtractRest.child(), EvalExec.class);
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        assertThat(source.limit().fold(), is(10));
+        assertTrue(source.query() instanceof RangeQueryBuilder);
+        assertThat(source.query().toString(), containsString("""
+              "range" : {
+                "emp_no" : {
+                  "gt" : 0,
+            """));
+    }
+
     public void testQueryWithLimitSort() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -678,7 +716,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         topN = as(extract.child(), TopNExec.class);
         extract = as(topN.child(), FieldExtractExec.class);
-        var limit = as(extract.child(), LimitExec.class);
+        var source = source(extract.child());
     }
 
     public void testQueryWithLimitWhereSort() throws Exception {
@@ -697,7 +735,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         topN = as(extract.child(), TopNExec.class);
         var filter = as(topN.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
-        var limit = as(extract.child(), LimitExec.class);
+        var source = source(extract.child());
     }
 
     public void testQueryWithLimitWhereEvalSort() throws Exception {
@@ -716,7 +754,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         topN = as(extract.child(), TopNExec.class);
         var eval = as(topN.child(), EvalExec.class);
         extract = as(eval.child(), FieldExtractExec.class);
-        var limit = as(extract.child(), LimitExec.class);
+        var source = source(extract.child());
     }
 
     public void testQueryJustWithLimit() throws Exception {
@@ -729,7 +767,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        limit = as(extract.child(), LimitExec.class);
+        var source = source(extract.child());
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

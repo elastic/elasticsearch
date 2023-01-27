@@ -69,7 +69,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             0,
             List.of(new GroupingAggregator.GroupingAggregatorFactory(bigArrays, aggregatorFunction(), mode, 1)),
-            () -> BlockHash.newLongHash(bigArrays)
+            BlockHash.Type.LONG,
+            bigArrays
         );
     }
 

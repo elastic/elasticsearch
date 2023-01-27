@@ -180,17 +180,7 @@ public class OperatorTests extends ESTestCase {
         BigArrays bigArrays = bigArrays();
         final String fieldName = "value";
         final int numDocs = 100000;
-        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
-            for (int i = 0; i < numDocs; i++) {
-                doc.clear();
-                docValuesField.setLongValue(i);
-                doc.add(docValuesField);
-                w.addDocument(doc);
-            }
-            w.commit();
-
+        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, fieldName, null)) {
             ValuesSource vs = new ValuesSource.Numeric.FieldData(
                 new SortedNumericIndexFieldData(
                     fieldName,
@@ -236,23 +226,32 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
+    public void testLuceneOperatorsLimit() throws IOException {
+        final int numDocs = randomIntBetween(10_000, 100_000);
+        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, "value", null)) {
+            try (IndexReader reader = w.getReader()) {
+                AtomicInteger rowCount = new AtomicInteger();
+                final int limit = randomIntBetween(1, numDocs);
+
+                try (
+                    Driver driver = new Driver(
+                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomIntBetween(1, numDocs), limit),
+                        Collections.emptyList(),
+                        new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
+                        () -> {}
+                    )
+                ) {
+                    driver.run();
+                }
+                assertEquals(limit, rowCount.get());
+            }
+        }
+    }
+
     public void testOperatorsWithLuceneSlicing() throws IOException {
         final String fieldName = "value";
         final int numDocs = 100000;
-        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
-            for (int i = 0; i < numDocs; i++) {
-                doc.clear();
-                docValuesField.setLongValue(i);
-                doc.add(docValuesField);
-                w.addDocument(doc);
-            }
-            if (randomBoolean()) {
-                w.forceMerge(randomIntBetween(1, 10));
-            }
-            w.commit();
-
+        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, fieldName, randomIntBetween(1, 10))) {
             ValuesSource vs = new ValuesSource.Numeric.FieldData(
                 new SortedNumericIndexFieldData(
                     fieldName,
@@ -291,6 +290,25 @@ public class OperatorTests extends ESTestCase {
                 assertEquals(numDocs, rowCount.get());
             }
         }
+    }
+
+    private static RandomIndexWriter writeTestDocs(Directory dir, int numDocs, String fieldName, Integer maxSegmentCount)
+        throws IOException {
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
+        for (int i = 0; i < numDocs; i++) {
+            doc.clear();
+            docValuesField.setLongValue(i);
+            doc.add(docValuesField);
+            w.addDocument(doc);
+        }
+        if (maxSegmentCount != null && randomBoolean()) {
+            w.forceMerge(randomIntBetween(1, 10));
+        }
+        w.commit();
+
+        return w;
     }
 
     public void testValuesSourceReaderOperatorWithLNulls() throws IOException {
@@ -592,7 +610,7 @@ public class OperatorTests extends ESTestCase {
                                         3
                                     )
                                 ),
-                                () -> BlockHash.newLongHash(bigArrays)
+                                () -> BlockHash.newHashForType(BlockHash.Type.LONG, bigArrays)
                             ),
                             new HashAggregationOperator(
                                 0, // group by channel
@@ -604,14 +622,14 @@ public class OperatorTests extends ESTestCase {
                                         1
                                     )
                                 ),
-                                () -> BlockHash.newLongHash(bigArrays)
+                                () -> BlockHash.newHashForType(BlockHash.Type.LONG, bigArrays)
                             ),
                             new HashAggregationOperator(
                                 0, // group by channel
                                 List.of(
                                     new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                                 ),
-                                () -> BlockHash.newLongHash(bigArrays)
+                                () -> BlockHash.newHashForType(BlockHash.Type.LONG, bigArrays)
                             )
                         ),
                         new PageConsumerOperator(page -> {
@@ -677,7 +695,7 @@ public class OperatorTests extends ESTestCase {
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, FINAL, 1)
                             ),
-                            () -> BlockHash.newBytesRefHash(bigArrays)
+                            () -> BlockHash.newHashForType(BlockHash.Type.BYTES_REF, bigArrays)
                         )
                     ),
                     new PageConsumerOperator(page -> {

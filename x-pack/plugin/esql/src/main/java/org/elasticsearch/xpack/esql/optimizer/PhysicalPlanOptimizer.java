@@ -83,6 +83,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             Limiter.ONCE,
             new MarkLocalPlan(),
             new LocalToGlobalLimitAndTopNExec(),
+            new PushLimitToSource(), // needs to remain after local->global limit copying
             new InsertFieldExtraction(),
             new LocalOptimizations(),
             new RemoveLocalPlanMarker()
@@ -519,7 +520,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     if (filterQuery != null) {
                         query = boolQuery().must(filterQuery).must(planQuery);
                     }
-                    queryExec = new EsQueryExec(queryExec.source(), queryExec.index(), query);
+                    queryExec = new EsQueryExec(queryExec.source(), queryExec.index(), queryExec.output(), query, queryExec.limit());
                     if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
                         plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
                     } else { // prune Filter entirely
@@ -541,4 +542,17 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         }
     }
 
+    private static class PushLimitToSource extends OptimizerRule<LimitExec> {
+        @Override
+        protected PhysicalPlan rule(LimitExec limitExec) {
+            PhysicalPlan plan = limitExec;
+            PhysicalPlan child = limitExec.child();
+            if (child instanceof EsQueryExec queryExec) { // add_task_parallelism_above_query: false
+                plan = queryExec.withLimit(limitExec.limit());
+            } else if (child instanceof ExchangeExec exchangeExec && exchangeExec.child()instanceof EsQueryExec queryExec) {
+                plan = exchangeExec.replaceChild(queryExec.withLimit(limitExec.limit()));
+            }
+            return plan;
+        }
+    }
 }

@@ -85,7 +85,7 @@ public class EsqlSession {
             }
             filter = filter == null ? new MatchAllQueryBuilder() : filter;
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-            return new EsQueryExec(q.source(), q.index(), q.output(), filter);
+            return new EsQueryExec(q.source(), q.index(), q.output(), filter, q.limit());
         })));
     }
 

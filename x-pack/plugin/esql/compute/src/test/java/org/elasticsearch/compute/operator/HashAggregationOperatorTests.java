@@ -46,7 +46,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     mode.isInputPartial() ? 2 : 1
                 )
             ),
-            () -> BlockHash.newLongHash(bigArrays)
+            BlockHash.Type.LONG,
+            bigArrays
         );
     }
 

@@ -184,7 +184,7 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
-        TransportVersion handshakeCompat = TransportVersion.CURRENT.calculateMinimumCompatVersion().calculateMinimumCompatVersion();
+        TransportVersion handshakeCompat = TransportVersion.fromId(HandshakeHeader.EARLIEST_HANDSHAKE_VERSION);
         OutboundMessage message = new OutboundMessage.Request(
             threadContext,
             new TestRequest(randomAlphaOfLength(100)),

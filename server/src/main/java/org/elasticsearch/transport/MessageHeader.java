@@ -15,32 +15,87 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public interface MessageHeader {
-    int getNetworkMessageSize();
+public abstract class MessageHeader {
 
-    Object getVersion();
+    static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
-    long getRequestId();
+    private final int networkMessageSize;
+    private final long requestId;
+    private final byte status;
 
-    boolean isRequest();
+    private Compression.Scheme compressionScheme;
 
-    boolean isResponse();
+    protected MessageHeader(int networkMessageSize, long requestId, byte status) {
+        this.networkMessageSize = networkMessageSize;
+        this.requestId = requestId;
+        this.status = status;
+    }
 
-    boolean isError();
+    public int getNetworkMessageSize() {
+        return networkMessageSize;
+    }
 
-    boolean isHandshake();
+    public abstract Object getVersion();
 
-    boolean isCompressed();
+    public long getRequestId() {
+        return requestId;
+    }
 
-    String getActionName();
+    public boolean isRequest() {
+        return TransportStatus.isRequest(status);
+    }
 
-    Compression.Scheme getCompressionScheme();
+    public boolean isResponse() {
+        return TransportStatus.isRequest(status) == false;
+    }
 
-    boolean needsToReadVariableHeader();
+    public boolean isError() {
+        return TransportStatus.isError(status);
+    }
 
-    Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders();
+    public boolean isHandshake() {
+        return TransportStatus.isHandshake(status);
+    }
 
-    void finishParsingHeader(StreamInput input) throws IOException;
+    public boolean isCompressed() {
+        return TransportStatus.isCompress(status);
+    }
 
-    void setCompressionScheme(Compression.Scheme compressionScheme);
+    public abstract String getActionName();
+
+    public Compression.Scheme getCompressionScheme() {
+        return compressionScheme;
+    }
+
+    public abstract boolean needsToReadVariableHeader();
+
+    public abstract Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders();
+
+    public abstract void finishParsingHeader(StreamInput input) throws IOException;
+
+    public void setCompressionScheme(Compression.Scheme compressionScheme) {
+        assert isCompressed();
+        this.compressionScheme = compressionScheme;
+    }
+
+    @Override
+    public String toString() {
+        return "Header{"
+            + networkMessageSize
+            + "}{"
+            + getVersion()
+            + "}{"
+            + requestId
+            + "}{"
+            + isRequest()
+            + "}{"
+            + isError()
+            + "}{"
+            + isHandshake()
+            + "}{"
+            + isCompressed()
+            + "}{"
+            + getActionName()
+            + "}";
+    }
 }

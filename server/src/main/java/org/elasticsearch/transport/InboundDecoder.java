@@ -172,7 +172,8 @@ public class InboundDecoder implements Releasable {
     }
 
     // exposed for use in tests
-    static MessageHeader readHeader(TransportVersion currentVersion, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    static MessageHeader readHeader(TransportVersion currentVersion, int networkMessageSize, BytesReference bytesReference)
+        throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
@@ -185,9 +186,14 @@ public class InboundDecoder implements Releasable {
                     throw new IOException("Handshake attempt returned an error - resetting channel");
                 }
 
+                if (messageVersion >= TcpHeader.VERSION_WITH_HEADER_SIZE.id) {
+                    streamInput.readInt();  // no request headers
+                    streamInput.readVInt(); // no response headers
+                }
+
                 return new HandshakeHeader(networkMessageSize, requestId, status, messageVersion);
             } else {
-                TransportVersion remoteVersion = TransportVersion.fromId(streamInput.readInt());
+                TransportVersion remoteVersion = TransportVersion.fromId(messageVersion);
                 checkVersionCompatibility(remoteVersion, currentVersion);
 
                 Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
@@ -214,16 +220,21 @@ public class InboundDecoder implements Releasable {
 
     static void checkHandshakeVersionCompatibility(int handshakeVersion) {
         if (handshakeVersion < HandshakeHeader.EARLIEST_HANDSHAKE_VERSION) {
-            throw new IllegalStateException("Received message from unsupported version: [" + handshakeVersion + "] minimal compatible version is: [" + HandshakeHeader.EARLIEST_HANDSHAKE_VERSION + "]");
+            throw new IllegalStateException(
+                "Received message from unsupported version: ["
+                    + handshakeVersion
+                    + "] minimal compatible version is: ["
+                    + HandshakeHeader.EARLIEST_HANDSHAKE_VERSION
+                    + "]"
+            );
         }
     }
 
-    static void checkVersionCompatibility(
-        TransportVersion remoteVersion,
-        TransportVersion currentVersion
-    ) {
+    static void checkVersionCompatibility(TransportVersion remoteVersion, TransportVersion currentVersion) {
         if (remoteVersion.isCompatible(currentVersion) == false) {
-            throw new IllegalStateException("Received message from unsupported version: [" + remoteVersion + "] minimal compatible version is: [" + currentVersion + "]");
+            throw new IllegalStateException(
+                "Received message from unsupported version: [" + remoteVersion + "] minimal compatible version is: [" + currentVersion + "]"
+            );
         }
     }
 }

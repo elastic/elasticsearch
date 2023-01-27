@@ -17,32 +17,19 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class Header implements MessageHeader {
+public class Header extends MessageHeader {
 
-    private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
-
-    private final int networkMessageSize;
     private final TransportVersion version;
-    private final long requestId;
-    private final byte status;
     // These are directly set by tests
     String actionName;
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
-    private Compression.Scheme compressionScheme = null;
 
     Header(int networkMessageSize, long requestId, byte status, TransportVersion version) {
+        super(networkMessageSize, requestId, status);
         if (TransportStatus.isHandshake(status)) {
             throw new IllegalArgumentException("Normal header cannot represent a handshake");
         }
-        this.networkMessageSize = networkMessageSize;
         this.version = version;
-        this.requestId = requestId;
-        this.status = status;
-    }
-
-    @Override
-    public int getNetworkMessageSize() {
-        return networkMessageSize;
     }
 
     @Override
@@ -51,43 +38,8 @@ public class Header implements MessageHeader {
     }
 
     @Override
-    public long getRequestId() {
-        return requestId;
-    }
-
-    @Override
-    public boolean isRequest() {
-        return TransportStatus.isRequest(status);
-    }
-
-    @Override
-    public boolean isResponse() {
-        return TransportStatus.isRequest(status) == false;
-    }
-
-    @Override
-    public boolean isError() {
-        return TransportStatus.isError(status);
-    }
-
-    @Override
-    public boolean isHandshake() {
-        return false;
-    }
-
-    @Override
-    public boolean isCompressed() {
-        return TransportStatus.isCompress(status);
-    }
-
-    @Override
     public String getActionName() {
         return actionName;
-    }
-
-    @Override
-    public Compression.Scheme getCompressionScheme() {
-        return compressionScheme;
     }
 
     @Override
@@ -113,32 +65,5 @@ public class Header implements MessageHeader {
         } else {
             this.actionName = RESPONSE_NAME;
         }
-    }
-
-    @Override
-    public void setCompressionScheme(Compression.Scheme compressionScheme) {
-        assert isCompressed();
-        this.compressionScheme = compressionScheme;
-    }
-
-    @Override
-    public String toString() {
-        return "Header{"
-            + networkMessageSize
-            + "}{"
-            + version
-            + "}{"
-            + requestId
-            + "}{"
-            + isRequest()
-            + "}{"
-            + isError()
-            + "}{"
-            + isHandshake()
-            + "}{"
-            + isCompressed()
-            + "}{"
-            + actionName
-            + "}";
     }
 }

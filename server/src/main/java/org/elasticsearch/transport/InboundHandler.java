@@ -196,7 +196,8 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportRequest> void handleRequest(TcpChannel channel, MessageHeader header, InboundMessage message) throws IOException {
+    private <T extends TransportRequest> void handleRequest(TcpChannel channel, MessageHeader header, InboundMessage message)
+        throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
         if (header.isHandshake()) {
@@ -212,13 +213,13 @@ public class InboundHandler {
                 requestId,
                 TransportVersion.CURRENT,   // no message version available, use CURRENT (handshake format hasn't changed in a long time)
                 header.getCompressionScheme(),
-                header.isHandshake(),
+                true,
                 message.takeBreakerReleaseControl()
             );
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                if (((HandshakeHeader)header).getVersion() >= HandshakeHeader.CAN_SEND_ERROR_RESPONSE) {
+                if (((HandshakeHeader) header).getVersion() >= HandshakeHeader.CAN_SEND_ERROR_RESPONSE) {
                     sendErrorResponse(action, transportChannel, e);
                 } else {
                     logger.warn(
@@ -233,7 +234,7 @@ public class InboundHandler {
                 }
             }
         } else {
-            final TransportVersion version = ((Header)header).getVersion();
+            final TransportVersion version = ((Header) header).getVersion();
             final TransportChannel transportChannel = new TcpTransportChannel(
                 outboundHandler,
                 channel,

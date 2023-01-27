@@ -9,35 +9,28 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class HandshakeHeader implements MessageHeader {
+public class HandshakeHeader extends MessageHeader {
 
     static final int EARLIEST_HANDSHAKE_VERSION = 6080099;
     static final int CAN_SEND_ERROR_RESPONSE = 7170099;
+    static final int HAS_FEATURES = 8000099;
 
-    private final int networkMessageSize;
     private final Integer handshakeVersion;
-    private final long requestId;
-    private final byte status;
+    private String actionName;
 
     public HandshakeHeader(int networkMessageSize, long requestId, byte status, int handshakeVersion) {
+        super(networkMessageSize, requestId, status);
         if (TransportStatus.isHandshake(status) == false) {
             throw new IllegalArgumentException("Message status does not indicate a handshake");
         }
-        this.networkMessageSize = networkMessageSize;
         this.handshakeVersion = handshakeVersion;
-        this.requestId = requestId;
-        this.status = status;
-    }
-
-    @Override
-    public int getNetworkMessageSize() {
-        return networkMessageSize;
     }
 
     @Override
@@ -46,43 +39,8 @@ public class HandshakeHeader implements MessageHeader {
     }
 
     @Override
-    public long getRequestId() {
-        return requestId;
-    }
-
-    @Override
-    public boolean isRequest() {
-        return TransportStatus.isRequest(status);
-    }
-
-    @Override
-    public boolean isResponse() {
-        return TransportStatus.isRequest(status) == false;
-    }
-
-    @Override
-    public boolean isError() {
-        return false;
-    }
-
-    @Override
-    public boolean isHandshake() {
-        return true;
-    }
-
-    @Override
-    public boolean isCompressed() {
-        return false;
-    }
-
-    @Override
     public String getActionName() {
-        return TransportService.HANDSHAKE_ACTION_NAME;
-    }
-
-    @Override
-    public Compression.Scheme getCompressionScheme() {
-        return null;
+        return actionName;
     }
 
     @Override
@@ -97,9 +55,17 @@ public class HandshakeHeader implements MessageHeader {
 
     @Override
     public void finishParsingHeader(StreamInput input) throws IOException {
-        throw new IllegalStateException("No headers to parse");
-    }
+        var headers = ThreadContext.readHeadersFromStream(input);
+        assert headers.v1().isEmpty() && headers.v2().isEmpty() : "Handshakes should have no headers";
 
-    @Override
-    public void setCompressionScheme(Compression.Scheme compressionScheme) {}
+        if (isRequest()) {
+            if (handshakeVersion < HAS_FEATURES) {
+                // discard features
+                input.readStringArray();
+            }
+            this.actionName = input.readString();
+        } else {
+            this.actionName = RESPONSE_NAME;
+        }
+    }
 }

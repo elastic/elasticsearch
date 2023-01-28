@@ -470,7 +470,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         /**
          * Check that disk decider is only decider for a node preventing allocation of the shard.
-         * @return true if and only if a node exists in the tier where only disk decider prevents allocation
+         * @return Non-empty {@link ShardNodeDecisions} if and only if a node exists in the tier where only disk decider prevents allocation
          */
         private Optional<ShardNodeDecisions> cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             if (nodeIds.isEmpty() && needsThisTier(shard, allocation)) {
@@ -504,7 +504,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         /**
          * Check that the disk decider is only decider that says NO to let shard remain on current node.
-         * @return true if and only if disk decider is only decider that says NO to canRemain.
+         * @return Non-empty {@link ShardNodeDecisions} if and only if disk decider is only decider that says NO to canRemain.
          */
         private Optional<ShardNodeDecisions> cannotRemainDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             assert allocation.debugDecision() == false;

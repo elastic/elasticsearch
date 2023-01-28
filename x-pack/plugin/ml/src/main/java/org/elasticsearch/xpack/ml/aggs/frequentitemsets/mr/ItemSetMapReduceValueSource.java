@@ -34,9 +34,19 @@ import java.util.Objects;
  */
 public abstract class ItemSetMapReduceValueSource {
 
+    /**
+     * Interface to hook value collection into the {@link org.elasticsearch.search.aggregations.support.ValuesSourceRegistry}
+     */
     @FunctionalInterface
     public interface ValueSourceSupplier {
         ItemSetMapReduceValueSource build(ValuesSourceConfig config, int id, IncludeExclude includeExclude);
+    }
+
+    /**
+     * Internal interface for collecting values
+     */
+    interface ValueCollector {
+        Tuple<Field, List<Object>> collect(int doc) throws IOException;
     }
 
     enum ValueFormatter {
@@ -125,7 +135,7 @@ public abstract class ItemSetMapReduceValueSource {
 
     private final Field field;
 
-    abstract Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException;
+    abstract ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException;
 
     ItemSetMapReduceValueSource(ValuesSourceConfig config, int id, ValueFormatter valueFormatter) {
         String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
@@ -151,22 +161,31 @@ public abstract class ItemSetMapReduceValueSource {
         }
 
         @Override
-        public Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException {
-            SortedBinaryDocValues values = source.bytesValues(ctx);
+        ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
+            final SortedBinaryDocValues values = source.bytesValues(ctx);
+            final Field field = getField();
+            final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
 
-            if (values.advanceExact(doc)) {
-                int valuesCount = values.docValueCount();
-                List<Object> objects = new ArrayList<>(valuesCount);
+            return doc -> {
+                if (values.advanceExact(doc)) {
+                    int valuesCount = values.docValueCount();
 
-                for (int i = 0; i < valuesCount; ++i) {
-                    BytesRef v = values.nextValue();
-                    if (stringFilter == null || stringFilter.accept(v)) {
-                        objects.add(BytesRef.deepCopyOf(v));
+                    if (valuesCount == 0) {
+                        return empty;
                     }
+
+                    List<Object> objects = new ArrayList<>(valuesCount);
+
+                    for (int i = 0; i < valuesCount; ++i) {
+                        BytesRef v = values.nextValue();
+                        if (stringFilter == null || stringFilter.accept(v)) {
+                            objects.add(BytesRef.deepCopyOf(v));
+                        }
+                    }
+                    return new Tuple<>(field, objects);
                 }
-                return new Tuple<>(getField(), objects);
-            }
-            return new Tuple<>(getField(), Collections.emptyList());
+                return empty;
+            };
         }
 
     }
@@ -182,22 +201,31 @@ public abstract class ItemSetMapReduceValueSource {
         }
 
         @Override
-        public Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException {
-            SortedNumericDocValues values = source.longValues(ctx);
+        ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
+            final SortedNumericDocValues values = source.longValues(ctx);
+            final Field field = getField();
+            final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
 
-            if (values.advanceExact(doc)) {
-                int valuesCount = values.docValueCount();
-                List<Object> objects = new ArrayList<>(valuesCount);
+            return doc -> {
+                if (values.advanceExact(doc)) {
+                    int valuesCount = values.docValueCount();
 
-                for (int i = 0; i < valuesCount; ++i) {
-                    long v = values.nextValue();
-                    if (longFilter == null || longFilter.accept(v)) {
-                        objects.add(v);
+                    if (valuesCount == 0) {
+                        return empty;
                     }
+
+                    List<Object> objects = new ArrayList<>(valuesCount);
+
+                    for (int i = 0; i < valuesCount; ++i) {
+                        long v = values.nextValue();
+                        if (longFilter == null || longFilter.accept(v)) {
+                            objects.add(v);
+                        }
+                    }
+                    return new Tuple<>(field, objects);
                 }
-                return new Tuple<>(getField(), objects);
-            }
-            return new Tuple<>(getField(), Collections.emptyList());
+                return empty;
+            };
         }
 
     }

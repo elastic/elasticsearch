@@ -101,21 +101,27 @@ public class ReactiveReasonTests extends ESTestCase {
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
 
-            List<Map<String, Object>> canAllocateDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map
-                .get("unassigned_node_decisions")).get(unassignedShardIds.first().toString())).get("can_allocate_decisions");
-            assertEquals("node1", canAllocateDecisions.get(0).get("node_id"));
-            assertEquals(
-                Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate"),
-                canAllocateDecisions.get(0).get("node_decision")
-            );
+            var canAllocateDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map.get(
+                "unassigned_node_decisions"
+            )).get(unassignedShardIds.first().toString())).get("can_allocate_decisions");
+            for (Map<String, Object> canAllocateDecision : canAllocateDecisions) {
+                assertEquals("node1", canAllocateDecision.get("node_id"));
+                assertEquals(
+                    Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate"),
+                    canAllocateDecision.get("node_decision")
+                );
+            }
 
-            List<Map<String, Object>> canRemainDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map
-                .get("assigned_node_decisions")).get(assignedShardIds.first().toString())).get("can_remain_decisions");
-            assertEquals("node1", canRemainDecisions.get(0).get("node_id"));
-            assertEquals(
-                Map.of("decision", "YES", "decider", "yes_label", "explanation", "There's enough space"),
-                canRemainDecisions.get(0).get("node_decision")
-            );
+            var canRemainDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map.get(
+                "assigned_node_decisions"
+            )).get(assignedShardIds.first().toString())).get("can_remain_decisions");
+            for (Map<String, Object> canRemainDecision : canRemainDecisions) {
+                assertEquals("node1", canRemainDecision.get("node_id"));
+                assertEquals(
+                    Map.of("decision", "YES", "decider", "yes_label", "explanation", "There's enough space"),
+                    canRemainDecision.get("node_decision")
+                );
+            }
         }
     }
 

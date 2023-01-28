@@ -240,6 +240,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return isNull;
     }
 
+    public SingleSearchResult getPrimarySearchResult() {
+        return primarySearchResult;
+    }
+
     public List<SingleSearchResult> getSecondarySearchResults() {
         return secondarySearchResults;
     }

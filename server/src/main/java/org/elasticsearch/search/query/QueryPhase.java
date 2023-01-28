@@ -25,6 +25,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -34,6 +35,8 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.query.QuerySearchResult.SingleSearchResult;
+import org.elasticsearch.search.rerank.RerankQueryBuilder;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -59,6 +62,54 @@ public class QueryPhase {
     public QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.request().source().query() instanceof RerankQueryBuilder rerankQueryBuilder) {
+            executeRerank(searchContext, rerankQueryBuilder);
+        } else {
+            executeStandard(searchContext);
+        }
+    }
+
+    private static void executeRerank(SearchContext searchContext, RerankQueryBuilder rerankQueryBuilder) throws QueryPhaseExecutionException {
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        }
+
+        if (searchContext.aggregations() != null || searchContext.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+            int size = searchContext.size();
+            searchContext.size(0);
+            executeStandard(searchContext);
+            searchContext.size(size);
+        } else if (searchContext.suggest() != null) {
+            SuggestPhase.execute(searchContext);
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+        } else {
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+        }
+
+        for (QueryBuilder queryBuilder : rerankQueryBuilder.queryBuilders()) {
+            Query query;
+            try {
+                query = searchContext.searcher().rewrite(queryBuilder.toQuery(searchContext.getSearchExecutionContext()));
+            } catch (Exception e) {
+                throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute rerank query", e);
+            }
+            SingleSearchResult singleSearchResult = new SingleSearchResult();
+            searchContext.queryResult().getSecondarySearchResults().add(singleSearchResult);
+            if (executeInternal(searchContext, query, singleSearchResult)) {
+                RescorePhase.execute(searchContext, singleSearchResult);
+            }
+        }
+    }
+
+    private static void executeStandard(SearchContext searchContext) {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()
@@ -77,10 +128,13 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+
+        Query query = searchContext.rewrittenQuery();
+        SingleSearchResult singleSearchResult = searchContext.queryResult().getPrimarySearchResult();
+        boolean rescore = executeInternal(searchContext, query, singleSearchResult);
 
         if (rescore) { // only if we do a regular search
-            RescorePhase.execute(searchContext);
+            RescorePhase.execute(searchContext, singleSearchResult);
         }
         SuggestPhase.execute(searchContext);
         AggregationPhase.execute(searchContext);
@@ -95,15 +149,13 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static boolean executeInternal(SearchContext searchContext, Query query, SingleSearchResult singleSearchResult) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
-        QuerySearchResult queryResult = searchContext.queryResult();
-        queryResult.searchTimedOut(false);
+        searchContext.queryResult().searchTimedOut(false);
         try {
-            queryResult.from(searchContext.from());
-            queryResult.size(searchContext.size());
-            Query query = searchContext.rewrittenQuery();
+            singleSearchResult.from(searchContext.from());
+            singleSearchResult.size(searchContext.size());
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
@@ -176,14 +228,14 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, singleSearchResult, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
                     : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
                 if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
-                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                    singleSearchResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    singleSearchResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
                 return shouldRescore;
             } finally {
@@ -202,6 +254,7 @@ public class QueryPhase {
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
+        SingleSearchResult singleSearchResult,
         LinkedList<QueryCollectorContext> collectors,
         boolean hasFilterCollector,
         boolean timeoutSet
@@ -219,24 +272,23 @@ public class QueryPhase {
         } else {
             queryCollector = QueryCollectorContext.createQueryCollector(collectors);
         }
-        QuerySearchResult queryResult = searchContext.queryResult();
         try {
             searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
-            queryResult.terminatedEarly(true);
+            singleSearchResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
                 // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
-            queryResult.searchTimedOut(true);
+            searchContext.queryResult().searchTimedOut(true);
         }
-        if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
-            queryResult.terminatedEarly(false);
+        if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && singleSearchResult.terminatedEarly() == null) {
+            singleSearchResult.terminatedEarly(false);
         }
         for (QueryCollectorContext ctx : collectors) {
-            ctx.postProcess(queryResult);
+            ctx.postProcess(singleSearchResult);
         }
         return topDocsFactory.shouldRescore();
     }

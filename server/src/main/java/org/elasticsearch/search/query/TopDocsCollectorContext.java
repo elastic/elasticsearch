@@ -53,6 +53,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QuerySearchResult.SingleSearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -143,7 +144,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) {
+        void postProcess(SingleSearchResult result) {
             final TotalHits totalHitCount = hitCountSupplier.get();
             final TopDocs topDocs;
             if (sort != null) {
@@ -197,7 +198,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        void postProcess(SingleSearchResult result) throws IOException {
             TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
         }
@@ -315,7 +316,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        void postProcess(SingleSearchResult result) throws IOException {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
         }
@@ -351,7 +352,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        void postProcess(SingleSearchResult result) throws IOException {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             if (scrollContext.totalHits == null) {
                 // first round

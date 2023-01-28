@@ -13,6 +13,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QuerySearchResult.SingleSearchResult;
 
 import java.io.IOException;
 
@@ -21,8 +22,8 @@ import java.io.IOException;
  */
 public class RescorePhase {
 
-    public static void execute(SearchContext context) {
-        TopDocs topDocs = context.queryResult().topDocs().topDocs;
+    public static void execute(SearchContext context, SingleSearchResult singleSearchResult) {
+        TopDocs topDocs = singleSearchResult.topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
         }
@@ -33,8 +34,8 @@ public class RescorePhase {
                 // here we only assert that this condition is met.
                 assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
             }
-            context.queryResult()
-                .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
+            singleSearchResult
+                .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), singleSearchResult.sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

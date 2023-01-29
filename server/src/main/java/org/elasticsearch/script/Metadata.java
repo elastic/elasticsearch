@@ -72,7 +72,7 @@ public class Metadata {
      * @param map the backing map for this metadata instance
      * @param properties the map of defined properties for the type of metadata represented by this instance
      */
-    public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
+    protected Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
         this.properties = Map.copyOf(properties);
         validateMetadata();

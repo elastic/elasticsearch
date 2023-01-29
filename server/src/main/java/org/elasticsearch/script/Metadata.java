@@ -58,6 +58,20 @@ public class Metadata {
     private final Map<String, FieldProperty<?>> properties;
     protected static final FieldProperty<?> BAD_KEY = new FieldProperty<>(null, false, false, null);
 
+    /**
+     * Constructs a new Metadata object represented by the given map and properties.
+     * <p>
+     * The passed-in map is used directly -- subsequent modifications to it outside the methods of this class may result in
+     * undefined behavior. By contrast, the properties map is copied via {@link Map#copyOf(Map)}) in order to ensure that it cannot be
+     * changed.
+     * <p>
+     * As an implementation detail, since {@link Map#copyOf(Map)} is a no-op if the passed-in instance is an "unmodifiable map"
+     * (as defined by {@link Map#copyOf(Map)}), callers of this constructor should construct their passed-in properties map via
+     * {@link Map#of(Object, Object)}} in order to ensure optimal performance.
+     *
+     * @param map the backing map for this metadata instance
+     * @param properties the map of defined properties for the type of metadata represented by this instance
+     */
     public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
         this.properties = Map.copyOf(properties);

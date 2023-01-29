@@ -60,7 +60,7 @@ public class Metadata {
 
     public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
-        this.properties = Collections.unmodifiableMap(properties);
+        this.properties = Map.copyOf(properties);
         validateMetadata();
     }
 

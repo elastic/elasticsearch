@@ -440,13 +440,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService);
+        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
 
         Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);
-        final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled ? XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings) : false;
+        final boolean remoteClusterSSLEnabled = remoteClusterPortEnabled && XPackSettings.REMOTE_CLUSTER_SSL_ENABLED.get(settings);
 
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();

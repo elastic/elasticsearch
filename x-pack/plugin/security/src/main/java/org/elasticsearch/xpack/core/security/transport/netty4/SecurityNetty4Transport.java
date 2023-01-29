@@ -86,9 +86,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        this.remoteClusterSslEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings) ? REMOTE_CLUSTER_SSL_ENABLED.get(settings) : false;
+        this.remoteClusterSslEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings) && REMOTE_CLUSTER_SSL_ENABLED.get(settings);
 
-        this.profileConfiguration = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService));
+        this.profileConfiguration = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
         this.sslConfiguration = this.profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
     }
 

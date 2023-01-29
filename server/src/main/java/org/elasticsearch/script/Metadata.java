@@ -55,7 +55,7 @@ public class Metadata {
     public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
 
     protected final Map<String, Object> map;
-    protected final Map<String, FieldProperty<?>> properties;
+    private final Map<String, FieldProperty<?>> properties;
     protected static final FieldProperty<?> BAD_KEY = new FieldProperty<>(null, false, false, null);
 
     public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {

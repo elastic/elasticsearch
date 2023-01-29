@@ -78,6 +78,9 @@ public class Metadata {
         validateMetadata();
     }
 
+    // a 'not found' sentinel value for use in validateMetadata below
+    private static final Object NOT_FOUND = new Object();
+
     /**
      * Check that all metadata map contains only valid metadata and no extraneous keys
      */
@@ -85,10 +88,15 @@ public class Metadata {
         int numMetadata = 0;
         for (Map.Entry<String, FieldProperty<?>> entry : properties.entrySet()) {
             String key = entry.getKey();
-            if (map.containsKey(key)) {
+            Object value = map.getOrDefault(key, NOT_FOUND);
+            if (value != NOT_FOUND) {
                 numMetadata++;
+                // check whether it's permissible to have the value for the property
+                entry.getValue().check(MapOperation.INIT, key, value);
+            } else {
+                // check whether it's permissible to *not* have a value for the property
+                entry.getValue().check(MapOperation.INIT, key, null);
             }
-            entry.getValue().check(MapOperation.INIT, key, map.get(key));
         }
         if (numMetadata < map.size()) {
             Set<String> keys = new HashSet<>(map.keySet());

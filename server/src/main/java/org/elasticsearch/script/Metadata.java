@@ -239,7 +239,7 @@ public class Metadata {
 
     @Override
     public Metadata clone() {
-        // properties is an UnmodifiableMap, no need to create a copy
+        // properties is an unmodifiable map, no need to create a copy here
         return new Metadata(new HashMap<>(map), properties);
     }
 

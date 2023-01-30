@@ -83,7 +83,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // private WatchableFileSettings oss = new WatchableFileSettings();
 
     // Settings have a path, a file update state, and a watch key
-    private class WatchableFileSettings {
+    static class WatchableFileSettings {
         final Path operatorSettingsDir;
         String settingsFileName;
         FileUpdateState fileUpdateState;
@@ -91,6 +91,26 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         WatchableFileSettings(Path operatorSettingsDir) {
             this.operatorSettingsDir = operatorSettingsDir;
+        }
+
+        // platform independent way to tell if a file changed
+        // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
+        boolean watchedFileChanged(Path path) throws IOException {
+            if (Files.exists(path) == false) {
+                return false;
+            }
+
+            FileUpdateState previousUpdateState = fileUpdateState;
+
+            BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
+            fileUpdateState = new FileUpdateState(
+                attr.lastModifiedTime().toMillis(),
+                path.toRealPath().toString(),
+                attr.fileKey()
+            );
+
+            return (previousUpdateState == null
+                || previousUpdateState.equals(fileUpdateState) == false);
         }
     }
 
@@ -131,24 +151,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir.resolve(v.settingsFileName)).toList();
     }
 
-    // platform independent way to tell if a file changed
-    // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
+    // TODO[wrb]: inline/remove
     boolean watchedFileChanged(Path path) throws IOException {
-        if (Files.exists(path) == false) {
-            return false;
-        }
-
-        FileUpdateState previousUpdateState = fileSettingsMap.get(OPERATOR_DIRECTORY).fileUpdateState;
-
-        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileSettingsMap.get(OPERATOR_DIRECTORY).fileUpdateState = new FileUpdateState(
-            attr.lastModifiedTime().toMillis(),
-            path.toRealPath().toString(),
-            attr.fileKey()
-        );
-
-        return (previousUpdateState == null
-            || previousUpdateState.equals(fileSettingsMap.get(OPERATOR_DIRECTORY).fileUpdateState) == false);
+        return fileSettingsMap.get(OPERATOR_DIRECTORY).watchedFileChanged(path);
     }
 
     @Override

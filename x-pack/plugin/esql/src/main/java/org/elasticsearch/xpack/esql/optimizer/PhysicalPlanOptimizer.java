@@ -78,21 +78,31 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         var reducer = new Batch<>("Gather data flow", Limiter.ONCE, new EnsureSingleGatheringNode());
 
         // local optimizations
-        var localPlanning = new Batch<>(
-            "Local Plan",
-            Limiter.ONCE,
-            new MarkLocalPlan(),
-            new LocalToGlobalLimitAndTopNExec(),
-            new PushLimitToSource(), // needs to remain after local->global limit copying
-            new InsertFieldExtraction(),
-            new LocalOptimizations(),
-            new RemoveLocalPlanMarker()
-        );
+        Batch<PhysicalPlan> localPlanning;
 
         if (isOptimizedForEsSource) {
+            localPlanning = new Batch<>(
+                "Local Plan",
+                Limiter.ONCE,
+                new MarkLocalPlan(),
+                new LocalToGlobalLimitAndTopNExec(),
+                new PushLimitToSource(), // needs to remain after local->global limit copying
+                new InsertFieldExtraction(),
+                new LocalOptimizations(),
+                new RemoveLocalPlanMarker()
+            );
             return asList(pushdown, exchange, parallelism, reducer, localPlanning);
         } else {
-            // this is for unit-testing where we don't need to push anything to ES
+            // this is for unit-testing (CsvTests) where we don't need to push anything to ES
+            localPlanning = new Batch<>(
+                "Local Plan",
+                Limiter.ONCE,
+                new MarkLocalPlan(),
+                new LocalToGlobalLimitAndTopNExec(),
+                new InsertFieldExtraction(),
+                new LocalOptimizations(),
+                new RemoveLocalPlanMarker()
+            );
             return asList(exchange, parallelism, reducer, localPlanning);
         }
     }

@@ -68,4 +68,80 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         }
         assertThat(results.get(0).<DoubleBlock>getBlock(0).getDouble(0), equalTo(Double.MAX_VALUE + 1));
     }
+
+    public void testSummationAccuracy() {
+        List<Page> results = new ArrayList<>();
+
+        try (
+            Driver d = new Driver(
+                new SequenceDoubleBlockSourceOperator(
+                    DoubleStream.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
+                ),
+                List.of(simple(nonBreakingBigArrays()).get()),
+                new PageConsumerOperator(page -> results.add(page)),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertEquals(15.3, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), Double.MIN_NORMAL);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        results.clear();
+        int n = randomIntBetween(5, 10);
+        double[] values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        try (
+            Driver d = new Driver(
+                new SequenceDoubleBlockSourceOperator(DoubleStream.of(values)),
+                List.of(simple(nonBreakingBigArrays()).get()),
+                new PageConsumerOperator(page -> results.add(page)),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertEquals(sum, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 1e-10);
+
+        // Summing up some big double values and expect infinity result
+        results.clear();
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        try (
+            Driver d = new Driver(
+                new SequenceDoubleBlockSourceOperator(DoubleStream.of(largeValues)),
+                List.of(simple(nonBreakingBigArrays()).get()),
+                new PageConsumerOperator(page -> results.add(page)),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertEquals(Double.POSITIVE_INFINITY, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 0d);
+
+        results.clear();
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        try (
+            Driver d = new Driver(
+                new SequenceDoubleBlockSourceOperator(DoubleStream.of(largeValues)),
+                List.of(simple(nonBreakingBigArrays()).get()),
+                new PageConsumerOperator(page -> results.add(page)),
+                () -> {}
+            )
+        ) {
+            d.run();
+        }
+        assertEquals(Double.NEGATIVE_INFINITY, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 0d);
+    }
 }

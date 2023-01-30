@@ -54,8 +54,7 @@ class WatchableFileSettings {
             attr.fileKey()
         );
 
-        return (previousUpdateState == null
-            || previousUpdateState.equals(fileUpdateState) == false);
+        return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
     PlainActionFuture<Void> processFileSettings(Path path) {

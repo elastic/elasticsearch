@@ -44,8 +44,10 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -713,15 +715,37 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        executePipelines(
-                            i,
-                            pipelines.iterator(),
-                            hasFinalPipeline,
-                            indexRequest,
-                            onDropped,
-                            onFailure,
-                            refs.acquireListener()
-                        );
+                        // start the stopwatch and acquire a ref to indicate that we're working on this document
+                        final long startTimeInNanos = System.nanoTime();
+                        totalMetrics.preIngest();
+                        final int slot = i;
+                        final Releasable ref = refs.acquire();
+                        // the document listener gives us three-way logic: a document can fail processing (1), or it can
+                        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
+                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean kept) {
+                                assert kept != null;
+                                if (kept == false) {
+                                    onDropped.accept(slot);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                totalMetrics.ingestFailed();
+                                onFailure.accept(slot, e);
+                            }
+                        }, () -> {
+                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+                            // that we're finished with this document
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            ref.close();
+                        });
+
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        executePipelines(pipelines.iterator(), hasFinalPipeline, indexRequest, ingestDocument, documentListener);
 
                         i++;
                     }
@@ -731,30 +755,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private void executePipelines(
-        final int slot,
-        final Iterator<String> it,
+        final Iterator<String> pipelineIds,
         final boolean hasFinalPipeline,
         final IndexRequest indexRequest,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final ActionListener<Void> onFinished
+        final IngestDocument ingestDocument,
+        final ActionListener<Boolean> listener
     ) {
-        assert it.hasNext();
-        final String pipelineId = it.next();
+        assert pipelineIds.hasNext();
+        final String pipelineId = pipelineIds.next();
         try {
-            PipelineHolder holder = pipelines.get(pipelineId);
+            final PipelineHolder holder = pipelines.get(pipelineId);
             if (holder == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            Pipeline pipeline = holder.pipeline;
-            String originalIndex = indexRequest.indices()[0];
-            long startTimeInNanos = System.nanoTime();
-            totalMetrics.preIngest();
-            innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
-                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                totalMetrics.postIngest(ingestTimeInNanos);
+            final Pipeline pipeline = holder.pipeline;
+            final String originalIndex = indexRequest.indices()[0];
+            executePipeline(ingestDocument, pipeline, (keep, e) -> {
+                assert keep != null;
+
                 if (e != null) {
-                    totalMetrics.ingestFailed();
                     logger.debug(
                         () -> format(
                             "failed to execute pipeline [%s] for document [%s/%s]",
@@ -764,42 +783,77 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ),
                         e
                     );
-                    onFailure.accept(slot, e);
-                    // document failed! no further processing of this doc
-                    onFinished.onResponse(null);
-                    return;
+                    listener.onFailure(e);
+                    return; // document failed!
                 }
 
-                Iterator<String> newIt = it;
+                if (keep == false) {
+                    listener.onResponse(false);
+                    return; // document dropped!
+                }
+
+                // update the index request so that we can execute additional pipelines (if any), etc
+                updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
+                try {
+                    // check for self-references if necessary, (i.e. if a script processor has run), and clear the bit
+                    if (ingestDocument.doNoSelfReferencesCheck()) {
+                        CollectionUtils.ensureNoSelfReferences(ingestDocument.getSource(), null);
+                        ingestDocument.doNoSelfReferencesCheck(false);
+                    }
+                } catch (IllegalArgumentException ex) {
+                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                    // In that case, we catch and wrap the exception, so we can include more details
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            format(
+                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                                pipelineId,
+                                indexRequest.index(),
+                                indexRequest.id()
+                            ),
+                            ex
+                        )
+                    );
+                    return; // document failed!
+                }
+
+                Iterator<String> newPipelineIds = pipelineIds;
                 boolean newHasFinalPipeline = hasFinalPipeline;
-                String newIndex = indexRequest.indices()[0];
+                final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
-                    if (hasFinalPipeline && it.hasNext() == false) {
-                        totalMetrics.ingestFailed();
-                        onFailure.accept(
-                            slot,
-                            new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
+                    if (hasFinalPipeline && pipelineIds.hasNext() == false) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                format(
+                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                    pipelineId,
+                                    originalIndex,
+                                    newIndex,
+                                    indexRequest.id()
+                                )
+                            )
                         );
-                        // document failed! no further processing of this doc
-                        onFinished.onResponse(null);
-                        return;
+                        return; // document failed!
                     } else {
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
                         if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                            newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                            newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;
                         } else {
-                            newIt = Collections.emptyIterator();
+                            newPipelineIds = Collections.emptyIterator();
                         }
                     }
                 }
 
-                if (newIt.hasNext()) {
-                    executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, onFinished);
+                if (newPipelineIds.hasNext()) {
+                    executePipelines(newPipelineIds, newHasFinalPipeline, indexRequest, ingestDocument, listener);
                 } else {
-                    onFinished.onResponse(null);
+                    // update the index request's source and (potentially) cache the timestamp for TSDB
+                    updateIndexRequestSource(indexRequest, ingestDocument);
+                    cacheRawTimestamp(indexRequest, ingestDocument);
+                    listener.onResponse(true); // document succeeded!
                 }
             });
         } catch (Exception e) {
@@ -807,9 +861,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
-            onFailure.accept(slot, e);
-            onFinished.onResponse(null);
+            listener.onFailure(e); // document failed!
         }
+    }
+
+    private void executePipeline(
+        final IngestDocument ingestDocument,
+        final Pipeline pipeline,
+        final BiConsumer<Boolean, Exception> handler
+    ) {
+        // adapt our {@code BiConsumer<Boolean, Exception>} handler shape to the
+        // {@code BiConsumer<IngestDocument, Exception>} handler shape used internally
+        // by ingest pipelines and processors
+        ingestDocument.executePipeline(pipeline, (result, e) -> {
+            if (e != null) {
+                handler.accept(true, e);
+            } else {
+                handler.accept(result != null, null);
+            }
+        });
     }
 
     public IngestStats stats() {
@@ -863,56 +933,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return sb.toString();
     }
 
-    private void innerExecute(
-        final int slot,
-        final IndexRequest indexRequest,
-        final Pipeline pipeline,
-        final IntConsumer itemDroppedHandler,
-        final Consumer<Exception> handler
-    ) {
-        if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(null);
-            return;
-        }
-
-        IngestDocument ingestDocument = newIngestDocument(indexRequest);
-        ingestDocument.executePipeline(pipeline, (result, e) -> {
-            if (e != null) {
-                handler.accept(e);
-            } else if (result == null) {
-                itemDroppedHandler.accept(slot);
-                handler.accept(null);
-            } else {
-                updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
-                try {
-                    updateIndexRequestSource(indexRequest, ingestDocument);
-                } catch (IllegalArgumentException ex) {
-                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
-                    // In that case, we catch and wrap the exception, so we can include which pipeline failed.
-                    handler.accept(
-                        new IllegalArgumentException(
-                            "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
-                            ex
-                        )
-                    );
-                    return;
-                } catch (Exception ex) {
-                    // If anything goes wrong here, we want to know, and cannot proceed with normal execution. For example,
-                    // *rarely*, a ConcurrentModificationException could be thrown if a pipeline leaks a reference to a shared mutable
-                    // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
-                    // no self references.
-                    handler.accept(
-                        new RuntimeException("Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]", ex)
-                    );
-                    return;
-                }
-                cacheRawTimestamp(indexRequest, ingestDocument);
-
-                handler.accept(null);
-            }
-        });
-    }
-
     /**
      * Builds a new ingest document from the passed-in index request.
      */
@@ -960,6 +980,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
+        // we already check for self references elsewhere (and clear the bit), so this should always be false,
+        // keeping the check and assert as a guard against extraordinarily surprising circumstances
+        assert ensureNoSelfReferences == false;
         request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
     }
 

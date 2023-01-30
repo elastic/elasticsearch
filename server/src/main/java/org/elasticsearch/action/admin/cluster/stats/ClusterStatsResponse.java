@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -41,7 +41,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
         AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
         VersionStats versionStats = null;
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             versionStats = in.readOptionalWriteable(VersionStats::new);
         }
         this.clusterUUID = clusterUUID;
@@ -105,7 +105,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         out.writeOptionalString(clusterUUID);
         out.writeOptionalWriteable(indicesStats.getMappings());
         out.writeOptionalWriteable(indicesStats.getAnalysis());
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeOptionalWriteable(indicesStats.getVersions());
         }
     }

@@ -361,7 +361,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             boolean quiet;
-            if (in.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            if (in.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
                 quiet = in.readBoolean();
             } else {
                 // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
@@ -389,7 +389,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeString(entry.uuid);
             entry.snapshot().writeTo(o);
             o.writeByte(entry.state().value());
-            if (out.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            if (out.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
                 o.writeBoolean(entry.quiet());
             }
             o.writeStringCollection(entry.indices);

@@ -1,5 +1,0 @@
-pr: 93205
-summary: Fix `ByteArrayIndexInput` with nonzero offset
-area: Distributed
-type: bug
-issues: []

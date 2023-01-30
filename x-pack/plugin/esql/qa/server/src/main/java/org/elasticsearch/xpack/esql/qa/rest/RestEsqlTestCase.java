@@ -341,17 +341,19 @@ public class RestEsqlTestCase extends ESRestTestCase {
             }""");
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
-        request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < count; i++) {
-            bulk.append(org.elasticsearch.core.Strings.format("""
-                {"index":{"_id":"%s"}}
-                {"keyword":"keyword%s", "integer":%s}
-                """, i, i, i));
+        if (count > 0) {
+            request = new Request("POST", "/test/_bulk");
+            request.addParameter("refresh", "true");
+            StringBuilder bulk = new StringBuilder();
+            for (int i = 0; i < count; i++) {
+                bulk.append(org.elasticsearch.core.Strings.format("""
+                    {"index":{"_id":"%s"}}
+                    {"keyword":"keyword%s", "integer":%s}
+                    """, i, i, i));
+            }
+            request.setJsonEntity(bulk.toString());
+            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
         }
-        request.setJsonEntity(bulk.toString());
-        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
     private static RequestObjectBuilder builder() throws IOException {

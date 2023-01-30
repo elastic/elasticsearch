@@ -192,7 +192,7 @@ public class SubjectTests extends ESTestCase {
                 remoteAccessRoleReference.getRoleDescriptorsBytes(),
                 equalTo(
                     remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
+                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY_ROLE_BYTES
                         : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
                 )
             );
@@ -214,7 +214,7 @@ public class SubjectTests extends ESTestCase {
                 remoteAccessRoleReference.getRoleDescriptorsBytes(),
                 equalTo(
                     remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
+                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY_ROLE_BYTES
                         : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
                 )
             );

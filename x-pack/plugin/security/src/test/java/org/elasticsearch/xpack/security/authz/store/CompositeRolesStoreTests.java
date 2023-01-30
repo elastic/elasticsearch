@@ -2034,6 +2034,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = TransportVersion.CURRENT;
+        final String apiKeyRoleName = "user_role_" + randomAlphaOfLength(4);
         final Authentication apiKeyAuthentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2042,7 +2043,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             ),
             Collections.singleton(
                 new RoleDescriptor(
-                    "user_role_" + randomAlphaOfLength(4),
+                    apiKeyRoleName,
                     null,
                     new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index*").privileges("all").build() },
                     null
@@ -2052,22 +2053,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
             version
         );
         final String roleName = RBACEngine.REMOTE_USER_ROLE_NAME;
+        final boolean emptyRemoteRole = randomBoolean();
         final Authentication authentication = apiKeyAuthentication.toRemoteAccess(
             AuthenticationTestHelper.randomRemoteAccessAuthentication(
-                new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
-                        roleName,
-                        null,
-                        new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
+                emptyRemoteRole
+                    ? RoleDescriptorsIntersection.EMPTY
+                    : new RoleDescriptorsIntersection(
+                        new RoleDescriptor(
+                            roleName,
+                            null,
+                            new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
                     )
-                )
             )
         );
 
@@ -2078,7 +2082,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         assertThat(role.names().length, is(1));
-        assertThat(role.names()[0], equalTo(roleName));
+        assertThat(role.names()[0], equalTo(emptyRemoteRole ? "_empty_remote_role" : roleName));
 
         // Smoke-test authorization
         final Metadata indexMetadata = Metadata.builder()
@@ -2104,7 +2108,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
             role.authorize(SearchAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
-            is(true)
+            is(false == emptyRemoteRole)
         );
         assertThat(
             role.authorize(CreateIndexAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),

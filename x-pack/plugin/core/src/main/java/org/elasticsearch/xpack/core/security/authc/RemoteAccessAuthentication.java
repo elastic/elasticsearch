@@ -150,7 +150,7 @@ public final class RemoteAccessAuthentication {
 
     public static final class RoleDescriptorsBytes extends AbstractBytesReference {
 
-        public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
+        public static final RoleDescriptorsBytes EMPTY_ROLE_BYTES = new RoleDescriptorsBytes(new BytesArray("{\"_empty_remote_role\":{}}"));
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {

@@ -160,8 +160,8 @@ final class DfsQueryPhase extends SearchPhase {
                 scoreDocs.subList(i + 1, j).clear();
             }
         }
-        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
+        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
         SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
         if (source.query() == null) {
             newSource.query(knnQuery);

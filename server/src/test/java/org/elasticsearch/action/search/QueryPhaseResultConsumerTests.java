@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
 
+// TODO: multi query
+
 public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     private SearchPhaseController searchPhaseController;
@@ -116,7 +118,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
             QuerySearchResult querySearchResult = new QuerySearchResult();
             TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-            querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
+            querySearchResult.getSingleQueryResults().get(0).topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
             querySearchResult.setSearchShardTarget(searchShardTarget);
             querySearchResult.setShardIndex(i);
             queryPhaseResultConsumer.consumeResult(querySearchResult, partialReduceLatch::countDown);

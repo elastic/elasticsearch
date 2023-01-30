@@ -170,7 +170,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Arrays.sort(toConsume, RESULT_COMPARATOR);
 
         for (QuerySearchResult result : toConsume) {
-            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+            topDocsStats.add(result.getSingleQueryResults().get(0).topDocs(), result.searchTimedOut(), result.terminatedEarly()); // //
+                                                                                                                                  // TODO:
+                                                                                                                                  // what do
+                                                                                                                                  // we do
+                                                                                                                                  // about
+                                                                                                                                  // multi
+                                                                                                                                  // query
         }
 
         final TopDocs newTopDocs;
@@ -180,7 +186,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsList.add(lastMerge.reducedTopDocs);
             }
             for (QuerySearchResult result : toConsume) {
-                TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                TopDocsAndMaxScore topDocs = result.getSingleQueryResults().get(0).consumeTopDocs(); // TODO: what do we do about multi
+                                                                                                     // query
                 setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
@@ -465,7 +472,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         public synchronized TopDocsStats consumeTopDocsStats() {
             for (QuerySearchResult result : buffer) {
-                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                // TODO: multi query? vvv
+                topDocsStats.add(result.getSingleQueryResults().get(0).topDocs(), result.searchTimedOut(), result.terminatedEarly());
             }
             return topDocsStats;
         }
@@ -479,7 +487,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsList.add(mergeResult.reducedTopDocs);
             }
             for (QuerySearchResult result : buffer) {
-                TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                TopDocsAndMaxScore topDocs = result.getSingleQueryResults().get(0).consumeTopDocs(); // TODO: what do we do about multi
+                                                                                                     // query
                 setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }

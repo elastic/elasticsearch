@@ -58,6 +58,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+// TODO: multi query?
+
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
@@ -112,34 +114,44 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (withCollapse) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldGroups(
-                                "collapse_field",
-                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                new SortField[] { sortField },
-                                new Object[] { 0L }
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldGroups(
+                                    "collapse_field",
+                                    new TotalHits(
+                                        1,
+                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                                    ),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                    new SortField[] { sortField },
+                                    new Object[] { 0L }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
                 } else {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                new SortField[] { sortField }
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(
+                                        1,
+                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                                    ),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
                 }
-                queryResult.from(0);
-                queryResult.size(1);
+                queryResult.getSingleQueryResults().get(0).from(0);
+                queryResult.getSingleQueryResults().get(0).size(1);
                 successfulOps.incrementAndGet();
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }
@@ -409,32 +421,36 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (shardId == 0) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
                 } else if (shardId == 1) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
                 }
-                queryResult.from(0);
-                queryResult.size(1);
+                queryResult.getSingleQueryResults().get(0).from(0);
+                queryResult.getSingleQueryResults().get(0).size(1);
                 successfulOps.incrementAndGet();
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }
@@ -553,32 +569,36 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (shardId == 0) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
                 } else if (shardId == 1) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
-                                new SortField[] { sortField }
+                    queryResult.getSingleQueryResults()
+                        .get(0)
+                        .topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { shardId }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
                 }
-                queryResult.from(0);
-                queryResult.size(1);
+                queryResult.getSingleQueryResults().get(0).from(0);
+                queryResult.getSingleQueryResults().get(0).size(1);
                 successfulOps.incrementAndGet();
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }

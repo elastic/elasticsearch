@@ -467,7 +467,8 @@ public final class SearchPhaseController {
         final List<TopDocs> topDocs = new ArrayList<>();
         for (SearchPhaseResult sortedResult : queryResults) {
             QuerySearchResult queryResult = sortedResult.queryResult();
-            final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
+            final TopDocsAndMaxScore td = queryResult.getSingleQueryResults().get(0).consumeTopDocs(); // TODO: what do we do about multi
+                                                                                                       // query
             assert td != null;
             topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
             // make sure we set the shard index before we add it - the consumer didn't do that yet
@@ -540,11 +541,13 @@ public final class SearchPhaseController {
         DocValueFormat[] sortValueFormats = null;
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
-            from = result.from();
+            QuerySearchResult.SingleQueryResult single = entry.queryResult().getSingleQueryResults().get(0); // TODO: what do we do about
+                                                                                                             // multi query
+            from = single.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
-            size = Math.max(result.size(), size);
-            if (result.sortValueFormats() != null) {
-                sortValueFormats = result.sortValueFormats();
+            size = Math.max(single.size(), size);
+            if (single.sortValueFormats() != null) {
+                sortValueFormats = single.sortValueFormats();
             }
 
             if (hasSuggest) {
@@ -558,7 +561,7 @@ public final class SearchPhaseController {
                 }
             }
             if (bufferedTopDocs.isEmpty() == false) {
-                assert result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
+                assert single.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             }
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
@@ -621,7 +624,7 @@ public final class SearchPhaseController {
         boolean[] ulFormats = null;
         boolean firstResult = true;
         for (SearchPhaseResult entry : queryResults) {
-            DocValueFormat[] formats = entry.queryResult().sortValueFormats();
+            DocValueFormat[] formats = entry.queryResult().getSingleQueryResults().get(0).sortValueFormats(); // TODO: multi query?
             if (formats == null) return;
             if (firstResult) {
                 firstResult = false;

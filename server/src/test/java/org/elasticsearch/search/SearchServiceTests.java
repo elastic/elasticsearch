@@ -1300,7 +1300,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                         assertThat(result, instanceOf(QuerySearchResult.class));
                         assertFalse(result.queryResult().isNull());
-                        assertNotNull(result.queryResult().topDocs());
+                        assertNotNull(result.queryResult().getSingleQueryResults().get(0).topDocs()); // TODO: multi query?
                         assertNotNull(result.queryResult().aggregations());
                     } finally {
                         latch.countDown();
@@ -1330,7 +1330,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                         assertThat(result, instanceOf(QuerySearchResult.class));
                         assertFalse(result.queryResult().isNull());
-                        assertNotNull(result.queryResult().topDocs());
+                        assertNotNull(result.queryResult().getSingleQueryResults().get(0).topDocs()); // TODO: multi query?
                         assertNotNull(result.queryResult().aggregations());
                     } finally {
                         latch.countDown();
@@ -1671,7 +1671,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         service.executeQueryPhase(request, task, future);
         SearchPhaseResult searchPhaseResult = future.actionGet();
-        assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
+        assertEquals(1, searchPhaseResult.queryResult().getSingleQueryResults().get(0).getTotalHits().value);
     }
 
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {

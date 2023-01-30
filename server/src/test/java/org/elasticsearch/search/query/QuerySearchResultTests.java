@@ -66,9 +66,12 @@ public class QuerySearchResultTests extends ESTestCase {
             result.terminatedEarly(randomBoolean());
         }
         TopDocs topDocs = new TopDocs(new TotalHits(randomLongBetween(0, Long.MAX_VALUE), TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-        result.topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
-        result.size(randomInt());
-        result.from(randomInt());
+        // TODO: multi query? vvv
+        result.getSingleQueryResults()
+            .get(0)
+            .topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
+        result.getSingleQueryResults().get(0).size(randomInt());
+        result.getSingleQueryResults().get(0).from(randomInt());
         if (randomBoolean()) {
             result.suggest(SuggestTests.createTestItem());
         }
@@ -89,10 +92,18 @@ public class QuerySearchResultTests extends ESTestCase {
         );
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
-        assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
-        assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
-        assertEquals(querySearchResult.from(), deserialized.from());
-        assertEquals(querySearchResult.size(), deserialized.size());
+        // TODO: multi query? vvv
+        assertEquals(
+            querySearchResult.getSingleQueryResults().get(0).topDocs().maxScore,
+            deserialized.getSingleQueryResults().get(0).topDocs().maxScore,
+            0f
+        );
+        assertEquals(
+            querySearchResult.getSingleQueryResults().get(0).topDocs().topDocs.totalHits,
+            deserialized.getSingleQueryResults().get(0).topDocs().topDocs.totalHits
+        );
+        assertEquals(querySearchResult.getSingleQueryResults().get(0).from(), deserialized.getSingleQueryResults().get(0).from());
+        assertEquals(querySearchResult.getSingleQueryResults().get(0).size(), deserialized.getSingleQueryResults().get(0).size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
             assertThat(deserialized.aggregations().isSerialized(), is(delayed));

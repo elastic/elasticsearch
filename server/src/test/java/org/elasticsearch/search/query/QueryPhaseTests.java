@@ -94,6 +94,8 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+// TODO: multi query? vvvvv
+
 public class QueryPhaseTests extends IndexShardTestCase {
 
     private IndexShard indexShard;
@@ -122,7 +124,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         ContextIndexSearcher countSearcher = shouldCollectCount
             ? newContextSearcher(reader)
             : newEarlyTerminationContextSearcher(reader, 0);
-        assertEquals(countSearcher.count(query), context.queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(countSearcher.count(query), context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
     }
 
     private void countTestCase(boolean withDeletions) throws Exception {
@@ -200,12 +202,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         QueryPhase.executeInternal(context);
-        assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(1, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
 
         context.setSearcher(newContextSearcher(reader));
         context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
         QueryPhase.executeInternal(context);
-        assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(0, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
         reader.close();
         dir.close();
     }
@@ -231,8 +233,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         for (int i = 0; i < 10; i++) {
             context.parsedPostFilter(new ParsedQuery(new TermQuery(new Term("foo", Integer.toString(i)))));
             QueryPhase.executeInternal(context);
-            assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertEquals(1, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
         }
         reader.close();
         dir.close();
@@ -253,11 +255,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.setSize(0);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         QueryPhase.executeInternal(context);
-        assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(1, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
 
         context.minimumScore(100);
         QueryPhase.executeInternal(context);
-        assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(0, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
         reader.close();
         dir.close();
     }
@@ -278,8 +280,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         QueryPhase.executeInternal(context);
         QuerySearchResult results = context.queryResult();
-        assertThat(results.serviceTimeEWMA(), greaterThanOrEqualTo(0L));
-        assertThat(results.nodeQueueSize(), greaterThanOrEqualTo(0));
+        assertThat(results.getSingleQueryResults().get(0).serviceTimeEWMA(), greaterThanOrEqualTo(0L));
+        assertThat(results.getSingleQueryResults().get(0).nodeQueueSize(), greaterThanOrEqualTo(0));
         reader.close();
         dir.close();
     }
@@ -307,16 +309,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.setSize(size);
 
         QueryPhase.executeInternal(context);
-        assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertNull(context.queryResult().terminatedEarly());
         assertThat(context.terminateAfter(), equalTo(0));
-        assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).getTotalHits().value, equalTo((long) numDocs));
 
         context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
         QueryPhase.executeInternal(context);
-        assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).getTotalHits().value, equalTo((long) numDocs));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         reader.close();
         dir.close();
     }
@@ -361,8 +363,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.queryCollectors().put(TotalHitCountCollector.class, collector);
             QueryPhase.executeInternal(context);
             assertFalse(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(10));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(10));
             assertThat(collector.getTotalHits(), equalTo(numDocs));
         }
 
@@ -371,22 +373,25 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.setSize(1);
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
 
             context.setSize(0);
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(1)));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+            assertThat(
+                context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value,
+                equalTo((long) countDocUpTo.applyAsInt(1))
+            );
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
 
         {
             context.setSize(1);
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
         }
         {
             context.setSize(1);
@@ -396,14 +401,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.parsedQuery(new ParsedQuery(bq));
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
 
             context.setSize(0);
             context.parsedQuery(new ParsedQuery(bq));
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
             context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         }
         {
@@ -412,8 +417,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.queryCollectors().put(TotalHitCountCollector.class, collector);
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
             // TotalHitCountCollector counts num docs in the first leaf
             assertThat(collector.getTotalHits(), equalTo(reader.leaves().get(0).reader().numDocs()));
             context.queryCollectors().clear();
@@ -426,8 +431,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertTrue(context.queryResult().terminatedEarly());
             // TotalHitCountCollector counts num docs in the first leaf
             int numDocsInFirstLeaf = reader.leaves().get(0).reader().numDocs();
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocsInFirstLeaf));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+            assertThat(
+                context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value,
+                equalTo((long) numDocsInFirstLeaf)
+            );
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(numDocsInFirstLeaf));
         }
 
@@ -441,11 +449,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
-                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
+                assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(0L));
             } else {
-                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(10)));
+                assertThat(
+                    context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value,
+                    equalTo((long) countDocUpTo.applyAsInt(10))
+                );
             }
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(countDocUpTo.applyAsInt(10)));
         }
 
@@ -458,11 +469,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
-                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
+                assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(0L));
             } else {
-                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(7L));
+                assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(7L));
             }
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(7));
         }
         reader.close();
         dir.close();
@@ -495,19 +506,19 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
 
         QueryPhase.executeInternal(context);
-        assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
-        FieldDoc fieldDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
+        FieldDoc fieldDoc = (FieldDoc) context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0];
         assertThat(fieldDoc.fields[0], equalTo(1));
 
         {
             context.parsedPostFilter(new ParsedQuery(new MinDocQuery(1)));
             QueryPhase.executeInternal(context);
             assertNull(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(numDocs - 1L));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo(numDocs - 1L));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
             context.parsedPostFilter(null);
 
@@ -515,9 +526,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.queryCollectors().put(TotalHitCountCollector.class, totalHitCountCollector);
             QueryPhase.executeInternal(context);
             assertNull(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
             assertThat(totalHitCountCollector.getTotalHits(), equalTo(numDocs));
             context.queryCollectors().clear();
@@ -528,14 +539,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
             QueryPhase.executeInternal(context);
             assertNull(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
 
             QueryPhase.executeInternal(context);
             assertNull(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
-            assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(1));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
         }
         reader.close();
@@ -576,20 +587,20 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.sort(searchSortAndFormat);
 
             QueryPhase.executeInternal(context);
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.terminateAfter(), equalTo(0));
-            assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-            int sizeMinus1 = context.queryResult().topDocs().topDocs.scoreDocs.length - 1;
-            FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[sizeMinus1];
+            assertThat(context.queryResult().getSingleQueryResults().get(0).getTotalHits().value, equalTo((long) numDocs));
+            int sizeMinus1 = context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length - 1;
+            FieldDoc lastDoc = (FieldDoc) context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[sizeMinus1];
 
             context.setSearcher(newEarlyTerminationContextSearcher(reader, 10));
             QueryPhase.executeInternal(context);
             assertNull(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.terminateAfter(), equalTo(0));
-            assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-            FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
+            assertThat(context.queryResult().getSingleQueryResults().get(0).getTotalHits().value, equalTo((long) numDocs));
+            FieldDoc firstDoc = (FieldDoc) context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs[0];
             for (int i = 0; i < searchSortAndFormat.sort.getSort().length; i++) {
                 @SuppressWarnings("unchecked")
                 FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
@@ -637,17 +648,23 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TopDocsCollectorContext topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
         QueryPhase.executeInternal(context);
-        assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
+        assertEquals(5, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
+        assertEquals(
+            context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.relation,
+            TotalHits.Relation.EQUAL_TO
+        );
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(3));
 
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW }));
         topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.TOP_DOCS);
         QueryPhase.executeInternal(context);
-        assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
-        assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        assertEquals(5, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
+        assertThat(context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.scoreDocs.length, equalTo(3));
+        assertEquals(
+            context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.relation,
+            TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+        );
 
         reader.close();
         dir.close();
@@ -712,7 +729,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
-            assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, false);
+            assertSortResults(searchContext.queryResult().getSingleQueryResults().get(0).topDocs().topDocs, numDocs, false);
         }
 
         // 2. Test sort optimization on long field with after
@@ -729,7 +746,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
-            final TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
+            final TopDocs topDocs = searchContext.queryResult().singleQueryResults.get(0).topDocs().topDocs;
             long firstResult = (long) ((FieldDoc) topDocs.scoreDocs[0]).fields[0];
             assertThat(firstResult, greaterThan(afterValue));
             assertSortResults(topDocs, numDocs, false);
@@ -745,7 +762,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
-            assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, true);
+            assertSortResults(searchContext.queryResult().singleQueryResults.get(0).topDocs().topDocs, numDocs, true);
         }
 
         // 4. Test sort optimization on date field
@@ -758,7 +775,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
-            assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, false);
+            assertSortResults(searchContext.queryResult().singleQueryResults.get(0).topDocs().topDocs, numDocs, false);
         }
 
         // 5. Test sort optimization on date field + long field
@@ -771,7 +788,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
-            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+            assertSortResults(searchContext.queryResult().singleQueryResults.get(0).topDocs().topDocs, (long) numDocs, true);
         }
 
         // 6. Test sort optimization on when from > 0 and size = 0
@@ -785,8 +802,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.setSize(0);
             QueryPhase.executeInternal(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
-            assertThat(searchContext.queryResult().topDocs().topDocs.scoreDocs, arrayWithSize(0));
-            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(searchContext.queryResult().singleQueryResults.get(0).topDocs().topDocs.scoreDocs, arrayWithSize(0));
+            assertThat(searchContext.queryResult().singleQueryResults.get(0).topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         }
 
         // 7. Test that sort optimization doesn't break a case where from = 0 and size= 0
@@ -906,7 +923,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(5);
 
         QueryPhase.executeInternal(context);
-        assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(10, context.queryResult().getSingleQueryResults().get(0).topDocs().topDocs.totalHits.value);
 
         reader.close();
         dir.close();

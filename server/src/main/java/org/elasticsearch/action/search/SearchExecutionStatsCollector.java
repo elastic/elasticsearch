@@ -50,8 +50,9 @@ public final class SearchExecutionStatsCollector extends ActionListener.Delegati
     public void onResponse(SearchPhaseResult response) {
         QuerySearchResult queryResult = response.queryResult();
         if (nodeId != null && queryResult != null) {
-            final long serviceTimeEWMA = queryResult.serviceTimeEWMA();
-            final int queueSize = queryResult.nodeQueueSize();
+            final long serviceTimeEWMA = queryResult.getSingleQueryResults().get(0).serviceTimeEWMA(); // TODO: what do we do about multi
+                                                                                                       // query
+            final int queueSize = queryResult.getSingleQueryResults().get(0).nodeQueueSize(); // TODO: what do we do about multi query
             final long responseDuration = System.nanoTime() - startNanos;
             // EWMA/queue size may be -1 if the query node doesn't support capturing it
             if (serviceTimeEWMA > 0 && queueSize >= 0) {

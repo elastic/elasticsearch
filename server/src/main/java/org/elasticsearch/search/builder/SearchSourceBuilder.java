@@ -35,6 +35,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rerank.RerankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -84,6 +85,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
+    public static final ParseField RERANK_FIELD = new ParseField("rerank");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
@@ -132,6 +134,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private QueryBuilder postQueryBuilder;
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
+
+    private RerankBuilder rerankBuilder = null;
 
     private int from = -1;
 
@@ -257,6 +261,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 knnSearch = in.readList(KnnSearchBuilder::new);
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            rerankBuilder = in.readOptionalWriteable(RerankBuilder::new);
+        }
     }
 
     @Override
@@ -338,6 +345,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeCollection(knnSearch);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            out.writeOptionalWriteable(rerankBuilder);
+        }
     }
 
     /**
@@ -388,6 +398,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public List<KnnSearchBuilder> knnSearch() {
         return Collections.unmodifiableList(knnSearch);
+    }
+
+    public SearchSourceBuilder rerankBuilder(RerankBuilder rerankBuilder) {
+        this.rerankBuilder = rerankBuilder;
+        return this;
+    }
+
+    public RerankBuilder rerankBuilder() {
+        return rerankBuilder;
     }
 
     /**
@@ -1127,6 +1146,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.minScore = minScore;
         rewrittenBuilder.postQueryBuilder = postQueryBuilder;
         rewrittenBuilder.knnSearch = knnSearch;
+        rewrittenBuilder.rerankBuilder = rerankBuilder;
         rewrittenBuilder.profile = profile;
         rewrittenBuilder.queryBuilder = queryBuilder;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
@@ -1259,6 +1279,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
+                } else if (RERANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    rerankBuilder = RerankBuilder.fromXContent(parser);
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                     if (fetchSourceContext.fetchSource() == false
@@ -1882,6 +1904,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             postQueryBuilder,
             queryBuilder,
             knnSearch,
+            rerankBuilder,
             rescoreBuilders,
             scriptFields,
             size,
@@ -1926,6 +1949,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(postQueryBuilder, other.postQueryBuilder)
             && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(knnSearch, other.knnSearch)
+            && Objects.equals(rerankBuilder, other.rerankBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)
             && Objects.equals(scriptFields, other.scriptFields)
             && Objects.equals(size, other.size)

@@ -67,7 +67,7 @@ public class HandshakeHeader extends MessageHeader {
     @Override
     public void finishParsingHeader(StreamInput input) throws IOException {
         var headers = ThreadContext.readHeadersFromStream(input);
-        assert headers.v1().isEmpty() && headers.v2().isEmpty() : "Handshakes should have no headers";
+        assert headers.v1().isEmpty() && headers.v2().isEmpty() : "Handshakes should have no headers, received " + headers;
 
         if (isRequest()) {
             if (handshakeVersion < HAS_FEATURES) {

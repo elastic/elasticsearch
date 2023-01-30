@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
@@ -99,12 +100,12 @@ public class ShardSnapshotTaskRunner {
 
         @Override
         public void doRun() {
-            ActionListener.run(fileSnapshotListener, l -> {
+            ActionRunnable.run(fileSnapshotListener, () -> {
                 FileInfo fileInfo = fileInfos.get();
                 if (fileInfo != null) {
                     fileSnapshotter.accept(context, fileInfo);
                 }
-            });
+            }).run();
         }
 
         @Override

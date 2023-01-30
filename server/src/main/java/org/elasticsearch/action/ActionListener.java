@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.Assertions;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
@@ -19,7 +20,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -532,20 +532,27 @@ public interface ActionListener<Response> {
         };
     }
 
-    private static <Response> ActionListener<Response> assertOnce(ActionListener<Response> delegate) {
+    static <Response> ActionListener<Response> assertOnce(ActionListener<Response> delegate) {
         if (Assertions.ENABLED) {
             return new ActionListener<>() {
-                private final AtomicBoolean alreadyRan = new AtomicBoolean();
+
+                // if complete, records the stack trace which first completed it
+                private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
+
+                private void assertFirstRun() {
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException(delegate.toString()));
+                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                }
 
                 @Override
                 public void onResponse(Response response) {
-                    assert alreadyRan.compareAndSet(false, true) : "already executed: " + this;
+                    assertFirstRun();
                     delegate.onResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    assert alreadyRan.compareAndSet(false, true) : "already executed: " + this;
+                    assertFirstRun();
                     delegate.onFailure(e);
                 }
 

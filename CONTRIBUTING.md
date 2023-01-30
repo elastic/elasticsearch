@@ -878,10 +878,8 @@ release works completely on every platform, and we must spend time
 investigating test failures and performance regressions there too. We cannot
 determine whether PRs which target unsupported platforms or configurations meet
 our quality standards, nor can we guarantee that the change they introduce will
-continue to work in future releases. We do not want Elasticsearch to suddenly 
+continue to work in future releases. We do not want Elasticsearch to suddenly
 stop working on a particular platform after an upgrade.
-users if Elasticsearch suddenly stopped working on a particular platform after
-an upgrade.
 
 We sometimes reject contributions due to the low quality of the submission
 since low-quality submissions tend to take unreasonable effort to review

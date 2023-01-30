@@ -54,7 +54,7 @@ public class ServerCliTests extends CommandTestCase {
 
     @BeforeClass
     public static void skipForFips() {
-        assumeTrue("Pending fix for https://github.com/elastic/elasticsearch/issues/93335", inFipsJvm());
+        assumeFalse("Pending fix for https://github.com/elastic/elasticsearch/issues/93335", inFipsJvm());
     }
 
     @Before

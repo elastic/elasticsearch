@@ -313,11 +313,10 @@
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["blue"]
-          data_stream: { }
 
   - do:
-      indices.create_data_stream:
-        name: purple-index
+      indices.create:
+        index: purple-index
 
   - do:
       indices.get:
@@ -350,5 +349,3 @@
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["foo"]
-          data_stream: { }
-

@@ -112,22 +112,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 distributionDescriptor = resolveDistribution();
                 LOGGER.info("Distribution for node '{}': {}", spec.getName(), distributionDescriptor);
                 initializeWorkingDirectory(currentVersion != null);
+                createConfigDirectory();
+                copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
                 installPlugins();
                 if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
                 currentVersion = spec.getVersion();
+            } else {
+                createConfigDirectory();
+                copyExtraConfigFiles();
             }
 
-            try {
-                IOUtils.deleteWithRetry(configDir);
-                Files.createDirectories(configDir);
-            } catch (IOException e) {
-                throw new UncheckedIOException("An error occurred creating config directory", e);
-            }
             writeConfiguration();
-            copyExtraConfigFiles();
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
@@ -206,6 +204,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                 throw new RuntimeException("Timed out after " + NODE_UP_TIMEOUT + " waiting for ports files for: " + this);
             } catch (ExecutionException e) {
                 throw new RuntimeException("An error occurred while waiting for ports file for: " + this, e);
+            }
+        }
+
+        private void createConfigDirectory() {
+            try {
+                IOUtils.deleteWithRetry(configDir);
+                Files.createDirectories(configDir);
+            } catch (IOException e) {
+                throw new UncheckedIOException("An error occurred creating config directory", e);
             }
         }
 

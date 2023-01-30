@@ -1,0 +1,39 @@
+{
+  "esql.query":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-api.html",
+      "description":"Executes an ESQL request"
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_esql",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "delimiter":{
+        "type":"string",
+        "description":"The character to use between values within a CSV row. Only valid for the csv format.",
+        "default":false
+      }
+    },
+    "body":{
+      "description":"Use the `query` element to start a query. Use `time_zone` to specify an execution time zone and 'columnar' to format the answer.",
+      "required":true
+    }
+  }
+}

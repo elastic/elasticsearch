@@ -18,7 +18,7 @@ import java.io.IOException;
 abstract class AbstractRollupFieldProducer implements RollupFieldSerializer {
 
     private final String name;
-    protected MappedFieldType fieldType;
+    protected final MappedFieldType fieldType;
     protected boolean isEmpty;
 
     AbstractRollupFieldProducer(final MappedFieldType fieldType, final String name) {

@@ -14,11 +14,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Utility class used for fetching field values by reading field data
@@ -53,7 +53,7 @@ class FieldValueFetcher {
         }
 
         private static boolean isHistogramField(final MappedFieldType fieldType) {
-            return HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
+            return "histogram".equals(fieldType.typeName().toLowerCase(Locale.ROOT));
         }
     }
 

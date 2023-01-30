@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,8 +63,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    // TODO: Find Recycling Instance
-    private final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    private volatile BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     private final TriConsumer<String, BytesReference, ActionListener<Void>> client;
     private final ThreadPool threadPool;
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStateByShardId = new ConcurrentHashMap<>();
@@ -79,6 +79,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
         this.client = client;
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
+    }
+
+    public void setBigArrays(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+    }
+
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 
     @Override
@@ -102,7 +110,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() throws IOException {
-        // TODO: Clean-up buffer states and finish listeners
+        shardSyncStateByShardId.values().forEach(ShardSyncState::close);
+        // TODO: Finish listeners
     }
 
     public void add(final ShardId shardId, final BytesReference data, final long seqNo, final Translog.Location location) {
@@ -233,7 +242,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
-    private class ShardSyncState {
+    private class ShardSyncState implements Releasable {
 
         private final Object bufferLock = new Object();
         private final TreeMap<Translog.Location, Boolean> ongoingSyncs = new TreeMap<>();
@@ -325,6 +334,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 bufferState = null;
                 return toReturn;
             }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(bufferState);
         }
 
         private record SyncListener(Translog.Location location, ActionListener<Void> listener) implements Comparable<SyncListener> {

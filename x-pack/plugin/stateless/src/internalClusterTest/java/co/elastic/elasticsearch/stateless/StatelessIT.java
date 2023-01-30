@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.engine.TranslogMetadata;
+import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 
@@ -365,6 +366,26 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         ensureGreen(indexName);
         // TODO assertObjectStoreConsistentWithSearchShards(); doesn't work yet because closing the index incremented the primary term
+    }
+
+    public void testSetsRecyclableBigArraysInTranslogReplicator() throws Exception {
+        startMasterAndIndexNode();
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        assertBusy(() -> {
+            var bigArrays = internalCluster().getInstance(TranslogReplicator.class).bigArrays();
+            assertNotNull(bigArrays);
+            assertNotNull(bigArrays.breakerService());
+        });
     }
 
     private static void indexDocuments(String indexName) {

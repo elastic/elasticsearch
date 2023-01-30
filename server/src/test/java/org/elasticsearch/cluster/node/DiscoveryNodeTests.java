@@ -190,7 +190,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             withExternalId ? "test-external-id" : null
         );
 
-        assertThat(Strings.toString(node, true, false), equalTo(String.format("""
+        assertThat(Strings.toString(node, true, false), equalTo(Strings.format("""
             {
               "test-id" : {
                 "name" : "test-name",

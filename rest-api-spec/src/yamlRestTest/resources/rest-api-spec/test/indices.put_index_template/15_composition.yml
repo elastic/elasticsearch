@@ -305,6 +305,8 @@
                   type: keyword
 
   - do:
+      allowed_warnings:
+        - "index template [blue] has index patterns [purple-index] matching patterns from existing older templates [global] with patterns (global => [*]); this template [blue] will take precedence during new index creation"
       indices.put_index_template:
         name: blue
         body:

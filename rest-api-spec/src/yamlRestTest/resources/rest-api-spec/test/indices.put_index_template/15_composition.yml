@@ -313,12 +313,11 @@
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["blue"]
-          #data_stream: { }
+          data_stream: { }
 
   - do:
-      # I would like to create a data stream and not and index. But did not see the tests for it to copy
-      indices.create:
-        index: purple-index
+      indices.create_data_stream:
+        name: purple-index
 
   - do:
       indices.get:
@@ -351,12 +350,5 @@
           index_patterns: ["purple-index"]
           composed_of: ["red", "blue"]
           ignore_missing_component_templates: ["foo"]
-          #data_stream: { }
+          data_stream: { }
 
-  - do:
-      catch: /index template matching \[blue\] not found/
-      # TODO: Could head_index_template be used instead? But have not seen this anywhere.
-      indices.get_index_template:
-        name: blue
-
-  - is_false: blue

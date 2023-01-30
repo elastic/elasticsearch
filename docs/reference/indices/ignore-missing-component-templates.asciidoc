@@ -8,11 +8,11 @@ The configuration option `ignore_missing_component_templates` can be used when a
 In the following, one component template and an index template are created. The index template references two component templates, but only the `@package` one exists.
 
 
-Create the component template `logs-foo@package`. This has to be created before the index template as it is not optional:
+Create the component template `logs-foo_component1`. This has to be created before the index template as it is not optional:
 
 [source,console]
 ----
-PUT _component_template/logs-foo@package
+PUT _component_template/logs-foo_component1
 {
   "template": {
     "mappings": {
@@ -30,17 +30,17 @@ Next, the index template will be created and it references two component templat
 
 [source,JSON]
 ----
-  "composed_of": ["logs-foo@package", "logs-foo@custom"]
+  "composed_of": ["logs-foo_component1", "logs-foo_component2"]
 ----
 
-Before, only the `logs-foo@package` compontent template was created, meaning the `logs-foo@custom` is missing. Because of this the following entry was added to the config:
+Before, only the `logs-foo_component1` compontent template was created, meaning the `logs-foo_component2` is missing. Because of this the following entry was added to the config:
 
 [source,JSON]
 ----
-  "ignore_missing_component_templates": ["logs-foo@custom"],
+  "ignore_missing_component_templates": ["logs-foo_component2"],
 ----
 
-During creation of the template, it will not validate that `logs-foo@custom` exists:
+During creation of the template, it will not validate that `logs-foo_component2` exists:
 
 
 [source,console]
@@ -49,8 +49,8 @@ PUT _index_template/logs-foo
 {
   "index_patterns": ["logs-foo-*"],
   "data_stream": { },
-  "composed_of": ["logs-foo@package", "logs-foo@custom"],
-  "ignore_missing_component_templates": ["logs-foo@custom"],
+  "composed_of": ["logs-foo_component1", "logs-foo_component2"],
+  "ignore_missing_component_templates": ["logs-foo_component2"],
   "priority": 500
 }
 ----
@@ -70,7 +70,7 @@ At a later stage, the missing component template might be added:
 
 [source,console]
 ----
-PUT _component_template/logs-foo@custom
+PUT _component_template/logs-foo_component2
 {
   "template": {
     "mappings": {

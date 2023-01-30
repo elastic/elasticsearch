@@ -2145,9 +2145,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
-        // THis is where the validation happens
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
-        // metadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
         MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
     }
 

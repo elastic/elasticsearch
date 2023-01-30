@@ -261,7 +261,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.priority(),
                     orig.version(),
                     orig.metadata(),
-                    randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate),
+                    orig.getDataStreamTemplate(),
                     orig.getAllowAutoCreate(),
                     ignoreMissingComponentTemplates
                 );

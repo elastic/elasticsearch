@@ -19,12 +19,12 @@ public class NodeDecisionsWireSerializationTests extends AbstractWireSerializing
         if (randomBoolean()) {
             return new NodeDecisions(
                 randomValueOtherThan(instance.canAllocateDecisions(), () -> randomNodeDecisions()),
-                instance.canRemainDecisions()
+                instance.canRemainDecision()
             );
         } else if (randomBoolean()) {
             return new NodeDecisions(
                 instance.canAllocateDecisions(),
-                randomValueOtherThan(instance.canRemainDecisions(), () -> randomNodeDecisions())
+                randomValueOtherThan(instance.canRemainDecision(), () -> NodeDecisionTestUtils.randomNodeDecision())
             );
         } else {
             return randomValueOtherThan(instance, this::createTestInstance);
@@ -38,7 +38,7 @@ public class NodeDecisionsWireSerializationTests extends AbstractWireSerializing
 
     @Override
     protected NodeDecisions createTestInstance() {
-        return new NodeDecisions(randomNodeDecisions(), randomNodeDecisions());
+        return new NodeDecisions(randomNodeDecisions(), randomBoolean() ? NodeDecisionTestUtils.randomNodeDecision() : null);
     }
 
     private static List<NodeDecision> randomNodeDecisions() {

@@ -120,7 +120,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
         NodeDecision canRemainNodeDecision = reactiveReason.assignedNodeDecisions()
             .get(reactiveReason.assignedShardIds().first())
-            .canRemainDecisions()
+            .canRemainDecision()
             .get(0);
         Decision decision = canRemainNodeDecision.decision()
             .getDecisions()

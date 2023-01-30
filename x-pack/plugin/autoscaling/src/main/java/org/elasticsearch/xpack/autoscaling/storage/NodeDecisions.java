@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.storage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,37 +20,39 @@ import java.util.Objects;
 class NodeDecisions implements ToXContentObject, Writeable {
 
     private final List<NodeDecision> canAllocateDecisions;
-    private final List<NodeDecision> canRemainDecisions;
+    @Nullable
+    private final NodeDecision canRemainDecision;
 
-    NodeDecisions(List<NodeDecision> canAllocateDecisions, List<NodeDecision> canRemainDecisions) {
+    NodeDecisions(List<NodeDecision> canAllocateDecisions, @Nullable NodeDecision canRemainDecision) {
         this.canAllocateDecisions = canAllocateDecisions;
-        this.canRemainDecisions = canRemainDecisions;
+        this.canRemainDecision = canRemainDecision;
     }
 
     NodeDecisions(StreamInput in) throws IOException {
         canAllocateDecisions = in.readList(NodeDecision::new);
-        canRemainDecisions = in.readList(NodeDecision::new);
+        canRemainDecision = in.readOptionalWriteable(NodeDecision::new);
     }
 
     List<NodeDecision> canAllocateDecisions() {
         return canAllocateDecisions;
     }
 
-    List<NodeDecision> canRemainDecisions() {
-        return canRemainDecisions;
+    @Nullable
+    NodeDecision canRemainDecision() {
+        return canRemainDecision;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(canAllocateDecisions);
-        out.writeList(canRemainDecisions);
+        out.writeOptionalWriteable(canRemainDecision);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.xContentList("can_allocate_decisions", canAllocateDecisions);
-        builder.xContentList("can_remain_decisions", canRemainDecisions);
+        builder.field("can_remain_decision", canRemainDecision);
         builder.endObject();
         return null;
     }
@@ -59,12 +62,11 @@ class NodeDecisions implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeDecisions that = (NodeDecisions) o;
-        return Objects.equals(canAllocateDecisions, that.canAllocateDecisions)
-            && Objects.equals(canRemainDecisions, that.canRemainDecisions);
+        return Objects.equals(canAllocateDecisions, that.canAllocateDecisions) && Objects.equals(canRemainDecision, that.canRemainDecision);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(canAllocateDecisions, canRemainDecisions);
+        return Objects.hash(canAllocateDecisions, canRemainDecision);
     }
 }

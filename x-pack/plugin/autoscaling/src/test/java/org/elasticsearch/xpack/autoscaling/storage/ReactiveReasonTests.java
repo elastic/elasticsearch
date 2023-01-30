@@ -48,20 +48,18 @@ public class ReactiveReasonTests extends ESTestCase {
             unassignedShardIds.first(),
             new NodeDecisions(
                 List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.NO, "no_label", "No space to allocate"))),
-                List.of()
+                null
             )
         );
         Map<ShardId, NodeDecisions> assignedShardAllocateDecision = Map.of(
             assignedShardIds.first(),
             new NodeDecisions(
                 List.of(),
-                List.of(
-                    new NodeDecision(
-                        discoveryNode,
-                        new Decision.Multi().add(Decision.single(Decision.Type.THROTTLE, "multi_throttle", "is not active yet"))
-                            .add(new Decision.Single(Decision.Type.NO, "multi_no", "No multi decision"))
-                            .add(new Decision.Single(Decision.Type.YES, "multi_yes", "Yes multi decision"))
-                    )
+                new NodeDecision(
+                    discoveryNode,
+                    new Decision.Multi().add(Decision.single(Decision.Type.THROTTLE, "multi_throttle", "is not active yet"))
+                        .add(new Decision.Single(Decision.Type.NO, "multi_no", "No multi decision"))
+                        .add(new Decision.Single(Decision.Type.YES, "multi_yes", "Yes multi decision"))
                 )
             )
         );
@@ -108,31 +106,32 @@ public class ReactiveReasonTests extends ESTestCase {
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
 
-            var canAllocateDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map.get(
-                "unassigned_node_decisions"
-            )).get(unassignedShardIds.first().toString())).get("can_allocate_decisions");
-            for (Map<String, Object> canAllocateDecision : canAllocateDecisions) {
+            Map<String, Object> unassignedNodeDecisions = (Map<String, Object>) ((Map<String, Object>) map.get("unassigned_node_decisions"))
+                .get(unassignedShardIds.first().toString());
+            for (Map<String, Object> canAllocateDecision : (List<Map<String, Object>>) unassignedNodeDecisions.get(
+                "can_allocate_decisions"
+            )) {
                 assertEquals("node1", canAllocateDecision.get("node_id"));
                 assertEquals(
                     List.of(Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate")),
                     canAllocateDecision.get("deciders")
                 );
             }
+            assertNull(unassignedNodeDecisions.get("can_remain_decision"));
 
-            var canRemainDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map.get(
-                "assigned_node_decisions"
-            )).get(assignedShardIds.first().toString())).get("can_remain_decisions");
-            for (Map<String, Object> canRemainDecision : canRemainDecisions) {
-                assertEquals("node1", canRemainDecision.get("node_id"));
-                assertEquals(
-                    List.of(
-                        Map.of("decision", "THROTTLE", "decider", "multi_throttle", "explanation", "is not active yet"),
-                        Map.of("decision", "NO", "decider", "multi_no", "explanation", "No multi decision"),
-                        Map.of("decision", "YES", "decider", "multi_yes", "explanation", "Yes multi decision")
-                    ),
-                    canRemainDecision.get("deciders")
-                );
-            }
+            Map<String, Object> assignedNodeDecisions = (Map<String, Object>) ((Map<String, Object>) map.get("assigned_node_decisions"))
+                .get(assignedShardIds.first().toString());
+            var canRemainDecision = (Map<String, Object>) assignedNodeDecisions.get("can_remain_decision");
+            assertEquals("node1", canRemainDecision.get("node_id"));
+            assertEquals(
+                List.of(
+                    Map.of("decision", "THROTTLE", "decider", "multi_throttle", "explanation", "is not active yet"),
+                    Map.of("decision", "NO", "decider", "multi_no", "explanation", "No multi decision"),
+                    Map.of("decision", "YES", "decider", "multi_yes", "explanation", "Yes multi decision")
+                ),
+                canRemainDecision.get("deciders")
+            );
+            assertEquals(List.of(), assignedNodeDecisions.get("can_allocate_decisions"));
         }
     }
 

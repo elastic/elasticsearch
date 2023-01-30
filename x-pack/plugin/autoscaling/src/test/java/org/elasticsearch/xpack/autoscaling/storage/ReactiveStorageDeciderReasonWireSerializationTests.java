@@ -135,7 +135,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
             5,
             () -> Tuple.tuple(
                 new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)),
-                new NodeDecisions(randomList(8, () -> randomNodeDecision()), randomList(8, () -> randomNodeDecision()))
+                new NodeDecisions(randomList(8, () -> randomNodeDecision()), randomBoolean() ? randomNodeDecision() : null)
             )
         );
     }

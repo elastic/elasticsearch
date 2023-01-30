@@ -43,6 +43,8 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResult.SingleSearchResult;
+import org.elasticsearch.search.rerank.RRFReranker;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -578,11 +580,43 @@ public final class SearchPhaseController {
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
-        final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+
+        int secondaryResultSize = -1;
+        List<List<TopDocs>> secondaryTopDocs = new ArrayList<>();
+        List<SortedTopDocs> secondarySortedTopDocs = new ArrayList<>();
+        for (SearchPhaseResult searchPhaseResult : queryResults) {
+            QuerySearchResult querySearchResult = searchPhaseResult.queryResult();
+            // TODO: check for timeouts and early terminations
+            if (secondaryResultSize != -1 && secondaryResultSize != querySearchResult.getSecondarySearchResults().size()) {
+                throw new IllegalStateException("unexpected number of secondary results");
+            }
+            secondaryResultSize = querySearchResult.getSecondarySearchResults().size();
+
+            for (int secondaryResultIndex = 0; secondaryResultIndex < secondaryResultSize; ++secondaryResultIndex) {
+                if (secondaryTopDocs.size() < secondaryResultSize) {
+                    secondaryTopDocs.add(new ArrayList<>());
+                }
+                SingleSearchResult secondarySearchResult = querySearchResult.getSecondarySearchResults().get(secondaryResultIndex);
+                TopDocsAndMaxScore secondaryTopDocsAndMaxScore = secondarySearchResult.consumeTopDocs();
+                setShardIndex(secondaryTopDocsAndMaxScore.topDocs, querySearchResult.getShardIndex());
+                secondaryTopDocs.get(secondaryResultIndex).add(secondaryTopDocsAndMaxScore.topDocs);
+            }
+        }
+
+        final SortedTopDocs sortedTopDocs;
+        if (secondaryTopDocs.isEmpty()) {
+            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+        } else {
+            for (List<TopDocs> std : secondaryTopDocs) {
+                secondarySortedTopDocs.add(sortDocs(isScrollRequest, std, 0, 10, List.of()));
+            }
+            sortedTopDocs = new RRFReranker(0).rerank(secondarySortedTopDocs);
+        }
         final TotalHits totalHits = topDocsStats.getTotalHits();
+
         return new ReducedQueryPhase(
             totalHits,
-            topDocsStats.fetchHits,
+            10,//topDocsStats.fetchHits,
             topDocsStats.getMaxScore(),
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
@@ -592,7 +626,7 @@ public final class SearchPhaseController {
             sortedTopDocs,
             sortValueFormats,
             numReducePhases,
-            size,
+            10,//size,
             from,
             false
         );
@@ -814,7 +848,7 @@ public final class SearchPhaseController {
         }
     }
 
-    record SortedTopDocs(
+    public record SortedTopDocs(
         // the searches merged top docs
         ScoreDoc[] scoreDocs,
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.

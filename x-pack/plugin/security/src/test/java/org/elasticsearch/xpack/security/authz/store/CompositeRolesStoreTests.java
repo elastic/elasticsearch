@@ -2081,8 +2081,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
         verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
-        assertThat(role.names().length, is(1));
-        assertThat(role.names()[0], equalTo(emptyRemoteRole ? "_empty_remote_role" : roleName));
+        if (emptyRemoteRole) {
+            assertThat(role.names().length, is(0));
+        } else {
+            assertThat(role.names().length, is(1));
+            assertThat(role.names()[0], equalTo(roleName));
+        }
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()

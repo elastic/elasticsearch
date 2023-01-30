@@ -138,6 +138,10 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         ActionListener<RolesRetrievalResult> listener
     ) {
         final Set<RoleDescriptor> roleDescriptors = remoteAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        if (roleDescriptors.isEmpty()) {
+            listener.onResponse(RolesRetrievalResult.EMPTY);
+            return;
+        }
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         listener.onResponse(rolesRetrievalResult);

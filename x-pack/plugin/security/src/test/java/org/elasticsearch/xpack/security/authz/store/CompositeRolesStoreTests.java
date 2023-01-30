@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -102,6 +104,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -1978,7 +1981,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], containsString("user_role_"));
     }
 
-    public void testRemoteAccessAuthentication() throws Exception {
+    public void testGetRoleForRemoteAccessAuthentication() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -1996,7 +1999,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
         );
-        ApiKeyService apiKeyService = spy(
+        final ApiKeyService apiKeyService = spy(
             new ApiKeyService(
                 SECURITY_ENABLED_SETTINGS,
                 Clock.systemUTC(),
@@ -2007,7 +2010,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(ThreadPool.class)
             )
         );
-        NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
+        final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
@@ -2037,12 +2040,35 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
                 () -> AuthenticationTestHelper.builder().build()
             ),
-            Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
+            Collections.singleton(
+                new RoleDescriptor(
+                    "user_role_" + randomAlphaOfLength(4),
+                    null,
+                    new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index*").privileges("all").build() },
+                    null
+                )
+            ),
             null,
             version
         );
+        final String roleName = RBACEngine.REMOTE_USER_ROLE_NAME;
         final Authentication authentication = apiKeyAuthentication.toRemoteAccess(
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+            AuthenticationTestHelper.randomRemoteAccessAuthentication(
+                new RoleDescriptorsIntersection(
+                    new RoleDescriptor(
+                        roleName,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
         );
 
         final PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -2052,7 +2078,42 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
         assertThat(role.names().length, is(1));
-        assertThat(role.names()[0], equalTo("remote_role"));
+        assertThat(role.names()[0], equalTo(roleName));
+
+        // Smoke-test authorization
+        final Metadata indexMetadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    )
+            )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    )
+            )
+            .build();
+        final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
+        assertThat(
+            role.authorize(SearchAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            is(true)
+        );
+        assertThat(
+            role.authorize(CreateIndexAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            is(false)
+        );
+        assertThat(
+            role.authorize(SearchAction.NAME, Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            is(false)
+        );
     }
 
     public void testGetRolesForRunAs() {

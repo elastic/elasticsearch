@@ -183,7 +183,7 @@ public abstract class ItemSetMapReduceValueSource {
 
             private final Field field;
             private final Bytes.WithOrdinals source;
-            private final LeafReaderContext ctx;
+            private final SortedSetDocValues docValues;
             private final LongBitSet bitSetFilter;
 
             GlobalOrdinals(
@@ -194,11 +194,12 @@ public abstract class ItemSetMapReduceValueSource {
             ) throws IOException {
                 this.field = field;
                 this.source = source;
-                this.ctx = ctx;
 
                 bitSetFilter = globalOrdinalsFilter != null
                     ? globalOrdinalsFilter.acceptedGlobalOrdinals(source.globalOrdinalsValues(ctx))
                     : null;
+
+                this.docValues = source.globalOrdinalsValues(ctx);
             }
 
             @Override
@@ -212,6 +213,7 @@ public abstract class ItemSetMapReduceValueSource {
 
                         if (valuesCount == 1) {
                             long v = values.nextOrd();
+                            assert v >= 0;
                             if (bitSetFilter == null || bitSetFilter.get(v)) {
                                 return new Tuple<>(field, Collections.singletonList(v));
                             }
@@ -226,6 +228,7 @@ public abstract class ItemSetMapReduceValueSource {
 
                         for (int i = 0; i < valuesCount; ++i) {
                             long v = values.nextOrd();
+                            assert v >= 0;
                             if (bitSetFilter == null || bitSetFilter.get(v)) {
                                 objects.add(v);
                             }
@@ -243,7 +246,7 @@ public abstract class ItemSetMapReduceValueSource {
 
             @Override
             public Object mapOrdinal(Object ord) throws IOException {
-                return source.globalOrdinalsValues(ctx).lookupOrd((Long) ord);
+                return docValues.lookupOrd((Long) ord);
             }
         }
 

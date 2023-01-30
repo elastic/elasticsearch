@@ -529,26 +529,6 @@ public class MetadataIndexTemplateService {
                 "index template [" + name + "] specifies a missing component templates " + missingComponentTemplates + " "
                     + "that does not exist and is not part of 'ignore_missing_component_templates'"
             );
-
-            /*
-            final List<String> missingComponentTemplates = template.composedOf()
-                .stream()
-                .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
-                .toList();
-
-            for (String missingComponentTemplate : missingComponentTemplates) {
-                if (ignoreMissingComponentTemplates.contains(missingComponentTemplate) == false) {
-                    throw new InvalidIndexTemplateException(
-                        name,
-                        // TODO: should we make the code more complex and only error out in the end to have the full list reported?
-                        "index template ["
-                            + name
-                            + "] specifies a missing component templates ["
-                            + missingComponentTemplate
-                            + "] that does not exist and is not part of 'ignore_missing_component_templates'"
-                    );
-                }
-            }*/
         }
     }
 

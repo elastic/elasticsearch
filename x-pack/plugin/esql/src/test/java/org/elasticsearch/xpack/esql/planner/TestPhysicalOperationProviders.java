@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
@@ -94,9 +92,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             for (int i = 0; i < testData.getPositionCount(); i++) {
                 docIndexBlockBuilder.appendInt(i);
             }
-            fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build();
-            fakeSourceAttributesBlocks[1] = IntBlock.newConstantBlockWith(0, testData.getPositionCount());
-            fakeSourceAttributesBlocks[2] = IntBlock.newConstantBlockWith(0, testData.getPositionCount());
+            fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build(); //instead of _doc
+            fakeSourceAttributesBlocks[1] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); //_shard id mocking
+            fakeSourceAttributesBlocks[2] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); //_segment id mocking
             Page newPageWithSourceAttributes = new Page(fakeSourceAttributesBlocks);
             return newPageWithSourceAttributes;
         }
@@ -212,44 +210,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
-        public void addInput(Page page) {
-            checkState(needsInput(), "Operator is already finishing");
-            requireNonNull(page, "page is null");
-
-            // Block block = maybeConvertToLongBlock(extractBlockForColumn(page, columnName));
-            Block block = extractBlockForColumn(page, columnName);
-            int positionCount = block.getPositionCount();
-
-            final LongBlock groupIdBlock;
-            if (block.asVector() != null) {
-                long[] groups = new long[positionCount];
-                for (int i = 0; i < positionCount; i++) {
-                    long bucketOrd = blockHash().add(block, i);
-                    if (bucketOrd < 0) { // already seen
-                        bucketOrd = -1 - bucketOrd;
-                    }
-                    groups[i] = bucketOrd;
-                }
-                groupIdBlock = new LongArrayVector(groups, positionCount).asBlock();
-            } else {
-                final LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-                for (int i = 0; i < positionCount; i++) {
-                    if (block.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        long bucketOrd = blockHash().add(block, i);
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                        }
-                        builder.appendLong(bucketOrd);
-                    }
-                }
-                groupIdBlock = builder.build();
-            }
-
-            for (GroupingAggregator aggregator : aggregators()) {
-                aggregator.processPage(groupIdBlock, page);
-            }
+        protected Block extractBlockFromPage(Page page) {
+            return extractBlockForColumn(page, columnName);
         }
     }
 

@@ -96,7 +96,7 @@ public class HashAggregationOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
 
-        Block block = page.getBlock(groupByChannel);
+        Block block = extractBlockFromPage(page);
         int positionCount = block.getPositionCount();
         final LongBlock groupIdBlock;
         if (block.asVector() != null) {
@@ -167,10 +167,6 @@ public class HashAggregationOperator implements Operator {
         Releasables.close(blockHash, () -> Releasables.close(aggregators));
     }
 
-    protected int groupByChannel() {
-        return groupByChannel;
-    }
-
     protected BlockHash blockHash() {
         return blockHash;
     }
@@ -183,6 +179,10 @@ public class HashAggregationOperator implements Operator {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }
+    }
+
+    protected Block extractBlockFromPage(Page page) {
+        return page.getBlock(groupByChannel);
     }
 
     @Override

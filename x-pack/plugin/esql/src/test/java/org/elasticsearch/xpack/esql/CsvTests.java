@@ -69,6 +69,32 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * CSV-based unit testing.
+ *
+ * Queries and their result live *.csv-spec files.
+ * The results used in these files were manually added by running the same query on a real (debug mode) ES node. CsvTestsDataLoader loads
+ * the test data helping to get the said results.
+ *
+ * CsvTestsDataLoader creates an index using the mapping in mapping-default.json. The same mapping file is also used to create the
+ * IndexResolver that helps validate the correctness of the query and the supported field data types.
+ * The created index and this class uses the data from employees.csv file as data. This class is creating one Page with Blocks in it using
+ * this file and the type of blocks matches the type of the schema specified on the first line of the csv file. These being said, the
+ * mapping in mapping-default.csv and employees.csv should be more or less in sync. An exception to this rule:
+ *
+ * languages:integer,languages.long:long. The mapping has "long" as a sub-field of "languages". ES knows what to do with sub-field, but
+ * employees.csv is specifically defining "languages.long" as "long" and also has duplicated columns for these two.
+ *
+ * ATM the first line from employees.csv file is not synchronized with the mapping itself, mainly because atm we do not support certain data
+ * types (still_hired field should be “boolean”, birth_date and hire_date should be “date” fields).
+ *
+ * When we add support for more field types, CsvTests should change to support the new Block types. Same goes for employees.csv file
+ * (the schema needs adjustment) and the mapping-default.json file (to add or change an existing field).
+ * When we add more operators, optimization rules to the logical or physical plan optimizers, there may be the need to change the operators
+ * in TestPhysicalOperationProviders or adjust TestPhysicalPlanOptimizer. For example, the TestPhysicalPlanOptimizer is skipping any
+ * rules that push operations to ES itself (a Limit for example). The TestPhysicalOperationProviders is a bit more complicated than that:
+ * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
+ */
 public class CsvTests extends ESTestCase {
 
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();

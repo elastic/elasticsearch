@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

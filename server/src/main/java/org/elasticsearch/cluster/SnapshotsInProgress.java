@@ -190,10 +190,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return TransportVersion.CURRENT.minimumCompatibilityVersion();
     }
 
-    private static final Version DIFFABLE_VERSION = Version.V_8_5_0;
+    private static final TransportVersion DIFFABLE_VERSION = TransportVersion.V_8_5_0;
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
             return new SnapshotInProgressDiff(in);
         }
         return readDiffFrom(Custom.class, TYPE, in);
@@ -1625,7 +1625,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
-            if (out.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
                 mapDiff.writeTo(out);
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);

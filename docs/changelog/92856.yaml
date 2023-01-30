@@ -1,6 +1,0 @@
-pr: 92856
-summary: Don't announce ready until file settings are applied
-area: Infra/Core
-type: bug
-issues:
- - 92812

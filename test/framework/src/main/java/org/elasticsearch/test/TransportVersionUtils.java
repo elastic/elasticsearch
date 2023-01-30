@@ -86,4 +86,8 @@ public class TransportVersionUtils {
         final List<TransportVersion> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
         return compatible.get(random.nextInt(compatible.size()));
     }
+
+    public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
+        return randomVersionBetween(random, version.calculateMinimumCompatVersion(), getPreviousVersion(version));
+    }
 }

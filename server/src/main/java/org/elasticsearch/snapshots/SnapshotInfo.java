@@ -497,7 +497,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      */
     public static SnapshotInfo readFrom(final StreamInput in) throws IOException {
         final Snapshot snapshot;
-        if (in.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
             snapshot = new Snapshot(in);
         } else {
             snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
@@ -1018,7 +1018,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
             snapshot.writeTo(out);
         } else {
             snapshot.getSnapshotId().writeTo(out);

@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.Command;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93335")
 public class ServerCliTests extends CommandTestCase {
 
     private SecureSettingsLoader mockSecureSettingsLoader;

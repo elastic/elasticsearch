@@ -85,7 +85,7 @@ final class JvmErgonomics {
      *         </ul>
      *
      * @throws IllegalStateException if neither `-XX:+UseG1GC` nor `-XX:-UseG1GC` is in the final JVM options, or `-XX:+UseG1GC` is selected
-     *                               and {@code optionName} is missing.
+     *                               and {@code optionName} is not in the final JVM options.
      */
     private static boolean usingG1GcWithoutCommandLineOriginOption(Map<String, JvmOption> finalJvmOptions, String optionName) {
         return getRequiredOption(finalJvmOptions, "UseG1GC").getMandatoryValue().equals("true")

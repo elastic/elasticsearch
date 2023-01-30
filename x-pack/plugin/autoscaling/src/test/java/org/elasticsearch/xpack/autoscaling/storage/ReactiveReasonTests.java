@@ -55,7 +55,14 @@ public class ReactiveReasonTests extends ESTestCase {
             assignedShardIds.first(),
             new NodeDecisions(
                 List.of(),
-                List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.YES, "yes_label", "There's enough space")))
+                List.of(
+                    new NodeDecision(
+                        discoveryNode,
+                        new Decision.Multi().add(Decision.single(Decision.Type.THROTTLE, "multi_throttle", "is not active yet"))
+                            .add(new Decision.Single(Decision.Type.NO, "multi_no", "No multi decision"))
+                            .add(new Decision.Single(Decision.Type.YES, "multi_yes", "Yes multi decision"))
+                    )
+                )
             )
         );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
@@ -107,8 +114,8 @@ public class ReactiveReasonTests extends ESTestCase {
             for (Map<String, Object> canAllocateDecision : canAllocateDecisions) {
                 assertEquals("node1", canAllocateDecision.get("node_id"));
                 assertEquals(
-                    Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate"),
-                    canAllocateDecision.get("node_decision")
+                    List.of(Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate")),
+                    canAllocateDecision.get("deciders")
                 );
             }
 
@@ -118,8 +125,12 @@ public class ReactiveReasonTests extends ESTestCase {
             for (Map<String, Object> canRemainDecision : canRemainDecisions) {
                 assertEquals("node1", canRemainDecision.get("node_id"));
                 assertEquals(
-                    Map.of("decision", "YES", "decider", "yes_label", "explanation", "There's enough space"),
-                    canRemainDecision.get("node_decision")
+                    List.of(
+                        Map.of("decision", "THROTTLE", "decider", "multi_throttle", "explanation", "is not active yet"),
+                        Map.of("decision", "NO", "decider", "multi_no", "explanation", "No multi decision"),
+                        Map.of("decision", "YES", "decider", "multi_yes", "explanation", "Yes multi decision")
+                    ),
+                    canRemainDecision.get("deciders")
                 );
             }
         }

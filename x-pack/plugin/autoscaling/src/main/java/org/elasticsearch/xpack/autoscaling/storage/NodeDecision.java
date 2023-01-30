@@ -64,7 +64,11 @@ class NodeDecision implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         discoveryNodeToXContent(node, false, builder);
-        builder.field("node_decision", decision);
+        {
+            builder.startArray("deciders");
+            decision.toXContent(builder, params);
+            builder.endArray();
+        }
         builder.endObject();
         return builder;
     }

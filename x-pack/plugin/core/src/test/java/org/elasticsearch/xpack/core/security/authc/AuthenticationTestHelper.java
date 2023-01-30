@@ -257,7 +257,7 @@ public class AuthenticationTestHelper {
                     // TODO randomize to add a second set once we have querying-cluster-side API key support
                     Set.of(
                         new RoleDescriptor(
-                            "_remote_role",
+                            "_remote_user",
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()

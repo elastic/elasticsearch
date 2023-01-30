@@ -83,7 +83,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // private WatchableFileSettings oss = new WatchableFileSettings();
 
     // Settings have a path, a file update state, and a watch key
-    static class WatchableFileSettings {
+    class WatchableFileSettings {
         final Path operatorSettingsDir;
         String settingsFileName;
         FileUpdateState fileUpdateState;
@@ -111,6 +111,22 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
             return (previousUpdateState == null
                 || previousUpdateState.equals(fileUpdateState) == false);
+        }
+
+        PlainActionFuture<Void> processFileSettings(Path path) {
+            PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
+            logger.info("processing path [{}] for [{}]", path, NAMESPACE);
+            try (
+                var fis = Files.newInputStream(path);
+                var bis = new BufferedInputStream(fis);
+                var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+            ) {
+                getStateService().process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
+            } catch (Exception e) {
+                completion.onFailure(e);
+            }
+
+            return completion;
         }
     }
 
@@ -467,20 +483,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         } while (true);
     }
 
-    PlainActionFuture<Void> processFileSettings(Path path) {
-        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
-        logger.info("processing path [{}] for [{}]", path, NAMESPACE);
-        try (
-            var fis = Files.newInputStream(path);
-            var bis = new BufferedInputStream(fis);
-            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
-        ) {
-            stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
-        } catch (Exception e) {
-            completion.onFailure(e);
-        }
+    ReservedClusterStateService getStateService() {
+        return stateService;
+    }
 
-        return completion;
+    PlainActionFuture<Void> processFileSettings(Path path) {
+        return fileSettingsMap.get(OPERATOR_DIRECTORY).processFileSettings(path);
     }
 
     private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {

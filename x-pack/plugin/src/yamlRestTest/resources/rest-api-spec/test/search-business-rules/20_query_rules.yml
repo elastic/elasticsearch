@@ -6,8 +6,8 @@
         rulesetId: my-rules-id
         body:
           mappings:
-            user: kimchy
-          rules: [{ "condition" : { "foo"}, "action" : {}}]
+            user: string
+          rules: [{ "condition" : {}, "action" : {}}]
 
   - match: { acknowledged: true }
 
@@ -17,7 +17,7 @@
 
   - match: { ruleset_id: my-rules-id }
   - match: { found: true }
-  - match: { _source.mappings.user: kimchy }
+  - match: { _source.mappings.user: string }
   - is_true: _source.rules.0.condition
   - is_true: _source.rules.0.action
 
@@ -38,3 +38,27 @@
 
   - match: { ruleset_id: my-rules-id }
   - match: { found: false }
+
+---
+"Test query rules list ids":
+
+  - do:
+      query_rules.put:
+        rulesetId: my-rules-id
+        body:
+          mappings:
+            user: string
+          rules: [{ "condition" : {}, "action" : {}}]
+
+  - do:
+      query_rules.put:
+        rulesetId: my-other-rules-id
+        body:
+          mappings:
+            user: string
+          rules: [{ "condition" : {}, "action" : {}}]
+
+  - do:
+      query_rules.list: {}
+
+  - match : { ruleset_ids : [ my-rules-id, my-other-rules-id] }

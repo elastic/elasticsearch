@@ -1,0 +1,24 @@
+{
+  "query_rules.list":{
+    "documentation":{
+      "url":"TODO",
+      "description":"List all available rule set ids"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_query_rules/_list",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

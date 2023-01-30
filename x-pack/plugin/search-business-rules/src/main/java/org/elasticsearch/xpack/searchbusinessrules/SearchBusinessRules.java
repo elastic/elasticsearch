@@ -27,6 +27,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.search.action.QueryRulesDeleteAction;
 import org.elasticsearch.xpack.core.search.action.QueryRulesGetAction;
+import org.elasticsearch.xpack.core.search.action.QueryRulesListAction;
 import org.elasticsearch.xpack.core.search.action.QueryRulesPutAction;
 
 import java.io.IOException;
@@ -50,7 +51,8 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionP
         return Arrays.asList(
             new ActionHandler<>(QueryRulesPutAction.INSTANCE, TransportQueryRulesPutAction.class),
             new ActionHandler<>(QueryRulesGetAction.INSTANCE, TransportQueryRulesGetAction.class),
-            new ActionHandler<>(QueryRulesDeleteAction.INSTANCE, TransportQueryRulesDeleteAction.class)
+            new ActionHandler<>(QueryRulesDeleteAction.INSTANCE, TransportQueryRulesDeleteAction.class),
+            new ActionHandler<>(QueryRulesListAction.INSTANCE, TransportQueryRulesListAction.class)
         );
     }
 
@@ -64,7 +66,12 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Arrays.asList(new RestQueryRulesPutAction(), new RestQueryRulesGetAction(), new RestQueryRulesDeleteAction());
+        return Arrays.asList(
+            new RestQueryRulesPutAction(),
+            new RestQueryRulesGetAction(),
+            new RestQueryRulesDeleteAction(),
+            new RestQueryRulesListAction()
+        );
     }
 
     @Override

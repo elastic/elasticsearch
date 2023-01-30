@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.Command;
@@ -30,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,10 +48,14 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93335")
 public class ServerCliTests extends CommandTestCase {
 
     private SecureSettingsLoader mockSecureSettingsLoader;
+
+    @BeforeClass
+    public static void skipForFips() {
+        assumeTrue("Pending fix for https://github.com/elastic/elasticsearch/issues/93335", inFipsJvm());
+    }
 
     @Before
     public void setupMockConfig() throws IOException {

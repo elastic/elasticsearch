@@ -554,6 +554,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a byte array, for null arrays it writes false.
+     * @param array an array or null
+     */
+    public void writeOptionalByteArray(@Nullable byte[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeByteArray(array);
+        }
+    }
+
     public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }

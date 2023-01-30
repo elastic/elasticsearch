@@ -138,7 +138,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
-
     private final Set<String> roleNames;
     private final String externalId;
 
@@ -605,6 +604,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
             stringBuilder.append('}');
         }
+        stringBuilder.append('{').append(version).append('}');
     }
 
     public String descriptionWithoutAttributes() {
@@ -620,19 +620,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         builder.field("ephemeral_id", getEphemeralId());
         builder.field("transport_address", getAddress().toString());
         builder.field("external_id", getExternalId());
-
-        builder.startObject("attributes");
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-
+        builder.stringStringMap("attributes", attributes);
         builder.startArray("roles");
         for (DiscoveryNodeRole role : roles) {
             builder.value(role.roleName());
         }
         builder.endArray();
-
+        builder.field("version", version);
         builder.endObject();
         return builder;
     }

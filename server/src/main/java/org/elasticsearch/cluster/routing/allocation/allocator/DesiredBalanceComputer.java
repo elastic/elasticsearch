@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -190,9 +191,15 @@ public class DesiredBalanceComputer {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
                     final var nodeId = nodeIds.removeFirst();
-                    final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
-                    clusterInfoSimulator.simulateShardStarted(shardToInitialize);
-                    routingNodes.startShard(logger, shardToInitialize, changes, 0L);
+                    final var routingNode = routingNodes.node(nodeId);
+                    if (routingNode != null
+                        && routingAllocation.deciders()
+                            .canAllocate(shardRouting, routingNode, routingAllocation)
+                            .type() != Decision.Type.NO) {
+                        final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
+                        clusterInfoSimulator.simulateShardStarted(shardToInitialize);
+                        routingNodes.startShard(logger, shardToInitialize, changes, 0L);
+                    }
                 }
             }
         }
@@ -203,10 +210,16 @@ public class DesiredBalanceComputer {
             if (unassignedPrimaries.contains(shardRouting.shardId()) == false) {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
-                    final String nodeId = nodeIds.removeFirst();
-                    ShardRouting shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
-                    clusterInfoSimulator.simulateShardStarted(shardToInitialize);
-                    routingNodes.startShard(logger, shardToInitialize, changes, 0L);
+                    final var nodeId = nodeIds.removeFirst();
+                    final var routingNode = routingNodes.node(nodeId);
+                    if (routingNode != null
+                        && routingAllocation.deciders()
+                            .canAllocate(shardRouting, routingNode, routingAllocation)
+                            .type() != Decision.Type.NO) {
+                        final var shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
+                        clusterInfoSimulator.simulateShardStarted(shardToInitialize);
+                        routingNodes.startShard(logger, shardToInitialize, changes, 0L);
+                    }
                 }
             }
         }

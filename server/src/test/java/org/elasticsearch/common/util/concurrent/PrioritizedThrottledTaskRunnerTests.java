@@ -9,6 +9,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -47,13 +49,16 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     static class TestTask extends AbstractRunnable implements Comparable<TestTask> {
+        private final Logger logger = LogManager.getLogger(TestTask.class);
 
         private final Runnable runnable;
         private final int priority;
+        private final String taskDescription;
 
-        TestTask(Runnable runnable, int priority) {
+        TestTask(Runnable runnable, int priority, String taskDescription) {
             this.runnable = runnable;
             this.priority = priority;
+            this.taskDescription = taskDescription;
         }
 
         @Override
@@ -63,7 +68,9 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         @Override
         public void doRun() {
+            logger.info("--> starting to execute task [{}]", taskDescription);
             runnable.run();
+            logger.info("--> finished task [{}]", taskDescription);
         }
 
         @Override
@@ -79,6 +86,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var threadBlocker = new CyclicBarrier(enqueued);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             new Thread(() -> {
                 awaitBarrier(threadBlocker);
                 taskRunner.enqueueTask(new TestTask(() -> {
@@ -88,7 +96,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
                     executedCountDown.countDown();
-                }, getRandomPriority()));
+                }, getRandomPriority(), "testMultiThreadedEnqueue-" + taskId));
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
         }
@@ -109,7 +117,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         taskRunner.enqueueTask(new TestTask(() -> {
             awaitBarrier(blockBarrier); // notify main thread that the runner is blocked
             awaitBarrier(blockBarrier); // wait for main thread to finish enqueuing tasks
-        }, getRandomPriority()));
+        }, getRandomPriority(), "blocking task"));
 
         blockBarrier.await(10, TimeUnit.SECONDS); // wait for blocking task to start executing
 
@@ -119,6 +127,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var enqueuedBarrier = new CyclicBarrier(enqueued + 1);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             final int priority = getRandomPriority();
             taskPriorities.add(priority);
             new Thread(() -> {
@@ -126,7 +135,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                 taskRunner.enqueueTask(new TestTask(() -> {
                     executedPriorities.add(priority);
                     executedCountDown.countDown();
-                }, priority));
+                }, priority, "concurrent enqueued tasks - " + taskId));
                 awaitBarrier(enqueuedBarrier); // notify main thread that the task is enqueued
             }).start();
         }
@@ -154,6 +163,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         CountDownLatch executedCountDown = new CountDownLatch(enqueued + newTasks);
         PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             taskRunner.enqueueTask(new TestTask(() -> {
                 try {
                     taskBlocker.await();
@@ -161,11 +171,12 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executedCountDown.countDown();
-            }, getRandomPriority()));
+            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax-" + taskId));
             assertThat(taskRunner.runningTasks(), equalTo(i + 1));
         }
         // Enqueueing one or more new tasks would create only one new running task
         for (int i = 0; i < newTasks; i++) {
+            final int taskId = i;
             taskRunner.enqueueTask(new TestTask(() -> {
                 try {
                     taskBlocker.await();
@@ -173,7 +184,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executedCountDown.countDown();
-            }, getRandomPriority()));
+            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax-" + taskId));
             assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
         }
         assertThat(taskRunner.queueSize(), equalTo(newTasks - 1));
@@ -198,17 +209,19 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
             try {
                 while (true) {
                     assertTrue(permits.tryAcquire(10, TimeUnit.SECONDS));
-                    taskRunner.enqueueTask(new TestTask(taskCompleted::countDown, getRandomPriority()) {
-                        @Override
-                        public void onRejection(Exception e) {
-                            rejectionCountDown.countDown();
-                        }
+                    taskRunner.enqueueTask(
+                        new TestTask(taskCompleted::countDown, getRandomPriority(), "testFailsTasksOnRejectionOrShutdown") {
+                            @Override
+                            public void onRejection(Exception e) {
+                                rejectionCountDown.countDown();
+                            }
 
-                        @Override
-                        public void onAfter() {
-                            permits.release();
+                            @Override
+                            public void onAfter() {
+                                permits.release();
+                            }
                         }
-                    });
+                    );
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

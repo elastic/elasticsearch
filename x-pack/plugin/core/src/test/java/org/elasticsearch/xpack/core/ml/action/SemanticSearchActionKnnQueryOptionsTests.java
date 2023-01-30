@@ -68,6 +68,11 @@ public class SemanticSearchActionKnnQueryOptionsTests extends AbstractWireSerial
         return randomInstance();
     }
 
+    @Override
+    protected SemanticSearchAction.KnnQueryOptions mutateInstance(SemanticSearchAction.KnnQueryOptions instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testToKnnSearchBuilder() {
         var knnOptions = new SemanticSearchAction.KnnQueryOptions("foo", 5, 100);
         knnOptions.boost(20.0f);

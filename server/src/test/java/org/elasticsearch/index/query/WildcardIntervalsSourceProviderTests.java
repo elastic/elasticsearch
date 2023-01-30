@@ -32,7 +32,7 @@ public class WildcardIntervalsSourceProviderTests extends AbstractXContentSerial
     }
 
     @Override
-    protected Wildcard mutateInstance(Wildcard instance) throws IOException {
+    protected Wildcard mutateInstance(Wildcard instance) {
         String wildcard = instance.getPattern();
         String analyzer = instance.getAnalyzer();
         String useField = instance.getUseField();

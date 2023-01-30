@@ -95,6 +95,7 @@ public final class ReservedFieldNames {
         AnomalyScoreExplanation.UPPER_CONFIDENCE_BOUND.getPreferredName(),
         AnomalyScoreExplanation.HIGH_VARIANCE_PENALTY.getPreferredName(),
         AnomalyScoreExplanation.INCOMPLETE_BUCKET_PENALTY.getPreferredName(),
+        AnomalyScoreExplanation.MULTIMODAL_DISTRIBUTION.getPreferredName(),
 
         GeoResults.TYPICAL_POINT.getPreferredName(),
         GeoResults.ACTUAL_POINT.getPreferredName(),

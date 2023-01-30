@@ -8,10 +8,12 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,8 +54,8 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_5_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_5_0;
     }
 
     @Override
@@ -94,6 +96,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public int hashCode() {
         return Objects.hash(diskMetadata);
+    }
+
+    @Override
+    public String toString() {
+        return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + '}';
     }
 
     /**
@@ -185,11 +192,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         }
 
         public ByteSizeValue getFreeBytesHighWatermark(ByteSizeValue total) {
-            return getFreeBytes(total, highWatermark, ByteSizeValue.MINUS_ONE);
+            return getFreeBytes(total, highWatermark, highMaxHeadroom);
         }
 
         public ByteSizeValue getFreeBytesFloodStageWatermark(ByteSizeValue total) {
-            return getFreeBytes(total, floodStageWatermark, ByteSizeValue.MINUS_ONE);
+            return getFreeBytes(total, floodStageWatermark, floodStageMaxHeadroom);
         }
 
         public ByteSizeValue getFreeBytesFrozenFloodStageWatermark(ByteSizeValue total) {

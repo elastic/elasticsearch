@@ -8,14 +8,8 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryNormalizer;
-import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
-import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -57,6 +51,12 @@ enum GridAggregation {
         @Override
         public Rectangle toRectangle(String bucketKey) {
             return GeoTileUtils.toBoundingBox(bucketKey);
+        }
+
+        @Override
+        public boolean needsBounding(int z, int gridPrecision) {
+            // we always bound it as it is pretty efficient anyway.
+            return true;
         }
     },
     GEOHEX {
@@ -172,24 +172,24 @@ enum GridAggregation {
 
         @Override
         public byte[] toGrid(String bucketKey, FeatureFactory featureFactory) {
-            final CellBoundary boundary = H3.h3ToGeoBoundary(bucketKey);
-            final double[] lats = new double[boundary.numPoints() + 1];
-            final double[] lons = new double[boundary.numPoints() + 1];
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                final LatLng latLng = boundary.getLatLon(i);
-                lats[i] = latLng.getLatDeg();
-                lons[i] = latLng.getLonDeg();
-            }
-            lats[boundary.numPoints()] = lats[0];
-            lons[boundary.numPoints()] = lons[0];
-            final Polygon polygon = new Polygon(new LinearRing(lons, lats));
-            final List<byte[]> x = featureFactory.getFeatures(GeometryNormalizer.apply(Orientation.CCW, polygon));
+            final List<byte[]> x = featureFactory.getFeatures(H3CartesianUtil.getNormalizeGeometry(H3.stringToH3(bucketKey)));
             return x.size() > 0 ? x.get(0) : null;
         }
 
         @Override
         public Rectangle toRectangle(String bucketKey) {
             return H3CartesianUtil.toBoundingBox(H3.stringToH3(bucketKey));
+        }
+
+        @Override
+        public boolean needsBounding(int z, int gridPrecision) {
+            /*
+              Bounded geohex aggregation can be expensive, in particular where there is lots of data outside the bounding
+              box. Because we are buffering our queries, this is magnified for low precision tiles. Because the total number
+              of buckets up to precision 3 is lower than the default max buckets, we better not bound those aggregations
+              which results in much better performance.
+             */
+            return gridPrecisionToAggPrecision(z, gridPrecision) > 3;
         }
     };
 
@@ -219,6 +219,11 @@ enum GridAggregation {
      * Returns the bounding box of the bin.
      */
     public abstract Rectangle toRectangle(String bucketKey);
+
+    /**
+     * If false, the aggregation at the given zoom and grid precision is not bound.
+     */
+    public abstract boolean needsBounding(int z, int gridPrecision);
 
     public static GridAggregation fromString(String type) {
         return switch (type.toLowerCase(Locale.ROOT)) {

@@ -35,7 +35,7 @@ public class GetScriptContextResponseTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) throws IOException {
+    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) {
         return new GetScriptContextResponse(ScriptContextInfoSerializingTests.mutateOne(instance.contexts.values()));
     }
 }

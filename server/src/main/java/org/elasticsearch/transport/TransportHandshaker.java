@@ -148,11 +148,7 @@ final class TransportHandshaker {
         );
         boolean success = false;
         try {
-            // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
-            // we also have no payload on the request but the response will contain the actual version of the node we talk
-            // to as the payload.
-            TransportVersion minCompatVersion = version.calculateMinimumCompatVersion();
-            handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
+            handshakeRequestSender.sendRequest(node, channel, requestId, HandshakeHeader.EARLIEST_HANDSHAKE_VERSION);
 
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
@@ -323,6 +319,6 @@ final class TransportHandshaker {
     @FunctionalInterface
     interface HandshakeRequestSender {
 
-        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, TransportVersion version) throws IOException;
+        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, int version) throws IOException;
     }
 }

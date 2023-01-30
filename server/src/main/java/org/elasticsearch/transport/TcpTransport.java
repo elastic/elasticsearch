@@ -197,7 +197,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 TransportHandshaker.HANDSHAKE_ACTION_NAME,
                 new TransportHandshaker.HandshakeRequest(version),
                 TransportRequestOptions.EMPTY,
-                v,
+                TransportVersion.fromId(v),
                 null,
                 true
             ),

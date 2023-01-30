@@ -135,7 +135,10 @@ public class InboundHandler {
                 }
                 // ignore if its null, the service logs it
                 if (responseHandler != null) {
-                    if (message.getContentLength() > 0 || header.getVersion().equals(TransportVersion.CURRENT) == false) {
+                    if (message.getContentLength() > 0
+                        || (header instanceof HandshakeHeader hh
+                            && hh.getVersion().equals(HandshakeHeader.CURRENT_HANDSHAKE_VERSION) == false)
+                        || (header instanceof Header h && h.getVersion().equals(TransportVersion.CURRENT) == false)) {
                         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         if (header instanceof Header h) {
                             assertRemoteVersion(streamInput, h.getVersion());

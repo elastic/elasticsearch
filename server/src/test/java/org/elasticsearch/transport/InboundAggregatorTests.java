@@ -174,8 +174,13 @@ public class InboundAggregatorTests extends ESTestCase {
 
         // Handshakes are not broken
         final byte handshakeStatus = TransportStatus.setHandshake(TransportStatus.setRequest((byte) 0));
-        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, TransportVersion.CURRENT);
-        handshakeHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        HandshakeHeader handshakeHeader = new HandshakeHeader(
+            randomInt(),
+            randomNonNegativeLong(),
+            handshakeStatus,
+            TransportVersion.CURRENT.id
+        );
+        handshakeHeader.readHeaders = true;
         handshakeHeader.actionName = "handshake";
         // Initiate Message
         aggregator.headerReceived(handshakeHeader);

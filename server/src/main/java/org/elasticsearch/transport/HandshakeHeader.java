@@ -33,8 +33,8 @@ public class HandshakeHeader extends MessageHeader {
     static final int HAS_FEATURES = 8000099;
 
     private final Integer handshakeVersion;
-    private String actionName;
-    private boolean readHeaders;
+    String actionName;
+    boolean readHeaders;
 
     public HandshakeHeader(int networkMessageSize, long requestId, byte status, int handshakeVersion) {
         super(networkMessageSize, requestId, status);

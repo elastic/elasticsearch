@@ -974,6 +974,7 @@ public final class Authentication implements ToXContentObject, Writeable {
 
     public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
         assert isApiKey() : "can only convert API key authentication to remote access";
+        assert false == isRunAs() : "remote access does not support authentication with run-as";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
         final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
@@ -1060,8 +1061,6 @@ public final class Authentication implements ToXContentObject, Writeable {
         final TransportVersion olderVersion,
         final Authentication authentication
     ) {
-        // TODO also handle remote access authentication executed with old API keys (either by rejecting this, or rewriting role
-        // descriptors)
         assert authentication.isRemoteAccess() : "authentication must be remote access";
         final Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         assert metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)

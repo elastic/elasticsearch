@@ -117,7 +117,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return fileSettingsMap.get(OPERATOR_DIRECTORY).operatorSettingsDir;
     }
 
-    public List<Path> operatorSettingsDirList() {
+    public List<Path> operatorSettingsDirs() {
         return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir).distinct().toList();
     }
 
@@ -125,6 +125,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public Path operatorSettingsFile() {
         WatchableFileSettings operator = fileSettingsMap.get(OPERATOR_DIRECTORY);
         return operator.operatorSettingsDir.resolve(operator.settingsFileName);
+    }
+
+    public List<Path> operatorSettingsFiles() {
+        return fileSettingsMap.values().stream().map(v -> v.operatorSettingsDir.resolve(v.settingsFileName)).toList();
     }
 
     // platform independent way to tell if a file changed
@@ -211,7 +215,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && Files.exists(operatorSettingsFile())) {
+        if (watching() && operatorSettingsFiles().stream().anyMatch(Files::exists)) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -237,12 +241,16 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
             // like snapshot restores.
-            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(operatorSettingsFile())) {
-                try {
-                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
-                } catch (IOException e) {
-                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
-                }
+            if (fileSettingsMetadata != null
+                && fileSettingsMetadata.version() == 0L
+                && operatorSettingsFiles().stream().anyMatch(Files::exists)) {
+                operatorSettingsFiles().forEach(file -> {
+                    try {
+                        Files.setLastModifiedTime(file, FileTime.from(Instant.now()));
+                    } catch (IOException e) {
+                        logger.warn("encountered I/O error trying to update file settings timestamp", e);
+                    }
+                });
             }
         }
     }
@@ -268,7 +276,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
          */
         try {
             // TODO[wrb]: can we assume that all our settings are on the same filesystem? for now throw error if this isn't the case
-            List<Path> settingsDirPathList = operatorSettingsDirList();
+            List<Path> settingsDirPathList = operatorSettingsDirs();
             assert settingsDirPathList.stream().map(Path::getParent).map(Path::getFileSystem).distinct().count() == 1;
             Path settingsDirPath = settingsDirPathList.stream().findAny().orElseThrow();
             this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
@@ -306,10 +314,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
-            Path path = operatorSettingsFile();
-
-            if (Files.exists(path)) {
-                logger.debug("found initial operator settings file [{}], applying...", path);
+            if (operatorSettingsFiles().stream().anyMatch(Files::exists)) {
+                logger.debug("found initial operator settings file [{}], applying...", operatorSettingsFiles());
                 processSettingsAndNotifyListeners();
             } else {
                 // Notify everyone we don't have any initial file settings
@@ -334,7 +340,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                  * After we get an indication that something has changed, we check the timestamp, file id,
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
-                List<Path> settingsPathList = operatorSettingsDirList();
+                List<Path> settingsPathList = operatorSettingsDirs();
 
                 if (settingsPathList.stream().anyMatch(Files::exists)) {
                     try {
@@ -356,8 +362,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             );
                         }
 
-                        if (watchedFileChanged(path)) {
-                            processSettingsAndNotifyListeners();
+                        for (Path path : operatorSettingsFiles()) {
+                            if (watchedFileChanged(path)) {
+                                processSettingsAndNotifyListeners();
+                                break;
+                            }
                         }
                     } catch (IOException e) {
                         logger.warn("encountered I/O error while watching file settings", e);
@@ -377,7 +386,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
-            processFileSettings(operatorSettingsFile()).get();
+            for (Path settingsFile : operatorSettingsFiles()) {
+                processFileSettings(settingsFile).get();
+            }
             for (var listener : eventListeners) {
                 listener.settingsChanged();
             }

@@ -505,9 +505,9 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
-        final List<String> ignoreMissingComponentTemplates = (
-            template.getIgnoreMissingComponentTemplates() == null? List.of():template.getIgnoreMissingComponentTemplates()
-        );
+        final List<String> ignoreMissingComponentTemplates = (template.getIgnoreMissingComponentTemplates() == null
+            ? List.of()
+            : template.getIgnoreMissingComponentTemplates());
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
@@ -521,12 +521,15 @@ public class MetadataIndexTemplateService {
             );
         }
 
-
         if (missingComponentTemplates.size() > 0 && ignoreMissingComponentTemplates.size() > 0) {
 
             throw new InvalidIndexTemplateException(
                 name,
-                "index template [" + name + "] specifies a missing component templates " + missingComponentTemplates + " "
+                "index template ["
+                    + name
+                    + "] specifies a missing component templates "
+                    + missingComponentTemplates
+                    + " "
                     + "that does not exist and is not part of 'ignore_missing_component_templates'"
             );
         }

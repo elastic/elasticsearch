@@ -92,7 +92,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
  * of this class should just need to know about the {@link #effectiveSubject}. That is, often times, the caller
  * begins with {@code authentication.getEffectiveSubject()} for interrogating an Authentication object.
  */
-public final class Authentication implements ToXContentObject, Writeable {
+public final class Authentication implements ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
@@ -504,7 +504,6 @@ public final class Authentication implements ToXContentObject, Writeable {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
 
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
         // not send them across the wire to older nodes

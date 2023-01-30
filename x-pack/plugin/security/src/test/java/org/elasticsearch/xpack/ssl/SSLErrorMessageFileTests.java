@@ -17,7 +17,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
@@ -208,7 +207,6 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForRemoteClusterSslEnabledWithoutKeys() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String prefix = "xpack.security.remote_cluster.ssl";
         final Settings.Builder builder = Settings.builder().put("remote_cluster.enabled", true);
         // remote cluster ssl is enabled by default
@@ -241,7 +239,6 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testNoErrorIfRemoteClusterOrSslDisabledWithoutKeys() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String prefix = "xpack.security.remote_cluster.ssl";
         final Settings.Builder builder = Settings.builder().put(prefix + ".enabled", false);
         if (randomBoolean()) {

@@ -15,7 +15,6 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.hamcrest.Matchers;
 
@@ -65,7 +64,6 @@ public class ProfileConfigurationsTests extends ESTestCase {
     }
 
     public void testTransportAndRemoteClusterSslCanBeEnabledIndependently() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         assumeFalse("Can't run in a FIPS JVM with JKS/PKCS12 keystore or verification mode None", inFipsJvm());
         final boolean transportSslEnabled = randomBoolean();
         final boolean remoteClusterSslEnabled = randomBoolean();
@@ -109,7 +107,6 @@ public class ProfileConfigurationsTests extends ESTestCase {
     }
 
     public void testNoProfileConfigurationForRemoteClusterIfFeatureIsDisabled() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         assumeFalse("Can't run in a FIPS JVM with JKS/PKCS12 keystore or verification mode None", inFipsJvm());
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())

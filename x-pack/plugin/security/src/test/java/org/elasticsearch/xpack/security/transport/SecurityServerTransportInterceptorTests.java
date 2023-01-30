@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentica
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -841,13 +842,14 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testProfileFiltersCreatedDifferentlyForDifferentTransportAndRemoteClusterSslSettings() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
+        // filters are created irrespective of ssl enabled
+        final boolean transportSslEnabled = randomBoolean();
+        final boolean remoteClusterSslEnabled = randomBoolean();
         final Settings.Builder builder = Settings.builder()
             .put(this.settings)
-            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
             .put("remote_cluster.enabled", true)
-            .put("xpack.security.remote_cluster.ssl.enabled", true);
+            .put("xpack.security.remote_cluster.ssl.enabled", remoteClusterSslEnabled);
         final SSLService sslService = mock(SSLService.class);
 
         when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
@@ -892,8 +894,49 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), containsInAnyOrder("default", "_remote_cluster"));
-        assertThat(profileFilters.get("default").isExtractClientCert(), is(true));
+        assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
         assertThat(profileFilters.get("_remote_cluster").isExtractClientCert(), is(false));
+    }
+
+    public void testNoProfileFilterForRemoteClusterWhenTheFeatureIsDisabled() {
+        final boolean transportSslEnabled = randomBoolean();
+        final Settings.Builder builder = Settings.builder()
+            .put(this.settings)
+            .put("xpack.security.transport.ssl.enabled", transportSslEnabled)
+            .put("remote_cluster.enabled", false)
+            .put("xpack.security.remote_cluster.ssl.enabled", randomBoolean());
+        final SSLService sslService = mock(SSLService.class);
+
+        when(sslService.getSSLConfiguration("xpack.security.transport.ssl.")).thenReturn(
+            new SslConfiguration(
+                "xpack.security.transport.ssl",
+                randomBoolean(),
+                mock(SslTrustConfig.class),
+                mock(SslKeyConfig.class),
+                randomFrom(SslVerificationMode.values()),
+                SslClientAuthenticationMode.REQUIRED,
+                List.of("TLS_AES_256_GCM_SHA384"),
+                List.of("TLSv1.3")
+            )
+        );
+
+        final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
+            builder.build(),
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            sslService,
+            securityContext,
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            ),
+            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings())
+        );
+
+        final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
+        assertThat(profileFilters.keySet(), contains("default"));
+        assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
     }
 
     private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {

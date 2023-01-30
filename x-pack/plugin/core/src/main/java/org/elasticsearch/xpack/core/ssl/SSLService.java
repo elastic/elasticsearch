@@ -30,7 +30,6 @@ import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -593,7 +592,7 @@ public class SSLService {
         sslSettingsMap.put(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX, settings.getByPrefix(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX));
         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
             sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX, getRemoteClusterSslSettings(settings));
         }
         return Collections.unmodifiableMap(sslSettingsMap);

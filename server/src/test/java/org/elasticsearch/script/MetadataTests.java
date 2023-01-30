@@ -58,7 +58,7 @@ public class MetadataTests extends ESTestCase {
         for (String key : keys) {
             validators.put(key, Metadata.FieldProperty.ALLOW_ALL);
         }
-        return validators;
+        return Map.copyOf(validators);
     }
 
     public void testValidateMetadata() {

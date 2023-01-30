@@ -14,5 +14,9 @@ import java.util.List;
 
 public interface Reranker {
 
+    default int windowSize() {
+        return -1;
+    }
+
     SortedTopDocs rerank(List<SortedTopDocs> sortedTopDocs);
 }

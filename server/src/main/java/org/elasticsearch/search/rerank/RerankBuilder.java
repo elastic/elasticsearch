@@ -72,6 +72,13 @@ public class RerankBuilder implements Writeable, ToXContent {
         return rrfBuilder;
     }
 
+    public Reranker reranker() {
+        if (rrfBuilder != null) {
+            return rrfBuilder().reranker();
+        }
+        return null;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

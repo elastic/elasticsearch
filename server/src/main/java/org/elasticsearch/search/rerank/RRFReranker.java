@@ -18,10 +18,17 @@ import java.util.List;
 
 public class RRFReranker implements Reranker {
 
+    protected final int windowSize;
     protected final int k;
 
-    public RRFReranker(int k) {
+    public RRFReranker(int windowSize, int k) {
+        this.windowSize = windowSize;
         this.k = k;
+    }
+
+    @Override
+    public int windowSize() {
+        return windowSize;
     }
 
     @Override

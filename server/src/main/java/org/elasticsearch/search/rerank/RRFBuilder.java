@@ -87,6 +87,10 @@ public class RRFBuilder implements Writeable, ToXContent {
         return windowSize;
     }
 
+    public RRFReranker reranker() {
+        return new RRFReranker(windowSize, rankConstant);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

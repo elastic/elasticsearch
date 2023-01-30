@@ -86,6 +86,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var threadBlocker = new CyclicBarrier(enqueued);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             new Thread(() -> {
                 awaitBarrier(threadBlocker);
                 taskRunner.enqueueTask(new TestTask(() -> {
@@ -95,7 +96,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
                     executedCountDown.countDown();
-                }, getRandomPriority(), "testMultiThreadedEnqueue"));
+                }, getRandomPriority(), "testMultiThreadedEnqueue-" + taskId));
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
         }
@@ -126,6 +127,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final var enqueuedBarrier = new CyclicBarrier(enqueued + 1);
         final var executedCountDown = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             final int priority = getRandomPriority();
             taskPriorities.add(priority);
             new Thread(() -> {
@@ -133,7 +135,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                 taskRunner.enqueueTask(new TestTask(() -> {
                     executedPriorities.add(priority);
                     executedCountDown.countDown();
-                }, priority, "concurrent enqueued tasks"));
+                }, priority, "concurrent enqueued tasks - " + taskId));
                 awaitBarrier(enqueuedBarrier); // notify main thread that the task is enqueued
             }).start();
         }
@@ -161,6 +163,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         CountDownLatch executedCountDown = new CountDownLatch(enqueued + newTasks);
         PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         for (int i = 0; i < enqueued; i++) {
+            final int taskId = i;
             taskRunner.enqueueTask(new TestTask(() -> {
                 try {
                     taskBlocker.await();
@@ -168,11 +171,12 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executedCountDown.countDown();
-            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax"));
+            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax-" + taskId));
             assertThat(taskRunner.runningTasks(), equalTo(i + 1));
         }
         // Enqueueing one or more new tasks would create only one new running task
         for (int i = 0; i < newTasks; i++) {
+            final int taskId = i;
             taskRunner.enqueueTask(new TestTask(() -> {
                 try {
                     taskBlocker.await();
@@ -180,7 +184,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executedCountDown.countDown();
-            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax"));
+            }, getRandomPriority(), "testEnqueueSpawnsNewTasksUpToMax-" + taskId));
             assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
         }
         assertThat(taskRunner.queueSize(), equalTo(newTasks - 1));

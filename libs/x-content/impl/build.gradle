@@ -10,12 +10,12 @@ apply plugin: 'elasticsearch.java'
 
 archivesBaseName = "x-content-impl"
 
-String jacksonVersion = "2.14.1"
+String jacksonVersion = "2.14.2"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  implementation project(path: ':libs:x-content:impl:es-jackson-core', configuration: 'shadow')
+  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"

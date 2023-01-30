@@ -536,7 +536,7 @@ public class ServerCliTests extends CommandTestCase {
                     return mockSecureSettingsLoader;
                 }
 
-                return super.secureSettingsLoader(env);
+                return new KeystoreSecureSettingsLoader();
             }
         };
     }
@@ -605,6 +605,10 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
+            // make sure we don't fail in fips mode when we run with an empty password
+            if (password == null || password.isEmpty()) {
+                return KeyStoreWrapper.create();
+            }
             return super.bootstrap(environment, password);
         }
     }

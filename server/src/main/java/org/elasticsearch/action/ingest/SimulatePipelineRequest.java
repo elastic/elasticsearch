@@ -36,6 +36,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
+    public static final String PROCESSORS_KEY = "processors";
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
@@ -147,6 +149,14 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService, RestApiVersion restApiVersion)
         throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
+
+        // check for nested objects in processor configs
+        List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, pipelineConfig, PROCESSORS_KEY);
+        if (processorConfigs.stream().anyMatch(processor -> processor.keySet().size() > 1)) {
+            throw new IllegalArgumentException("[processors] contains nested objects but should be a list of single-entry objects");
+        }
+        pipelineConfig.put(PROCESSORS_KEY, processorConfigs);
+
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID,
             pipelineConfig,

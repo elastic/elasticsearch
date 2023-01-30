@@ -210,6 +210,41 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.pipeline().getDescription(), nullValue());
         assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(numProcessors));
     }
+    public void testParseWithNestedProcessors() throws Exception {
+        Map<String, Object> requestContent = new HashMap<>();
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        List<Map<String, Object>> processors = new ArrayList<>();
+        Map<String, Object> processorConfig = new HashMap<>();
+        List<Map<String, Object>> docs = new ArrayList<>();
+        requestContent.put(Fields.DOCS, docs);
+        String fieldName = randomAlphaOfLengthBetween(1, 10);
+        String fieldValue = randomAlphaOfLengthBetween(1, 10);
+        Map<String, Object> doc = new HashMap<>();
+        doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
+        docs.add(doc);
+
+        // first processor
+        processors.add(Collections.singletonMap("mock_processor", new HashMap<>()));
+
+        // second processor, which is a grok and a date in the same object
+        processorConfig.put("mock_grok", new HashMap<>());
+        processorConfig.put("mock_date", new HashMap<>());
+        processors.add(processorConfig);
+
+        pipelineConfig.put("processors", processors);
+        requestContent.put(Fields.PIPELINE, pipelineConfig);
+
+        // parse and expect failure
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimulatePipelineRequest.parse(
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current()
+            ));
+        assertThat(e.getMessage(), equalTo("[processors] contains nested objects but should be a list of single-entry objects"));
+    }
 
     public void testNullPipelineId() {
         Map<String, Object> requestContent = new HashMap<>();

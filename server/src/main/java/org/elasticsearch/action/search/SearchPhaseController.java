@@ -610,7 +610,7 @@ public final class SearchPhaseController {
             for (List<TopDocs> std : secondaryTopDocs) {
                 secondarySortedTopDocs.add(sortDocs(isScrollRequest, std, 0, 10, List.of()));
             }
-            sortedTopDocs = new RRFReranker(0).rerank(secondarySortedTopDocs);
+            sortedTopDocs = new RRFReranker(10, 0).rerank(secondarySortedTopDocs);
         }
         final TotalHits totalHits = topDocsStats.getTotalHits();
 

@@ -319,7 +319,9 @@ public abstract class ItemSetMapReduceValueSource {
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
-            if (AbstractItemSetMapReducer.OrdinalOptimization.GLOBAL_ORDINALS.equals(ordinalOptimization) && config.hasOrdinals()) {
+            if (AbstractItemSetMapReducer.OrdinalOptimization.GLOBAL_ORDINALS.equals(ordinalOptimization)
+                && config.getValuesSource() instanceof Bytes.WithOrdinals
+                && ((Bytes.WithOrdinals) config.getValuesSource()).supportsGlobalOrdinalsMapping()) {
                 logger.debug("Use ordinals for field [{}]", config.fieldContext().field());
 
                 this.executionStrategy = new GlobalOrdinals(

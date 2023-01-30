@@ -60,7 +60,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;
     private FileSettingsService fileSettingsService;
-    private FileSettingsService.WatchableFileSettings watchableFileSettings;
+    private WatchableFileSettings watchableFileSettings;
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
 

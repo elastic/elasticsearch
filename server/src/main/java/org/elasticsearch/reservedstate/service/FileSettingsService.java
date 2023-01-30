@@ -21,9 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
@@ -31,7 +29,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
@@ -39,8 +36,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
-
-import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**
  * File based settings applier service which watches an 'operator` directory inside the config directory.
@@ -82,54 +77,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // private WatchableFileSettings oss = new WatchableFileSettings();
 
-    // Settings have a path, a file update state, and a watch key
-    class WatchableFileSettings {
-        final Path operatorSettingsDir;
-        String settingsFileName;
-        FileUpdateState fileUpdateState;
-        WatchKey settingsDirWatchKey;
-
-        WatchableFileSettings(Path operatorSettingsDir) {
-            this.operatorSettingsDir = operatorSettingsDir;
-        }
-
-        // platform independent way to tell if a file changed
-        // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
-        boolean watchedFileChanged(Path path) throws IOException {
-            if (Files.exists(path) == false) {
-                return false;
-            }
-
-            FileUpdateState previousUpdateState = fileUpdateState;
-
-            BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-            fileUpdateState = new FileUpdateState(
-                attr.lastModifiedTime().toMillis(),
-                path.toRealPath().toString(),
-                attr.fileKey()
-            );
-
-            return (previousUpdateState == null
-                || previousUpdateState.equals(fileUpdateState) == false);
-        }
-
-        PlainActionFuture<Void> processFileSettings(Path path) {
-            PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
-            logger.info("processing path [{}] for [{}]", path, NAMESPACE);
-            try (
-                var fis = Files.newInputStream(path);
-                var bis = new BufferedInputStream(fis);
-                var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
-            ) {
-                getStateService().process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
-            } catch (Exception e) {
-                completion.onFailure(e);
-            }
-
-            return completion;
-        }
-    }
-
     /**
      * Constructs the {@link FileSettingsService}
      *
@@ -143,7 +90,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.eventListeners = new CopyOnWriteArrayList<>();
         // initialize file settings map
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        WatchableFileSettings watchableFileSettings = new WatchableFileSettings(operatorSettings);
+        WatchableFileSettings watchableFileSettings = new WatchableFileSettings(this, operatorSettings);
         watchableFileSettings.settingsFileName = SETTINGS_FILE_NAME;
         fileSettingsMap.put(OPERATOR_DIRECTORY, watchableFileSettings);
     }
@@ -489,14 +436,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     PlainActionFuture<Void> processFileSettings(Path path) {
         return fileSettingsMap.get(OPERATOR_DIRECTORY).processFileSettings(path);
-    }
-
-    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
-        if (e != null) {
-            completion.onFailure(e);
-        } else {
-            completion.onResponse(null);
-        }
     }
 
     /**

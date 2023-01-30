@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.search.action.QueryRulesDeleteAction;
 import org.elasticsearch.xpack.core.search.action.QueryRulesGetAction;
 import org.elasticsearch.xpack.core.search.action.QueryRulesPutAction;
 
@@ -48,7 +49,8 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionP
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(QueryRulesPutAction.INSTANCE, TransportQueryRulesPutAction.class),
-            new ActionHandler<>(QueryRulesGetAction.INSTANCE, TransportQueryRulesGetAction.class)
+            new ActionHandler<>(QueryRulesGetAction.INSTANCE, TransportQueryRulesGetAction.class),
+            new ActionHandler<>(QueryRulesDeleteAction.INSTANCE, TransportQueryRulesDeleteAction.class)
         );
     }
 
@@ -62,7 +64,7 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Arrays.asList(new RestQueryRulesPutAction(), new RestQueryRulesGetAction());
+        return Arrays.asList(new RestQueryRulesPutAction(), new RestQueryRulesGetAction(), new RestQueryRulesDeleteAction());
     }
 
     @Override

@@ -1,0 +1,30 @@
+{
+  "query_rules.delete":{
+    "documentation":{
+      "url":"TODO",
+      "description":"Allows to delete a query rules set from the cluster"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_query_rules/{rulesetId}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "rulesetId":{
+              "type":"string",
+              "description":"A unique rule set id"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

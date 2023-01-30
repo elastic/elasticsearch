@@ -27,3 +27,14 @@
 
   - match: { ruleset_id : some-other-id }
   - match: { found : false }
+
+  - do:
+      query_rules.delete:
+        rulesetId: my-rules-id
+
+  - do:
+      query_rules.get:
+        rulesetId: my-rules-id
+
+  - match: { ruleset_id: my-rules-id }
+  - match: { found: false }

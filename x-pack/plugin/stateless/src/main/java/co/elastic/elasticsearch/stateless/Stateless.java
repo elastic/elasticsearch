@@ -207,9 +207,10 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         return Optional.of(config -> {
+            TranslogReplicator replicator = translogReplicator.get();
+            TranslogConfig translogConfig = config.getTranslogConfig();
+            replicator.setBigArrays(translogConfig.getBigArrays());
             if (config.isPromotableToPrimary()) {
-                TranslogReplicator replicator = translogReplicator.get();
-                TranslogConfig translogConfig = config.getTranslogConfig();
                 TranslogConfig newTranslogConfig = new TranslogConfig(
                     translogConfig.getShardId(),
                     translogConfig.getTranslogPath(),

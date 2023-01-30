@@ -90,14 +90,13 @@ public class Metadata {
         int numMetadata = 0;
         for (Map.Entry<String, FieldProperty<?>> entry : properties.entrySet()) {
             String key = entry.getKey();
-            Object value = map.getOrDefault(key, NOT_FOUND);
-            if (value != NOT_FOUND) {
-                numMetadata++;
-                // check whether it's permissible to have the value for the property
-                entry.getValue().check(MapOperation.INIT, key, value);
-            } else {
+            Object value = map.getOrDefault(key, NOT_FOUND); // getOrDefault is faster than containsKey + get
+            if (value == NOT_FOUND) {
                 // check whether it's permissible to *not* have a value for the property
                 entry.getValue().check(MapOperation.INIT, key, null);
+            } else {
+                numMetadata++;
+                entry.getValue().check(MapOperation.INIT, key, value);
             }
         }
         if (numMetadata < map.size()) {

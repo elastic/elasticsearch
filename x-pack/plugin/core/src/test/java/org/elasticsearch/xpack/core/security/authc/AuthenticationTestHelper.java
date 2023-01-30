@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -68,7 +71,8 @@ public class AuthenticationTestHelper {
         AuthenticationField.ANONYMOUS_REALM_TYPE,
         AuthenticationField.ATTACH_REALM_TYPE,
         AuthenticationField.FALLBACK_REALM_TYPE,
-        ServiceAccountSettings.REALM_TYPE
+        ServiceAccountSettings.REALM_TYPE,
+        AuthenticationField.REMOTE_ACCESS_REALM_TYPE
     );
 
     private static final Set<User> INTERNAL_USERS = Set.of(
@@ -204,7 +208,7 @@ public class AuthenticationTestHelper {
         );
     }
 
-    private static User stripRoles(User user) {
+    static User stripRoles(User user) {
         if (user.roles() != null || user.roles().length == 0) {
             return new User(user.principal(), Strings.EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
         } else {
@@ -233,6 +237,43 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
+        try {
+            // TODO add apikey() once we have querying-cluster-side API key support
+            final Authentication authentication = ESTestCase.randomFrom(
+                AuthenticationTestHelper.builder().realm(),
+                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
+            ).build();
+            return new RemoteAccessAuthentication(
+                authentication,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        // TODO randomize to add a second set once we have querying-cluster-side API key support
+                        Set.of(
+                            new RoleDescriptor(
+                                "a",
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index1")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static class AuthenticationTestBuilder {
         private TransportVersion transportVersion;
         private Authentication authenticatingAuthentication;
@@ -242,6 +283,7 @@ public class AuthenticationTestHelper {
         private final Map<String, Object> metadata = new HashMap<>();
         private Boolean isServiceAccount;
         private Boolean isRealmUnderDomain;
+        private RemoteAccessAuthentication remoteAccessAuthentication;
 
         private AuthenticationTestBuilder() {}
 
@@ -335,6 +377,22 @@ public class AuthenticationTestHelper {
             }
         }
 
+        public AuthenticationTestBuilder remoteAccess() {
+            return remoteAccess(ESTestCase.randomAlphaOfLength(20), randomRemoteAccessAuthentication());
+        }
+
+        public AuthenticationTestBuilder remoteAccess(
+            final String remoteAccessApiKeyId,
+            final RemoteAccessAuthentication remoteAccessAuthentication
+        ) {
+            if (authenticatingAuthentication != null) {
+                throw new IllegalArgumentException("cannot use remote access authentication as run-as target");
+            }
+            apiKey(remoteAccessApiKeyId);
+            this.remoteAccessAuthentication = Objects.requireNonNull(remoteAccessAuthentication);
+            return this;
+        }
+
         public AuthenticationTestBuilder realmRef(Authentication.RealmRef realmRef) {
             assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "use dedicate methods for synthetic realms";
             resetShortcutRelatedVariables();
@@ -363,6 +421,9 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder runAs() {
+            if (remoteAccessAuthentication != null) {
+                throw new IllegalArgumentException("cannot convert to run-as for remote access authentication");
+            }
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot convert to run-as again for run-as authentication");
             }
@@ -421,10 +482,16 @@ public class AuthenticationTestHelper {
                         // User associated to API key authentication has empty roles
                         user = stripRoles(user);
                         prepareApiKeyMetadata();
-                        authentication = Authentication.newApiKeyAuthentication(
+                        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
                             AuthenticationResult.success(user, metadata),
                             ESTestCase.randomAlphaOfLengthBetween(3, 8)
                         );
+                        // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
+                        // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
+                        // instance into a remote access authentication instance.
+                        authentication = remoteAccessAuthentication != null
+                            ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
+                            : apiKeyAuthentication;
                     }
                     case TOKEN -> {
                         if (isServiceAccount != null && isServiceAccount) {

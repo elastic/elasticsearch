@@ -997,6 +997,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         + votingConfiguration
                 );
             }
+            final Metadata.Builder metadata = Metadata.builder();
+            if (lastAcceptedState.metadata().clusterUUIDCommitted()) {
+                metadata.clusterUUID(lastAcceptedState.metadata().clusterUUID()).clusterUUIDCommitted(true);
+            }
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(
                     ClusterBlocks.builder()
@@ -1004,6 +1008,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+                .metadata(metadata)
                 .build();
             applierState = initialState;
             clusterApplier.setInitialState(initialState);

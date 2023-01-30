@@ -14,6 +14,7 @@ dependencies {
   compileOnly project(path: xpackModule('ilm'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('analytics')) // HistogramFieldMapper
 }
 
 addQaCheckDependencies(project)

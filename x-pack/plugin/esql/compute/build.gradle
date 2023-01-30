@@ -231,5 +231,27 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  blockBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/BytesRefBlockBuilder.java"
   }
+  // vector builders
+  File vectorBuildersInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBuilder.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  vectorBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntVectorBuilder.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  vectorBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongVectorBuilder.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  vectorBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleVectorBuilder.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  vectorBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefVectorBuilder.java"
+  }
 
 }

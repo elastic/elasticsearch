@@ -30,4 +30,17 @@ $endif$
     @Override
     $Type$Vector filter(int... positions);
 
+    static Builder newVectorBuilder(int estimatedSize) {
+        return new $Type$VectorBuilder(estimatedSize);
+    }
+
+    sealed interface Builder extends Vector.Builder permits $Type$VectorBuilder {
+        /**
+         * Appends a $type$ to the current entry.
+         */
+        Builder append$Type$($type$ value);
+
+        @Override
+        $Type$Vector build();
+    }
 }

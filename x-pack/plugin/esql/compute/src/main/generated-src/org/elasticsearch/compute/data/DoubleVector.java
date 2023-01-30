@@ -21,4 +21,17 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     @Override
     DoubleVector filter(int... positions);
 
+    static Builder newVectorBuilder(int estimatedSize) {
+        return new DoubleVectorBuilder(estimatedSize);
+    }
+
+    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {
+        /**
+         * Appends a double to the current entry.
+         */
+        Builder appendDouble(double value);
+
+        @Override
+        DoubleVector build();
+    }
 }

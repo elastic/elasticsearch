@@ -21,4 +21,17 @@ public sealed interface LongVector extends Vector permits ConstantLongVector,Fil
     @Override
     LongVector filter(int... positions);
 
+    static Builder newVectorBuilder(int estimatedSize) {
+        return new LongVectorBuilder(estimatedSize);
+    }
+
+    sealed interface Builder extends Vector.Builder permits LongVectorBuilder {
+        /**
+         * Appends a long to the current entry.
+         */
+        Builder appendLong(long value);
+
+        @Override
+        LongVector build();
+    }
 }

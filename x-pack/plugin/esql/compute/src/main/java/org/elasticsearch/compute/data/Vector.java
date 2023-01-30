@@ -43,4 +43,11 @@ public interface Vector {
      * {@return true iff this vector is a constant vector - returns the same constant value for every position}
      */
     boolean isConstant();
+
+    interface Builder {
+        /**
+         * Builds the block. This method can be called multiple times.
+         */
+        Vector build();
+    }
 }

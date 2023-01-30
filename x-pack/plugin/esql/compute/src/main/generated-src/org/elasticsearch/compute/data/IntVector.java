@@ -21,4 +21,17 @@ public sealed interface IntVector extends Vector permits ConstantIntVector,Filte
     @Override
     IntVector filter(int... positions);
 
+    static Builder newVectorBuilder(int estimatedSize) {
+        return new IntVectorBuilder(estimatedSize);
+    }
+
+    sealed interface Builder extends Vector.Builder permits IntVectorBuilder {
+        /**
+         * Appends a int to the current entry.
+         */
+        Builder appendInt(int value);
+
+        @Override
+        IntVector build();
+    }
 }

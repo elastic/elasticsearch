@@ -129,6 +129,13 @@ public class BasicBlockTests extends ESTestCase {
                     }
                 );
             }
+
+            IntVector.Builder blockBuilder = IntVector.newVectorBuilder(
+                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+            );
+            IntStream.range(0, positionCount).forEach(blockBuilder::appendInt);
+            IntVector vector = blockBuilder.build();
+            assertSingleValueDenseBlock(vector.asBlock());
         }
     }
 
@@ -183,6 +190,13 @@ public class BasicBlockTests extends ESTestCase {
                     }
                 );
             }
+
+            LongVector.Builder blockBuilder = LongVector.newVectorBuilder(
+                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+            );
+            LongStream.range(0, positionCount).forEach(blockBuilder::appendLong);
+            LongVector vector = blockBuilder.build();
+            assertSingleValueDenseBlock(vector.asBlock());
         }
     }
 
@@ -237,6 +251,13 @@ public class BasicBlockTests extends ESTestCase {
                     }
                 );
             }
+
+            DoubleVector.Builder blockBuilder = DoubleVector.newVectorBuilder(
+                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+            );
+            IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(blockBuilder::appendDouble);
+            DoubleVector vector = blockBuilder.build();
+            assertSingleValueDenseBlock(vector.asBlock());
         }
     }
 
@@ -306,6 +327,13 @@ public class BasicBlockTests extends ESTestCase {
                 )
             );
         }
+
+        BytesRefVector.Builder blockBuilder = BytesRefVector.newVectorBuilder(
+            randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+        );
+        IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(blockBuilder::appendBytesRef);
+        BytesRefVector vector = blockBuilder.build();
+        assertSingleValueDenseBlock(vector.asBlock());
     }
 
     public void testBytesRefBlockBuilderWithNulls() {

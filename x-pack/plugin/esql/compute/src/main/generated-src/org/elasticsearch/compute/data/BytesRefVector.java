@@ -23,4 +23,17 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     @Override
     BytesRefVector filter(int... positions);
 
+    static Builder newVectorBuilder(int estimatedSize) {
+        return new BytesRefVectorBuilder(estimatedSize);
+    }
+
+    sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {
+        /**
+         * Appends a BytesRef to the current entry.
+         */
+        Builder appendBytesRef(BytesRef value);
+
+        @Override
+        BytesRefVector build();
+    }
 }

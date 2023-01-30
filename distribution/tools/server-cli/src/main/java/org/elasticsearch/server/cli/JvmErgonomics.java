@@ -78,6 +78,15 @@ final class JvmErgonomics {
         return usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, "InitiatingHeapOccupancyPercent");
     }
 
+    /**
+     * @return <ul>
+     *         <li>{@code true} if `-XX:+UseG1GC` is in the final JVM options and {@code optionName} was not specified.
+     *         <li>{@code false} if either `-XX:-UseG1GC` is in the final JVM options, or {@code optionName} was specified.
+     *         </ul>
+     *
+     * @throws IllegalStateException if neither `-XX:+UseG1GC` nor `-XX:-UseG1GC` is in the final JVM options, or `-XX:+UseG1GC` is selected
+     *                               and {@code optionName} is missing.
+     */
     private static boolean usingG1GcWithoutCommandLineOriginOption(Map<String, JvmOption> finalJvmOptions, String optionName) {
         return getRequiredOption(finalJvmOptions, "UseG1GC").getMandatoryValue().equals("true")
             && getRequiredOption(finalJvmOptions, optionName).isCommandLineOrigin() == false;

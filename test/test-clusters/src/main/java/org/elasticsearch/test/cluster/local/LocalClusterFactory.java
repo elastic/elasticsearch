@@ -59,6 +59,9 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
     private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
+    private static final String TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP = "tests.cluster.debug.enabled";
+    private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
+    private static final int DEFAULT_DEBUG_PORT = 5007;
 
     private final Path baseWorkingDir;
     private final DistributionResolver distributionResolver;
@@ -547,13 +550,20 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .collect(Collectors.joining(" "));
             }
 
+            String debugArgs = "";
+            if (Boolean.getBoolean(TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP)) {
+                int port = DEFAULT_DEBUG_PORT + spec.getCluster().getNodes().indexOf(spec);
+                debugArgs = ENABLE_DEBUG_JVM_ARGS + port;
+            }
+
             String heapSize = System.getProperty("tests.heap.size", "512m");
             environment.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa "
             // Support passing in additional JVM arguments
                 + System.getProperty("tests.jvm.argline", "")
                 + " "
                 + featureFlagProperties
-                + systemProperties);
+                + systemProperties
+                + debugArgs);
 
             return environment;
         }

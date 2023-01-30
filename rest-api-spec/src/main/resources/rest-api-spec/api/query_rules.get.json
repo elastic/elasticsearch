@@ -1,0 +1,30 @@
+{
+  "query_rules.get":{
+    "documentation":{
+      "url":"TODO",
+      "description":"Allows to get a query rules set to the cluster"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_query_rules/{rulesetId}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "rulesetId":{
+              "type":"string",
+              "description":"A unique rule set id"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

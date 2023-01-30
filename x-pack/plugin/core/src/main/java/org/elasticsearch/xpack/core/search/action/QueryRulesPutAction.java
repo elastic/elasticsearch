@@ -14,8 +14,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class QueryRulesPutAction extends ActionType<AcknowledgedResponse> {
 
@@ -28,35 +34,64 @@ public class QueryRulesPutAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest {
 
-        private final String rulesetIds;
-        public final BytesReference content;
+        private final String rulesetId;
+
+        private final BytesReference content;
+
+        private final XContentType contentType;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.rulesetIds = in.readString();
+            this.rulesetId = in.readString();
             this.content = in.readBytesReference();
+            this.contentType = in.readEnum(XContentType.class);
         }
 
-        public Request(String rulesetId, BytesReference content) {
-            this.rulesetIds = rulesetId;
+        public Request(String rulesetId, BytesReference content, XContentType contentType) {
+            this.rulesetId = rulesetId;
             this.content = content;
+            this.contentType = contentType;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            // TODO check id and body non null, body has required fields etc...
-            return null;
+            ActionRequestValidationException validationException = null;
+            Map<String, Object> sourceMap = XContentHelper.convertToMap(content, false, contentType).v2();
+            if (sourceMap.containsKey("mappings") == false) {
+                validationException = addValidationError("mappings are missing", validationException);
+            } else {
+                if (sourceMap.get("mappings") instanceof Map == false) {
+                    validationException = addValidationError("mappings definition should be an object", validationException);
+                }
+            }
+            if (sourceMap.containsKey("rules") == false) {
+                validationException = addValidationError("rules are missing", validationException);
+            } else {
+                if (sourceMap.get("rules") instanceof List == false) {
+                    validationException = addValidationError("rules definition should be an array", validationException);
+                }
+            }
+            return validationException;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(rulesetIds);
+            out.writeString(rulesetId);
             out.writeBytesReference(content);
+            XContentHelper.writeTo(out, contentType);
         }
 
         public String getRuleSetId() {
-            return this.rulesetIds;
+            return this.rulesetId;
+        }
+
+        public BytesReference getContent() {
+            return content;
+        }
+
+        public XContentType getContentType() {
+            return contentType;
         }
     }
 

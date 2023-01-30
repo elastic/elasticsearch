@@ -11,34 +11,34 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.search.action.QueryRulesPutAction;
+import org.elasticsearch.xpack.core.search.action.QueryRulesGetAction;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestQueryRulesPutAction extends BaseRestHandler {
+public class RestQueryRulesGetAction extends BaseRestHandler {
 
     public static final String ENDPOINT = "_query_rules";
 
     @Override
     public String getName() {
-        return "query_rules_put_action";
+        return "query_rules_get_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + ENDPOINT + "/{rulesetId}"));
+        return List.of(new Route(GET, "/" + ENDPOINT + "/{rulesetId}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        QueryRulesPutAction.Request request = new QueryRulesPutAction.Request(
-            restRequest.param("rulesetId"),
-            restRequest.content(),
-            restRequest.getXContentType()
+        QueryRulesGetAction.Request request = new QueryRulesGetAction.Request(restRequest.param("rulesetId"));
+        return channel -> client.execute(
+            QueryRulesGetAction.INSTANCE,
+            request,
+            new RestToXContentListener<QueryRulesGetAction.Response>(channel)
         );
-        return channel -> client.execute(QueryRulesPutAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

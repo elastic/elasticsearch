@@ -25,12 +25,13 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.search.action.QueryRulesGetAction;
 import org.elasticsearch.xpack.core.search.action.QueryRulesPutAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -45,7 +46,10 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(QueryRulesPutAction.INSTANCE, TransportQueryRulesPutAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(QueryRulesPutAction.INSTANCE, TransportQueryRulesPutAction.class),
+            new ActionHandler<>(QueryRulesGetAction.INSTANCE, TransportQueryRulesGetAction.class)
+        );
     }
 
     @Override
@@ -58,7 +62,7 @@ public class SearchBusinessRules extends Plugin implements SearchPlugin, ActionP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new RestQueryRulesPutAction());
+        return Arrays.asList(new RestQueryRulesPutAction(), new RestQueryRulesGetAction());
     }
 
     @Override

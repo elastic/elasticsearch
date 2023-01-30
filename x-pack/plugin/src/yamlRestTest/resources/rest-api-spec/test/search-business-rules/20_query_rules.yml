@@ -1,12 +1,29 @@
 ---
-"Test put query rules":
+"Test basic query rule lifecycle":
 
   - do:
       query_rules.put:
         rulesetId: my-rules-id
         body:
-          mapping:
-            user: "string"
+          mappings:
+            user: kimchy
+          rules: [{ "condition" : { "foo"}, "action" : {}}]
 
   - match: { acknowledged: true }
-  - match: { rules_id: my-rules-id }
+
+  - do:
+      query_rules.get:
+        rulesetId: my-rules-id
+
+  - match: { ruleset_id: my-rules-id }
+  - match: { found: true }
+  - match: { _source.mappings.user: kimchy }
+  - is_true: _source.rules.0.condition
+  - is_true: _source.rules.0.action
+
+  - do:
+      query_rules.get:
+        rulesetId: some-other-id
+
+  - match: { ruleset_id : some-other-id }
+  - match: { found : false }

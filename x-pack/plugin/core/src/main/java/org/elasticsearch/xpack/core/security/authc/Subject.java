@@ -238,8 +238,8 @@ public class Subject {
         final List<RemoteAccessAuthentication.RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = (List<
             RemoteAccessAuthentication.RoleDescriptorsBytes>) metadata.get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
-            // If the remote access role descriptors are empty, this means the remote user has no privileges, and we need to add an empty
-            // role to restrict access accordingly
+            // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict
+            // access of the overall intersection accordingly
             roleReferences.add(new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY));
         } else {
             // TODO handle this once we support API keys as querying subjects

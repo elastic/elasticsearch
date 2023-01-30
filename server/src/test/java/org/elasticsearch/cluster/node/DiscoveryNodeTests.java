@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -191,7 +190,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             withExternalId ? "test-external-id" : null
         );
 
-        assertThat(Strings.toString(node, true, false), equalTo(String.format(Locale.ROOT, """
+        assertThat(Strings.toString(node, true, false), equalTo(String.format("""
             {
               "test-id" : {
                 "name" : "test-name",

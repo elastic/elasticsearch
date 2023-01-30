@@ -240,9 +240,7 @@ public class Subject {
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
             // If the remote access role descriptors are empty, this means the remote user has no privileges, and we need to add an empty
             // role to restrict access accordingly
-            roleReferences.add(
-                new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY)
-            );
+            roleReferences.add(new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY));
         } else {
             // TODO handle this once we support API keys as querying subjects
             assert remoteAccessRoleDescriptorsBytes.size() == 1;

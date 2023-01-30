@@ -399,7 +399,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93292")
     public void testSearchRouting() {
 
         var routingTableWatcher = new RoutingTableWatcher();
@@ -441,15 +440,15 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
 
             for (int i = 0; i < 10; i++) {
-                final var requestBuilder = client().prepareSearch(INDEX_NAME).setProfile(true);
-                if (randomBoolean()) {
-                    requestBuilder.setRouting(randomAlphaOfLength(10));
+                final var search = client().prepareSearch(INDEX_NAME).setProfile(true);
+                switch (randomIntBetween(0, 2)) {
+                    case 0 -> search.setRouting(randomAlphaOfLength(10));
+                    case 1 -> search.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    default -> {
+                        // do nothing
+                    }
                 }
-                if (randomBoolean()) {
-                    requestBuilder.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
-                }
-
-                final var profileResults = requestBuilder.get().getProfileResults();
+                final var profileResults = search.get().getProfileResults();
                 assertThat(profileResults, not(anEmptyMap()));
                 for (final var searchShardProfileKey : profileResults.keySet()) {
                     assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));

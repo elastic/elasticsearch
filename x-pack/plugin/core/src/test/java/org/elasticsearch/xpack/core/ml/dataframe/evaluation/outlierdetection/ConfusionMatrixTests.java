@@ -34,6 +34,11 @@ public class ConfusionMatrixTests extends AbstractXContentSerializingTestCase<Co
     }
 
     @Override
+    protected ConfusionMatrix mutateInstance(ConfusionMatrix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ConfusionMatrix> instanceReader() {
         return ConfusionMatrix::new;
     }

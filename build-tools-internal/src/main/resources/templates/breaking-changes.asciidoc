@@ -7,7 +7,7 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to {es} ${majorDotMinor}.
 
-See also <<release-highlights>> and <<es-release-notes>>.
+See also {ref-bare}/${majorDotMinor}/release-highlights.html[What's new in ${majorDotMinor}] and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
 coming::[${majorDotMinorDotRevision}]
 <% } %>

@@ -51,6 +51,11 @@ public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThro
     }
 
     @Override
+    protected PassThroughConfig mutateInstance(PassThroughConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected PassThroughConfig mutateInstanceForVersion(PassThroughConfig instance, Version version) {
         return mutateForVersion(instance, version);
     }

@@ -1978,6 +1978,83 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], containsString("user_role_"));
     }
 
+    public void testRemoteAccessAuthentication() throws Exception {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+        ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        ApiKeyService apiKeyService = spy(
+            new ApiKeyService(
+                SECURITY_ENABLED_SETTINGS,
+                Clock.systemUTC(),
+                mock(Client.class),
+                mock(SecurityIndexManager.class),
+                clusterService,
+                mock(CacheInvalidatorRegistry.class),
+                mock(ThreadPool.class)
+            )
+        );
+        NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(nativePrivStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            reservedRolesStore,
+            nativePrivStore,
+            null,
+            apiKeyService,
+            null,
+            null,
+            effectiveRoleDescriptors::set
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final TransportVersion version = TransportVersion.CURRENT;
+        final Authentication apiKeyAuthentication = createApiKeyAuthentication(
+            apiKeyService,
+            randomValueOtherThanMany(
+                authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
+                () -> AuthenticationTestHelper.builder().build()
+            ),
+            Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
+            null,
+            version
+        );
+        final Authentication authentication = apiKeyAuthentication.toRemoteAccess(
+            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        );
+
+        final PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
+        final Role role = roleFuture.actionGet();
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+
+        verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
+        assertThat(role.names().length, is(1));
+        assertThat(role.names()[0], equalTo("remote_role"));
+    }
+
     public void testGetRolesForRunAs() {
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);

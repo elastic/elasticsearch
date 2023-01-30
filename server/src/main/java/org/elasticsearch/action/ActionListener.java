@@ -562,7 +562,7 @@ public interface ActionListener<Response> {
         }
     }
 
-    static <T> void run(ActionListener<T> listener, CheckedConsumer<ActionListener<T>, Exception> action) {
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
         try {
             action.accept(listener);
         } catch (Exception e) {

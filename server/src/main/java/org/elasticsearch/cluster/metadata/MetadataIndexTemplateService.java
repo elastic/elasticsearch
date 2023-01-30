@@ -505,17 +505,38 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final List<String> ignoreMissingComponentTemplates = (
+            template.getIgnoreMissingComponentTemplates() == null? List.of():template.getIgnoreMissingComponentTemplates()
+        );
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
+            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
             .toList();
 
-        final List<String> ignoreMissingComponentTemplates = template.getIgnoreMissingComponentTemplates();
+        if (missingComponentTemplates.size() > 0 && ignoreMissingComponentTemplates.size() == 0) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
+            );
+        }
 
-        // Check
-        if (ignoreMissingComponentTemplates != null && ignoreMissingComponentTemplates.size() > 0) {
+
+        if (missingComponentTemplates.size() > 0 && ignoreMissingComponentTemplates.size() > 0) {
+
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template [" + name + "] specifies a missing component templates " + missingComponentTemplates + " "
+                    + "that does not exist and is not part of 'ignore_missing_component_templates'"
+            );
+
+            /*
+            final List<String> missingComponentTemplates = template.composedOf()
+                .stream()
+                .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
+                .toList();
+
             for (String missingComponentTemplate : missingComponentTemplates) {
-                // TODO if ignoreMissingComponentTemplates not set, jump directly out
                 if (ignoreMissingComponentTemplates.contains(missingComponentTemplate) == false) {
                     throw new InvalidIndexTemplateException(
                         name,
@@ -527,12 +548,7 @@ public class MetadataIndexTemplateService {
                             + "] that does not exist and is not part of 'ignore_missing_component_templates'"
                     );
                 }
-            }
-        } else if (missingComponentTemplates.size() > 0) {
-            throw new InvalidIndexTemplateException(
-                name,
-                "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
-            );
+            }*/
         }
     }
 

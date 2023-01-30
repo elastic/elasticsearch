@@ -2149,7 +2149,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template);
     }
 
-    public void testIgnoreMissingComponentTemplateInalid() throws Exception {
+    public void testIgnoreMissingComponentTemplateInvalid() throws Exception {
 
         String indexTemplateName = "metric-test";
 

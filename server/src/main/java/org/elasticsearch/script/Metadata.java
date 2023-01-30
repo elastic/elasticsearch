@@ -62,7 +62,8 @@ public class Metadata {
      * Constructs a new Metadata object represented by the given map and properties.
      * <p>
      * The passed-in map is used directly -- subsequent modifications to it outside the methods of this class may result in
-     * undefined behavior.
+     * undefined behavior. Note also that mutation-like methods (e.g. setters, etc) on this class rely on the map being mutable,
+     * which is the expected use for this class.
      * <p>
      * The properties map is used directly as well, but we verify at runtime that it <b>must</b> be an immutable map (i.e. constructed
      * via a call to {@link Map#of()} (or similar) in production, or via {@link Map#copyOf(Map)}} in tests). Since it must be an

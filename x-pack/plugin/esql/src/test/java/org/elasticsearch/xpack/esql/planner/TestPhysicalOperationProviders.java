@@ -92,9 +92,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             for (int i = 0; i < testData.getPositionCount(); i++) {
                 docIndexBlockBuilder.appendInt(i);
             }
-            fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build(); //instead of _doc
-            fakeSourceAttributesBlocks[1] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); //_shard id mocking
-            fakeSourceAttributesBlocks[2] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); //_segment id mocking
+            fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build(); // instead of _doc
+            fakeSourceAttributesBlocks[1] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); // _shard id mocking
+            fakeSourceAttributesBlocks[2] = IntBlock.newConstantBlockWith(0, testData.getPositionCount()); // _segment id mocking
             Page newPageWithSourceAttributes = new Page(fakeSourceAttributesBlocks);
             return newPageWithSourceAttributes;
         }

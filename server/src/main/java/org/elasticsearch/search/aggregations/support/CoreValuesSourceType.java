@@ -121,8 +121,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
             ValuesSource dataSource;
-            if (indexFieldData instanceof IndexOrdinalsFieldData
-                && ((IndexOrdinalsFieldData) indexFieldData).supportsGlobalOrdinalsMapping()) {
+            if (indexFieldData instanceof IndexOrdinalsFieldData) {
                 dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData);
             } else {
                 dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);

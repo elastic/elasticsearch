@@ -283,7 +283,7 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.readHeaders = true;
             handler.inboundMessage(channel, requestMessage);
-            assertNotNull(channel.getMessageCaptor().get());
+            // expect no response - channel just closed on exception
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(

@@ -61,7 +61,7 @@ public class HandshakeHeader extends MessageHeader {
 
     @Override
     public Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
-        return new Tuple<>(Map.of(), Map.of());
+        return readHeaders ? new Tuple<>(Map.of(), Map.of()) : null;
     }
 
     @Override

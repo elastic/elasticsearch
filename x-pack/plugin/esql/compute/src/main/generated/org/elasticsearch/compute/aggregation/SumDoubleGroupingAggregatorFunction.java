@@ -22,17 +22,18 @@ import org.elasticsearch.compute.data.Vector;
  * This class is generated. Do not edit it.
  */
 public final class SumDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
-  private final DoubleArrayState state;
+  private final SumDoubleAggregator.GroupingSumState state;
 
   private final int channel;
 
-  public SumDoubleGroupingAggregatorFunction(int channel, DoubleArrayState state) {
+  public SumDoubleGroupingAggregatorFunction(int channel,
+      SumDoubleAggregator.GroupingSumState state) {
     this.channel = channel;
     this.state = state;
   }
 
   public static SumDoubleGroupingAggregatorFunction create(BigArrays bigArrays, int channel) {
-    return new SumDoubleGroupingAggregatorFunction(channel, new DoubleArrayState(bigArrays, SumDoubleAggregator.init()));
+    return new SumDoubleGroupingAggregatorFunction(channel, SumDoubleAggregator.initGrouping(bigArrays));
   }
 
   @Override
@@ -43,7 +44,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       int positions = groups.getPositionCount();
       for (int position = 0; position < groups.getPositionCount(); position++) {
         int groupId = Math.toIntExact(groups.getLong(position));
-        state.set(SumDoubleAggregator.combine(state.getOrDefault(groupId), valuesVector.getDouble(position)), groupId);
+        SumDoubleAggregator.combine(state, groupId, valuesVector.getDouble(position));
       }
     } else {
       // move the cold branch out of this method to keep the optimized case vector/vector as small as possible
@@ -58,7 +59,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        state.set(SumDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(position)), groupId);
+        SumDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(position));
       }
     }
   }
@@ -73,7 +74,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       for (int position = 0; position < groups.getPositionCount(); position++) {
         if (groups.isNull(position) == false) {
           int groupId = Math.toIntExact(groups.getLong(position));
-          state.set(SumDoubleAggregator.combine(state.getOrDefault(groupId), valuesVector.getDouble(position)), groupId);
+          SumDoubleAggregator.combine(state, groupId, valuesVector.getDouble(position));
         }
       }
     } else {
@@ -85,7 +86,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
-          state.set(SumDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(position)), groupId);
+          SumDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(position));
         }
       }
     }
@@ -98,14 +99,14 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
-    @SuppressWarnings("unchecked") AggregatorStateVector<DoubleArrayState> blobVector = (AggregatorStateVector<DoubleArrayState>) vector;
+    @SuppressWarnings("unchecked") AggregatorStateVector<SumDoubleAggregator.GroupingSumState> blobVector = (AggregatorStateVector<SumDoubleAggregator.GroupingSumState>) vector;
     // TODO exchange big arrays directly without funny serialization - no more copying
     BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-    DoubleArrayState inState = new DoubleArrayState(bigArrays, SumDoubleAggregator.init());
+    SumDoubleAggregator.GroupingSumState inState = SumDoubleAggregator.initGrouping(bigArrays);
     blobVector.get(0, inState);
     for (int position = 0; position < groupIdVector.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groupIdVector.getLong(position));
-      state.set(SumDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
+      SumDoubleAggregator.combineStates(state, groupId, inState, position);
     }
   }
 
@@ -114,21 +115,21 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    DoubleArrayState inState = ((SumDoubleGroupingAggregatorFunction) input).state;
-    state.set(SumDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)), groupId);
+    SumDoubleAggregator.GroupingSumState inState = ((SumDoubleGroupingAggregatorFunction) input).state;
+    SumDoubleAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
   public Block evaluateIntermediate() {
-    AggregatorStateVector.Builder<AggregatorStateVector<DoubleArrayState>, DoubleArrayState> builder =
-        AggregatorStateVector.builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
+    AggregatorStateVector.Builder<AggregatorStateVector<SumDoubleAggregator.GroupingSumState>, SumDoubleAggregator.GroupingSumState> builder =
+        AggregatorStateVector.builderOfAggregatorState(SumDoubleAggregator.GroupingSumState.class, state.getEstimatedSize());
     builder.add(state);
     return builder.build().asBlock();
   }
 
   @Override
   public Block evaluateFinal() {
-    return state.toValuesBlock();
+    return SumDoubleAggregator.evaluateFinal(state);
   }
 
   @Override

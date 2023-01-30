@@ -9,7 +9,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -21,17 +20,17 @@ import org.elasticsearch.compute.data.Vector;
  * This class is generated. Do not edit it.
  */
 public final class SumDoubleAggregatorFunction implements AggregatorFunction {
-  private final DoubleState state;
+  private final SumDoubleAggregator.SumState state;
 
   private final int channel;
 
-  public SumDoubleAggregatorFunction(int channel, DoubleState state) {
+  public SumDoubleAggregatorFunction(int channel, SumDoubleAggregator.SumState state) {
     this.channel = channel;
     this.state = state;
   }
 
   public static SumDoubleAggregatorFunction create(int channel) {
-    return new SumDoubleAggregatorFunction(channel, new DoubleState(SumDoubleAggregator.init()));
+    return new SumDoubleAggregatorFunction(channel, SumDoubleAggregator.initSingle());
   }
 
   @Override
@@ -52,14 +51,14 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   private void addRawVector(DoubleVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      state.doubleValue(SumDoubleAggregator.combine(state.doubleValue(), vector.getDouble(i)));
+      SumDoubleAggregator.combine(state, vector.getDouble(i));
     }
   }
 
   private void addRawBlock(DoubleBlock block) {
     for (int i = 0; i < block.getTotalValueCount(); i++) {
       if (block.isNull(i) == false) {
-        state.doubleValue(SumDoubleAggregator.combine(state.doubleValue(), block.getDouble(i)));
+        SumDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
   }
@@ -71,25 +70,25 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
     if (vector == null || vector instanceof AggregatorStateVector == false) {
       throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
     }
-    @SuppressWarnings("unchecked") AggregatorStateVector<DoubleState> blobVector = (AggregatorStateVector<DoubleState>) vector;
-    DoubleState tmpState = new DoubleState();
+    @SuppressWarnings("unchecked") AggregatorStateVector<SumDoubleAggregator.SumState> blobVector = (AggregatorStateVector<SumDoubleAggregator.SumState>) vector;
+    SumDoubleAggregator.SumState tmpState = new SumDoubleAggregator.SumState();
     for (int i = 0; i < block.getPositionCount(); i++) {
       blobVector.get(i, tmpState);
-      state.doubleValue(SumDoubleAggregator.combine(state.doubleValue(), tmpState.doubleValue()));
+      SumDoubleAggregator.combineStates(state, tmpState);
     }
   }
 
   @Override
   public Block evaluateIntermediate() {
-    AggregatorStateVector.Builder<AggregatorStateVector<DoubleState>, DoubleState> builder =
-        AggregatorStateVector.builderOfAggregatorState(DoubleState.class, state.getEstimatedSize());
+    AggregatorStateVector.Builder<AggregatorStateVector<SumDoubleAggregator.SumState>, SumDoubleAggregator.SumState> builder =
+        AggregatorStateVector.builderOfAggregatorState(SumDoubleAggregator.SumState.class, state.getEstimatedSize());
     builder.add(state);
     return builder.build().asBlock();
   }
 
   @Override
   public Block evaluateFinal() {
-    return new DoubleArrayVector(new double[] { state.doubleValue() }, 1).asBlock();
+    return SumDoubleAggregator.evaluateFinal(state);
   }
 
   @Override

@@ -2084,7 +2084,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names().length, is(1));
         assertThat(role.names()[0], equalTo(emptyRemoteRole ? "_empty_remote_role" : roleName));
 
-        // Smoke-test authorization
+        // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("index1")

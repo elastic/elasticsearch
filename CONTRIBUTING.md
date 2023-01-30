@@ -870,7 +870,7 @@ benefits of this kind of change are very small, and in our experience it is not
 worth investing the substantial effort needed to review them. This especially
 includes changes suggested by tools.
 
-We also normally immediately reject PRs which target platforms or system
+We normally immediately reject PRs which target platforms or system
 configurations that are not in the [official support
 matrix](https://www.elastic.co/support/matrix). We choose to support particular
 platforms with care because we must work to ensure that every Elasticsearch

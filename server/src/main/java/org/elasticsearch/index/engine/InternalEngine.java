@@ -840,9 +840,18 @@ public class InternalEngine extends Engine {
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
                 if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                    docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), op.id(), loadSeqNo);
+                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                        searcher.getIndexReader(),
+                        op.uid(),
+                        op.id(),
+                        loadSeqNo
+                    );
                 } else {
-                    docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), op.uid(), loadSeqNo);
+                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                        searcher.getIndexReader(),
+                        op.uid(),
+                        loadSeqNo
+                    );
                 }
             }
             if (docIdAndVersion != null) {

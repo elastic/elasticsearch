@@ -136,7 +136,7 @@ public final class VersionsAndSeqNoResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
+    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), false);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -168,7 +168,8 @@ public final class VersionsAndSeqNoResolver {
      *         returning <code>null</code> if no document was found for the specified id
      * @throws IOException In case of an i/o related failure
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term uid, String id, boolean loadSeqNo) throws IOException {
+    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, Term uid, String id, boolean loadSeqNo)
+        throws IOException {
         byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
         assert idAsBytes.length == 20;
         // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes

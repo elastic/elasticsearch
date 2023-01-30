@@ -84,26 +84,35 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
-    private Version version = Version.CURRENT;
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
      * The version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public Version getVersion() {
-        return this.version;
+        return Version.fromId(this.version.id);
     }
 
     /**
      * The transport version the data is serialized as.
      */
     public TransportVersion getTransportVersion() {
-        return this.version.transportVersion;
+        return this.version;
     }
 
     /**
      * Set the version of the node on the other side of this stream.
      */
+    @Deprecated(forRemoval = true)
     public void setVersion(Version version) {
+        this.version = version.transportVersion;
+    }
+
+    /**
+     * Set the transport version of the data in this stream.
+     */
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 
@@ -603,6 +612,20 @@ public abstract class StreamInput extends InputStream {
     public String[] readOptionalStringArray() throws IOException {
         if (readBoolean()) {
             return readStringArray();
+        }
+        return null;
+    }
+
+    /**
+     * Reads an optional byte array. It's effectively the same as readByteArray, except
+     * it supports null.
+     * @return a byte array or null
+     * @throws IOException
+     */
+    @Nullable
+    public byte[] readOptionalByteArray() throws IOException {
+        if (readBoolean()) {
+            return readByteArray();
         }
         return null;
     }

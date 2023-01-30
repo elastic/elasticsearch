@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
@@ -28,8 +29,8 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
     }
 
@@ -44,9 +45,9 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
             );
             assertEquals(
                 "[test_writable] was released first in version "
-                    + Version.CURRENT
+                    + TransportVersion.CURRENT
                     + ", failed compatibility check trying to send it to node with version "
-                    + streamVersion,
+                    + streamVersion.transportVersion,
                 e.getMessage()
             );
         }

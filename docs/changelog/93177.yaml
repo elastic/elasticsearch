@@ -1,0 +1,5 @@
+pr: 93177
+summary: Fix geo ip database file leak when processing IP arrays
+area: Ingest Node
+type: bug
+issues: []

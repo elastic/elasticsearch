@@ -128,6 +128,11 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     @Override
+    protected TrainedModelConfig mutateInstance(TrainedModelConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<TrainedModelConfig> instanceReader() {
         return TrainedModelConfig::new;
     }

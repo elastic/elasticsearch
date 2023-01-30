@@ -94,7 +94,7 @@ public class IPFilter {
     );
 
     public static final Setting<List<String>> REMOTE_CLUSTER_FILTER_ALLOW_SETTING = Setting.listSetting(
-        REMOTE_CLUSTER_PREFIX + "filter.allow", // Note these do not use the `xpack` prefix
+        setting(REMOTE_CLUSTER_PREFIX + "filter.allow"),
         TRANSPORT_FILTER_ALLOW_SETTING,
         Function.identity(),
         TRANSPORT_FILTER_ALLOW_SETTING::get,
@@ -104,7 +104,7 @@ public class IPFilter {
     );
 
     public static final Setting<List<String>> REMOTE_CLUSTER_FILTER_DENY_SETTING = Setting.listSetting(
-        REMOTE_CLUSTER_PREFIX + "filter.deny", // Note these do not use the `xpack` prefix
+        setting(REMOTE_CLUSTER_PREFIX + "filter.deny"),
         TRANSPORT_FILTER_DENY_SETTING,
         Function.identity(),
         TRANSPORT_FILTER_DENY_SETTING::get,
@@ -230,6 +230,7 @@ public class IPFilter {
             .stream()
             .filter(k -> TransportSettings.DEFAULT_PROFILE.equals(k) == false) // exclude default profile -- it's handled differently
             .collect(Collectors.toCollection(HashSet::new));
+        assert false == profiles.contains(REMOTE_CLUSTER_PROFILE);
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
             profileAllowRules.put(profile, allowSetting.get(settings));

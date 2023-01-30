@@ -45,6 +45,11 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         return createRandom();
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Request createRandom() {
         Request request = new Request(randomAlphaOfLength(10));
         if (randomBoolean()) {

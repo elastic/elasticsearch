@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -34,7 +34,7 @@ public abstract class AbstractTokenizationUpdate implements TokenizationUpdate {
 
     public AbstractTokenizationUpdate(StreamInput in) throws IOException {
         this.truncate = in.readOptionalEnum(Tokenization.Truncate.class);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             this.span = in.readOptionalInt();
         } else {
             this.span = null;
@@ -62,7 +62,7 @@ public abstract class AbstractTokenizationUpdate implements TokenizationUpdate {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(truncate);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeOptionalInt(span);
         }
     }

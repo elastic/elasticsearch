@@ -15,7 +15,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -203,11 +203,11 @@ public final class TokenService {
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final Version VERSION_HASHED_TOKENS = Version.V_7_2_0;
-    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
-    static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
-    static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
-    static final Version VERSION_CLIENT_AUTH_FOR_REFRESH = Version.V_8_2_0;
+    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersion.V_7_2_0;
+    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersion.V_7_2_0;
+    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.V_7_2_0;
+    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.V_7_2_0;
+    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.V_8_2_0;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -280,7 +280,7 @@ public final class TokenService {
         ActionListener<CreateTokenResult> listener
     ) {
         // the created token is compatible with the oldest node version in the cluster
-        final Version tokenVersion = getTokenVersionCompatibility();
+        final TransportVersion tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
@@ -304,7 +304,7 @@ public final class TokenService {
         ActionListener<CreateTokenResult> listener
     ) {
         // the created token is compatible with the oldest node version in the cluster
-        final Version tokenVersion = getTokenVersionCompatibility();
+        final TransportVersion tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         createOAuth2Tokens(accessToken, refreshToken, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, listener);
@@ -342,7 +342,7 @@ public final class TokenService {
     private void createOAuth2Tokens(
         String accessToken,
         String refreshToken,
-        Version tokenVersion,
+        TransportVersion tokenVersion,
         SecurityIndexManager tokensIndex,
         Authentication authentication,
         Authentication originatingClientAuth,
@@ -451,7 +451,7 @@ public final class TokenService {
      * Gets the {@link UserToken} with the given {@code userTokenId} and {@code tokenVersion} by fetching and parsing the corresponding
      * token document.
      */
-    private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
+    private void getUserTokenFromId(String userTokenId, TransportVersion tokenVersion, ActionListener<UserToken> listener) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
         if (frozenTokensIndex.isAvailable() == false) {
@@ -533,8 +533,8 @@ public final class TokenService {
     void decodeToken(String token, ActionListener<UserToken> listener) {
         final byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
             if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
@@ -777,7 +777,7 @@ public final class TokenService {
         final Set<String> idsOfRecentTokens = new HashSet<>();
         final Set<String> idsOfOlderTokens = new HashSet<>();
         for (UserToken userToken : userTokens) {
-            if (userToken.getVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+            if (userToken.getTransportVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 idsOfRecentTokens.add(userToken.getId());
             } else {
                 idsOfOlderTokens.add(userToken.getId());
@@ -997,9 +997,9 @@ public final class TokenService {
                 findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
             } else {
                 logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
-                final Version refreshTokenVersion;
+                final TransportVersion refreshTokenVersion;
                 final String unencodedRefreshToken;
-                final Tuple<Version, String> versionAndRefreshTokenTuple;
+                final Tuple<TransportVersion, String> versionAndRefreshTokenTuple;
                 try {
                     versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
                     refreshTokenVersion = versionAndRefreshTokenTuple.v1();
@@ -1129,7 +1129,7 @@ public final class TokenService {
             return;
         }
         final RefreshTokenStatus refreshTokenStatus = checkRefreshResult.v1();
-        final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
+        final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getTransportVersion());
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug(
                 "Token document [{}] was recently refreshed, when a new token document was generated. Reusing that result.",
@@ -1141,7 +1141,7 @@ public final class TokenService {
         } else {
             final String newAccessTokenString = UUIDs.randomBase64UUID();
             final String newRefreshTokenString = UUIDs.randomBase64UUID();
-            final Version newTokenVersion = getTokenVersionCompatibility();
+            final TransportVersion newTokenVersion = getTokenVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             if (newTokenVersion.onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
@@ -1367,8 +1367,8 @@ public final class TokenService {
                                 );
                                 listener.onResponse(
                                     new CreateTokenResult(
-                                        prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
-                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1]),
+                                        prependVersionAndEncodeAccessToken(refreshTokenStatus.getTransportVersion(), decryptedTokens[0]),
+                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getTransportVersion(), decryptedTokens[1]),
                                         authentication
                                     )
                                 );
@@ -1427,9 +1427,9 @@ public final class TokenService {
         );
     }
 
-    Version getTokenVersionCompatibility() {
+    TransportVersion getTokenVersionCompatibility() {
         // newly minted tokens are compatible with the min node version in the cluster
-        return clusterService.state().nodes().getMinNodeVersion();
+        return clusterService.state().nodes().getMinNodeVersion().transportVersion;// should there be getMinNodeTransportVersion ?
     }
 
     public static Boolean isTokenServiceEnabled(Settings settings) {
@@ -1480,7 +1480,7 @@ public final class TokenService {
     private static Tuple<UserToken, RefreshTokenStatus> parseTokenAndRefreshStatus(Map<String, Object> source) {
         final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
         final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
-        refreshTokenStatus.setVersion(userToken.getVersion());
+        refreshTokenStatus.setTransportVersion(userToken.getTransportVersion());
         return new Tuple<>(userToken, refreshTokenStatus);
     }
 
@@ -1565,7 +1565,7 @@ public final class TokenService {
         RefreshTokenStatus refreshTokenStatus
     ) {
         if (refreshTokenStatus.isRefreshed()) {
-            if (refreshTokenStatus.getVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
+            if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 if (refreshRequested.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
@@ -1794,8 +1794,11 @@ public final class TokenService {
                     .field("refreshed", false)
                     .startObject("client")
                     .field("type", "unassociated_client");
-                if (userToken.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
-                    builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getVersion()).encode());
+                if (userToken.getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+                    builder.field(
+                        "authentication",
+                        originatingClientAuth.maybeRewriteForOlderVersion(userToken.getTransportVersion()).encode()
+                    );
                 } else {
                     builder.field("user", originatingClientAuth.getEffectiveSubject().getUser().principal())
                         .field("realm", originatingClientAuth.getAuthenticatingSubject().getRealm().getName());
@@ -1824,9 +1827,9 @@ public final class TokenService {
         return source -> {
             String auth = (String) source.get("authentication");
             Integer version = (Integer) source.get("version");
-            Version authVersion = Version.fromId(version);
+            TransportVersion authVersion = TransportVersion.fromId(version);
             try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(auth))) {
-                in.setVersion(authVersion);
+                in.setTransportVersion(authVersion);
                 Authentication authentication = new Authentication(in);
                 return authentication.getEffectiveSubject().getUser().principal().equals(username);
             } catch (IOException e) {
@@ -1906,7 +1909,7 @@ public final class TokenService {
      * removed automatically by the {@code ExpiredTokenRemover} periodic job. Therefore, in general, when searching for a token we need to
      * consider both the new and the old indices.
      */
-    private SecurityIndexManager getTokensIndexForVersion(Version version) {
+    private SecurityIndexManager getTokensIndexForVersion(TransportVersion version) {
         if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
             return securityTokensIndex;
         } else {
@@ -1922,7 +1925,7 @@ public final class TokenService {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
             return;
         }
-        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(userToken.getVersion());
+        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(userToken.getTransportVersion());
         if (tokensIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate access token because the index [" + tokensIndex.aliasName() + "] doesn't exist");
@@ -2009,11 +2012,11 @@ public final class TokenService {
         }
     }
 
-    String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {
+    String prependVersionAndEncodeAccessToken(TransportVersion version, String accessToken) throws IOException, GeneralSecurityException {
         if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
-                out.setVersion(version);
-                Version.writeVersion(version, out);
+                out.setTransportVersion(version);
+                TransportVersion.writeVersion(version, out);
                 out.writeString(accessToken);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2024,9 +2027,9 @@ public final class TokenService {
                 OutputStream base64 = Base64.getEncoder().wrap(os);
                 StreamOutput out = new OutputStreamStreamOutput(base64)
             ) {
-                out.setVersion(version);
+                out.setTransportVersion(version);
                 KeyAndCache keyAndCache = keyCache.activeKeyCache;
-                Version.writeVersion(version, out);
+                TransportVersion.writeVersion(version, out);
                 out.writeByteArray(keyAndCache.getSalt().bytes);
                 out.writeByteArray(keyAndCache.getKeyHash().bytes);
                 final byte[] initializationVector = getRandomBytes(IV_BYTES);
@@ -2038,7 +2041,7 @@ public final class TokenService {
                     );
                     StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)
                 ) {
-                    encryptedStreamOutput.setVersion(version);
+                    encryptedStreamOutput.setTransportVersion(version);
                     encryptedStreamOutput.writeString(accessToken);
                     // StreamOutput needs to be closed explicitly because it wraps CipherOutputStream
                     encryptedStreamOutput.close();
@@ -2048,10 +2051,10 @@ public final class TokenService {
         }
     }
 
-    public static String prependVersionAndEncodeRefreshToken(Version version, String payload) {
+    public static String prependVersionAndEncodeRefreshToken(TransportVersion version, String payload) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
-            Version.writeVersion(version, out);
+            out.setTransportVersion(version);
+            TransportVersion.writeVersion(version, out);
             out.writeString(payload);
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
 
@@ -2064,11 +2067,11 @@ public final class TokenService {
     /**
      * Unpacks a base64 encoded pair of a version tag and String payload.
      */
-    public static Tuple<Version, String> unpackVersionAndPayload(String encodedPack) throws IOException {
+    public static Tuple<TransportVersion, String> unpackVersionAndPayload(String encodedPack) throws IOException {
         final byte[] bytes = encodedPack.getBytes(StandardCharsets.UTF_8);
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
             final String payload = in.readString();
             return new Tuple<>(version, payload);
         }
@@ -2080,7 +2083,7 @@ public final class TokenService {
     }
 
     // Package private for testing
-    Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache, Version version) throws GeneralSecurityException {
+    Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache, TransportVersion version) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
         BytesKey salt = keyAndCache.getSalt();
         try {
@@ -2118,18 +2121,18 @@ public final class TokenService {
         }
     }
 
-    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, Version version) throws IOException {
+    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
         try (
             ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
             CipherInputStream cis = new CipherInputStream(bais, cipher);
             StreamInput decryptedInput = new InputStreamStreamInput(cis)
         ) {
-            decryptedInput.setVersion(version);
+            decryptedInput.setTransportVersion(version);
             return decryptedInput.readString();
         }
     }
 
-    private Cipher getDecryptionCipher(byte[] iv, SecretKey key, Version version, BytesKey salt) throws GeneralSecurityException {
+    private Cipher getDecryptionCipher(byte[] iv, SecretKey key, TransportVersion version, BytesKey salt) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
         cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
         cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id).array());
@@ -2534,7 +2537,7 @@ public final class TokenService {
         private final String iv;
         @Nullable
         private final String salt;
-        private Version version;
+        private TransportVersion version;
 
         // pkg-private for testing
         RefreshTokenStatus(
@@ -2546,7 +2549,7 @@ public final class TokenService {
             String iv,
             String salt
         ) {
-            assert associatedAuthentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            assert associatedAuthentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
             this.invalidated = invalidated;
             // not used, filled-in for consistency's sake
             this.associatedUser = associatedAuthentication.getEffectiveSubject().getUser().principal();
@@ -2621,11 +2624,11 @@ public final class TokenService {
             return salt;
         }
 
-        Version getVersion() {
+        TransportVersion getTransportVersion() {
             return version;
         }
 
-        void setVersion(Version version) {
+        void setTransportVersion(TransportVersion version) {
             this.version = version;
         }
 

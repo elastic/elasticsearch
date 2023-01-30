@@ -46,6 +46,11 @@ public class SlimConfigTests extends InferenceConfigItemTestCase<SlimConfig> {
     }
 
     @Override
+    protected SlimConfig mutateInstance(SlimConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected SlimConfig doParseInstance(XContentParser parser) throws IOException {
         return SlimConfig.fromXContentLenient(parser);
     }

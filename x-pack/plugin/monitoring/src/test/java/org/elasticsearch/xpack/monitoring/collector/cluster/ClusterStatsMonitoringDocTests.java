@@ -450,6 +450,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
             mockNodeVersion,
             Version.CURRENT,
+            Version.CURRENT,
             apmIndicesExist };
         final String expectedJson = Strings.format("""
             {
@@ -738,7 +739,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     },
                     "roles": [
                       "master"
-                    ]
+                    ],
+                    "version": "%s"
                   }
                 }
               },

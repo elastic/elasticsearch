@@ -63,7 +63,7 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
     }
 
     @Override
-    protected SystemIndexMigrationTaskState mutateInstance(SystemIndexMigrationTaskState instance) throws IOException {
+    protected SystemIndexMigrationTaskState mutateInstance(SystemIndexMigrationTaskState instance) {
         String index = instance.getCurrentIndex();
         String feature = instance.getCurrentFeature();
         Map<String, Object> featureMetadata = instance.getFeatureCallbackMetadata();

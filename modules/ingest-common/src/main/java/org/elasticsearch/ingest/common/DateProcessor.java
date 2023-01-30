@@ -36,17 +36,6 @@ import java.util.function.Supplier;
 public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
-    private static final String CACHE_CAPACITY_SETTING = "es.ingest.date_processor.cache_capacity";
-    private static final Cache CACHE;
-
-    static {
-        var cacheSizeStr = System.getProperty(CACHE_CAPACITY_SETTING, "256");
-        try {
-            CACHE = new Cache(Integer.parseInt(cacheSizeStr));
-        } catch (NumberFormatException e) {
-            throw new SettingsException("{} must be a valid number but was [{}]", CACHE_CAPACITY_SETTING, cacheSizeStr);
-        }
-    }
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
     static final String DEFAULT_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 
@@ -94,7 +83,7 @@ public final class DateProcessor extends AbstractProcessor {
             dateParsers.add((params) -> {
                 var documentZoneId = newDateTimeZone(params);
                 var documentLocale = newLocale(params);
-                return CACHE.getOrCompute(
+                return Cache.INSTANCE.getOrCompute(
                     new Cache.Key(format, documentZoneId, documentLocale),
                     () -> dateFormat.getFunction(format, documentZoneId, documentLocale)
                 );
@@ -223,7 +212,23 @@ public final class DateProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * An ad-hoc cache class that just throws away the cached values once it's full because we don't want to affect the performance
+     * while applying eviction policies when adding new values or retrieving them.
+     */
     static final class Cache {
+
+        private static final String CACHE_CAPACITY_SETTING = "es.ingest.date_processor.cache_capacity";
+        static final Cache INSTANCE;
+
+        static {
+            var cacheSizeStr = System.getProperty(CACHE_CAPACITY_SETTING, "256");
+            try {
+                INSTANCE = new Cache(Integer.parseInt(cacheSizeStr));
+            } catch (NumberFormatException e) {
+                throw new SettingsException("{} must be a valid number but was [{}]", CACHE_CAPACITY_SETTING, cacheSizeStr);
+            }
+        }
         private final ConcurrentMap<Key, SoftReference<Function<String, ZonedDateTime>>> map;
         private final int capacity;
 

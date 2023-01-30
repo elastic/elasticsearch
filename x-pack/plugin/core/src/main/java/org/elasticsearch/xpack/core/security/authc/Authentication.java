@@ -1060,8 +1060,6 @@ public final class Authentication implements ToXContentObject {
         final TransportVersion olderVersion,
         final Authentication authentication
     ) {
-        // TODO also handle remote access authentication executed with old API keys (either by rejecting this, or rewriting role
-        // descriptors)
         assert authentication.isRemoteAccess() : "authentication must be remote access";
         final Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         assert metadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)

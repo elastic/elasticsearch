@@ -17,6 +17,7 @@ import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
@@ -132,6 +133,55 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         }
         final long expectedNumBytes = 10 // token + GCD (9 byte)
             + (blockSize * 1) / Byte.SIZE; // data
+        doTest(arr, expectedNumBytes);
+    }
+
+    public void testFloatingPointValues() throws IOException {
+        long[] arr = new long[blockSize];
+        // NOTE: these values are crafted in such a way that after applying GCD encoding we get values represented using 36 bits per value.
+        for (int i = 0; i < blockSize; ++i) {
+            double value = (i % 2 == 1) ? (i * 1956.0) : (i * 356923.5);
+            arr[i] = Double.doubleToLongBits(value);
+        }
+        // NOTE: 36 bits per value strictly required, but we round to 40 bits per value to write exactly 5 bytes per value
+        final long expectedNumBytes = 9 // token (2 bytes) + GCD (4 bytes) + padding (3 bytes)
+            + (blockSize * 40) / Byte.SIZE; // data
+        doTest(arr, expectedNumBytes);
+    }
+
+    public void test40BitsPerValue() throws IOException {
+        final Random random = new Random(17);
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < blockSize; ++i) {
+            arr[i] = random.nextLong(1L << 32, 1L << 40);
+            // System.out.println(PackedInts.bitsRequired(arr[i]));
+        }
+        final long expectedNumBytes = 5 // token (2 bytes) + padding (3 bytes)
+            + (blockSize * 40) / Byte.SIZE; // data
+        doTest(arr, expectedNumBytes);
+    }
+
+    public void test48BitsPerValue() throws IOException {
+        final Random random = new Random(17);
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < blockSize; ++i) {
+            arr[i] = random.nextLong(1L << 40, 1L << 48);
+            // System.out.println(PackedInts.bitsRequired(arr[i]));
+        }
+        final long expectedNumBytes = 4 // token (2 bytes) + padding (2 bytes)
+            + (blockSize * 48) / Byte.SIZE; // data
+        doTest(arr, expectedNumBytes);
+    }
+
+    public void test56BitsPerValue() throws IOException {
+        final Random random = new Random(13);
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < blockSize; ++i) {
+            arr[i] = random.nextLong(1L << 48, 1L << 56);
+            // System.out.println(PackedInts.bitsRequired(arr[i]));
+        }
+        final long expectedNumBytes = 3 // token (2 bytes) + padding (1 bytes)
+            + (blockSize * 56) / Byte.SIZE; // data
         doTest(arr, expectedNumBytes);
     }
 

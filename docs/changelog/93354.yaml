@@ -1,0 +1,6 @@
+pr: 93354
+summary: Bump bundled JDK to Java 19.0.2
+area: Packaging
+type: upgrade
+issues:
+ - 93025

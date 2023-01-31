@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -1521,8 +1522,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public Version getVersion() {
-            return localNode.getVersion();
+        public TransportVersion getVersion() {
+            return localNode.getVersion().transportVersion;
         }
     }
 

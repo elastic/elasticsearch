@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -166,7 +166,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
             databases = in.readSet(StreamInput::readString);
             filesInTemp = in.readSet(StreamInput::readString);
-            configDatabases = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readSet(StreamInput::readString) : null;
+            configDatabases = in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readSet(StreamInput::readString) : null;
         }
 
         protected NodeResponse(
@@ -208,7 +208,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             }
             out.writeCollection(databases, StreamOutput::writeString);
             out.writeCollection(filesInTemp, StreamOutput::writeString);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 out.writeCollection(configDatabases, StreamOutput::writeString);
             }
         }

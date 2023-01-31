@@ -388,7 +388,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
 
     @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
-    protected MappingStats mutateInstance(MappingStats instance) throws IOException {
+    protected MappingStats mutateInstance(MappingStats instance) {
         List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
         long totalFieldCount = instance.getTotalFieldCount().getAsLong();

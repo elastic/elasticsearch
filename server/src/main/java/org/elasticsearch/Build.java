@@ -151,7 +151,7 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
     public static Build readBuild(StreamInput in) throws IOException {
         final Type type;
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        if (in.getVersion().before(Version.V_8_3_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_3_0)) {
             // this was the flavor, which is always the default distribution now
             in.readString();
         }
@@ -167,7 +167,7 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_3_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)) {
             // this was the flavor, which is always the default distribution now
             out.writeString("default");
         }

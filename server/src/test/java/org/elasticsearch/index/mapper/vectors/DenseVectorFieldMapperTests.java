@@ -491,7 +491,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean allowsNullValues() {
-        return false;       // TODO should this allow null values?
+        return true;
     }
 
     public void testCannotBeUsedInMultifields() {

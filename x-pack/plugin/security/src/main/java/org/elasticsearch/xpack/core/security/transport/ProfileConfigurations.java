@@ -33,16 +33,16 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * The "default" profile has dedicated settings for both networking (e.g. `transport.tcp.keep_alive`)
  * and SSL (e.g. `xpack.security.transport.ssl.client_authentication`).
  * It also accepts networking settings specified with its transport profile name,
- * e.g. this is valid `transport.profiles.default.tcp.keep_alive` is valid.
+ * e.g. `transport.profiles.default.tcp.keep_alive` is valid configuration.
  * But it does *not* allow SSL settings to be specified with its transport profile name,
- * e.g. this is WRONG `transport.profiles.default.xpack.security.ssl.client_authentication`.
+ * e.g. `transport.profiles.default.xpack.security.ssl.client_authentication` is NOT valid configuration.
  *
  * The "_remote_cluster" profile also has dedicated settings for both networking (e.g. `remote_cluster.tcp.keep_alive`)
  * and SSL (e.g. `xpack.security.remote_cluster.ssl.client_authentication`).
  * This profile is completely synthetic in that it does NOT accept either networking or SSL settings
  * with its transport profile name.
- * NOTE the "_remote_cluster" profile name is special ONLY when the remote cluster feature is enabled.
- * If the feature is not enabled, this profile name will be treated just as a normal profile.
+ * NOTE the "_remote_cluster" profile name is special ONLY when the remote cluster port is enabled.
+ * If the remote cluster port is not enabled, this profile name will be treated just as a normal profile.
  *
  * When building SSL configurations for the transport profiles, assuming SSL is enabled,
  * this class builds a map that contains a configuration for each of the configured transport profiles

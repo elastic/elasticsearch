@@ -139,7 +139,7 @@ http://openweathermap.org/appid[OpenWeatherMap] service:
 --------------------------------------------------
 // NOTCONSOLE
 
-===== Using Token-Based Authentication
+===== Using token-based authentication
 
 You can also call an API using a `Bearer token` instead of the basic authentication. The `request.headers` object contains the HTTP headers:
 

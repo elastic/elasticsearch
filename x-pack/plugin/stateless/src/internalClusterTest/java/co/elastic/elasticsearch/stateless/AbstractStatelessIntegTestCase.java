@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -97,5 +99,20 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
         assertNoFailures(bulkRequest.get());
+    }
+
+    protected void indexDocsAndRefresh(String indexName, int numDocs) throws Exception {
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        boolean bulkRefreshes = randomBoolean();
+        if (bulkRefreshes) {
+            bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        }
+        assertNoFailures(bulkRequest.get());
+        if (bulkRefreshes == false) {
+            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+        }
     }
 }

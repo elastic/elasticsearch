@@ -21,9 +21,15 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -32,15 +38,19 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -109,10 +119,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     @Before
     public void init() {
         startMasterOnlyNode();
-        startIndexNodes(numShards);
     }
 
     public void testSearchShardsStarted() {
+        startIndexNodes(numShards);
         startSearchNodes(numShards * numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -127,6 +137,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardsStartedAfterIndexShards() {
+        startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -144,6 +155,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardsStartedWithDocs() {
+        startIndexNodes(numShards);
         startSearchNodes(numShards * numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -165,6 +177,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardsStartedAfterIndexShardsWithDocs() {
+        startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -195,6 +208,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardsNotifiedOnNewCommits() throws Exception {
+        startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -244,7 +258,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRefresh() throws Exception {
-        startIndexNode();
+        startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -258,36 +272,163 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
         int docsToIndex = randomIntBetween(1, 100);
-        indexDocs(indexName, docsToIndex);
-        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+        indexDocsAndRefresh(indexName, docsToIndex);
         var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
         assertNoFailures(searchResponse);
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
-    public void testIndexWithRefreshPolicy() throws Exception {
-        startIndexNode();
+    public void testScrollingSearchNotInterruptedByNewCommit() throws Exception {
+        // Use one replica to ensure both searches hit the same shard
+        final int numReplicas = 1;
+        startIndexNodes(numShards);
         startSearchNodes(numReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                .build()
-        );
+        var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
+        if (randomBoolean()) {
+            indexSettings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1);
+        }
+        createIndex(indexName, indexSettings.build());
         ensureGreen(indexName);
+
+        int bulk1DocsToIndex = randomIntBetween(10, 100);
+        Set<String> bulk1DocIds = indexDocsWithRefreshAndGetIds(indexName, bulk1DocsToIndex);
+        Set<String> lastBulkIds = bulk1DocIds;
+        long docsIndexed = bulk1DocsToIndex;
+        int scrollSize = randomIntBetween(10, 100);
+        long docsDeleted = 0;
+        int scrolls = (int) Math.ceil((float) bulk1DocsToIndex / scrollSize);
+        // The scrolling search should only see docs from the first bulk
+        SearchResponse scrollSearchResponse = client().prepareSearch()
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .get();
+        assertNoFailures(scrollSearchResponse);
+        assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+        Set<String> scrollSearchDocsSeen = Arrays.stream(scrollSearchResponse.getHits().getHits())
+            .map(SearchHit::getId)
+            .collect(Collectors.toSet());
+        try {
+            for (int i = 1; i < scrolls; i++) {
+                if (randomBoolean()) {
+                    // delete at least one doc
+                    int docsToDelete = randomIntBetween(1, lastBulkIds.size());
+                    var deletedDocIds = randomSubsetOf(docsToDelete, lastBulkIds);
+                    deleteDocsById(indexName, deletedDocIds);
+                    docsDeleted += deletedDocIds.size();
+                }
+                var docsToIndex = randomIntBetween(10, 100);
+                lastBulkIds = indexDocsWithRefreshAndGetIds(indexName, docsToIndex);
+                docsIndexed += docsToIndex;
+                // make sure new docs are visible to new searches
+                var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+                assertNoFailures(searchResponse);
+                assertEquals(docsIndexed - docsDeleted, searchResponse.getHits().getTotalHits().value);
+                // fetch next scroll
+                scrollSearchResponse = client().prepareSearchScroll(scrollSearchResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueMinutes(2))
+                    .get();
+                assertNoFailures(scrollSearchResponse);
+                assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                scrollSearchDocsSeen.addAll(
+                    Arrays.stream(scrollSearchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet())
+                );
+            }
+            assertThat(scrollSearchDocsSeen, equalTo(bulk1DocIds));
+        } finally {
+            clearScroll(scrollSearchResponse.getScrollId());
+        }
+    }
+
+    public void testSearchNotInterruptedByNewCommit() throws Exception {
+        // Use one replica to ensure both searches hit the same shard
+        final int numReplicas = 1;
+        // Use at least two shards to ensure there will always be a FETCH phase
+        final int numShards = randomIntBetween(2, 3);
+        startIndexNodes(numShards);
+        String coordinatingSearchNode = startSearchNode();
+        startSearchNodes(numReplicas);
+        // create index on all nodes except one search node
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+            .put("index.routing.allocation.exclude._name", coordinatingSearchNode);
+        createIndex(indexName, indexSettings.build());
+        ensureGreen(indexName);
+        int bulk1DocsToIndex = randomIntBetween(100, 200);
+        indexDocsAndRefresh(indexName, bulk1DocsToIndex);
+        // Index more docs in between the QUERY and the FETCH phase of the search
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            coordinatingSearchNode
+        );
+        CountDownLatch fetchStarted = new CountDownLatch(1);
+        CountDownLatch secondBulkIndexed = new CountDownLatch(1);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(SearchTransportService.FETCH_ID_ACTION_NAME)) {
+                try {
+                    fetchStarted.countDown();
+                    secondBulkIndexed.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        CountDownLatch searchFinished = new CountDownLatch(1);
+        client(coordinatingSearchNode).prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).execute(new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                searchFinished.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        fetchStarted.await();
+        int bulk2DocsToIndex = randomIntBetween(10, 100);
+        indexDocsAndRefresh(indexName, bulk2DocsToIndex);
+        // Verify that new docs are visible to new searches
+        var search2Response = client(coordinatingSearchNode).prepareSearch(indexName)
+            .setSize(0)  // Avoid a FETCH phase
+            .setQuery(QueryBuilders.matchAllQuery())
+            .get();
+        assertNoFailures(search2Response);
+        assertEquals(bulk1DocsToIndex + bulk2DocsToIndex, search2Response.getHits().getTotalHits().value);
+        secondBulkIndexed.countDown();
+        searchFinished.await();
+    }
+
+    private Set<String> indexDocsWithRefreshAndGetIds(String indexName, int numDocs) throws Exception {
         var bulkRequest = client().prepareBulk();
-        int docsToIndex = randomIntBetween(1, 100);
-        for (int i = 0; i < docsToIndex; i++) {
+        for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
-        bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        boolean bulkRefreshes = randomBoolean();
+        if (bulkRefreshes) {
+            bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        }
         assertNoFailures(bulkRequest.get());
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+        if (bulkRefreshes == false) {
+            assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+        }
+        return bulkRequest.request().requests().stream().map(DocWriteRequest::id).collect(Collectors.toSet());
+    }
+
+    private void deleteDocsById(String indexName, Collection<String> docIds) {
+        var bulkRequest = client().prepareBulk();
+        for (String id : docIds) {
+            bulkRequest.add(new DeleteRequest(indexName, id));
+        }
+        assertNoFailures(bulkRequest.get());
     }
 }

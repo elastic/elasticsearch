@@ -192,11 +192,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> outerListener) {
-        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API.
+        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API,
+        // and always set forced_refresh to true.
         // TODO: Replace with a less hacky approach.
         ActionListener<BulkResponse> listener = outerListener;
         if (DiscoveryNode.isStateless(clusterService.getSettings()) && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            listener = outerListener.delegateFailure((l, r) -> { client.admin().indices().prepareRefresh().execute(l.map(ignored -> r)); });
+            listener = outerListener.delegateFailure((l, r) -> client.admin().indices().prepareRefresh().execute(l.map(ignored -> {
+                for (BulkItemResponse response : r.getItems()) {
+                    DocWriteResponse docWriteResponse = response.getResponse();
+                    if (docWriteResponse != null) {
+                        docWriteResponse.setForcedRefresh(true);
+                    }
+                }
+                return r;
+            })));
             bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         }
         /*

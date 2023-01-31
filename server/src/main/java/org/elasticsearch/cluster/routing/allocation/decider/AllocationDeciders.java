@@ -46,7 +46,7 @@ public class AllocationDeciders {
         return withDeciders(
             allocation,
             decider -> decider.canAllocate(shardRouting, allocation),
-            decision -> String.format("Can not allocate [%s] on any node: %s", shardRouting, decision)
+            decision -> Strings.format("Can not allocate [%s] on any node: %s", shardRouting, decision)
         );
     }
 
@@ -54,7 +54,7 @@ public class AllocationDeciders {
         return withDeciders(
             allocation,
             decider -> decider.canAllocate(indexMetadata, node, allocation),
-            decision -> String.format("Can not allocate [%s] on node [%s]: %s", indexMetadata.getIndex().getName(), node.node(), decision)
+            decision -> Strings.format("Can not allocate [%s] on node [%s]: %s", indexMetadata.getIndex().getName(), node.node(), decision)
         );
     }
 
@@ -72,7 +72,7 @@ public class AllocationDeciders {
         return withDeciders(
             allocation,
             decider -> decider.canRebalance(allocation),
-            decision -> String.format("Can not rebalance: %s", decision)
+            decision -> Strings.format("Can not rebalance: %s", decision)
         );
     }
 
@@ -91,7 +91,7 @@ public class AllocationDeciders {
             shardRouting,
             node,
             decider -> decider.canRemain(indexMetadata, shardRouting, node, allocation),
-            decision -> String.format("Can not remain [%s] on node [%s]: %s", shardRouting, node, decision)
+            decision -> Strings.format("Can not remain [%s] on node [%s]: %s", shardRouting, node, decision)
         );
     }
 
@@ -99,7 +99,7 @@ public class AllocationDeciders {
         return withDeciders(
             allocation,
             decider -> decider.shouldAutoExpandToNode(indexMetadata, node, allocation),
-            decision -> String.format("Should not auto expand [%s] to node [%s]: %s", indexMetadata.getIndex().getName(), node, decision)
+            decision -> Strings.format("Should not auto expand [%s] to node [%s]: %s", indexMetadata.getIndex().getName(), node, decision)
         );
     }
 
@@ -110,7 +110,7 @@ public class AllocationDeciders {
             shardRouting,
             node,
             decider -> decider.canForceAllocatePrimary(shardRouting, node, allocation),
-            decision -> String.format("Can not force allocate shard [%s] on node [%s]: %s", shardRouting, node, decision)
+            decision -> Strings.format("Can not force allocate shard [%s] on node [%s]: %s", shardRouting, node, decision)
         );
     }
 
@@ -118,7 +118,7 @@ public class AllocationDeciders {
         return withDeciders(
             allocation,
             decider -> decider.canForceAllocateDuringReplace(shardRouting, node, allocation),
-            decision -> String.format("Can not force allocate during replace shard [%s] on node [%s]: %s", shardRouting, node, decision)
+            decision -> Strings.format("Can not force allocate during replace shard [%s] on node [%s]: %s", shardRouting, node, decision)
         );
     }
 
@@ -128,7 +128,7 @@ public class AllocationDeciders {
             shardRouting,
             node,
             decider -> decider.canAllocateReplicaWhenThereIsRetentionLease(shardRouting, node, allocation),
-            decision -> String.format(
+            decision -> Strings.format(
                 "Can not allocate replica when there is retention lease shard [%s] on node [%s]: %s",
                 shardRouting,
                 node,

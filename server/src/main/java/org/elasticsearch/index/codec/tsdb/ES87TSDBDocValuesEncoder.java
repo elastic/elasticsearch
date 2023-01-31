@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.packed.PackedInts;
 
@@ -37,7 +37,7 @@ public class ES87TSDBDocValuesEncoder {
      * Delta-encode monotonic fields. This is typically helpful with near-primary sort fields or
      * SORTED_NUMERIC/SORTED_SET doc values with many values per document.
      */
-    private void deltaEncode(int token, int tokenBits, long[] in, IndexOutput out) throws IOException {
+    private void deltaEncode(int token, int tokenBits, long[] in, final DataOutput out) throws IOException {
         int gts = 0;
         int lts = 0;
         for (int i = 1; i < blockSize; ++i) {
@@ -69,7 +69,7 @@ public class ES87TSDBDocValuesEncoder {
         }
     }
 
-    private void removeOffset(int token, int tokenBits, long[] in, IndexOutput out) throws IOException {
+    private void removeOffset(int token, int tokenBits, long[] in, final DataOutput out) throws IOException {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         for (long l : in) {
@@ -105,7 +105,7 @@ public class ES87TSDBDocValuesEncoder {
      * See if numbers have a common divisor. This is typically helpful for integer values in
      * floats/doubles or dates that don't have millisecond accuracy.
      */
-    private void gcdEncode(int token, int tokenBits, long[] in, IndexOutput out) throws IOException {
+    private void gcdEncode(int token, int tokenBits, long[] in, final DataOutput out) throws IOException {
         long gcd = 0;
         for (long l : in) {
             gcd = MathUtil.gcd(gcd, l);
@@ -129,7 +129,7 @@ public class ES87TSDBDocValuesEncoder {
         }
     }
 
-    private void forEncode(int token, int tokenBits, long[] in, IndexOutput out) throws IOException {
+    private void forEncode(int token, int tokenBits, long[] in, final DataOutput out) throws IOException {
         long or = 0;
         for (long l : in) {
             or |= l;
@@ -145,14 +145,14 @@ public class ES87TSDBDocValuesEncoder {
     /**
      * Encode the given longs using a combination of delta-coding, GCD factorization and bit packing.
      */
-    void encode(long[] in, IndexOutput out) throws IOException {
+    void encode(long[] in, final DataOutput out) throws IOException {
         assert in.length == blockSize;
 
         deltaEncode(0, 0, in, out);
     }
 
     /** Decode longs that have been encoded with {@link #encode}. */
-    void decode(IndexInput in, long[] out) throws IOException {
+    void decode(final DataInput in, long[] out) throws IOException {
         assert out.length == blockSize : out.length;
 
         final int token = in.readVInt();

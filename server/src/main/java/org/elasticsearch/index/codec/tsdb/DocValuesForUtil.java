@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.packed.DirectWriter;
 
 import java.io.IOException;
@@ -65,7 +65,7 @@ public class DocValuesForUtil {
         writer.finish();
     }
 
-    void decode(int bitsPerValue, final IndexInput in, long[] out) throws IOException {
+    void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
             forUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
@@ -78,10 +78,10 @@ public class DocValuesForUtil {
         }
     }
 
-    private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final IndexInput in, long[] out) throws IOException {
+    private void decodeFiveSixOrSevenBytesPerValue(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         // NOTE: we expect multibyte values to be written "least significant byte" first
+        int bytesPerValue = bitsPerValue / Byte.SIZE;
         for (int longValueIndex = 0; longValueIndex < blockSize; longValueIndex++) {
-            int bytesPerValue = bitsPerValue / Byte.SIZE;
             out[longValueIndex] = 0;
             for (int byteIndex = 0; byteIndex < bytesPerValue; byteIndex++) {
                 byte b = in.readByte();

@@ -114,12 +114,12 @@ public class RerankQueryBuilder extends AbstractQueryBuilder<RerankQueryBuilder>
     public boolean doEquals(RerankQueryBuilder o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        return Objects.equals(queryBuilders, o.queryBuilders);
+        if (super.equals(o) == false) return false;
+        return Objects.equals(queryBuilders, o.queryBuilders) && Objects.equals(compoundQueryBuilder, o.compoundQueryBuilder);
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(super.hashCode(), queryBuilders);
+        return Objects.hash(super.hashCode(), queryBuilders, compoundQueryBuilder);
     }
 }

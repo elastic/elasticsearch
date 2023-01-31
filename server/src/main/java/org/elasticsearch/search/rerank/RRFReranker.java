@@ -66,6 +66,13 @@ public class RRFReranker implements Reranker {
 
         List<ScoreDoc> sorted = new ArrayList<>(scoreDocs.values());
         sorted.sort(Comparator.comparingDouble(sd -> -sd.score));
-        return new SortedTopDocs(sorted.subList(0, Math.min(this.size, sorted.size())).toArray(ScoreDoc[]::new), false, null, null, null, 0);
+        return new SortedTopDocs(
+            sorted.subList(0, Math.min(this.size, sorted.size())).toArray(ScoreDoc[]::new),
+            false,
+            null,
+            null,
+            null,
+            0
+        );
     }
 }

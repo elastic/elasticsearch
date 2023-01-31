@@ -63,7 +63,8 @@ public class QueryPhase {
     public QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        if (searchContext.request().source().query() instanceof RerankQueryBuilder rerankQueryBuilder) {
+        if (searchContext.request().source() != null
+            && searchContext.request().source().query()instanceof RerankQueryBuilder rerankQueryBuilder) {
             executeRerank(searchContext, rerankQueryBuilder);
         } else {
             executeStandard(searchContext);

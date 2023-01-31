@@ -34,8 +34,11 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -50,6 +53,8 @@ import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isUnsupported;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.types;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 
@@ -113,14 +118,80 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = context.indexResolution().get();
-            // ignore all the unsupported data types fields
+            // ignore all the unsupported data types fields, except the unsupported fields that have supported sub-fields
             Map<String, EsField> newFields = new TreeMap<>();
-            for (Entry<String, EsField> entry : esIndex.mapping().entrySet()) {
-                if (EsqlDataTypes.isUnsupported(entry.getValue().getDataType()) == false) {
-                    newFields.put(entry.getKey(), entry.getValue());
+            // the default IndexResolver is marking a sub-field as unsupported if its parent is unsupported, something that it's specific
+            // to EQL and SQL. With ESQL things might be different in future and we may need to provide an ESQL-specific IndexResolver
+            filterUnsupportedDataTypes(esIndex.mapping(), newFields);
+            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), flatten(newFields), esIndex.concreteIndices()), plan.frozen());
+        }
+
+        private void filterUnsupportedDataTypes(Map<String, EsField> oldFields, Map<String, EsField> newFields) {
+            for (Entry<String, EsField> entry : oldFields.entrySet()) {
+                EsField field = entry.getValue();
+                Map<String, EsField> subFields = field.getProperties();
+                DataType fieldType = field.getDataType();
+                if (subFields.isEmpty()) {
+                    if (isSupportedDataType(fieldType)) {
+                        newFields.put(entry.getKey(), field);
+                    }
+                } else {
+                    String name = field.getName();
+                    Map<String, EsField> newSubFields = new TreeMap<>();
+
+                    filterUnsupportedDataTypes(subFields, newSubFields);
+                    if (isSupportedDataType(fieldType)) {
+                        newFields.put(entry.getKey(), new EsField(name, fieldType, newSubFields, field.isAggregatable(), field.isAlias()));
+                    }
+                    // unsupported field having supported sub-fields, except NESTED (which we'll ignore completely)
+                    else if (newSubFields.isEmpty() == false && fieldType != DataTypes.NESTED) {
+                        // mark the fields itself as unsupported, but keep its supported subfields
+                        newFields.put(entry.getKey(), new UnsupportedEsField(name, fieldType.typeName(), null, newSubFields));
+                    }
                 }
             }
-            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields, esIndex.concreteIndices()), plan.frozen());
+        }
+
+        private boolean isSupportedDataType(DataType type) {
+            return isUnsupported(type) == false && types().contains(type);
+        }
+
+        private Map<String, EsField> flatten(Map<String, EsField> mapping) {
+            TreeMap<String, EsField> newMapping = new TreeMap<>();
+            flatten(mapping, null, newMapping);
+            return newMapping;
+        }
+
+        private static void flatten(Map<String, EsField> mapping, String parentName, Map<String, EsField> newMapping) {
+            for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+                String name = entry.getKey();
+                EsField t = entry.getValue();
+
+                if (t != null) {
+                    String fullName = parentName == null ? name : parentName + "." + name;
+                    var fieldProperties = t.getProperties();
+                    if (t instanceof UnsupportedEsField == false) {
+                        if (fieldProperties.isEmpty()) {
+                            // use the field's full name instead
+                            newMapping.put(fullName, t);
+                        } else {
+                            // use the field's full name and an empty list of subfields (each subfield will be created separately from its
+                            // parent)
+                            if (t instanceof KeywordEsField kef) {
+                                newMapping.put(
+                                    fullName,
+                                    new KeywordEsField(fullName, Map.of(), kef.isAggregatable(), kef.getPrecision(), false, kef.isAlias())
+                                );
+                            } else {
+                                newMapping.put(fullName, new EsField(fullName, t.getDataType(), Map.of(), t.isAggregatable(), t.isAlias()));
+                            }
+                        }
+                    }
+                    if (fieldProperties.isEmpty() == false) {
+                        flatten(fieldProperties, fullName, newMapping);
+                    }
+                }
+            }
         }
     }
 
@@ -266,7 +337,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     for (var a : attrList) {
                         String nameCandidate = a.name();
                         // add only primitives (object types would only result in another error)
-                        if (EsqlDataTypes.isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
+                        if (isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
                             names.add(nameCandidate);
                         }
                     }

@@ -340,11 +340,183 @@ public class AnalyzerTests extends ESTestCase {
             """, "Unknown column [foo_type]");
     }
 
+    public void testUnsupportedFieldTypes() {
+        verifyUnsupported(
+            """
+                from test
+                | project bool, unsigned_long, text, date, date_nanos, unsupported, point, shape, version
+                """,
+            "Found 9 problems\n"
+                + "line 2:11: Unknown column [bool]\n"
+                + "line 2:17: Unknown column [unsigned_long]\n"
+                + "line 2:32: Unknown column [text]\n"
+                + "line 2:38: Unknown column [date]\n"
+                + "line 2:44: Unknown column [date_nanos]\n"
+                + "line 2:56: Unknown column [unsupported]\n"
+                + "line 2:69: Unknown column [point], did you mean [int]?\n"
+                + "line 2:76: Unknown column [shape]\n"
+                + "line 2:83: Unknown column [version]"
+        );
+    }
+
     public void testUnsupportedDottedFieldUsedExplicitly() {
+        verifyUnsupported(
+            """
+                from test
+                | project some.string
+                """,
+            "Found 1 problem\n"
+                + "line 2:11: Unknown column [some.string], did you mean any of [some.string.typical, some.string.normalized]?"
+        );
+    }
+
+    public void testUnsupportedParentField() {
+        verifyUnsupported(
+            """
+                from test
+                | project text, text.keyword
+                """,
+            "Found 2 problems\n"
+                + "line 2:11: Unknown column [text], did you mean [text.raw]?\n"
+                + "line 2:17: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
+            "mapping-multi-field.json"
+        );
+    }
+
+    public void testUnsupportedParentFieldAndItsSubField() {
+        verifyUnsupported(
+            """
+                from test
+                | project text, text.english
+                """,
+            "Found 2 problems\n"
+                + "line 2:11: Unknown column [text], did you mean [text.raw]?\n"
+                + "line 2:17: Unknown column [text.english]",
+            "mapping-multi-field.json"
+        );
+    }
+
+    public void testUnsupportedDeepHierarchy() {
+        verifyUnsupported(
+            """
+                from test
+                | project x.y.z.w, x.y.z, x.y, x
+                """,
+            "Found 4 problems\n"
+                + "line 2:11: Unknown column [x.y.z.w]\n"
+                + "line 2:20: Unknown column [x.y.z]\n"
+                + "line 2:27: Unknown column [x.y]\n"
+                + "line 2:32: Unknown column [x]",
+            "mapping-multi-field-with-nested.json"
+        );
+    }
+
+    /**
+     * Here x.y.z.v is of type "keyword" but its parent is of unsupported type "foobar".
+     */
+    public void testUnsupportedValidFieldTypeInDeepHierarchy() {
         verifyUnsupported("""
             from test
-            | project some.string
-            """, "Unknown column [some.string]");
+            | project x.y.z.v
+            """, "Found 1 problem\n" + "line 2:11: Unknown column [x.y.z.v]", "mapping-multi-field-with-nested.json");
+    }
+
+    public void testUnsupportedValidFieldTypeInNestedParentField() {
+        verifyUnsupported("""
+            from test
+            | project dep.dep_id.keyword
+            """, "Found 1 problem\n" + "line 2:11: Unknown column [dep.dep_id.keyword]", "mapping-multi-field-with-nested.json");
+    }
+
+    public void testUnsupportedObjectAndNested() {
+        verifyUnsupported(
+            """
+                from test
+                | project dep, some
+                """,
+            "Found 2 problems\n" + "line 2:11: Unknown column [dep]\n" + "line 2:16: Unknown column [some]",
+            "mapping-multi-field-with-nested.json"
+        );
+    }
+
+    public void testSupportedDeepHierarchy() {
+        assertProjection("""
+            from test
+            | project some.dotted.field, some.string.normalized
+            """, new StringBuilder("mapping-multi-field-with-nested.json"), "some.dotted.field", "some.string.normalized");
+    }
+
+    public void testExcludeSupportedDottedField() {
+        assertProjection(
+            """
+                from test
+                | project -some.dotted.field
+                """,
+            new StringBuilder("mapping-multi-field-variation.json"),
+            "float",
+            "int",
+            "keyword",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.string.normalized",
+            "some.string.typical"
+        );
+    }
+
+    public void testImplicitProjectionOfDeeplyComplexMapping() {
+        assertProjection(
+            "from test",
+            new StringBuilder("mapping-multi-field-with-nested.json"),
+            "int",
+            "keyword",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.dotted.field",
+            "some.string.normalized",
+            "some.string.typical"
+        );
+    }
+
+    public void testExcludeWildcardDottedField() {
+        assertProjection(
+            """
+                from test
+                | project -some.ambiguous.*
+                """,
+            new StringBuilder("mapping-multi-field-with-nested.json"),
+            "int",
+            "keyword",
+            "some.dotted.field",
+            "some.string.normalized",
+            "some.string.typical"
+        );
+    }
+
+    public void testExcludeWildcardDottedField2() {
+        assertProjection("""
+            from test
+            | project -some.*
+            """, new StringBuilder("mapping-multi-field-with-nested.json"), "int", "keyword");
+    }
+
+    public void testProjectOrderPatternWithDottedFields() {
+        assertProjection(
+            """
+                from test
+                | project *some.string*, *, some.ambiguous.two, keyword
+                """,
+            new StringBuilder("mapping-multi-field-with-nested.json"),
+            "some.string.normalized",
+            "some.string.typical",
+            "int",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.dotted.field",
+            "some.ambiguous.two",
+            "keyword"
+        );
     }
 
     public void testUnsupportedFieldUsedExplicitly2() {
@@ -382,12 +554,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void verifyUnsupported(String query, String errorMessage) {
-        var e = expectThrows(VerificationException.class, () -> analyze(query, "mapping-multi-field-variation.json"));
+        verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
+    }
+
+    private void verifyUnsupported(String query, String errorMessage, String mappingFileName) {
+        var e = expectThrows(VerificationException.class, () -> analyze(query, mappingFileName));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 
     private void assertProjection(String query, String... names) {
         var plan = analyze(query);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        assertThat(Expressions.names(project.projections()), contains(names));
+    }
+
+    private void assertProjection(String query, StringBuilder mapping, String... names) {
+        var plan = analyze(query, mapping.toString());
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
         assertThat(Expressions.names(project.projections()), contains(names));

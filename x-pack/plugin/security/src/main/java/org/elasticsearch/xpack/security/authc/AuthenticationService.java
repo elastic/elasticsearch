@@ -96,7 +96,6 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final AuthenticatorChain authenticatorChain;
-    private final ApiKeyService apiKeyService;
     private final String nodeName;
 
     public AuthenticationService(
@@ -135,7 +134,6 @@ public class AuthenticationService {
             new ApiKeyAuthenticator(apiKeyService, nodeName),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
         );
-        this.apiKeyService = apiKeyService;
     }
 
     public void authenticateRemoteAccess(

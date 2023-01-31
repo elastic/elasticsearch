@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
  * This test suite will be run twice: Once against the fulfilling cluster, then again against the querying cluster. The typical usage is to
  * conditionalize on whether the test is running against the fulfilling or the querying cluster.
  */
-public class RemoteCluster2SecuritySmokeIT extends ESRestTestCase {
+public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
     @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;

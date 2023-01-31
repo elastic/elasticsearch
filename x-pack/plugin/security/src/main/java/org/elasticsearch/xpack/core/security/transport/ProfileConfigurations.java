@@ -21,10 +21,55 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
+/**
+ * Settings for a transport profile usually begin with "transport.profiles.NAME."
+ * The settings can be either of the two categories:
+ *   1. Networking - e.g. `transport.profiles.NAME.tcp.keep_alive: true`
+ *   2. SSL - e.g. `transport.profiles.NAME.xpack.security.ssl.client_authentication: none`
+ * This class is responsible for building SSL configuration for transport profiles.
+ *
+ * Among the transport profiles, two of them are special: "default" and "_remote_cluster".
+ *
+ * The "default" profile has dedicated settings for both networking (e.g. `transport.tcp.keep_alive`)
+ * and SSL (e.g. `xpack.security.transport.ssl.client_authentication`).
+ * It also accepts networking settings specified with its transport profile name,
+ * e.g. this is valid `transport.profiles.default.tcp.keep_alive` is valid.
+ * But it does *not* allow SSL settings to be specified with its transport profile name,
+ * e.g. this is WRONG `transport.profiles.default.xpack.security.ssl.client_authentication`.
+ *
+ * The "_remote_cluster" profile also has dedicated settings for both networking (e.g. `remote_cluster.tcp.keep_alive`)
+ * and SSL (e.g. `xpack.security.remote_cluster.ssl.client_authentication`).
+ * This profile is completely synthetic in that it does NOT accept either networking or SSL settings
+ * with its transport profile name.
+ * NOTE the "_remote_cluster" profile name is special ONLY when the remote cluster feature is enabled.
+ * If the feature is not enabled, this profile name will be treated just as a normal profile.
+ *
+ * When building SSL configurations for the transport profiles, assuming SSL is enabled,
+ * this class builds a map that contains a configuration for each of the configured transport profiles
+ * (keyed by its name).
+ * The map also contains an entry that has the special key "default" and value being the SSL
+ * configuration for the "default" profile.
+ * If remote cluster is enabled, the map will also contain an entry that has the special key
+ * "_remote_cluster" with the value being the SSL configuration of the synthetic "_remote_cluster" profile.
+ *
+ * NOTE the "_remote_cluster" profile only applies to the new remote cluster model.
+ * The legacy remote cluster model mostly just uses the "default" transport profile.
+ */
 public final class ProfileConfigurations {
 
     private ProfileConfigurations() {}
 
+    /**
+     * Builds SSL configuration for transport profiles.
+     *
+     * @param settings Settings of the ES node
+     * @param sslService For resolving the SSL configuration based on its prefix
+     * @param sslEnabledOnly If true, only include the SSL configuration if SSL is enabled for the profile.
+     *                       If false, SSL configuration is included for a profile regardless whether SSL is actually enabled for it.
+     * @return A map that contains {@link SslConfiguration} for each named transport profile as well
+     *         as an entry for the "default" profile. If the remote_cluster feature is enabled, it also
+     *         contains an entry for the synthetic "_remote_cluster" profile.
+     */
     public static Map<String, SslConfiguration> get(Settings settings, SSLService sslService, boolean sslEnabledOnly) {
         final boolean transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_PORT_ENABLED.get(settings);

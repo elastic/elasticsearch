@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This test suite will be run twice: Once against the fulfilling cluster, then again against the querying cluster.
  */
-public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
+public class LegacyRemoteClusterSecuritySmokeIT extends ESRestTestCase {
 
     private static final String USER = "test_user";
     private static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());

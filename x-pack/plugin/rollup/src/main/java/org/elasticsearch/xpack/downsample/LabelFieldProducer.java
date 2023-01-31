@@ -153,12 +153,25 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
         }
     }
 
+    /**
+     * This class specializes the implementation of {@link LabelLastValueFieldProducer}
+     * because it needs to override the {@link LabelLastValueFieldProducer#collect(LeafFieldData, int)}
+     * and {@link LabelLastValueFieldProducer#write(XContentBuilder)} methods.
+     */
     static class HistogramLabelFieldProducer extends LabelLastValueFieldProducer {
 
         HistogramLabelFieldProducer(final MappedFieldType fieldType, final String name) {
             super(fieldType, name, new LastValueLabel());
         }
 
+        /**
+         * Override the {@link LabelLastValueFieldProducer#collect(LeafFieldData, int)} method so that
+         * we can extract {@link HistogramValues} instead of using {@link FormattedDocValues}.
+         *
+         * @param leafFieldData the {@link LeafHistogramFieldData} used to retrieve histogram values.
+         * @param docId the docId of the document including the histogram.
+         * @throws IOException if reading the histogram fails.
+         */
         @Override
         public void collect(final LeafFieldData leafFieldData, int docId) throws IOException {
             if (isEmpty() == false) {
@@ -172,6 +185,13 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
             label.collect(histogramValues.histogram());
         }
 
+        /**
+         * Override the {@link LabelLastValueFieldProducer#write(XContentBuilder)} method so that
+         * we can serialize histograms fields including counts and values.
+         *
+         * @param builder the {@link XContentBuilder} used to serialize the histogram
+         * @throws IOException if reading the histogram fails.
+         */
         @Override
         public void write(XContentBuilder builder) throws IOException {
             final HistogramValue histogramValue = (HistogramValue) label.get();

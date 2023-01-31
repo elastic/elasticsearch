@@ -20,18 +20,14 @@ import com.maxmind.geoip2.record.Subdivision;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -50,7 +46,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
@@ -412,11 +407,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
         );
 
         private final GeoIpDatabaseProvider geoIpDatabaseProvider;
-        private final ClusterService clusterService;
 
-        public Factory(GeoIpDatabaseProvider geoIpDatabaseProvider, ClusterService clusterService) {
+        public Factory(GeoIpDatabaseProvider geoIpDatabaseProvider) {
             this.geoIpDatabaseProvider = geoIpDatabaseProvider;
-            this.clusterService = clusterService;
         }
 
         @Override
@@ -479,39 +472,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     );
                 }
             }
-            DatabaseVerifyingSupplier supplier = new DatabaseVerifyingSupplier(geoIpDatabaseProvider, databaseFile, databaseType);
-            Supplier<Boolean> isValid = () -> {
-                ClusterState currentState = clusterService.state();
-                assert currentState != null;
-
-                PersistentTask<?> task = getTaskWithId(currentState, GeoIpDownloader.GEOIP_DOWNLOADER);
-                if (task == null || task.getState() == null) {
-                    return true;
-                }
-                GeoIpTaskState state = (GeoIpTaskState) task.getState();
-                GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
-                // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
-                if (metadata == null) {
-                    return true;
-                }
-
-                boolean valid = metadata.isValid(currentState.metadata().settings());
-                if (valid && metadata.isCloseToExpiration()) {
-                    HeaderWarning.addWarning(
-                        "database [{}] was not updated for over 25 days, geoip processor"
-                            + " will stop working if there is no update for 30 days",
-                        databaseFile
-                    );
-                }
-
-                return valid;
-            };
             return new GeoIpProcessor(
                 processorTag,
                 description,
                 ipField,
-                supplier,
-                isValid,
+                new DatabaseVerifyingSupplier(geoIpDatabaseProvider, databaseFile, databaseType),
+                () -> geoIpDatabaseProvider.isValid(databaseFile),
                 targetField,
                 properties,
                 ignoreMissing,

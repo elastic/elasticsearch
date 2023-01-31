@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
@@ -93,34 +95,45 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     private Path geoipTmpDirectory;
     private final ConfigDatabases configDatabases;
     private final Consumer<Runnable> genericExecutor;
+    private final ClusterService clusterService;
     private IngestService ingestService;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
 
-    DatabaseNodeService(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
+    DatabaseNodeService(
+        Environment environment,
+        Client client,
+        GeoIpCache cache,
+        Consumer<Runnable> genericExecutor,
+        ClusterService clusterService
+    ) {
         this(
             environment.tmpFile(),
             new OriginSettingClient(client, IngestService.INGEST_ORIGIN),
             cache,
             new ConfigDatabases(environment, cache),
-            genericExecutor
+            genericExecutor,
+            clusterService
         );
     }
 
-    DatabaseNodeService(Path tmpDir, Client client, GeoIpCache cache, ConfigDatabases configDatabases, Consumer<Runnable> genericExecutor) {
+    DatabaseNodeService(
+        Path tmpDir,
+        Client client,
+        GeoIpCache cache,
+        ConfigDatabases configDatabases,
+        Consumer<Runnable> genericExecutor,
+        ClusterService clusterService
+    ) {
         this.client = client;
         this.cache = cache;
         this.geoipTmpBaseDirectory = tmpDir.resolve("geoip-databases");
         this.configDatabases = configDatabases;
         this.genericExecutor = genericExecutor;
+        this.clusterService = clusterService;
     }
 
-    public void initialize(
-        String nodeId,
-        ResourceWatcherService resourceWatcher,
-        IngestService ingestServiceArg,
-        ClusterService clusterService
-    ) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -159,6 +172,33 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         LOGGER.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
         this.ingestService = ingestServiceArg;
         clusterService.addListener(event -> checkDatabases(event.state()));
+    }
+
+    @Override
+    public Boolean isValid(String databaseFile) {
+        ClusterState currentState = clusterService.state();
+        assert currentState != null;
+
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(currentState, GeoIpDownloader.GEOIP_DOWNLOADER);
+        if (task == null || task.getState() == null) {
+            return true;
+        }
+        GeoIpTaskState state = (GeoIpTaskState) task.getState();
+        GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
+        // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
+        if (metadata == null) {
+            return true;
+        }
+
+        boolean valid = metadata.isValid(currentState.metadata().settings());
+        if (valid && metadata.isCloseToExpiration()) {
+            HeaderWarning.addWarning(
+                "database [{}] was not updated for over 25 days, geoip processor" + " will stop working if there is no update for 30 days",
+                databaseFile
+            );
+        }
+
+        return valid;
     }
 
     // for testing only:

@@ -311,6 +311,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
+            assertNull(getTask());
             assertNull(getTask().getState());
             putGeoIpPipeline(); // This is to work around the race condition described in #92888
         });

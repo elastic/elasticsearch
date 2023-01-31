@@ -139,7 +139,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             if (request.getWaitForCompletion()) {
                 final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
                 RemovedTaskListener removedTaskListener = task -> {
-                    if (task.equals(runningTask) && future.isDone() == false) {
+                    if (task.equals(runningTask)) {
                         future.onResponse(null);
                     }
                 };

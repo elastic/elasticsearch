@@ -547,23 +547,6 @@ public class TaskManager implements ClusterStateApplier {
         lastDiscoveryNodes = event.state().getNodes();
     }
 
-    /**
-     * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
-     */
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        while (System.nanoTime() - untilInNanos < 0) {
-            if (getTask(task.getId()) == null) {
-                return;
-            }
-            try {
-                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-            } catch (InterruptedException e) {
-                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
-            }
-        }
-        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
-    }
-
     private static class CancellableTaskHolder {
         private final CancellableTask task;
         private boolean finished = false;

@@ -1,0 +1,36 @@
+["source","properties"]
+:plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
+--------------------------------------------------
+include::{plugin-properties-files}/plugin-descriptor.properties[]
+--------------------------------------------------
+
+Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
+can fill in the necessary values in the `build.gradle` file for your plugin.
+
+[discrete]
+==== Mandatory elements for plugins
+
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Element                    | Type   | Description
+
+|`description`              |String  | simple summary of the plugin
+
+|`version`                  |String  | plugin's version
+
+|`name`                     |String  | the plugin name
+ifeval::[{stable-plugin} ==  true]
+|`classname`                |String  | this property is for non-text analysis 
+plugins. Do not include this property.
+endif::[]
+ifeval::[{stable-plugin} == false]
+|`classname`                |String  | the name of the class to load, fully-qualified.
+endif::[]
+|`java.version`             |String  | version of java the code is built against.
+Use the system property `java.specification.version`. Version string must be a sequence
+of nonnegative decimal integers separated by "."'s and may have leading zeros.
+
+|`elasticsearch.version`    |String  | version of Elasticsearch compiled against.
+
+|=======================================================================

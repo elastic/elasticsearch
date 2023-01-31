@@ -1,0 +1,206 @@
+[[example-text-analysis-plugin]]
+=== Example text analysis plugin
+
+This example shows how to create a simple "Hello world" text analysis plugin.
+The plugin provides a custom Lucene token filter that strips all tokens except 
+for "hello" and "world". 
+
+Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
+easier to develop and package plugins. The steps below assume you use this
+plugin. However, you don't need Gradle to create plugins.
+
+. Create a new directory for your project.
+. In this example, the source code  will be organized under the `main` and 
+`test` directories. In your project's home directory, create `src/` `src/main/`,
+and `src/test/` directories.
+. Create the following `build.gradle` build script in your project's home 
+directory:
++
+[source,gradle]
+----
+ext.elasticsearchVersion = '8.7.0-SNAPSHOT'
+ext.luceneVersion = '9.5.0-snapshot-d19c3e2e0ed'
+
+buildscript {
+  ext.elasticsearchVersion = '8.7.0-SNAPSHOT'
+  repositories {
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
+    }
+    mavenCentral()
+  }
+  dependencies {
+    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+  }
+}
+
+apply plugin: 'elasticsearch.stable-esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+esplugin {
+  name 'my-plugin'
+  description 'My analysis plugin'
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+  maven {
+    url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/d19c3e2e0ed/"
+  }
+  maven {
+    url = 'https://snapshots.elastic.co/maven/'
+  }
+  mavenLocal()
+  mavenCentral()
+}
+
+dependencies {
+
+  //TODO transitive dependency off and plugin-api dependency?
+  compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-api:${elasticsearchVersion}"
+  compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+  //TODO for testing this also have to be declared
+  testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-api:${elasticsearchVersion}"
+  testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+  testImplementation ('junit:junit:4.13.2'){
+    exclude group: 'org.hamcrest'
+  }
+  testImplementation 'org.mockito:mockito-core:4.4.0'
+  testImplementation 'org.hamcrest:hamcrest:2.2'
+
+}
+----
+. In `src/main/java/org/example/`, create `HelloWorldTokenFilter.java`. This
+file provides the code for a token filter that strips all tokens except for 
+"hello" and "world":
++
+[source,java]
+----
+package org.example;
+
+import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+
+import java.util.Arrays;
+
+public class HelloWorldTokenFilter extends FilteringTokenFilter {
+    private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+
+    public HelloWorldTokenFilter(TokenStream input) {
+        super(input);
+    }
+
+    @Override
+    public boolean accept() {
+        if (term.length() != 5) return false;
+        return Arrays.equals(term.buffer(), 0, 4, "hello".toCharArray(), 0, 4)
+                || Arrays.equals(term.buffer(), 0, 4, "world".toCharArray(), 0, 4);
+    }
+}
+----
+. This filter can be provided to Elasticsearch using the following `HelloWorldTokenFilterFactory.java` factory class. It uses the `@NamedComponent`
+annotation to give the filter the `hello_world` name. This is the name you can 
+use to refer to the filter, once the plugin has been deployed.
++
+[source,java]
+----
+package org.example;
+
+import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.plugin.analysis.TokenFilterFactory;
+import org.elasticsearch.plugin.NamedComponent;
+
+@NamedComponent(value = "hello_world")
+public class HelloWorldTokenFilterFactory implements TokenFilterFactory {
+
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new HelloWorldTokenFilter(tokenStream);
+    }
+
+}
+----
+. Unit tests may go under the `src/test` directory. You will have to add
+dependencies for your preferred testing framework.
+
+. Assemble a plugin ZIP file by running:
++
+[source,sh]
+----
+./gradlew bundlePlugin
+----
+The resulting plugin ZIP file will be written to the `build/distributions` 
+directory.
+. <<plugin-management,Install the plugin>>.
+. Verify that the `hello_world` token filter works using the `_analyze` API:
++
+[source,console]
+----
+GET /_analyze
+{
+  "text": "hello to everyone except the world",
+  "tokenizer": "standard",
+  "filter":  ["hello_world"]
+}
+----
+// TEST[skip:would require this plugin to be installed]
+
+[discrete]
+=== YAML REST tests
+
+If you are using the `elasticsearch.stable-esplugin` plugin for Gradle, you can
+use {es}'s YAML Rest Test framework. This framework allows you to load your
+plugin in a running test cluster and issue real REST API queries against it. The
+full syntax for this framework is beyond the scope of this tutorial, but there
+are many examples in the Elasticsearch repository. Refer to the
+{es-repo}tree/main/plugins/examples/stable-analysis[example analysis plugin] in
+the {es} Github repository for an example.
+
+. Create a `yamlRestTest` directory in the `src` directory.
+. Under the `yamlRestTest` directory, create a `java` folder for Java sources
+and a `resources` folder.
+. In `src/yamlRestTest/java/org/example/`, create `HelloWorldPluginClientYamlTestSuiteIT.java`. This class implements `ESClientYamlSuiteTestCase`.
++
+[source,java]
+----
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+public class HelloWorldPluginClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public HelloWorldPluginClientYamlTestSuiteIT(
+            @Name("yaml") ClientYamlTestCandidate testCandidate
+    ) {
+        super(testCandidate);
+    }
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
+}
+----
+. In Under `src/yamlRestTest/resources/rest-api-spec/test/plugin`, create this YAML file:
++
+[source,yaml]
+----
+## Sample rest test
+---
+"Hello world plugin test - removes all tokens except hello and world":
+  - do:
+      indices.analyze:
+        body:
+          text: hello to everyone except the world
+          tokenizer: standard
+          filter:
+            - type: "hello_world"
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: "hello" }
+  - match:  { tokens.1.token: "world" }
+----

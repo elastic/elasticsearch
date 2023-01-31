@@ -1,0 +1,129 @@
+[[creating-text-analysis-plugins]]
+=== Creating text analysis plugins
+
+Text analysis plugins provide {es} with custom Lucene analyzers, token filters, 
+character filters, and tokenizers. 
+
+[discrete]
+==== Plugin file structure
+
+Plugins are ZIP files composed of JAR files and two metadata files:
+
+* `stable-plugin-descriptor.properties` - a Java properties file that describes 
+the plugin. Refer to <<stable-plugin-descriptor.properties>>.
+* `named_components.json`  - a JSON file mapping interfaces to key-value pairs 
+of component names and implementation classes.
+
+Note that only JAR files at the root of the plugin are added to the classpath
+for the plugin. If you need other resources, package them into a resources JAR.
+
+[discrete]
+==== The analysis plugin API
+
+Text analysis plugins can be written against the analysis plugin API. This API
+includes:
+
+* the entirety of the core Lucene module
+* the {es} `plugin-api`, which includes important annotations for the plugin 
+framework
+* `plugin-analysis-api`, which contains the classes that an analysis plugin can 
+implement.
+
+The advantage of using this API is that the resulting plugin is
+forward-compatible with new minor versions of {es}. While elements may be added
+to the API, existing element will not be changed or removed, except in a new
+major release. In other words, once you have a working artifact, you can re-use
+it when you upgrade {es} to a new bugfix or minor version.
+
+It's also possible to create text analysis plugins using the method described in
+<<creating-non-text-analysis-plugins>> but plugins created using that method are
+pinned to specific version of {es} and will have to be recompiled when upgrading
+{es}.
+
+The analysis plugin API provides four factory classes that a stable analysis
+plugin may choose to implement:
+
+* `AnalyzerFactory` to create a Lucene analyzer
+* `CharFilterFactory` to create a character character filter
+* `TokenFilterFactory` to create a Lucene token filter
+* `TokenizerFactory` to create a Lucene tokenizer
+
+The key to implementing a text analysis plugin is the `@NamedComponent`
+annotation. Many of {es}'s components have names that are used in
+configurations. For example, the keyword analyzer is referenced in configuration
+with the name `"keyword"`. Once your custom plugin is installed in your cluster,
+your named components may be referenced by name in these configurations as well.
+
+[discrete]
+==== Development process
+
+Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
+easier to develop and package plugins. The steps below assume you use this 
+plugin. However, you don't need Gradle to create plugins.
+
+The {es} Github repository contains
+{es-repo}tree/main/plugins/examples/stable-analysis[an example analysis plugin].
+The example `build.gradle` build script provides a good starting point for 
+developing your own plugin.
+
+[discrete]
+===== Prerequisites
+
+Plugins are written in Java, so you need to install a Java Development Kit
+(JDK). Install Gradle if you want to use Gradle.
+
+[discrete]
+===== Step by step
+
+. Create a directory for your project. 
+. Copy the example `build.gradle` build script to your project directory.  Note
+that this build script uses the `elasticsearch.stable-esplugin` gradle plugin to
+build your plugin.
+. Edit the `build.gradle` build script:
+** Add a definition for the `elasticsearchVersion` and matching `luceneVersion` 
+variables to the top of the file. These versions can be found in the 
+`build-tools-internal/version.properties` file in the {es-repo}[Elasticsearch 
+Github repository].
+** Edit the `name` and `description` in the `esplugin` section of the build 
+script.
+** Add module information.
+** Ensure you have declared the following compile-time dependencies. These 
+dependencies are compile-time only because {es} will provide these libraries at 
+runtime.
+*** `org.elasticsearch.plugin:elasticsearch-plugin-api`
+*** `org.elasticsearch.plugin:elasticsearch-plugin-analysis-api`
+*** `org.apache.lucene:lucene-analysis-common`
+** For unit testing, ensure these dependencies have also been added to the 
+`build.gradle` script as `testImplementation` dependencies.
+. Implement an interface from the analysis plugin API, annotating it with 
+`NamedComponent`. Refer to <<example-text-analysis-plugin>> for an example.
+. You should now be able to assemble a plugin ZIP file by running:
++
+[source,sh]
+----
+./gradlew bundlePlugin
+----
+The resulting plugin ZIP file will be written to the  `build/distributions` 
+directory.
+
+[discrete]
+===== YAML REST tests
+
+The Gradle `elasticsearch.yaml-rest-test` plugin enables testing of your 
+plugin using the {es-repo}blob/main/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc[{es} yamlRestTest framework]. 
+These tests use a YAML-formatted domain language to issue REST requests against
+an internal {es} cluster that has your plugin installed, and to check the 
+results of those requests. The structure of a YAML REST test directory is as 
+follows:
+** A test suite class, defined under `src/yamlRestTest/java`. This class should extend
+`ESClientYamlSuiteTestCase`.
+** If the plugin defines new REST endpoints, the specifications for those 
+endpoints should be defined in `src/yamlRestTest/resources/rest-api-spec/api/`.
+** The YAML tests themselves should be defined under `src/yamlRestTest/resources/test/`.
+
+[discrete]
+[[stable-plugin-descriptor.properties]]
+==== The `stable-plugin-descriptor.properties` file
+
+:stable-plugin: true
+include::plugin-descriptor-file.asciidoc[]

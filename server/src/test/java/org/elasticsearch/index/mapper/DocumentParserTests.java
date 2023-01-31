@@ -2575,11 +2575,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
             @Override
             public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-                return new StringStoredFieldFieldLoader(
-                    name(),
-                    simpleName(),
-                    null
-                ) {
+                return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;

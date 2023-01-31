@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
@@ -56,6 +57,8 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -172,6 +175,28 @@ public class LocalExecutionPlanner {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
     }
 
+    /**
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
+     */
+    static ElementType toElementType(DataType dataType) {
+        if (dataType == DataTypes.LONG) {
+            return ElementType.LONG;
+        }
+        if (dataType == DataTypes.INTEGER) {
+            return ElementType.INT;
+        }
+        if (dataType == DataTypes.DOUBLE) {
+            return ElementType.DOUBLE;
+        }
+        if (dataType == DataTypes.KEYWORD) {
+            return ElementType.BYTES_REF;
+        }
+        if (dataType == DataTypes.NULL) {
+            return ElementType.NULL;
+        }
+        throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+    }
+
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();
@@ -257,10 +282,7 @@ public class LocalExecutionPlanner {
             }
             Layout.Builder layout = source.layout.builder();
             layout.appendChannel(namedExpression.toAttribute().id());
-            source = source.with(
-                new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
-                layout.build()
-            );
+            source = source.with(new EvalOperatorFactory(evaluator, toElementType(namedExpression.dataType())), layout.build());
         }
         return source;
     }

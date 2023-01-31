@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-public record ValueSourceInfo(ValuesSourceType type, ValuesSource source, IndexReader reader) {}
+public record ValueSourceInfo(ValuesSourceType type, ValuesSource source, ElementType elementType, IndexReader reader) {}

@@ -8,36 +8,39 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
 public class EvalOperator implements Operator {
 
+    public record EvalOperatorFactory(ExpressionEvaluator evaluator, ElementType elementType) implements OperatorFactory {
+
+        @Override
+        public Operator get() {
+            return new EvalOperator(evaluator, elementType);
+        }
+
+        @Override
+        public String describe() {
+            return "EvalOperator[elementType=" + elementType + ", evaluator=" + evaluator + "]";
+        }
+    }
+
     private final ExpressionEvaluator evaluator;
-    private final Class<? extends Number> dataType;
+    private final ElementType elementType;
 
     boolean finished;
 
     Page lastInput;
 
-    public record EvalOperatorFactory(ExpressionEvaluator evaluator, Class<? extends Number> dataType) implements OperatorFactory {
-
-        @Override
-        public Operator get() {
-            return new EvalOperator(evaluator, dataType);
-        }
-
-        @Override
-        public String describe() {
-            return "EvalOperator[dataType=" + dataType + ", evaluator=" + evaluator + "]";
-        }
-    }
-
-    public EvalOperator(ExpressionEvaluator evaluator, Class<? extends Number> dataType) {
+    public EvalOperator(ExpressionEvaluator evaluator, ElementType elementType) {
         this.evaluator = evaluator;
-        this.dataType = dataType;
+        this.elementType = elementType;
     }
 
     @Override
@@ -45,33 +48,48 @@ public class EvalOperator implements Operator {
         if (lastInput == null) {
             return null;
         }
-        Page lastPage;
         int rowsCount = lastInput.getPositionCount();
-        if (dataType.equals(Long.TYPE)) {
-            var blockBuilder = LongBlock.newBlockBuilder(rowsCount);
-            for (int i = 0; i < rowsCount; i++) {
-                Number result = (Number) evaluator.computeRow(lastInput, i);
-                if (result == null) {
-                    blockBuilder.appendNull();
-                } else {
-                    blockBuilder.appendLong(result.longValue());
+        Page lastPage = lastInput.appendBlock(switch (elementType) {
+            case LONG -> {
+                var blockBuilder = LongBlock.newBlockBuilder(rowsCount);
+                for (int i = 0; i < rowsCount; i++) {
+                    Number result = (Number) evaluator.computeRow(lastInput, i);
+                    if (result == null) {
+                        blockBuilder.appendNull();
+                    } else {
+                        blockBuilder.appendLong(result.longValue());
+                    }
                 }
+                yield blockBuilder.build();
             }
-            lastPage = lastInput.appendBlock(blockBuilder.build());
-        } else if (dataType.equals(Double.TYPE)) {
-            var blockBuilder = DoubleBlock.newBlockBuilder(rowsCount);
-            for (int i = 0; i < lastInput.getPositionCount(); i++) {
-                Number result = (Number) evaluator.computeRow(lastInput, i);
-                if (result == null) {
-                    blockBuilder.appendNull();
-                } else {
-                    blockBuilder.appendDouble(result.doubleValue());
+            case INT -> {
+                var blockBuilder = IntBlock.newBlockBuilder(rowsCount);
+                for (int i = 0; i < lastInput.getPositionCount(); i++) {
+                    Number result = (Number) evaluator.computeRow(lastInput, i);
+                    if (result == null) {
+                        blockBuilder.appendNull();
+                    } else {
+                        blockBuilder.appendInt(result.intValue());
+                    }
                 }
+                yield blockBuilder.build();
             }
-            lastPage = lastInput.appendBlock(blockBuilder.build());
-        } else {
-            throw new UnsupportedOperationException();
-        }
+            case DOUBLE -> {
+                var blockBuilder = DoubleBlock.newBlockBuilder(rowsCount);
+                for (int i = 0; i < lastInput.getPositionCount(); i++) {
+                    Number result = (Number) evaluator.computeRow(lastInput, i);
+                    if (result == null) {
+                        blockBuilder.appendNull();
+                    } else {
+                        blockBuilder.appendDouble(result.doubleValue());
+                    }
+                }
+                yield blockBuilder.build();
+            }
+            case NULL -> Block.constantNullBlock(rowsCount);
+            default -> throw new UnsupportedOperationException("unspported element type [" + elementType + "]");
+        });
+
         lastInput = null;
         return lastPage;
     }
@@ -105,7 +123,7 @@ public class EvalOperator implements Operator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("dataType=").append(dataType).append(", ");
+        sb.append("elementType=").append(elementType).append(", ");
         sb.append("evaluator=").append(evaluator);
         sb.append("]");
         return sb.toString();

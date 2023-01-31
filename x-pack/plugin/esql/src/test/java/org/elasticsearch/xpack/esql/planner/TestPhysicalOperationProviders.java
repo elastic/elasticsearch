@@ -283,12 +283,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             i++;
         }
         // this is the first block added by TestSourceOperator
-        Block docIndexBlock = page.getBlock(0);
+        IntBlock docIndexBlock = page.getBlock(0);
         // use its filtered position to extract the data needed for "columnName" block
         Block loadedBlock = testData.getBlock(columnIndex);
         int[] filteredPositions = new int[docIndexBlock.getPositionCount()];
         for (int c = 0; c < docIndexBlock.getPositionCount(); c++) {
-            filteredPositions[c] = (Integer) docIndexBlock.getObject(c);
+            filteredPositions[c] = (Integer) docIndexBlock.getInt(c);
         }
         return loadedBlock.filter(filteredPositions);
     }

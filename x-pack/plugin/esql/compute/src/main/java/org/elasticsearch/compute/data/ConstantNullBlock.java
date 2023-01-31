@@ -47,11 +47,6 @@ final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
-    public Object getObject(int position) {
-        return null;
-    }
-
-    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }

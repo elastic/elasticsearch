@@ -49,14 +49,6 @@ public interface Block {
     int getValueCount(int position);
 
     /**
-     * Retrieves the value stored at the given value index.
-     *
-     * @param valueIndex the value index
-     * @return the data value
-     */
-    Object getObject(int valueIndex);
-
-    /**
      * {@return the element type of this block}
      */
     ElementType elementType();

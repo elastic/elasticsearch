@@ -17,6 +17,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
@@ -28,6 +33,9 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -74,26 +82,56 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         planExecutor.newSession(configuration).execute(request, wrap(r -> {
             computeService.runCompute(task, r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
-                return new EsqlQueryResponse(columns, pagesToValues(pages), request.columnar());
+                return new EsqlQueryResponse(
+                    columns,
+                    pagesToValues(r.output().stream().map(Expression::dataType).toList(), pages),
+                    request.columnar()
+                );
             }));
         }, listener::onFailure));
     }
 
-    private List<List<Object>> pagesToValues(List<Page> pages) {
+    public static List<List<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages) {
+        // TODO flip this to column based by default so we do the data type comparison once per position. Row output can be rest layer.
+        BytesRef scratch = new BytesRef();
         List<List<Object>> result = new ArrayList<>();
         for (Page page : pages) {
-            for (int i = 0; i < page.getPositionCount(); i++) {
+            for (int p = 0; p < page.getPositionCount(); p++) {
                 List<Object> row = new ArrayList<>(page.getBlockCount());
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     Block block = page.getBlock(b);
-                    var value = block.isNull(i) ? null : block.getObject(i);
-                    // TODO: Should we do the conversion in Block#getObject instead?
-                    // Or should we add a new method that returns a human representation to Block.
-                    if (value instanceof BytesRef bytes) {
-                        row.add(bytes.utf8ToString());
-                    } else {
-                        row.add(value);
+                    if (block.isNull(p)) {
+                        row.add(null);
+                        continue;
                     }
+                    /*
+                     * Use the ESQL data type to map to the output to make sure compute engine
+                     * respects its types. See the INTEGER clause where is doesn't always
+                     * respect it.
+                     */
+                    if (dataTypes.get(b) == DataTypes.LONG) {
+                        row.add(((LongBlock) block).getLong(p));
+                        continue;
+                    }
+                    if (dataTypes.get(b) == DataTypes.INTEGER) {
+                        if (block.elementType() == ElementType.LONG) {
+                            // TODO hack to make stats ok without casting or native int stats
+                            // Danger! we can't Math.toIntExact here because stats can product out of range values!
+                            row.add(((LongBlock) block).getLong(p));
+                            continue;
+                        }
+                        row.add(((IntBlock) block).getInt(p));
+                        continue;
+                    }
+                    if (dataTypes.get(b) == DataTypes.DOUBLE) {
+                        row.add(((DoubleBlock) block).getDouble(p));
+                        continue;
+                    }
+                    if (dataTypes.get(b) == DataTypes.KEYWORD) {
+                        row.add(((BytesRefBlock) block).getBytesRef(p, scratch).utf8ToString());
+                        continue;
+                    }
+                    throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(b) + "]");
                 }
                 result.add(row);
             }

@@ -18,7 +18,7 @@ languages:long | emp_no:long | first_name:keyword | last_name:keyword
 projectFromWithFilter
 from test | project languages, emp_no, first_name, last_name | eval x = emp_no + 10 | where x > 10040 and x < 10050 | limit 5;
 
-languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:long
+languages:long | emp_no:long | first_name:keyword | last_name:keyword | x:integer
 4 | 10031 | null | Joslin | 10041
 3 | 10032 | null | Reistad | 10042
 1 | 10033 | null | Merlo | 10043
@@ -158,7 +158,7 @@ med:double | languages:long
 multiConditionalWhere
 from test | eval abc = 1+2 | where (abc + emp_no > 10100 or languages == 1) or (abc + emp_no < 10005 and gender == "F") | project emp_no, languages, gender, first_name, abc;
 
-emp_no:long | languages:long | gender:keyword | first_name:keyword | abc:long
+emp_no:long | languages:long | gender:keyword | first_name:keyword | abc:integer
 10005 | 1 | M | Kyoichi | 3
 10009 | 1 | F | Sumant | 3
 10013 | 1 | null | Eberhardt | 3
@@ -252,7 +252,7 @@ height:double | languages.long:long | still_hired:keyword
 simpleEvalWithSortAndLimitOne
 from test | eval x = languages + 7 | sort x | limit 1;
 
-avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:long
+avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:integer
 244294991 | 10005 | Kyoichi | M | 2.05 | 1 | 1 | Maliniak | 63528 | true | 8
 ;
 
@@ -301,7 +301,7 @@ salary:long
 whereWithEvalGeneratedValue
 from test | eval x = salary / 2 | where x > 37000;
 
-avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:long
+avg_worked_seconds:long | emp_no:long | first_name:keyword | gender:keyword | height:double | languages:long | languages.long:long | last_name:keyword | salary:long | still_hired:keyword | x:integer
 393084805 | 10007 | Tzvetan | F | 1.7 | 4 | 4 | Zielinski | 74572 | true | 37286
 257694181 | 10029 | Otmar | M | 1.99 | null | null | Herbst | 74999 | false | 37499
 371418933 | 10045 | Moss | M | 1.7 | 3 | 3 | Shanbhogue | 74970 | false | 37485
@@ -362,10 +362,25 @@ count(height):long | height:double
 1 | 1.69
 ;
 
+statsByEvalDouble
+from test | eval h1 = round(height, 1) | stats count(height) by h1 | sort h1 desc;
+
+count(height):long | h1:double
+13 | 2.1
+12 | 2.0
+10 | 1.9
+20 | 1.8
+12 | 1.7
+14 | 1.6
+14 | 1.5
+ 5 | 1.4
+;
+
+
 whereNegatedCondition
 from test | eval abc=1+2 | where abc + languages > 4 and languages.long != 1 | eval x=abc+languages | project x, languages, languages.long | limit 3;
 
-x:long | languages:long | languages.long:long
+x:integer | languages:long | languages.long:long
 5 | 2 | 2
 8 | 5 | 5
 7 | 4 | 4
@@ -374,7 +389,7 @@ x:long | languages:long | languages.long:long
 evalOverride
 from test | eval languages = languages + 1 | eval languages = languages + 1 | limit 5 | project l*;
 
-languages.long:long | last_name:keyword | languages:long
+languages.long:long | last_name:keyword | languages:integer
 2 | Facello | 4
 5 | Simmel | 7
 4 | Bamford | 6
@@ -392,10 +407,10 @@ x:long | y:long
 ;
 
 projectRenameEval
-// x and y should be integers but they are longs
+// TODO why are x2 and y2 ints if x and y are longs?  And why are x and y longs?
 from test | project x = languages, y = languages | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
 
-x:long | y:long | x2:long | y2:long
+x:long | y:long | x2:integer | y2:integer
 2 | 2 | 3 | 4
 5 | 5 | 6 | 7
 4 | 4 | 5 | 6
@@ -405,7 +420,7 @@ projectRenameEvalProject
 // x and y should be integers but they are longs
 from test | project x = languages, y = languages | eval z = x + y | project x, y, z | limit 3;
 
-x:long | y:long | z:long
+x:long | y:long | z:integer
 2 | 2 | 4
 5 | 5 | 10
 4 | 4 | 8
@@ -423,7 +438,7 @@ languages:long | first_name:long
 evalWithNull
 from test | eval nullsum = salary + null | sort nullsum asc, salary desc | project nullsum, salary | limit 1;
 
-nullsum:long | salary:long
+nullsum:integer | salary:long
 null | 74999
 ;
 
@@ -466,13 +481,13 @@ Otmar | 74999
 topNProjectEval
 from test | sort salary | limit 1 | project languages, salary | eval x = languages + 1;
 
-languages:long | salary:long | x:long
+languages:long | salary:long | x:integer
 5 | 25324 | 6
 ;
 
 topNProjectEvalProject
 from test | sort salary | limit 1 | project languages, salary | eval x = languages + 1 | project x;
 
-x:long
+x:integer
 6
 ;

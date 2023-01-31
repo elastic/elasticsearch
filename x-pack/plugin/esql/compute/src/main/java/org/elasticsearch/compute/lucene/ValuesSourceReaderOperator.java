@@ -119,7 +119,8 @@ public class ValuesSourceReaderOperator implements Operator {
                 if (lastShard != shard || lastSegment != segment || BlockDocValuesReader.canReuse(lastReader, firstDoc) == false) {
                     var info = sources.get(shard);
                     LeafReaderContext leafReaderContext = info.reader().leaves().get(segment);
-                    lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), leafReaderContext);
+
+                    lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), info.elementType(), leafReaderContext);
                     lastShard = shard;
                     lastSegment = segment;
                     readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);

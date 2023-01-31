@@ -31,11 +31,6 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
     }
 
     @Override
-    public Object getObject(int position) {
-        return getLong(position);
-    }
-
-    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }

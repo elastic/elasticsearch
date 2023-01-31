@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -22,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.Arrays;
@@ -50,7 +56,6 @@ final class EvalMapper {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     static ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
-        ExpressionMapper mapper = null;
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
                 return em.map(exp, layout);
@@ -132,19 +137,70 @@ final class EvalMapper {
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
         protected ExpressionEvaluator map(Attribute attr, Layout layout) {
+            // TODO these aren't efficient so we should do our best to remove them, but, for now, they are what we have
             int channel = layout.getChannel(attr.id());
-            record AttributesExpressionEvaluator(int channel) implements ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    Block block = page.getBlock(channel);
-                    if (block.isNull(pos)) {
-                        return null;
-                    } else {
-                        return block.getObject(pos);
+            if (attr.dataType() == DataTypes.DOUBLE) {
+                record Doubles(int channel) implements ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        DoubleBlock block = page.getBlock(channel);
+                        if (block.isNull(pos)) {
+                            return null;
+                        }
+                        return block.getDouble(pos);
                     }
                 }
+                return new Doubles(channel);
             }
-            return new AttributesExpressionEvaluator(channel);
+            if (attr.dataType() == DataTypes.LONG) {
+                record Longs(int channel) implements ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        LongBlock block = page.getBlock(channel);
+                        if (block.isNull(pos)) {
+                            return null;
+                        }
+                        return block.getLong(pos);
+                    }
+                }
+                return new Longs(channel);
+            }
+            if (attr.dataType() == DataTypes.INTEGER) {
+                record Ints(int channel) implements ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        Block b = page.getBlock(channel);
+                        if (b.elementType() == ElementType.LONG) {
+                            // TODO hack for allowing eval after stats which doesn't respect the int type
+                            LongBlock hack = (LongBlock) b;
+                            if (hack.isNull(pos)) {
+                                return null;
+                            }
+                            return hack.getLong(pos);
+                        }
+                        IntBlock block = (IntBlock) b;
+                        if (block.isNull(pos)) {
+                            return null;
+                        }
+                        return block.getInt(pos);
+                    }
+                }
+                return new Ints(channel);
+            }
+            if (attr.dataType() == DataTypes.KEYWORD) {
+                record Keywords(int channel) implements ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        BytesRefBlock block = page.getBlock(channel);
+                        if (block.isNull(pos)) {
+                            return null;
+                        }
+                        return block.getBytesRef(pos, new BytesRef());
+                    }
+                }
+                return new Keywords(channel);
+            }
+            throw new UnsupportedOperationException("unsupported field type [" + attr.dataType() + "]");
         }
     }
 

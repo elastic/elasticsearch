@@ -31,11 +31,6 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     }
 
     @Override
-    public Object getObject(int position) {
-        return getInt(position);
-    }
-
-    @Override
     public LongBlock asLongBlock() {
         return new FilterLongBlock(block.asLongBlock(), positions);
     }

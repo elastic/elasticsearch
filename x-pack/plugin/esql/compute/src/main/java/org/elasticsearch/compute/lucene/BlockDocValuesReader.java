@@ -14,6 +14,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -59,11 +61,15 @@ public abstract class BlockDocValuesReader {
     public static BlockDocValuesReader createBlockReader(
         ValuesSource valuesSource,
         ValuesSourceType valuesSourceType,
+        ElementType elementType,
         LeafReaderContext leafReaderContext
     ) throws IOException {
         if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType) || CoreValuesSourceType.DATE.equals(valuesSourceType)) {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {
+                if (elementType != ElementType.DOUBLE) {
+                    throw new UnsupportedOperationException("can't extract [" + elementType + "] from floating point fields");
+                }
                 final SortedNumericDoubleValues doubleValues = numericVS.doubleValues(leafReaderContext);
                 final NumericDoubleValues singleton = FieldData.unwrapSingleton(doubleValues);
                 if (singleton != null) {
@@ -74,12 +80,23 @@ public abstract class BlockDocValuesReader {
                 final SortedNumericDocValues longValues = numericVS.longValues(leafReaderContext);
                 final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
                 if (singleton != null) {
-                    return new LongSingletonValuesReader(singleton);
+                    return switch (elementType) {
+                        case LONG -> new LongSingletonValuesReader(singleton);
+                        case INT -> new IntSingletonValuesReader(singleton);
+                        default -> throw new UnsupportedOperationException("can't extract [" + elementType + "] from integer fields");
+                    };
                 }
-                return new LongValuesReader(longValues);
+                return switch (elementType) {
+                    case LONG -> new LongValuesReader(longValues);
+                    case INT -> new IntValuesReader(longValues);
+                    default -> throw new UnsupportedOperationException("can't extract [" + elementType + "] from integer fields");
+                };
             }
         }
         if (CoreValuesSourceType.KEYWORD.equals(valuesSourceType)) {
+            if (elementType != ElementType.BYTES_REF) {
+                throw new UnsupportedOperationException("can't extract [" + elementType + "] from keywords");
+            }
             final ValuesSource.Bytes bytesVS = (ValuesSource.Bytes) valuesSource;
             final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
             return new BytesValuesReader(bytesValues);
@@ -148,6 +165,88 @@ public abstract class BlockDocValuesReader {
                 if (numericDocValues.advanceExact(doc)) {
                     checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendLong(numericDocValues.nextValue());
+                } else {
+                    blockBuilder.appendNull();
+                }
+                lastDoc = doc;
+                this.docID = doc;
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public int docID() {
+            // There is a .docID on on the numericDocValues but it is often not implemented.
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "LongValuesReader";
+        }
+    }
+
+    private static class IntSingletonValuesReader extends BlockDocValuesReader {
+        private final NumericDocValues numericDocValues;
+
+        IntSingletonValuesReader(NumericDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = IntBlock.newBlockBuilder(positionCount);
+            int lastDoc = -1;
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (lastDoc >= doc) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                if (numericDocValues.advanceExact(doc)) {
+                    blockBuilder.appendInt(Math.toIntExact(numericDocValues.longValue()));
+                } else {
+                    blockBuilder.appendNull();
+                }
+                lastDoc = doc;
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public int docID() {
+            return numericDocValues.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "LongSingletonValuesReader";
+        }
+    }
+
+    private static class IntValuesReader extends BlockDocValuesReader {
+        private final SortedNumericDocValues numericDocValues;
+        private int docID = -1;
+
+        IntValuesReader(SortedNumericDocValues numericDocValues) {
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = IntBlock.newBlockBuilder(positionCount);
+            int lastDoc = -1;
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (lastDoc >= doc) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                if (numericDocValues.advanceExact(doc)) {
+                    checkMultiValue(doc, numericDocValues.docValueCount());
+                    blockBuilder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
                 } else {
                     blockBuilder.appendNull();
                 }

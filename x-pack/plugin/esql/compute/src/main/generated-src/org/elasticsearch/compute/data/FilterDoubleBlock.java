@@ -31,11 +31,6 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
     }
 
     @Override
-    public Object getObject(int position) {
-        return getDouble(position);
-    }
-
-    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }

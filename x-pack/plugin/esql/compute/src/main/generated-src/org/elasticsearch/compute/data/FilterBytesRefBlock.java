@@ -33,11 +33,6 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
     }
 
     @Override
-    public Object getObject(int position) {
-        return getBytesRef(position, new BytesRef());
-    }
-
-    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }

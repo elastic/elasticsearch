@@ -51,7 +51,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.appendChannel(attr.id());
             Layout previousLayout = op.layout;
 
-            var sources = ValueSources.sources(searchContexts, attr.name());
+            var sources = ValueSources.sources(searchContexts, attr.name(), LocalExecutionPlanner.toElementType(attr.dataType()));
 
             var luceneDocRef = new LuceneDocRef(
                 previousLayout.getChannel(sourceAttrs.get(0).id()),
@@ -111,7 +111,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            ValueSources.sources(searchContexts, attrSource.name()),
+            ValueSources.sources(searchContexts, attrSource.name(), LocalExecutionPlanner.toElementType(attrSource.dataType())),
             luceneDocRef,
             aggregatorFactories,
             BigArrays.NON_RECYCLING_INSTANCE

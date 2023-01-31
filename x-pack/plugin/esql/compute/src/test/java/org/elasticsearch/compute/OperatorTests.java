@@ -41,6 +41,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -201,7 +202,7 @@ public class OperatorTests extends ESTestCase {
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                         List.of(
                             new ValuesSourceReaderOperator(
-                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, reader)),
+                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
                                 new LuceneDocRef(0, 1, 2)
                             ),
                             new LongGroupingOperator(3, bigArrays),
@@ -274,7 +275,7 @@ public class OperatorTests extends ESTestCase {
                                 luceneSourceOperator,
                                 List.of(
                                     new ValuesSourceReaderOperator(
-                                        List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, reader)),
+                                        List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
                                         new LuceneDocRef(0, 1, 2)
                                     )
                                 ),
@@ -371,32 +372,32 @@ public class OperatorTests extends ESTestCase {
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(
                         new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, intVs, reader)),
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, intVs, ElementType.INT, reader)),
                             luceneDocRef
                         ),
                         new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, longVs, reader)),
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, longVs, ElementType.LONG, reader)),
                             luceneDocRef
                         ),
                         new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, doubleVs, reader)),
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, doubleVs, ElementType.DOUBLE, reader)),
                             luceneDocRef
                         ),
                         new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, keywordVs, reader)),
+                            List.of(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, keywordVs, ElementType.BYTES_REF, reader)),
                             luceneDocRef
                         )
                     ),
                     new PageConsumerOperator(page -> {
                         logger.debug("New page: {}", page);
-                        LongBlock intValuesBlock = page.getBlock(3);  // ###: they all longs for now
+                        IntBlock intValuesBlock = page.getBlock(3);
                         LongBlock longValuesBlock = page.getBlock(4);
                         DoubleBlock doubleValuesBlock = page.getBlock(5);
                         BytesRefBlock keywordValuesBlock = page.getBlock(6);
 
                         for (int i = 0; i < page.getPositionCount(); i++) {
                             assertFalse(intValuesBlock.isNull(i));
-                            long j = intValuesBlock.getLong(i);
+                            long j = intValuesBlock.getInt(i);
                             // Every 100 documents we set fields to null
                             boolean fieldIsEmpty = j % 100 == 0;
                             assertEquals(fieldIsEmpty, longValuesBlock.isNull(i));
@@ -597,7 +598,7 @@ public class OperatorTests extends ESTestCase {
                         new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                         List.of(
                             new ValuesSourceReaderOperator(
-                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, reader)),
+                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
                                 new LuceneDocRef(0, 1, 2)
                             ),
                             new HashAggregationOperator(
@@ -681,6 +682,7 @@ public class OperatorTests extends ESTestCase {
                                 new ValueSourceInfo(
                                     CoreValuesSourceType.KEYWORD,
                                     randomBoolean() ? getOrdinalsValuesSource(gField) : getBytesValuesSource(gField),
+                                    ElementType.BYTES_REF,
                                     reader
                                 )
                             ),
@@ -766,7 +768,10 @@ public class OperatorTests extends ESTestCase {
                 new SequenceLongBlockSourceOperator(values),
                 List.of(
                     new FilterOperator((page, position) -> condition1.test(page.<LongBlock>getBlock(0).getLong(position))),
-                    new EvalOperator((page, position) -> transformation.apply(page.<LongBlock>getBlock(0).getLong(position)), Long.TYPE),
+                    new EvalOperator(
+                        (page, position) -> transformation.apply(page.<LongBlock>getBlock(0).getLong(position)),
+                        ElementType.LONG
+                    ),
                     new FilterOperator((page, position) -> condition2.test(page.<LongBlock>getBlock(1).getLong(position)))
                 ),
                 new PageConsumerOperator(page -> {

@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
 public class TransportVersionUtils {
     private static final List<TransportVersion> ALL_VERSIONS = List.copyOf(TransportVersion.getAllVersions());
 
+    /** Returns all released versions */
+    public static List<TransportVersion> allReleasedVersions() {
+        return ALL_VERSIONS;
+    }
+
     /** Returns the oldest {@link TransportVersion} */
     public static TransportVersion getFirstVersion() {
         return ALL_VERSIONS.get(0);

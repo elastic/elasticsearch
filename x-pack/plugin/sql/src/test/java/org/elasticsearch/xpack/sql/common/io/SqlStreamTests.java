@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.common.io;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -28,19 +29,19 @@ public class SqlStreamTests extends ESTestCase {
     public void testWriteAndRead() throws IOException {
         BytesRef payload = new BytesRef(randomByteArrayOfLength(randomIntBetween(10, 1000)));
 
-        SqlStreamOutput out = SqlStreamOutput.create(Version.CURRENT, randomZone());
+        SqlStreamOutput out = SqlStreamOutput.create(TransportVersion.CURRENT, randomZone());
         out.writeBytesRef(payload);
         out.close();
         String encoded = out.streamAsString();
 
-        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()), Version.CURRENT);
+        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()), TransportVersion.CURRENT);
         BytesRef read = in.readBytesRef();
 
         assertArrayEquals(payload.bytes, read.bytes);
     }
 
     public void testPayloadIsCompressed() throws IOException {
-        SqlStreamOutput out = SqlStreamOutput.create(Version.CURRENT, randomZone());
+        SqlStreamOutput out = SqlStreamOutput.create(TransportVersion.CURRENT, randomZone());
         byte[] payload = new byte[1000];
         Arrays.fill(payload, (byte) 0);
         out.write(payload);
@@ -60,7 +61,7 @@ public class SqlStreamTests extends ESTestCase {
                     + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
                     + "QllURQFrCGJkZWY4OGU1AAABAwA=",
                 new NamedWriteableRegistry(List.of()),
-                Version.CURRENT
+                TransportVersion.CURRENT
             )
         );
 
@@ -68,7 +69,7 @@ public class SqlStreamTests extends ESTestCase {
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {
-        Version version = randomFrom(Version.V_7_0_0, Version.V_7_2_1, Version.V_8_1_0);
+        TransportVersion version = randomFrom(TransportVersion.V_7_0_0, TransportVersion.V_7_2_1, TransportVersion.V_8_1_0);
         SqlStreamOutput out = SqlStreamOutput.create(version, randomZone());
         out.writeString("payload");
         out.close();
@@ -77,7 +78,7 @@ public class SqlStreamTests extends ESTestCase {
         byte[] bytes = Base64.getDecoder().decode(encoded);
         InputStreamStreamInput in = new InputStreamStreamInput(new ByteArrayInputStream(bytes));
 
-        assertEquals(version, Version.readVersion(in));
+        assertEquals(version, TransportVersion.readVersion(in));
     }
 
 }

@@ -10,7 +10,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -223,7 +223,11 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     public void testSerializeBytesToOldVersion() {
         SortValue value = SortValue.from(new BytesRef("can't send me!"));
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_10_1);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_0_0,
+            TransportVersion.V_7_10_1
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyInstance(value, version));
         assertThat(
             e.getMessage(),

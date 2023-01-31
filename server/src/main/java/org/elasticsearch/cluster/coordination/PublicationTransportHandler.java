@@ -405,11 +405,11 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion());
+            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion().transportVersion);
             if (bytes == null) {
                 try {
                     bytes = serializedStates.computeIfAbsent(
-                        destination.getVersion(),
+                        destination.getVersion().transportVersion,
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
@@ -422,7 +422,7 @@ public class PublicationTransportHandler {
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion());
+            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion().transportVersion);
             assert bytes != null
                 : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
 

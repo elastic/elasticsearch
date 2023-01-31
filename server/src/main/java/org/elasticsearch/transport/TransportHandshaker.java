@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,6 +114,7 @@ final class TransportHandshaker {
      */
 
     static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
+    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, TransportVersion.V_7_17_0);
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();

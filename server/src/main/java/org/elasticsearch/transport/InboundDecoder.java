@@ -206,13 +206,12 @@ public class InboundDecoder implements Releasable {
     }
 
     static void checkHandshakeVersionCompatibility(TransportVersion handshakeVersion) {
-        if (handshakeVersion.before(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION)) {
+        if (TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS.contains(handshakeVersion) == false)) {
             throw new IllegalStateException(
                 "Received message from unsupported version: ["
                     + handshakeVersion
-                    + "] minimal compatible version is: ["
-                    + TransportHandshaker.EARLIEST_HANDSHAKE_VERSION
-                    + "]"
+                    + "] allowed versions are: "
+                    + TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS
             );
         }
     }

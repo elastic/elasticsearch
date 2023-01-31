@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.common.io;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -25,17 +26,17 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version)
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
         throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
         StreamInput in = StreamInput.wrap(bytes);
-        TransportVersion inVersion = TransportVersion.readVersion(in);
+        Version inVersion = Version.readVersion(in);
         if (version.compareTo(inVersion) != 0) {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
         }
 
         InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
-        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
+        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion.transportVersion);
     }
 
     private final ZoneId zoneId;

@@ -271,9 +271,7 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the Reader can not be instantiated.
      */
-    public static Reader getReaderFromFile(Environment env, Settings settings, String settingPrefix) {
-        String filePath = settings.get(settingPrefix, null);
-
+    public static Reader getReaderFromFile(Environment env, String filePath, String settingPrefix) {
         if (filePath == null) {
             return null;
         }

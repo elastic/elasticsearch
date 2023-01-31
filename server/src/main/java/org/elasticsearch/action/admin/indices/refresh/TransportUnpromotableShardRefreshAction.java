@@ -36,13 +36,12 @@ public class TransportUnpromotableShardRefreshAction extends HandledTransportAct
     }
 
     @Override
-    protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
-        try {
-            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION;
+    protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> responseListener) {
+        ActionListener.run(responseListener, listener -> {
+            assert request.getSegmentGeneration() != Engine.RefreshResult.UNKNOWN_GENERATION
+                : "The request segment is " + request.getSegmentGeneration();
             IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
             shard.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> ActionResponse.Empty.INSTANCE));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        });
     }
 }

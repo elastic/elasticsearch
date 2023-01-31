@@ -478,7 +478,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         return null;
     }
 
-    public void testSearchRouting() {
+    public void testSearchRouting() throws Exception {
 
         var routingTableWatcher = new RoutingTableWatcher();
         routingTableWatcher.numReplicas = Math.max(1, routingTableWatcher.numReplicas);

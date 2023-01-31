@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -17,7 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -35,12 +37,16 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.is;
 
-public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+public class MlMigrationFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
     private static final String OLD_CLUSTER_OPEN_JOB_ID = "migration-old-cluster-open-job";
     private static final String OLD_CLUSTER_STARTED_DATAFEED_ID = "migration-old-cluster-started-datafeed";
     private static final String OLD_CLUSTER_CLOSED_JOB_ID = "migration-old-cluster-closed-job";
     private static final String OLD_CLUSTER_STOPPED_DATAFEED_ID = "migration-old-cluster-stopped-datafeed";
+
+    public MlMigrationFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
 
     @Override
     protected Settings restClientSettings() {

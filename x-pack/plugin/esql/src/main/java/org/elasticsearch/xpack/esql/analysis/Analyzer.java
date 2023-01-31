@@ -44,12 +44,14 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.filterUnsupportedDataTypes;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.flatten;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isUnsupported;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 
@@ -113,14 +115,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = context.indexResolution().get();
-            // ignore all the unsupported data types fields
+            // ignore all the unsupported data types fields, except the unsupported fields that have supported sub-fields
             Map<String, EsField> newFields = new TreeMap<>();
-            for (Entry<String, EsField> entry : esIndex.mapping().entrySet()) {
-                if (EsqlDataTypes.isUnsupported(entry.getValue().getDataType()) == false) {
-                    newFields.put(entry.getKey(), entry.getValue());
-                }
-            }
-            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), newFields, esIndex.concreteIndices()), plan.frozen());
+            // the default IndexResolver is marking a sub-field as unsupported if its parent is unsupported, something that it's specific
+            // to EQL and SQL. With ESQL things might be different in future and we may need to provide an ESQL-specific IndexResolver
+            filterUnsupportedDataTypes(esIndex.mapping(), newFields);
+            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), flatten(newFields), esIndex.concreteIndices()), plan.frozen());
         }
     }
 
@@ -266,7 +266,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     for (var a : attrList) {
                         String nameCandidate = a.name();
                         // add only primitives (object types would only result in another error)
-                        if (EsqlDataTypes.isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
+                        if (isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
                             names.add(nameCandidate);
                         }
                     }

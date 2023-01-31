@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
@@ -54,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -107,23 +109,32 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                    var nodeWithUnpromotableOnly = allocation.getClusterState()
+                    var nodesWithUnpromotableOnly = allocation.getClusterState()
                         .nodes()
                         .stream()
                         .filter(n -> Objects.equals("true", n.getAttributes().get(NODE_ATTR_UNPROMOTABLE_ONLY)))
-                        .findAny();
-                    if (nodeWithUnpromotableOnly.isPresent()) {
-                        if (node.node().getName().equals(nodeWithUnpromotableOnly.get().getName())) {
+                        .map(DiscoveryNode::getName)
+                        .collect(Collectors.toUnmodifiableSet());
+                    if (nodesWithUnpromotableOnly.isEmpty() == false) {
+                        if (nodesWithUnpromotableOnly.contains(node.node().getName())) {
                             if (shardRouting.isPromotableToPrimary()) {
-                                return Decision.NO;
+                                return allocation.decision(
+                                    Decision.NO,
+                                    "test",
+                                    "shard is promotable to primary so may not be assigned to [" + node.node().getName() + "]"
+                                );
                             }
                         } else {
                             if (shardRouting.isPromotableToPrimary() == false) {
-                                return Decision.NO;
+                                return allocation.decision(
+                                    Decision.NO,
+                                    "test",
+                                    "shard is not promotable to primary so may not be assigned to [" + node.node().getName() + "]"
+                                );
                             }
                         }
                     }
-                    return Decision.ALWAYS;
+                    return Decision.YES;
                 }
             });
         }
@@ -620,11 +631,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
-    public void testNodeWithUnpromotableShardsNeverGetsReplicationActions() throws Exception {
+    public void testNodesWithUnpromotableShardsNeverGetReplicationActions() throws Exception {
         var routingTableWatcher = new RoutingTableWatcher();
-        routingTableWatcher.numReplicas = routingTableWatcher.numIndexingCopies; // meaning: only 1 unpromotable replica per shard
-        internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numReplicas + 1);
-        final String nodeWithUnpromotableOnly = internalCluster().startDataOnlyNode(
+        var additionalNumberOfNodesWithUnpromotableShards = randomIntBetween(1, 3);
+        routingTableWatcher.numReplicas = routingTableWatcher.numIndexingCopies + additionalNumberOfNodesWithUnpromotableShards - 1;
+        internalCluster().ensureAtLeastNumDataNodes(routingTableWatcher.numIndexingCopies + 1);
+        final List<String> nodesWithUnpromotableOnly = internalCluster().startDataOnlyNodes(
+            additionalNumberOfNodesWithUnpromotableShards,
             Settings.builder().put("node.attr." + TestPlugin.NODE_ATTR_UNPROMOTABLE_ONLY, "true").build()
         );
         installMockTransportVerifications(routingTableWatcher);
@@ -633,7 +646,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (connection.getNode().getName().equals(nodeWithUnpromotableOnly)) {
+                if (nodesWithUnpromotableOnly.contains(connection.getNode().getName())) {
                     assertThat(action, not(containsString("[r]")));
                 }
                 connection.sendRequest(requestId, action, request, options);

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
@@ -98,8 +99,10 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
                 request.addParameter("timeout", "70s");
             }));
             waitForDeploymentStarted(modelId);
-            assertInfer(modelId);
-            assertNewInfer(modelId);
+            assertBusy(() -> {
+                assertInfer(modelId);
+                assertNewInfer(modelId);
+            }, 90, TimeUnit.SECONDS);
             stopDeployment(modelId);
         }
     }
@@ -133,7 +136,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
@@ -146,7 +149,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "vocabulary": [%s] }
             """, quotedWords));
         client().performRequest(request);
@@ -205,7 +208,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
 
@@ -217,7 +220,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         var response = client().performRequest(request);

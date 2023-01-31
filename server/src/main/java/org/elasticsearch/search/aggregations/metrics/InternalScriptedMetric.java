@@ -162,4 +162,8 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         return Objects.hash(super.hashCode(), reduceScript, aggregations);
     }
 
+    @Override
+    public String toString() {
+        return "InternalScriptedMetric{" + reduceScript + "}";
+    }
 }

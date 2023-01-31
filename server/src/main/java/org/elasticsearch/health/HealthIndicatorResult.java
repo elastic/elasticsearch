@@ -9,15 +9,12 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 public record HealthIndicatorResult(
     String name,
@@ -26,14 +23,14 @@ public record HealthIndicatorResult(
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
     List<Diagnosis> diagnosisList
-) implements ChunkedToXContent {
+) implements ChunkedToXContentObject {
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
-        Iterator<? extends ToXContent> diagnosisIterator = Collections.emptyIterator();
-        if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-            diagnosisIterator = diagnosisList.stream()
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
-                .iterator();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        final Iterator<? extends ToXContent> diagnosisIterator;
+        if (diagnosisList == null) {
+            diagnosisIterator = Collections.emptyIterator();
+        } else {
+            diagnosisIterator = Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams));
         }
         return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
             builder.startObject();

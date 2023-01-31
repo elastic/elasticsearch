@@ -254,23 +254,25 @@ public interface JwtSignatureValidator extends Releasable {
 
         public void validate(String tokenPrincipal, SignedJWT signedJWT, ActionListener<Void> listener) {
             // TODO: assert algorithm?
+            final JwkSetLoader.ContentAndJwksAlgs contentAndJwksAlgs = jwkSetLoader.getContentAndJwksAlgs();
+            final JwkSetLoader.JwksAlgs jwksAlgs = contentAndJwksAlgs.jwksAlgs();
             try {
-                JwtValidateUtil.validateSignature(signedJWT, jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().jwks());
+                JwtValidateUtil.validateSignature(signedJWT, jwksAlgs.jwks());
                 listener.onResponse(null);
             } catch (Exception primaryException) {
                 logger.debug(
                     () -> org.elasticsearch.core.Strings.format(
                         "Signature verification failed for JWT [%s] reloading JWKSet (was: #[%s] JWKs, #[%s] algs, sha256=[%s])",
                         tokenPrincipal,
-                        jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().jwks().size(),
-                        jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().algs().size(),
-                        MessageDigests.toHexString(jwkSetLoader.getContentAndJwksAlgs().sha256())
+                        jwksAlgs.jwks().size(),
+                        jwksAlgs.algs().size(),
+                        MessageDigests.toHexString(contentAndJwksAlgs.sha256())
                     ),
                     primaryException
                 );
 
-                jwkSetLoader.reload(ActionListener.wrap(isUpdated -> {
-                    if (false == isUpdated) {
+                jwkSetLoader.reload(ActionListener.wrap(reloadResult -> {
+                    if (false == reloadResult.v1()) {
                         // No change in JWKSet
                         logger.debug("Reloaded same PKC JWKs, can't retry verify JWT token [{}]", tokenPrincipal);
                         listener.onFailure(primaryException);
@@ -281,13 +283,14 @@ public interface JwtSignatureValidator extends Releasable {
                     // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
                     reloadNotifier.reloaded();
 
-                    if (jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().isEmpty()) {
+                    final JwkSetLoader.JwksAlgs reloadedJwksAlgs = reloadResult.v2();
+                    if (reloadedJwksAlgs.isEmpty()) {
                         logger.debug("Reloaded empty PKC JWKs, signature verification will fail for JWT [{}]", tokenPrincipal);
                         // fall through and let try/catch below handle empty JWKs failure log and response
                     }
 
                     try {
-                        JwtValidateUtil.validateSignature(signedJWT, jwkSetLoader.getContentAndJwksAlgs().jwksAlgs().jwks());
+                        JwtValidateUtil.validateSignature(signedJWT, reloadedJwksAlgs.jwks());
                         listener.onResponse(null);
                     } catch (Exception secondaryException) {
                         logger.debug(

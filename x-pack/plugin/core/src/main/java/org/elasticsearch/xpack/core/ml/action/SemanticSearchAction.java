@@ -56,14 +56,14 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
-        public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name and update docs when changed
+        public static final ParseField MODEL_TEXT = new ParseField("model_text"); // TODO a better name and update docs when changed
         public static final ParseField TEXT_EMBEDDING_CONFIG = new ParseField("text_embedding_config");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
         static {
             PARSER.declareString(Request.Builder::setModelId, InferModelAction.Request.MODEL_ID);
-            PARSER.declareString(Request.Builder::setQueryString, QUERY_STRING);
+            PARSER.declareString(Request.Builder::setModelText, MODEL_TEXT);
             PARSER.declareString(Request.Builder::setTimeout, SearchSourceBuilder.TIMEOUT_FIELD);
             PARSER.declareObject(
                 Request.Builder::setUpdate,
@@ -119,7 +119,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
 
         private String[] indices;
         private final String routing;
-        private final String queryString;
+        private final String modelText;
         private final String modelId;
         private final TimeValue inferenceTimeout;
         private final QueryBuilder query;
@@ -135,7 +135,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             super(in);
             indices = in.readStringArray();
             routing = in.readOptionalString();
-            queryString = in.readString();
+            modelText = in.readString();
             modelId = in.readString();
             inferenceTimeout = in.readOptionalTimeValue();
             query = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -151,7 +151,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         Request(
             String[] indices,
             String routing,
-            String queryString,
+            String modelText,
             String modelId,
             QueryBuilder query,
             KnnQueryOptions knnQueryOptions,
@@ -165,7 +165,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         ) {
             this.indices = Objects.requireNonNull(indices, "[indices] must not be null");
             this.routing = routing;
-            this.queryString = queryString;
+            this.modelText = modelText;
             this.modelId = modelId;
             this.query = query;
             this.knnQueryOptions = knnQueryOptions;
@@ -183,7 +183,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             super.writeTo(out);
             out.writeStringArray(indices);
             out.writeOptionalString(routing);
-            out.writeString(queryString);
+            out.writeString(modelText);
             out.writeString(modelId);
             out.writeOptionalTimeValue(inferenceTimeout);
             out.writeOptionalNamedWriteable(query);
@@ -220,8 +220,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return routing;
         }
 
-        public String getQueryString() {
-            return queryString;
+        public String getModelText() {
+            return modelText;
         }
 
         public String getModelId() {
@@ -271,7 +271,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             Request request = (Request) o;
             return Arrays.equals(indices, request.indices)
                 && Objects.equals(routing, request.routing)
-                && Objects.equals(queryString, request.queryString)
+                && Objects.equals(modelText, request.modelText)
                 && Objects.equals(modelId, request.modelId)
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout)
                 && Objects.equals(query, request.query)
@@ -288,7 +288,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         public int hashCode() {
             int result = Objects.hash(
                 routing,
-                queryString,
+                modelText,
                 modelId,
                 inferenceTimeout,
                 query,
@@ -307,8 +307,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException error = new ActionRequestValidationException();
-            if (queryString == null) {
-                error.addValidationError("query_string cannot be null");
+            if (modelText == null) {
+                error.addValidationError("model_text cannot be null");
             }
             if (modelId == null) {
                 error.addValidationError("model_id cannot be null");
@@ -325,7 +325,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             private final String[] indices;
             private String routing;
             private String modelId;
-            private String queryString;
+            private String modelText;
             private TimeValue timeout;
             private TextEmbeddingConfigUpdate update;
             private QueryBuilder queryBuilder;
@@ -348,8 +348,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 this.modelId = modelId;
             }
 
-            void setQueryString(String queryString) {
-                this.queryString = queryString;
+            void setModelText(String modelText) {
+                this.modelText = modelText;
             }
 
             void setTimeout(TimeValue timeout) {
@@ -396,7 +396,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 return new Request(
                     indices,
                     routing,
-                    queryString,
+                    modelText,
                     modelId,
                     queryBuilder,
                     knnSearchBuilder,

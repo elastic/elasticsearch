@@ -1,5 +1,12 @@
 [[synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
@@ -25,6 +32,8 @@ space. There are a couple of restrictions to be aware of:
 
 * When you retrieve synthetic `_source` content it undergoes minor
 <<synthetic-source-modifications,modifications>> compared to the original JSON.
+* The `params._source` is unavailable in scripts. Instead use the
+{painless}/painless-field-context.html[`doc`] API or the <<script-fields-api, `field`>>.
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 

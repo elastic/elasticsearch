@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -245,11 +247,21 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
+    public static final String REMOTE_CLUSTER_SSL_PREFIX = SecurityField.setting(RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX + "ssl.");
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_SSL_PREFIX,
+        false
+    );
+
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.addAll(REMOTE_CLUSTER_SSL.getEnabledSettings());
+        }
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);

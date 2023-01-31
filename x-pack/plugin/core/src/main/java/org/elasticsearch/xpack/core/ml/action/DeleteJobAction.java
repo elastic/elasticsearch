@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -52,7 +52,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 deleteUserAnnotations = in.readBoolean();
             } else {
                 deleteUserAnnotations = false;
@@ -110,7 +110,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(force);
-            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 out.writeBoolean(deleteUserAnnotations);
             }
         }

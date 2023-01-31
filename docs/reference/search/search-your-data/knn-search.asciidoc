@@ -151,7 +151,7 @@ page cache for it to be efficient. Please consult the
 configuration and sizing.
 
 To run an approximate kNN search, use the <<search-api-knn, `knn` option>>
-to search a `dense_vector` field with indexing enabled.
+to search one or more `dense_vector` fields with indexing enabled.
 
 . Explicitly map one or more `dense_vector` fields. Approximate kNN search
 requires the following mapping options:
@@ -176,6 +176,12 @@ PUT image-index
         "index": true,
         "similarity": "l2_norm"
       },
+      "title-vector": {
+        "type": "dense_vector",
+        "dims": 5,
+        "index": true,
+        "similarity": "l2_norm"
+      },
       "title": {
         "type": "text"
       },
@@ -194,11 +200,11 @@ PUT image-index
 ----
 POST image-index/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "image-vector": [1, 5, -20], "title": "moose family", "file-type": "jpg" }
+{ "image-vector": [1, 5, -20], "title-vector": [12, 50, -10, 0, 1], "title": "moose family", "file-type": "jpg" }
 { "index": { "_id": "2" } }
-{ "image-vector": [42, 8, -15], "title": "alpine lake", "file-type": "png" }
+{ "image-vector": [42, 8, -15], "title-vector": [25, 1, 4, -12, 2], "title": "alpine lake", "file-type": "png" }
 { "index": { "_id": "3" } }
-{ "image-vector": [15, 11, 23], "title": "full moon", "file-type": "jpg" }
+{ "image-vector": [15, 11, 23], "title-vector": [1, 5, 25, 50, 20], "title": "full moon", "file-type": "jpg" }
 ...
 ----
 //TEST[continued]
@@ -407,6 +413,54 @@ nearest documents. If the search also includes a `query`, then aggregations are 
 and `query` matches.
 
 [discrete]
+==== Search multiple kNN fields
+
+In addition to 'hybrid retrieval', you can search more than one kNN vector field at a time:
+
+[source,console]
+----
+POST image-index/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "mountain lake",
+        "boost": 0.9
+      }
+    }
+  },
+  "knn": [ {
+    "field": "image-vector",
+    "query_vector": [54, 10, -2],
+    "k": 5,
+    "num_candidates": 50,
+    "boost": 0.1
+  },
+  {
+    "field": "title-vector",
+    "query_vector": [1, 20, -52, 23, 10],
+    "k": 10,
+    "num_candidates": 10,
+    "boost": 0.5
+  }],
+  "size": 10
+}
+----
+// TEST[continued]
+
+This search finds the global top `k = 5` vector matches for `image-vector` and the global `k = 10` for the `title-vector`.
+These top values are then combined with the matches from the `match` query and the top-10 documents are returned.
+The multiple `knn` entries and the `query` matches are combined through a disjunction,
+as if you took a boolean 'or' between them. The top `k` vector results represent the global nearest neighbors across
+all index shards.
+
+The scoring for a doc with the above configured boosts would be:
+
+```
+score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title-vector
+```
+
+[discrete]
 [[knn-indexing-considerations]]
 ==== Indexing considerations
 
@@ -415,7 +469,7 @@ segment as an https://arxiv.org/abs/1603.09320[HNSW graph]. Indexing vectors for
 approximate kNN search can take substantial time because of how expensive it is
 to build these graphs. You may need to increase the client request timeout for
 index and bulk requests. The <<tune-knn-search, approximate kNN tuning guide>>
-contains important guidance around indexing performance, and how the the index
+contains important guidance around indexing performance, and how the index
 configuration can affect search performance.
 
 In addition to its search-time tuning parameters, the HNSW algorithm has

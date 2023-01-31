@@ -22,6 +22,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Assert;
 
@@ -100,7 +101,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         // Create repository
         {
             Request request = new Request("PUT", "/_snapshot/hdfs_ha_repo_read");
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {
                   "type": "hdfs",
                   "settings": {

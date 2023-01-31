@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -68,7 +71,8 @@ public class AuthenticationTestHelper {
         AuthenticationField.ANONYMOUS_REALM_TYPE,
         AuthenticationField.ATTACH_REALM_TYPE,
         AuthenticationField.FALLBACK_REALM_TYPE,
-        ServiceAccountSettings.REALM_TYPE
+        ServiceAccountSettings.REALM_TYPE,
+        AuthenticationField.REMOTE_ACCESS_REALM_TYPE
     );
 
     private static final Set<User> INTERNAL_USERS = Set.of(
@@ -88,6 +92,10 @@ public class AuthenticationTestHelper {
             ESTestCase.randomAlphaOfLengthBetween(3, 8),
             ESTestCase.randomArray(1, 3, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 8))
         );
+    }
+
+    public static User randomInternalUser() {
+        return ESTestCase.randomFrom(INTERNAL_USERS);
     }
 
     public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
@@ -200,7 +208,7 @@ public class AuthenticationTestHelper {
         );
     }
 
-    private static User stripRoles(User user) {
+    static User stripRoles(User user) {
         if (user.roles() != null || user.roles().length == 0) {
             return new User(user.principal(), Strings.EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
         } else {
@@ -229,8 +237,48 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication(RoleDescriptorsIntersection roleDescriptorsIntersection) {
+        try {
+            // TODO add apikey() once we have querying-cluster-side API key support
+            final Authentication authentication = ESTestCase.randomFrom(
+                AuthenticationTestHelper.builder().realm(),
+                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
+            ).build();
+            return new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
+        return randomRemoteAccessAuthentication(
+            new RoleDescriptorsIntersection(
+                List.of(
+                    // TODO randomize to add a second set once we have querying-cluster-side API key support
+                    Set.of(
+                        new RoleDescriptor(
+                            "_remote_user",
+                            null,
+                            new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("index1")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     public static class AuthenticationTestBuilder {
-        private Version version;
+        private TransportVersion transportVersion;
         private Authentication authenticatingAuthentication;
         private User user;
         private Authentication.RealmRef realmRef;
@@ -238,13 +286,14 @@ public class AuthenticationTestHelper {
         private final Map<String, Object> metadata = new HashMap<>();
         private Boolean isServiceAccount;
         private Boolean isRealmUnderDomain;
+        private RemoteAccessAuthentication remoteAccessAuthentication;
 
         private AuthenticationTestBuilder() {}
 
         private AuthenticationTestBuilder(Authentication authentication) {
             assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
-            this.version = authentication.getEffectiveSubject().getVersion();
+            this.transportVersion = authentication.getEffectiveSubject().getTransportVersion();
         }
 
         public AuthenticationTestBuilder realm() {
@@ -331,6 +380,22 @@ public class AuthenticationTestHelper {
             }
         }
 
+        public AuthenticationTestBuilder remoteAccess() {
+            return remoteAccess(ESTestCase.randomAlphaOfLength(20), randomRemoteAccessAuthentication());
+        }
+
+        public AuthenticationTestBuilder remoteAccess(
+            final String remoteAccessApiKeyId,
+            final RemoteAccessAuthentication remoteAccessAuthentication
+        ) {
+            if (authenticatingAuthentication != null) {
+                throw new IllegalArgumentException("cannot use remote access authentication as run-as target");
+            }
+            apiKey(remoteAccessApiKeyId);
+            this.remoteAccessAuthentication = Objects.requireNonNull(remoteAccessAuthentication);
+            return this;
+        }
+
         public AuthenticationTestBuilder realmRef(Authentication.RealmRef realmRef) {
             assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "use dedicate methods for synthetic realms";
             resetShortcutRelatedVariables();
@@ -342,11 +407,11 @@ public class AuthenticationTestHelper {
             return this;
         }
 
-        public AuthenticationTestBuilder version(Version version) {
+        public AuthenticationTestBuilder transportVersion(TransportVersion version) {
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot set version for run-as authentication");
             }
-            this.version = Objects.requireNonNull(version);
+            this.transportVersion = Objects.requireNonNull(version);
             return this;
         }
 
@@ -359,6 +424,9 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder runAs() {
+            if (remoteAccessAuthentication != null) {
+                throw new IllegalArgumentException("cannot convert to run-as for remote access authentication");
+            }
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot convert to run-as again for run-as authentication");
             }
@@ -373,7 +441,12 @@ public class AuthenticationTestHelper {
             return build(ESTestCase.randomBoolean());
         }
 
-        public Authentication build(boolean runAsIfNotAlready) {
+        /**
+         * @param maybeRunAsIfNotAlready If the authentication is *not* run-as and the subject is a realm user, it will be transformed
+         *                               into a run-as authentication by moving the realm user to be the run-as user. The authenticating
+         *                               subject can be either a realm user or an API key (in general any subject type that can run-as).
+         */
+        public Authentication build(boolean maybeRunAsIfNotAlready) {
             if (authenticatingAuthentication != null) {
                 if (user == null) {
                     user = randomUser();
@@ -398,7 +471,7 @@ public class AuthenticationTestHelper {
                             realmRef = randomRealmRef(isRealmUnderDomain == null ? ESTestCase.randomBoolean() : isRealmUnderDomain);
                         }
                         assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "use dedicate methods for synthetic realms";
-                        if (runAsIfNotAlready) {
+                        if (maybeRunAsIfNotAlready) {
                             authentication = builder().runAs().user(user).realmRef(realmRef).build();
                         } else {
                             authentication = Authentication.newRealmAuthentication(user, realmRef);
@@ -412,10 +485,16 @@ public class AuthenticationTestHelper {
                         // User associated to API key authentication has empty roles
                         user = stripRoles(user);
                         prepareApiKeyMetadata();
-                        authentication = Authentication.newApiKeyAuthentication(
+                        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
                             AuthenticationResult.success(user, metadata),
                             ESTestCase.randomAlphaOfLengthBetween(3, 8)
                         );
+                        // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
+                        // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
+                        // instance into a remote access authentication instance.
+                        authentication = remoteAccessAuthentication != null
+                            ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
+                            : apiKeyAuthentication;
                     }
                     case TOKEN -> {
                         if (isServiceAccount != null && isServiceAccount) {
@@ -490,20 +569,20 @@ public class AuthenticationTestHelper {
                         String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
                         if (user == SystemUser.INSTANCE) {
                             authentication = ESTestCase.randomFrom(
-                                Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName),
+                                Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName),
                                 Authentication.newInternalFallbackAuthentication(user, nodeName)
                             );
                         } else {
-                            authentication = Authentication.newInternalAuthentication(user, Version.CURRENT, nodeName);
+                            authentication = Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName);
                         }
                     }
                     default -> throw new IllegalArgumentException("unknown authentication type [" + authenticationType + "]");
                 }
-                if (version == null) {
-                    version = Version.CURRENT;
+                if (transportVersion == null) {
+                    transportVersion = TransportVersion.CURRENT;
                 }
-                if (version.before(authentication.getEffectiveSubject().getVersion())) {
-                    return authentication.maybeRewriteForOlderVersion(version);
+                if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
+                    return authentication.maybeRewriteForOlderVersion(transportVersion);
                 } else {
                     return authentication;
                 }

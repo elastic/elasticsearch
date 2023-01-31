@@ -97,7 +97,9 @@ The API returns the following result:
                   "create_weight": 4694895,
                   "shallow_advance": 0,
                   "create_weight_count": 1,
-                  "build_scorer": 7112295
+                  "build_scorer": 7112295,
+                  "count_weight": 0,
+                  "count_weight_count": 0
                 },
                 "children": [
                   {
@@ -122,7 +124,9 @@ The API returns the following result:
                       "create_weight": 2382719,
                       "shallow_advance": 9754,
                       "create_weight_count": 1,
-                      "build_scorer": 1355007
+                      "build_scorer": 1355007,
+                      "count_weight": 0,
+                      "count_weight_count": 0
                     }
                   },
                   {
@@ -147,7 +151,9 @@ The API returns the following result:
                       "create_weight": 130951,
                       "shallow_advance": 2512,
                       "create_weight_count": 1,
-                      "build_scorer": 46153
+                      "build_scorer": 46153,
+                      "count_weight": 0,
+                      "count_weight_count": 0
                     }
                   }
                 ]
@@ -386,7 +392,9 @@ Lucene execution:
   "create_weight": 4694895,
   "shallow_advance": 0,
   "create_weight_count": 1,
-  "build_scorer": 7112295
+  "build_scorer": 7112295,
+  "count_weight": 0,
+  "count_weight_count": 0
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
@@ -653,10 +661,12 @@ The API returns the following result:
                   "compute_max_score": 0,
                   "advance": 3942,
                   "advance_count": 4,
+                  "count_weight_count": 0,
                   "score": 0,
                   "build_scorer_count": 2,
                   "create_weight": 38380,
                   "shallow_advance": 0,
+                  "count_weight": 0,
                   "create_weight_count": 1,
                   "build_scorer": 99296
                 }
@@ -679,9 +689,11 @@ The API returns the following result:
                   "advance": 3552,
                   "advance_count": 1,
                   "score": 5027,
+                  "count_weight_count": 0,
                   "build_scorer_count": 2,
                   "create_weight": 107840,
                   "shallow_advance": 0,
+                  "count_weight": 0,
                   "create_weight_count": 1,
                   "build_scorer": 44215
                 }
@@ -967,7 +979,7 @@ overall time, the breakdown is inclusive of all children times.
 ===== Profiling Fetch
 
 All shards that fetched documents will have a `fetch` section in the profile.
-Let's execute a small search and have a look a the fetch profile:
+Let's execute a small search and have a look at the fetch profile:
 
 [source,console]
 ----
@@ -1236,7 +1248,8 @@ One of the `dfs.knn` sections for a shard looks like the following:
 [source,js]
 --------------------------------------------------
 "dfs" : {
-    "knn" : {
+    "knn" : [
+        {
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
@@ -1260,7 +1273,9 @@ One of the `dfs.knn` sections for a shard looks like the following:
                   "create_weight" : 128879,
                   "shallow_advance" : 0,
                   "create_weight_count" : 1,
-                  "build_scorer" : 307595
+                  "build_scorer" : 307595,
+                  "count_weight": 0,
+                  "count_weight_count": 0
                 }
             }
         ],
@@ -1272,7 +1287,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
                 "time_in_nanos" : 17163
             }
         ]
-    }
+    }   ]
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n/]

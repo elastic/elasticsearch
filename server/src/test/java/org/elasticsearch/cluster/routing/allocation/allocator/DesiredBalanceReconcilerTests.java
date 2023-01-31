@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -85,7 +86,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -201,7 +201,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var discoveryNodes = discoveryNodes(2);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata0 = randomPriorityIndex("index-0", 1, 1);
         metadata.put(indexMetadata0, true);
@@ -227,9 +227,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -285,7 +285,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var discoveryNodes = discoveryNodes(4);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         var shardsRemaining = 4;
         var indexNum = 0;
@@ -310,9 +310,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings)
+            new ThrottlingAllocationDecider(clusterSettings)
         );
 
         final var stateWithInitializingPrimaries = startInitializingShardsAndReroute(allocationService, clusterState);
@@ -367,7 +367,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     public void testUnassignedShardsPriority() {
         final var discoveryNodes = discoveryNodes(2);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata0 = randomPriorityIndex("index-0", 2, 1);
         final var indexMetadata1 = randomPriorityIndex("index-1", 2, 1);
@@ -400,9 +400,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -488,7 +488,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     public void testUnassignedRespectsDesiredBalance() {
         final var discoveryNodes = discoveryNodes(5);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         for (var i = 0; i < 5; i++) {
             final var indexMetadata = randomPriorityIndex("index-" + i, between(1, 5), between(0, 4));
@@ -508,7 +508,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         );
 
@@ -544,7 +544,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     public void testUnassignedAllocationPredictsDiskUsage() {
         final var discoveryNodes = discoveryNodes(1);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var existingIndexMetadata = randomPriorityIndex("index-existing", 1, 0);
         metadata.put(existingIndexMetadata, true);
@@ -601,7 +601,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             () -> clusterInfo,
             () -> snapshotShardSizeInfo,
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         );
 
@@ -619,7 +619,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     public void testUnassignedSkipsEquivalentReplicas() {
         final var discoveryNodes = discoveryNodes(2);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata = randomPriorityIndex("index-0", 1, between(0, 5));
         metadata.put(indexMetadata, true);
@@ -639,7 +639,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new AllocationDecider() {
                 @Override
@@ -678,7 +678,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     public void testUnassignedSetsAllocationStatusOnUnassignedShards() {
         final var discoveryNodes = discoveryNodes(2);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata = randomPriorityIndex("index-0", 1, between(0, 5));
         metadata.put(indexMetadata, true);
@@ -698,7 +698,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> true);
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new AllocationDecider() {
                 @Override
@@ -736,7 +736,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var discoveryNodes = discoveryNodes(2);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata0 = randomPriorityIndex("index-0", 2, 0);
         metadata.put(indexMetadata0, true);
@@ -756,9 +756,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -807,7 +807,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     public void testMoveShards() {
         final var discoveryNodes = discoveryNodes(4);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata = randomPriorityIndex("index-0", 3, 1);
         metadata.put(indexMetadata, true);
@@ -834,9 +834,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var desiredBalance = new AtomicReference<>(desiredBalance(clusterState, (shardId, nodeId) -> true));
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance.get()),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new FilterAllocationDecider(settings, clusterSettings),
             new NodeShutdownAllocationDecider(),
             new NodeReplacementAllocationDecider(),
@@ -883,8 +883,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
         final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
-        assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
-        assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
 
         // Ensuring that we check the shortcut two-param canAllocate() method up front
         canAllocateRef.set(Decision.NO);
@@ -925,13 +925,13 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             "test",
             ActionListener.noop()
         );
-        assertThat(shuttingDownState.getRoutingNodes().node("node-2").shardsWithState(ShardRoutingState.INITIALIZING), hasSize(1));
+        assertThat(shuttingDownState.getRoutingNodes().node("node-2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
     }
 
     public void testRebalance() {
         final var discoveryNodes = discoveryNodes(4);
         final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         final var indexMetadata = randomPriorityIndex("index-0", 3, 1);
         metadata.put(indexMetadata, true);
@@ -955,9 +955,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         );
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance.get()),
-            new SameShardAllocationDecider(settings, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new ThrottlingAllocationDecider(settings, clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings),
             new AllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
@@ -1011,8 +1011,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
         final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
-        assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
-        assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
+        assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
     }
 
     public void testDoNotRebalanceToTheNodeThatNoLongerExists() {
@@ -1024,7 +1024,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             )
-            .system(randomBoolean())
             .build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
@@ -1101,7 +1100,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("should not be called");
             }
-        }, clusterInfoService, snapshotsInfoService);
+        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new NoOpExistingShardsAllocator()));
         return allocationService;
     }

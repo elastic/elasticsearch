@@ -173,7 +173,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
         private final Parameter<Boolean> dimension;
 
         private final IndexAnalyzers indexAnalyzers;
@@ -245,7 +245,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -735,7 +735,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 sourceValueFetcher(sourcePaths),
-                fieldDataContext.lookupSupplier().get().source(),
+                fieldDataContext.lookupSupplier().get(),
                 KeywordDocValuesField::new
             );
         }
@@ -995,44 +995,47 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
-        if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), value);
-        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
 
-        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
-        // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
-        // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
-        // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (binaryValue.length > MAX_TERM_LENGTH) {
-            byte[] prefix = new byte[30];
-            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
-            String msg = "Document contains at least one immense term in field=\""
-                + fieldType().name()
-                + "\" (whose "
-                + "UTF8 encoding is longer than the max length "
-                + MAX_TERM_LENGTH
-                + "), all of which were "
-                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
-                + "term is: '"
-                + Arrays.toString(prefix)
-                + "...'";
-            throw new IllegalArgumentException(msg);
+        if (fieldType().isDimension()) {
+            context.getDimensions().addString(fieldType().name(), binaryValue);
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
-
-            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                context.addToFieldNames(fieldType().name());
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored() || fieldType().hasDocValues()) {
+            // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
+            // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
+            // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
+            // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
+            if (binaryValue.length > MAX_TERM_LENGTH) {
+                byte[] prefix = new byte[30];
+                System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
+                String msg = "Document contains at least one immense term in field=\""
+                    + fieldType().name()
+                    + "\" (whose "
+                    + "UTF8 encoding is longer than the max length "
+                    + MAX_TERM_LENGTH
+                    + "), all of which were "
+                    + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+                    + "term is: '"
+                    + Arrays.toString(prefix)
+                    + "...'";
+                throw new IllegalArgumentException(msg);
             }
-        }
 
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+                Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
+                context.doc().add(field);
+
+                if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
+                    context.addToFieldNames(fieldType().name());
+                }
+            }
+
+            if (fieldType().hasDocValues()) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            }
         }
     }
 

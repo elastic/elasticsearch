@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,6 +63,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_RO
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
@@ -129,7 +131,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         }
         final var metadata = metadataBuilder.build();
 
-        final var routingTableBuilder = RoutingTable.builder();
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (final var indexMetadata : metadata) {
             routingTableBuilder.addAsNew(indexMetadata);
         }
@@ -380,9 +382,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 for (ShardRouting shardRouting : routingNode) {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += SIMULATION_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
-                        clusterState.metadata().index(shardRouting.index())
-                    ).orElseThrow(() -> new AssertionError("missing write load"));
+                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
+                        .orElseThrow(() -> new AssertionError("missing write load"));
                 }
 
                 results.startObject();
@@ -473,10 +474,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
     ) {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            createBuiltInClusterSettings(),
             new BalancedShardsAllocator(
-                Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                SIMULATION_WRITE_LOAD_FORECASTER
+                TEST_WRITE_LOAD_FORECASTER
             ),
             threadPool,
             clusterService,
@@ -484,11 +485,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         );
         var strategy = new MockAllocationService(
-            randomAllocationDeciders(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                random()
-            ),
+            randomAllocationDeciders(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,

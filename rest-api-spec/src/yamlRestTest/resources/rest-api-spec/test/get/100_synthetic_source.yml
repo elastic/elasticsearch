@@ -600,6 +600,7 @@ _doc_count:
             _source:
               mode: synthetic
 
+  # with _doc_count
   - do:
       index:
         index:   test
@@ -608,7 +609,6 @@ _doc_count:
         body:
           _doc_count: 3
           foo: bar
-
   - do:
       get:
         index: test
@@ -621,6 +621,98 @@ _doc_count:
       _source:
         _doc_count: 3
         foo: bar
+  - is_false: fields
+
+  # without _doc_count
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          foo: baz
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        foo: baz
+  - is_false: fields
+
+  # without immediately refreshing with _doc_count
+  - do:
+      index:
+        index:   test
+        id:      3
+        body:
+          _doc_count: 3
+          foo: qux
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        _doc_count: 3
+        foo: qux
+  - is_false: fields
+
+  # without immediately refreshing without _doc_count
+  - do:
+      index:
+        index:   test
+        id:      4
+        body:
+          foo: quux
+  - do:
+      get:
+        index: test
+        id:    4
+  - match: {_index: "test"}
+  - match: {_id: "4"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        foo: quux
+  - is_false: fields
+
+  # refresh all at once
+  - do:
+      indices.refresh: {}
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        _doc_count: 3
+        foo: qux
+  - is_false: fields
+  - do:
+      get:
+        index: test
+        id:    4
+  - match: {_index: "test"}
+  - match: {_id: "4"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        foo: quux
   - is_false: fields
 
 ---

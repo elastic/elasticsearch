@@ -58,7 +58,10 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             """, validQuery), "filter doesn't support values of type: VALUE_NULL" },
         { String.format(Locale.ROOT, """
             {"query": "%s", "filter": {}}
-            """, validQuery), "query malformed, empty clause found" } };
+            """, validQuery), "query malformed, empty clause found" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "max_samples_per_key": 0}
+            """, validQuery), "max_samples_per_key must be greater than 0" } };
 
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, (String) null);

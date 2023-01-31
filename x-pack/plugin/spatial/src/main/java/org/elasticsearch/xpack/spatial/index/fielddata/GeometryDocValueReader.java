@@ -98,7 +98,7 @@ public class GeometryDocValueReader {
     /**
      * Visit the triangle tree with the provided visitor
      */
-    public void visit(TriangleTreeReader.Visitor visitor) throws IOException {
+    public void visit(TriangleTreeVisitor visitor) throws IOException {
         Extent geometryExtent = getExtent();
         int thisMaxX = geometryExtent.maxX();
         int thisMinX = geometryExtent.minX();

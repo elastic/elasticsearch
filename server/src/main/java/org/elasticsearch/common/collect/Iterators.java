@@ -8,9 +8,13 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.core.Nullable;
+
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class Iterators {
 
@@ -43,36 +47,33 @@ public class Iterators {
             throw new NullPointerException("iterators");
         }
 
-        // explicit generic type argument needed for type inference
-        return new ConcatenatedIterator<T>(iterators);
+        for (int i = 0; i < iterators.length; i++) {
+            if (iterators[i].hasNext()) {
+                // explicit generic type argument needed for type inference
+                return new ConcatenatedIterator<T>(iterators, i);
+            }
+        }
+
+        return Collections.emptyIterator();
     }
 
-    static class ConcatenatedIterator<T> implements Iterator<T> {
+    private static class ConcatenatedIterator<T> implements Iterator<T> {
         private final Iterator<? extends T>[] iterators;
-        private int index = 0;
+        private int index;
 
-        @SafeVarargs
-        @SuppressWarnings("varargs")
-        ConcatenatedIterator(Iterator<? extends T>... iterators) {
-            if (iterators == null) {
-                throw new NullPointerException("iterators");
-            }
-            for (int i = 0; i < iterators.length; i++) {
+        ConcatenatedIterator(Iterator<? extends T>[] iterators, int startIndex) {
+            for (int i = startIndex; i < iterators.length; i++) {
                 if (iterators[i] == null) {
                     throw new NullPointerException("iterators[" + i + "]");
                 }
             }
             this.iterators = iterators;
+            this.index = startIndex;
         }
 
         @Override
         public boolean hasNext() {
-            boolean hasNext = false;
-            while (index < iterators.length && (hasNext = iterators[index].hasNext()) == false) {
-                index++;
-            }
-
-            return hasNext;
+            return index < iterators.length;
         }
 
         @Override
@@ -80,7 +81,11 @@ public class Iterators {
             if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            return iterators[index].next();
+            final T value = iterators[index].next();
+            while (index < iterators.length && iterators[index].hasNext() == false) {
+                index++;
+            }
+            return value;
         }
     }
 
@@ -110,4 +115,54 @@ public class Iterators {
             return array[index++];
         }
     }
+
+    public static <T, U> Iterator<? extends U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
+        while (input.hasNext()) {
+            final var value = fn.apply(input.next());
+            if (value.hasNext()) {
+                return new FlatMapIterator<>(input, fn, value);
+            }
+        }
+
+        return Collections.emptyIterator();
+    }
+
+    private static final class FlatMapIterator<T, U> implements Iterator<U> {
+
+        private final Iterator<? extends T> input;
+        private final Function<T, Iterator<? extends U>> fn;
+
+        @Nullable // if finished, otherwise currentOutput.hasNext() is true
+        private Iterator<? extends U> currentOutput;
+
+        FlatMapIterator(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn, Iterator<? extends U> firstOutput) {
+            this.input = input;
+            this.fn = fn;
+            this.currentOutput = firstOutput;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return currentOutput != null;
+        }
+
+        @Override
+        public U next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            // noinspection ConstantConditions this is for documentation purposes
+            assert currentOutput != null && currentOutput.hasNext();
+            final U value = currentOutput.next();
+            while (currentOutput != null && currentOutput.hasNext() == false) {
+                if (input.hasNext()) {
+                    currentOutput = fn.apply(input.next());
+                } else {
+                    currentOutput = null;
+                }
+            }
+            return value;
+        }
+    }
+
 }

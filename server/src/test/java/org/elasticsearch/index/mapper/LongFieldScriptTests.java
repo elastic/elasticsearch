@@ -18,7 +18,7 @@ import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -31,10 +31,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Factory> {
-    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongFieldScript(
+    public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -65,7 +66,8 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                 LongFieldScript script = new LongFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -100,7 +102,8 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                 LongFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    OnScriptError.FAIL
                 );
                 LongFieldScript longFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();

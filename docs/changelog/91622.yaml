@@ -1,6 +1,0 @@
-pr: 91622
-summary: Fix failure when resolving indices from CCS
-area: Transform
-type: bug
-issues:
- - 91550

@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -43,8 +44,10 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -72,8 +75,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -212,7 +213,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             String defaultPipeline = null;
             String finalPipeline = null;
             IndexMetadata indexMetadata = null;
-            // start to look for default or final pipelines via settings found in the index meta data
+            // start to look for default or final pipelines via settings found in the index metadata
             if (originalRequest != null) {
                 indexMetadata = metadata.indices()
                     .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
@@ -252,11 +253,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a final pipeline that we need to collect
                     }
                     if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
                     indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
                     indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
@@ -669,13 +668,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public void executeBulkRequest(
-        int numberOfActionRequests,
-        Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<Integer, Exception> onFailure,
-        BiConsumer<Thread, Exception> onCompletion,
-        IntConsumer onDropped,
-        String executorName
+        final int numberOfActionRequests,
+        final Iterable<DocWriteRequest<?>> actionRequests,
+        final IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure,
+        final BiConsumer<Thread, Exception> onCompletion,
+        final String executorName
     ) {
+        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 
@@ -687,81 +687,92 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             @Override
             protected void doRun() {
                 final Thread originalThread = Thread.currentThread();
-                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
-                int i = 0;
-                for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                    if (indexRequest == null) {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
+                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                    int i = 0;
+                    for (DocWriteRequest<?> actionRequest : actionRequests) {
+                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+                        if (indexRequest == null) {
+                            i++;
+                            continue;
                         }
-                        assert counter.get() >= 0;
-                        i++;
-                        continue;
-                    }
 
-                    final String pipelineId = indexRequest.getPipeline();
-                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                    final String finalPipelineId = indexRequest.getFinalPipeline();
-                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-                    boolean hasFinalPipeline = true;
-                    final List<String> pipelines;
-                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(pipelineId, finalPipelineId);
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        pipelines = List.of(pipelineId);
-                        hasFinalPipeline = false;
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(finalPipelineId);
-                    } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
+                        final String pipelineId = indexRequest.getPipeline();
+                        indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                        final String finalPipelineId = indexRequest.getFinalPipeline();
+                        indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+                        boolean hasFinalPipeline = true;
+                        final List<String> pipelines;
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
+                            && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                            pipelines = List.of(pipelineId, finalPipelineId);
+                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
+                            pipelines = List.of(pipelineId);
+                            hasFinalPipeline = false;
+                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                            pipelines = List.of(finalPipelineId);
+                        } else {
+                            i++;
+                            continue;
                         }
-                        assert counter.get() >= 0;
+
+                        // start the stopwatch and acquire a ref to indicate that we're working on this document
+                        final long startTimeInNanos = System.nanoTime();
+                        totalMetrics.preIngest();
+                        final int slot = i;
+                        final Releasable ref = refs.acquire();
+                        // the document listener gives us three-way logic: a document can fail processing (1), or it can
+                        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
+                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean kept) {
+                                assert kept != null;
+                                if (kept == false) {
+                                    onDropped.accept(slot);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                totalMetrics.ingestFailed();
+                                onFailure.accept(slot, e);
+                            }
+                        }, () -> {
+                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+                            // that we're finished with this document
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            ref.close();
+                        });
+
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        executePipelines(pipelines.iterator(), hasFinalPipeline, indexRequest, ingestDocument, documentListener);
+
                         i++;
-                        continue;
                     }
-
-                    executePipelines(
-                        i,
-                        pipelines.iterator(),
-                        hasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
-
-                    i++;
                 }
             }
         });
     }
 
     private void executePipelines(
-        final int slot,
-        final Iterator<String> it,
+        final Iterator<String> pipelineIds,
         final boolean hasFinalPipeline,
         final IndexRequest indexRequest,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final AtomicInteger counter,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final Thread originalThread
+        final IngestDocument ingestDocument,
+        final ActionListener<Boolean> listener
     ) {
-        assert it.hasNext();
-        final String pipelineId = it.next();
+        assert pipelineIds.hasNext();
+        final String pipelineId = pipelineIds.next();
         try {
-            PipelineHolder holder = pipelines.get(pipelineId);
+            final PipelineHolder holder = pipelines.get(pipelineId);
             if (holder == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            Pipeline pipeline = holder.pipeline;
-            String originalIndex = indexRequest.indices()[0];
-            innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
+            final Pipeline pipeline = holder.pipeline;
+            final String originalIndex = indexRequest.indices()[0];
+            executePipeline(ingestDocument, pipeline, (keep, e) -> {
+                assert keep != null;
+
                 if (e != null) {
                     logger.debug(
                         () -> format(
@@ -772,49 +783,77 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ),
                         e
                     );
-                    onFailure.accept(slot, e);
+                    listener.onFailure(e);
+                    return; // document failed!
                 }
 
-                Iterator<String> newIt = it;
+                if (keep == false) {
+                    listener.onResponse(false);
+                    return; // document dropped!
+                }
+
+                // update the index request so that we can execute additional pipelines (if any), etc
+                updateIndexRequestMetadata(indexRequest, ingestDocument.getMetadata());
+                try {
+                    // check for self-references if necessary, (i.e. if a script processor has run), and clear the bit
+                    if (ingestDocument.doNoSelfReferencesCheck()) {
+                        CollectionUtils.ensureNoSelfReferences(ingestDocument.getSource(), null);
+                        ingestDocument.doNoSelfReferencesCheck(false);
+                    }
+                } catch (IllegalArgumentException ex) {
+                    // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                    // In that case, we catch and wrap the exception, so we can include more details
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            format(
+                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                                pipelineId,
+                                indexRequest.index(),
+                                indexRequest.id()
+                            ),
+                            ex
+                        )
+                    );
+                    return; // document failed!
+                }
+
+                Iterator<String> newPipelineIds = pipelineIds;
                 boolean newHasFinalPipeline = hasFinalPipeline;
-                String newIndex = indexRequest.indices()[0];
+                final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
-                    if (hasFinalPipeline && it.hasNext() == false) {
-                        totalMetrics.ingestFailed();
-                        onFailure.accept(
-                            slot,
-                            new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
+                    if (hasFinalPipeline && pipelineIds.hasNext() == false) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                format(
+                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                    pipelineId,
+                                    originalIndex,
+                                    newIndex,
+                                    indexRequest.id()
+                                )
+                            )
                         );
+                        return; // document failed!
                     } else {
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
                         if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                            newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                            newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;
                         } else {
-                            newIt = Collections.emptyIterator();
+                            newPipelineIds = Collections.emptyIterator();
                         }
                     }
                 }
 
-                if (newIt.hasNext()) {
-                    executePipelines(
-                        slot,
-                        newIt,
-                        newHasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
+                if (newPipelineIds.hasNext()) {
+                    executePipelines(newPipelineIds, newHasFinalPipeline, indexRequest, ingestDocument, listener);
                 } else {
-                    if (counter.decrementAndGet() == 0) {
-                        onCompletion.accept(originalThread, null);
-                    }
-                    assert counter.get() >= 0;
+                    // update the index request's source and (potentially) cache the timestamp for TSDB
+                    updateIndexRequestSource(indexRequest, ingestDocument);
+                    cacheRawTimestamp(indexRequest, ingestDocument);
+                    listener.onResponse(true); // document succeeded!
                 }
             });
         } catch (Exception e) {
@@ -822,12 +861,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
-            onFailure.accept(slot, e);
-            if (counter.decrementAndGet() == 0) {
-                onCompletion.accept(originalThread, null);
-            }
-            assert counter.get() >= 0;
+            listener.onFailure(e); // document failed!
         }
+    }
+
+    private void executePipeline(
+        final IngestDocument ingestDocument,
+        final Pipeline pipeline,
+        final BiConsumer<Boolean, Exception> handler
+    ) {
+        // adapt our {@code BiConsumer<Boolean, Exception>} handler shape to the
+        // {@code BiConsumer<IngestDocument, Exception>} handler shape used internally
+        // by ingest pipelines and processors
+        ingestDocument.executePipeline(pipeline, (result, e) -> {
+            if (e != null) {
+                handler.accept(true, e);
+            } else {
+                handler.accept(result != null, null);
+            }
+        });
     }
 
     public IngestStats stats() {
@@ -851,7 +903,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Adds a listener that gets invoked with the current cluster state before processor factories
      * get invoked.
-     *
+     * <p>
      * This is useful for components that are used by ingest processors, so that they have the opportunity to update
      * before these components get used by the ingest processor factory.
      */
@@ -881,104 +933,70 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return sb.toString();
     }
 
-    private void innerExecute(
-        int slot,
-        IndexRequest indexRequest,
-        Pipeline pipeline,
-        IntConsumer itemDroppedHandler,
-        Consumer<Exception> handler
-    ) {
-        if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(null);
-            return;
-        }
-
-        long startTimeInNanos = System.nanoTime();
-        // the pipeline specific stat holder may not exist and that is fine:
-        // (e.g. the pipeline may have been removed while we're ingesting a document
-        totalMetrics.preIngest();
-        String index = indexRequest.index();
-        String id = indexRequest.id();
-        String routing = indexRequest.routing();
-        long version = indexRequest.version();
-        VersionType versionType = indexRequest.versionType();
-        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
-        /*
-         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
-         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
-         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
-         * is only executed once.
-         */
-        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
-        ingestDocument.executePipeline(pipeline, (result, e) -> {
-            if (listenerHasBeenCalled.getAndSet(true)) {
-                logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
-                assert false : "A listener was unexpectedly called more than once";
-            } else {
-                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                totalMetrics.postIngest(ingestTimeInNanos);
-                if (e != null) {
-                    totalMetrics.ingestFailed();
-                    handler.accept(e);
-                } else if (result == null) {
-                    itemDroppedHandler.accept(slot);
-                    handler.accept(null);
-                } else {
-                    org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
-
-                    // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                    // before ingestion, which might also get modified during ingestion.
-                    indexRequest.index(metadata.getIndex());
-                    indexRequest.id(metadata.getId());
-                    indexRequest.routing(metadata.getRouting());
-                    indexRequest.version(metadata.getVersion());
-                    if (metadata.getVersionType() != null) {
-                        indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
-                    }
-                    Number number;
-                    if ((number = metadata.getIfSeqNo()) != null) {
-                        indexRequest.setIfSeqNo(number.longValue());
-                    }
-                    if ((number = metadata.getIfPrimaryTerm()) != null) {
-                        indexRequest.setIfPrimaryTerm(number.longValue());
-                    }
-                    try {
-                        boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                        indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
-                    } catch (IllegalArgumentException ex) {
-                        // An IllegalArgumentException can be thrown when an ingest
-                        // processor creates a source map that is self-referencing.
-                        // In that case, we catch and wrap the exception so we can
-                        // include which pipeline failed.
-                        totalMetrics.ingestFailed();
-                        handler.accept(
-                            new IllegalArgumentException(
-                                "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
-                                ex
-                            )
-                        );
-                        return;
-                    }
-                    Map<String, String> map;
-                    if ((map = metadata.getDynamicTemplates()) != null) {
-                        Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                        mergedDynamicTemplates.putAll(map);
-                        indexRequest.setDynamicTemplates(mergedDynamicTemplates);
-                    }
-                    postIngest(ingestDocument, indexRequest);
-
-                    handler.accept(null);
-                }
-            }
-        });
+    /**
+     * Builds a new ingest document from the passed-in index request.
+     */
+    private static IngestDocument newIngestDocument(final IndexRequest request) {
+        return new IngestDocument(
+            request.index(),
+            request.id(),
+            request.version(),
+            request.routing(),
+            request.versionType(),
+            request.sourceAsMap()
+        );
     }
 
-    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
-        // cache timestamp from ingest source map
-        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
-            indexRequest.setRawTimestamp(rawTimestamp);
+    /**
+     * Updates an index request based on the metadata of an ingest document.
+     */
+    private static void updateIndexRequestMetadata(final IndexRequest request, final org.elasticsearch.script.Metadata metadata) {
+        // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+        // before ingestion, which might also get modified during ingestion.
+        request.index(metadata.getIndex());
+        request.id(metadata.getId());
+        request.routing(metadata.getRouting());
+        request.version(metadata.getVersion());
+        if (metadata.getVersionType() != null) {
+            request.versionType(VersionType.fromString(metadata.getVersionType()));
+        }
+        Number number;
+        if ((number = metadata.getIfSeqNo()) != null) {
+            request.setIfSeqNo(number.longValue());
+        }
+        if ((number = metadata.getIfPrimaryTerm()) != null) {
+            request.setIfPrimaryTerm(number.longValue());
+        }
+        Map<String, String> map;
+        if ((map = metadata.getDynamicTemplates()) != null) {
+            Map<String, String> mergedDynamicTemplates = new HashMap<>(request.getDynamicTemplates());
+            mergedDynamicTemplates.putAll(map);
+            request.setDynamicTemplates(mergedDynamicTemplates);
+        }
+    }
+
+    /**
+     * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
+     */
+    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
+        boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
+        // we already check for self references elsewhere (and clear the bit), so this should always be false,
+        // keeping the check and assert as a guard against extraordinarily surprising circumstances
+        assert ensureNoSelfReferences == false;
+        request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
+    }
+
+    /**
+     * Grab the @timestamp and store it on the index request so that TSDB can use it without needing to parse
+     * the source for this document.
+     */
+    private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {
+        if (request.getRawTimestamp() == null) {
+            // cache the @timestamp from the ingest document's source map if there is one
+            Object rawTimestamp = document.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            if (rawTimestamp != null) {
+                request.setRawTimestamp(rawTimestamp);
+            }
         }
     }
 

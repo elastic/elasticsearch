@@ -25,6 +25,11 @@ public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableT
     }
 
     @Override
+    protected SystemIndexMigrationTaskParams mutateInstance(SystemIndexMigrationTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected SystemIndexMigrationTaskParams copyInstance(SystemIndexMigrationTaskParams instance, Version version) throws IOException {
         return new SystemIndexMigrationTaskParams();
     }

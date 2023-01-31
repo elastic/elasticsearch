@@ -14,14 +14,17 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -309,7 +312,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(badModel);
         putVocabulary(List.of("once", "twice"), badModel);
         Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
         client().performRequest(request);
         startDeployment(badModel, AllocationStatus.State.STARTING.toString());
@@ -418,6 +421,79 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testInferWithMultipleDocs() throws IOException {
+        String modelId = "infer_multi_docs";
+        // Use the text embedding model from SemanticSearchIT so
+        // that each response can be linked to the originating request.
+        // The test ensures the responses are returned in the same order
+        // as the requests
+        createTextEmbeddingModel(modelId);
+        putModelDefinition(modelId, SemanticSearchIT.BASE_64_ENCODED_MODEL, SemanticSearchIT.RAW_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        List<String> inputs = List.of(
+            "my words",
+            "the machine is leaking",
+            "washing machine",
+            "these are my words",
+            "the octopus comforter smells",
+            "the octopus comforter is leaking",
+            "washing machine smells"
+        );
+
+        List<List<Double>> expectedEmbeddings = new ArrayList<>();
+
+        // Generate the text embeddings one at a time using the _infer API
+        // then index them for search
+        for (var input : inputs) {
+            Response inference = infer(input, modelId);
+            List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
+            Map<String, Object> inferenceResult = responseMap.get(0);
+            List<Double> embedding = (List<Double>) inferenceResult.get("predicted_value");
+            expectedEmbeddings.add(embedding);
+        }
+
+        // Now do the same with all documents sent at once
+        var docsBuilder = new StringBuilder();
+        int numInputs = inputs.size();
+        for (int i = 0; i < numInputs - 1; i++) {
+            docsBuilder.append("{\"input\":\"").append(inputs.get(i)).append("\"},");
+        }
+        docsBuilder.append("{\"input\":\"").append(inputs.get(numInputs - 1)).append("\"}");
+
+        {
+            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {  "docs": [%s] }
+                """, docsBuilder));
+            Response response = client().performRequest(request);
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> inferenceResults = (List<Map<String, Object>>) responseMap.get("inference_results");
+            assertThat(inferenceResults, hasSize(numInputs));
+
+            // Check the result order matches the input order by comparing
+            // the to the pre-calculated embeddings
+            for (int i = 0; i < numInputs; i++) {
+                List<Double> embedding = (List<Double>) inferenceResults.get(i).get("predicted_value");
+                assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
+            }
+        }
+        {
+            // the deprecated deployment/_infer endpoint does not support multiple docs
+            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {  "docs": [%s] }
+                """, docsBuilder));
+            Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
+            assertThat(ex.getMessage(), containsString("multiple documents are not supported"));
+        }
+    }
+
     public void testGetPytorchModelWithDefinition() throws IOException {
         String model = "should-fail-get";
         createPassThroughModel(model);
@@ -435,7 +511,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
@@ -475,7 +551,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("Model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
                 containsString("error"),
                 not(containsString("warning"))
             )
@@ -498,7 +574,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
             """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
+        assertThat(ex.getMessage(), containsString("Model [not-deployed] must be deployed to use."));
     }
 
     public void testTruncation() throws IOException {
@@ -534,8 +610,9 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(formatted("""
+        // We set timeout to 20s as we've seen this test time out on some busy workers.
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=20s");
+        request.setJsonEntity(Strings.format("""
             {
               "docs": [
                 {
@@ -562,7 +639,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(putPipeline("my_pipeline", formatted("""
+        client().performRequest(putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -592,9 +669,9 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
-        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+        client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
 
-        client().performRequest(putPipeline("my_pipeline", formatted("""
+        client().performRequest(putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -624,9 +701,9 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
-        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+        client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
 
-        String source = formatted("""
+        String source = Strings.format("""
             {
               "pipeline": {
                 "processors": [

@@ -398,6 +398,11 @@ public class SecuritySystemIndices {
                     builder.field("format", "epoch_millis");
                     builder.endObject();
 
+                    builder.startObject("invalidation_time");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
                     builder.startObject("api_key_hash");
                     builder.field("type", "keyword");
                     builder.field("index", false);

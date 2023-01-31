@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -47,11 +48,9 @@ public class ThreadedActionListenerTests extends ESTestCase {
                 for (int i = 0; i < listenerCount; i++) {
                     final var pool = randomFrom(pools);
                     final var listener = new ThreadedActionListener<Void>(
-                        logger,
-                        threadPool,
-                        pool,
-                        ActionListener.wrap(countdownLatch::countDown),
-                        (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely()
+                        threadPool.executor(pool),
+                        (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely(),
+                        ActionListener.wrap(countdownLatch::countDown)
                     );
                     synchronized (closeFlag) {
                         if (closeFlag.get() && shutdownUnsafePools.contains(pool)) {
@@ -74,6 +73,32 @@ public class ThreadedActionListenerTests extends ESTestCase {
             assertTrue(threadPool.awaitTermination(10, TimeUnit.SECONDS));
         }
         assertTrue(countdownLatch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testToString() {
+        var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        assertEquals(
+            "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]",
+            new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool().generic(), randomBoolean(), ActionListener.noop())
+                .toString()
+        );
+
+        assertEquals(
+            "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]/onResponse",
+            PlainActionFuture.get(future -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
+                future.onResponse(s.toString());
+                return s;
+            }).generic(), randomBoolean(), ActionListener.noop()).onResponse(null))
+        );
+
+        assertEquals(
+            "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]/onFailure",
+            PlainActionFuture.get(future -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
+                future.onResponse(s.toString());
+                return s;
+            }).generic(), randomBoolean(), ActionListener.noop()).onFailure(new ElasticsearchException("test")))
+        );
     }
 
 }

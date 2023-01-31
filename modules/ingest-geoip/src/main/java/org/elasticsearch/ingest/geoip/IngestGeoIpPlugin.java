@@ -16,7 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -85,9 +85,10 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             CACHE_SIZE,
+            GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING,
-            GeoIpDownloaderTaskExecutor.ENABLED_SETTING
+            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING
         );
     }
 
@@ -116,7 +117,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();
@@ -126,6 +127,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         }
 
         geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
+        geoIpDownloaderTaskExecutor.init();
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
 

@@ -18,8 +18,6 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.util.Map;
-
 /**
  * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(SnapshotShardContext)}.
  * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
@@ -36,7 +34,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     private final String shardStateIdentifier;
     private final IndexShardSnapshotStatus snapshotStatus;
     private final Version repositoryMetaVersion;
-    private final Map<String, Object> userMetadata;
     private final long snapshotStartTime;
 
     /**
@@ -50,8 +47,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
      *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
      * @param snapshotStatus        snapshot status
      * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param userMetadata          user metadata of the snapshot found in
-     *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#userMetadata()}
      * @param snapshotStartTime     start time of the snapshot found in
      *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#startTime()}
      * @param listener              listener invoked on completion
@@ -65,7 +60,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
@@ -78,7 +72,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         this.shardStateIdentifier = shardStateIdentifier;
         this.snapshotStatus = snapshotStatus;
         this.repositoryMetaVersion = repositoryMetaVersion;
-        this.userMetadata = userMetadata;
         this.snapshotStartTime = snapshotStartTime;
     }
 
@@ -113,10 +106,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
 
     public Version getRepositoryMetaVersion() {
         return repositoryMetaVersion;
-    }
-
-    public Map<String, Object> userMetadata() {
-        return userMetadata;
     }
 
     public long snapshotStartTime() {

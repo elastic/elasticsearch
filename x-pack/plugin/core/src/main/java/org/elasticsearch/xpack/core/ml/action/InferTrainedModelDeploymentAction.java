@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -44,7 +44,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static final InferTrainedModelDeploymentAction INSTANCE = new InferTrainedModelDeploymentAction();
 
-    // TODO Review security level
+    /**
+     * Do not call this action directly, use InferModelAction instead
+     * which will perform various checks and set the node the request
+     * should execute on.
+     *
+     * The action is poorly named as once it was publicly accessible
+     * and exposed through a REST API now it _must_ only called internally.
+     */
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
@@ -94,22 +101,38 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
-        private final String textInput;
+        private final List<String> textInput;
 
-        public Request(String modelId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
-            this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
-            this.update = update;
-            this.inferenceTimeout = inferenceTimeout;
-            this.textInput = null;
+        public static Request forDocs(
+            String modelId,
+            InferenceConfigUpdate update,
+            List<Map<String, Object>> docs,
+            TimeValue inferenceTimeout
+        ) {
+            return new Request(
+                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                update,
+                ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
+                null,
+                false,
+                inferenceTimeout
+            );
         }
 
-        public Request(String modelId, InferenceConfigUpdate update, String textInput, TimeValue inferenceTimeout) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
-            this.docs = List.of();
-            this.textInput = ExceptionsHelper.requireNonNull(textInput, "inference text input");
-            this.update = update;
-            this.inferenceTimeout = inferenceTimeout;
+        public static Request forTextInput(
+            String modelId,
+            InferenceConfigUpdate update,
+            List<String> textInput,
+            TimeValue inferenceTimeout
+        ) {
+            return new Request(
+                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                update,
+                List.of(),
+                ExceptionsHelper.requireNonNull(textInput, "inference text input"),
+                false,
+                inferenceTimeout
+            );
         }
 
         // for tests
@@ -117,7 +140,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             String modelId,
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
-            String textInput,
+            List<String> textInput,
             boolean skipQueue,
             TimeValue inferenceTimeout
         ) {
@@ -135,11 +158,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             docs = in.readImmutableList(StreamInput::readMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 skipQueue = in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-                textInput = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                textInput = in.readOptionalStringList();
             } else {
                 textInput = null;
             }
@@ -153,7 +176,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return docs;
         }
 
-        public String getTextInput() {
+        public List<String> getTextInput() {
             return textInput;
         }
 
@@ -196,10 +219,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 if (docs.isEmpty() && textInput == null) {
                     validationException = addValidationError("at least one document is required ", validationException);
                 }
-                if (docs.size() > 1) {
-                    // TODO support multiple docs
-                    validationException = addValidationError("multiple documents are not supported", validationException);
-                }
             }
             return validationException;
         }
@@ -211,11 +230,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 out.writeBoolean(skipQueue);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-                out.writeOptionalString(textInput);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                out.writeOptionalStringCollection(textInput);
             }
         }
 
@@ -254,7 +273,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             private TimeValue timeout;
             private InferenceConfigUpdate update;
             private boolean skipQueue = false;
-            private String textInput;
+            private List<String> textInput;
 
             private Builder() {}
 
@@ -282,7 +301,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
-            public Builder setTextInput(String textInput) {
+            public Builder setTextInput(List<String> textInput) {
                 this.textInput = textInput;
                 return this;
             }
@@ -300,50 +319,45 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final InferenceResults results;
-        private long tookMillis;
+        private final List<InferenceResults> results;
 
-        public Response(InferenceResults result, long tookMillis) {
+        public Response(List<InferenceResults> results) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.results = Objects.requireNonNull(result);
-            this.tookMillis = tookMillis;
+            this.results = Objects.requireNonNull(results);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            results = in.readNamedWriteable(InferenceResults.class);
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-                tookMillis = in.readVLong();
-            }
-        }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            results.toXContent(builder, params);
-            builder.endObject();
-            return builder;
+            // Multiple results added in 8.6.1
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
+                results = in.readNamedWriteableList(InferenceResults.class);
+            } else {
+                results = List.of(in.readNamedWriteable(InferenceResults.class));
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeNamedWriteable(results);
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-                out.writeVLong(tookMillis);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
+                out.writeNamedWriteableList(results);
+            } else {
+                out.writeNamedWriteable(results.get(0));
             }
         }
 
-        public InferenceResults getResults() {
+        public List<InferenceResults> getResults() {
             return results;
         }
 
-        public long getTookMillis() {
-            return tookMillis;
-        }
-
-        public void setTookMillis(long tookMillis) {
-            this.tookMillis = tookMillis;
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            results.get(0).toXContent(builder, params);
+            builder.endObject();
+            return builder;
         }
     }
 }

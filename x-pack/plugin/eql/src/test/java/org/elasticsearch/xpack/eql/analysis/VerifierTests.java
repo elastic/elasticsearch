@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.eql.analysis;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.EqlTestUtils;
-import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -29,6 +26,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
 import static org.hamcrest.Matchers.startsWith;
 
 public class VerifierTests extends ESTestCase {
@@ -48,7 +46,7 @@ public class VerifierTests extends ESTestCase {
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         EqlParser parser = new EqlParser();
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer();
 
         LogicalPlan plan = parser.createStatement(eql);
         return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));
@@ -467,11 +465,12 @@ public class VerifierTests extends ESTestCase {
             TimeValue.timeValueSeconds(30),
             null,
             123,
+            1,
             "",
             new TaskId("test", 123),
             null
         );
-        Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer(eqlConfiguration);
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
         return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
     }

@@ -10,12 +10,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.rate.InternalRate;
+import org.elasticsearch.xpack.analytics.rate.InternalResetTrackingRate;
 import org.elasticsearch.xpack.analytics.rate.RateAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
@@ -120,16 +122,24 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 usage.track(AnalyticsStatsAction.Item.T_TEST, TTestAggregationBuilder.PARSER)
             ).addResultReader(InternalTTest::new).setAggregatorRegistrar(TTestAggregationBuilder::registerUsage),
             new AggregationSpec(
-                RateAggregationBuilder.NAME,
-                RateAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
-            ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
-            new AggregationSpec(
                 MultiTermsAggregationBuilder.NAME,
                 MultiTermsAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.MULTI_TERMS, MultiTermsAggregationBuilder.PARSER)
-            ).addResultReader(InternalMultiTerms::new).setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators)
+            ).addResultReader(InternalMultiTerms::new).setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators),
+            rateAggregation()
         );
+    }
+
+    private AggregationSpec rateAggregation() {
+        AggregationSpec rate = new AggregationSpec(
+            RateAggregationBuilder.NAME,
+            RateAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
+        ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators);
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            rate.addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new);
+        }
+        return rate;
     }
 
     @Override
@@ -180,7 +190,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         return List.of(usage);
     }

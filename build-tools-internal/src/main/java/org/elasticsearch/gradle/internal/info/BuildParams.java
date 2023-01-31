@@ -18,6 +18,7 @@ import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
@@ -110,8 +111,16 @@ public class BuildParams {
         return value(testSeed);
     }
 
+    public static Random getRandom() {
+        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
+    }
+
     public static Boolean isCi() {
         return value(isCi);
+    }
+
+    public static Boolean isGraalVmRuntime() {
+        return value(runtimeJavaDetails.toLowerCase().contains("graalvm"));
     }
 
     public static Integer getDefaultParallel() {

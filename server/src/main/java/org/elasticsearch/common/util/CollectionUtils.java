@@ -178,7 +178,7 @@ public class CollectionUtils {
             throw new NullPointerException("elements");
         }
         if (elements instanceof Collection) {
-            return new ArrayList<>((Collection) elements);
+            return new ArrayList<>((Collection<E>) elements);
         } else {
             ArrayList<E> list = new ArrayList<>();
             for (E element : elements) {

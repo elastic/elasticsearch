@@ -51,6 +51,7 @@ public class DocValuesForUtil {
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
             encodeFiveSixOrSevenBytesPerValue(in, bitsPerValue, out);
         } else {
+            assert bitsPerValue > 56 : "bitsPerValue must be greater than 56 but was [" + bitsPerValue + "]";
             for (long l : in) {
                 out.writeLong(l);
             }
@@ -74,6 +75,7 @@ public class DocValuesForUtil {
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
             decodeFiveSixOrSevenBytesPerValue(bitsPerValue, in, out);
         } else {
+            assert bitsPerValue > 56 : "bitsPerValue must be greater than 56 but was [" + bitsPerValue + "]";
             in.readLongs(out, 0, blockSize);
         }
     }

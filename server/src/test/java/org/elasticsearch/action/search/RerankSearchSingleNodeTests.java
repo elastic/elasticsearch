@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.rerank.RRFBuilder;
 import org.elasticsearch.search.rerank.RerankBuilder;
@@ -47,19 +46,19 @@ public class RerankSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 1000; doc++) {
-            client().prepareIndex("index").setSource("vector", new float[] { doc }, "int", doc % 10).get();
+            client().prepareIndex("index").setSource("vector", new float[] { doc }, "int", doc % 500).get();
         }
 
         client().admin().indices().prepareRefresh("index").get();
 
-        float[] queryVector = { 0.0f };
+        float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50);
         SearchResponse response = client().prepareSearch("index")
             .setRerankBuilder(new RerankBuilder().rrfBuilder(new RRFBuilder().windowSize(100).rankConstant(1)))
-            // .setTrackTotalHits(false)
+            .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.rangeQuery("int").lt(5))
-            .addSort("int", SortOrder.DESC)
+            .addSort("int", SortOrder.ASC)
             .addFetchField("*")
             .setSize(10)
             .addAggregation(new TermsAggregationBuilder("int-agg").field("int"))

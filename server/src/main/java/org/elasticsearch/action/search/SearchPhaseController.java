@@ -638,6 +638,17 @@ public final class SearchPhaseController {
             for (List<TopDocs> std : secondaryTopDocs) {
                 secondarySortedTopDocs.add(sortDocs(isScrollRequest, std, from, reranker.size(), List.of()));
             }
+            // DEBUG
+            /*if (true) {
+                String explain = "";
+                for (SortedTopDocs std : secondarySortedTopDocs) {
+                    for (ScoreDoc sd : std.scoreDocs) {
+                        explain += "[" + sd.doc + ":" + sd.shardIndex + "]";
+                    }
+                    explain += " ; ";
+                }
+                throw new IllegalArgumentException(explain);
+            }*/
             SortedTopDocs sortedTopDocs = reranker.rerank(secondarySortedTopDocs);
             return new ReducedQueryPhase(
                 totalHits,

@@ -17,7 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.BasicFileAttributes;
 
-
 // Settings have a path, a file update state, and a watch key
 class WatchableFileSettings {
 

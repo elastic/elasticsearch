@@ -45,7 +45,6 @@ public class RerankQueryBuilder extends AbstractQueryBuilder<RerankQueryBuilder>
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        writeTo(out);
         out.writeList(queryBuilders);
         out.writeOptionalNamedWriteable(compoundQueryBuilder);
     }

@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -376,8 +375,10 @@ public class InboundDecoderTests extends ESTestCase {
                 TransportVersionUtils.randomVersionBetween(
                     random(),
                     TransportVersion.CURRENT.minimumCompatibilityVersion(),
-                    TransportVersion.CURRENT),
-                TransportVersion.CURRENT);
+                    TransportVersion.CURRENT
+                ),
+                TransportVersion.CURRENT
+            );
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
@@ -397,14 +398,14 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testCheckHandshakeCompatibility() {
         try {
-            InboundDecoder.checkHandshakeVersionCompatibility(TransportVersion.fromId(
-                randomIntBetween(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id, TransportVersion.CURRENT.id)
-            ));
+            InboundDecoder.checkHandshakeVersionCompatibility(
+                TransportVersion.fromId(randomIntBetween(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id, TransportVersion.CURRENT.id))
+            );
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
-        var invalid = TransportVersion.fromId(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id-1);
+        var invalid = TransportVersion.fromId(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id - 1);
         try {
             InboundDecoder.checkHandshakeVersionCompatibility(invalid);
             fail();

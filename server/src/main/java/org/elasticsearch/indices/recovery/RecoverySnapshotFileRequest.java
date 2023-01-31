@@ -50,8 +50,8 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)
-            : "Unexpected serialization version " + out.getVersion();
+        assert out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)
+            : "Unexpected serialization version " + out.getTransportVersion();
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);

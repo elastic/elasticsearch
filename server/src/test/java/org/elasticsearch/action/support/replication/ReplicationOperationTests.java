@@ -507,7 +507,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
-        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final Set<String> trackedShards = shardRoutingTable.getPromotableAllocationIds();
         final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Thread testThread = Thread.currentThread();

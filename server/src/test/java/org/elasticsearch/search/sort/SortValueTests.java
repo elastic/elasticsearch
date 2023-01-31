@@ -11,6 +11,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
@@ -232,7 +233,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(
             e.getMessage(),
             equalTo(
-                "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to [" + version + "]"
+                "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to [" + Version.fromId(version.id) + "]"
             )
         );
     }

@@ -57,7 +57,7 @@ public class CursorTests extends ESTestCase {
         );
 
         assertEquals(
-            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
+            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, TransportVersion.CURRENT),
             exception.getMessage()
         );
     }

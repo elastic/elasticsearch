@@ -65,7 +65,7 @@ public class SqlStreamTests extends ESTestCase {
             )
         );
 
-        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7.15.1], expected [" + Version.CURRENT + "]"));
+        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7150199], expected [" + TransportVersion.CURRENT + "]"));
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {

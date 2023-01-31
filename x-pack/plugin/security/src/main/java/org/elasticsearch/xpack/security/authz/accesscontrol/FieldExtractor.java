@@ -6,24 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
-import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
-import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.PointInSetQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SynonymQuery;
-import org.apache.lucene.search.TermInSetQuery;
-import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.util.set.Sets;
+import org.apache.lucene.search.QueryVisitor;
 
 import java.util.Set;
 
@@ -35,68 +20,24 @@ import java.util.Set;
  * are not included, TermsQuery doesn't implement the method as it could be terribly slow, etc.
  *
  */
-// TODO this should be rewritten using the Lucene QueryVisitor API
 class FieldExtractor {
 
     /**
      * Populates {@code fields} with the set of fields used by the query, or throws
      * UnsupportedOperationException if it doesn't know how to do this.
      */
-    static void extractFields(Query query, Set<String> fields) throws UnsupportedOperationException {
-        // NOTE: we expect a rewritten query, so we only need logic for "atomic" queries here:
-        if (query instanceof BooleanQuery q) {
-            // extract from all clauses
-            for (BooleanClause clause : q.clauses()) {
-                extractFields(clause.getQuery(), fields);
+    static void extractFields(Query query, Set<String> fields) {
+        query.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                return this;
             }
-        } else if (query instanceof DisjunctionMaxQuery q) {
-            // extract from all clauses
-            for (Query clause : q.getDisjuncts()) {
-                extractFields(clause, fields);
+
+            @Override
+            public boolean acceptField(String field) {
+                fields.add(field);
+                return super.acceptField(field);
             }
-        } else if (query instanceof SpanTermQuery spanTermQuery) {
-            // we just do SpanTerm, other spans are trickier, they could contain
-            // the evil FieldMaskingSpanQuery: so SpanQuery.getField cannot be trusted.
-            fields.add(spanTermQuery.getField());
-        } else if (query instanceof TermQuery termQuery) {
-            fields.add(termQuery.getTerm().field());
-        } else if (query instanceof SynonymQuery q) {
-            // all terms must have the same field
-            fields.add(q.getTerms().get(0).field());
-        } else if (query instanceof PhraseQuery q) {
-            // all terms must have the same field
-            fields.add(q.getTerms()[0].field());
-        } else if (query instanceof MultiPhraseQuery q) {
-            // all terms must have the same field
-            fields.add(q.getTermArrays()[0][0].field());
-        } else if (query instanceof PointRangeQuery pointRangeQuery) {
-            fields.add(pointRangeQuery.getField());
-        } else if (query instanceof PointInSetQuery pointInSetQuery) {
-            fields.add(pointInSetQuery.getField());
-        } else if (query instanceof FieldExistsQuery fieldExistsQuery) {
-            fields.add(fieldExistsQuery.getField());
-        } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
-            // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
-            try {
-                Set<String> dvQueryFields = Sets.newHashSetWithExpectedSize(1);
-                extractFields(indexOrDocValuesQuery.getRandomAccessQuery(), dvQueryFields);
-                fields.addAll(dvQueryFields);
-            } catch (UnsupportedOperationException e) {
-                extractFields(indexOrDocValuesQuery.getIndexQuery(), fields);
-            }
-        } else if (query instanceof TermInSetQuery termInSetQuery) {
-            // TermInSetQuery#field is inaccessible
-            TermIterator termIterator = termInSetQuery.getTermData().iterator();
-            // there should only be one field
-            if (termIterator.next() != null) {
-                fields.add(termIterator.field());
-            }
-        } else if (query instanceof MatchAllDocsQuery) {
-            // no field
-        } else if (query instanceof MatchNoDocsQuery) {
-            // no field
-        } else {
-            throw new UnsupportedOperationException(); // we don't know how to get the fields from it
-        }
+        });
     }
 }

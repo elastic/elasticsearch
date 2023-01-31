@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.tests.search.AssertingQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
@@ -127,34 +126,28 @@ public class FieldExtractorTests extends ESTestCase {
         assertEquals(Collections.emptySet(), fields);
     }
 
-    public void testUnsupported() {
-        Set<String> fields = new HashSet<>();
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> { FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields); }
-        );
-    }
-
     public void testIndexOrDocValuesQuery() {
         Set<String> fields = new HashSet<>();
-        Query supported = IntPoint.newExactQuery("foo", 42);
-        Query unsupported = NumericDocValuesField.newSlowExactQuery("bar", 3);
+        Query exactQuery = IntPoint.newExactQuery("foo", 42);
+        Query slowQuery = NumericDocValuesField.newSlowExactQuery("bar", 3);
 
-        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(supported, supported);
+        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(exactQuery, exactQuery);
         FieldExtractor.extractFields(query, fields);
         assertEquals(asSet("foo"), fields);
 
-        IndexOrDocValuesQuery query2 = new IndexOrDocValuesQuery(unsupported, unsupported);
-        expectThrows(UnsupportedOperationException.class, () -> FieldExtractor.extractFields(query2, new HashSet<>()));
+        fields = new HashSet<>();
+        IndexOrDocValuesQuery query2 = new IndexOrDocValuesQuery(slowQuery, slowQuery);
+        FieldExtractor.extractFields(query2, fields);
+        assertEquals(asSet("bar"), fields);
 
         fields = new HashSet<>();
-        IndexOrDocValuesQuery query3 = new IndexOrDocValuesQuery(supported, unsupported);
+        IndexOrDocValuesQuery query3 = new IndexOrDocValuesQuery(exactQuery, slowQuery);
         FieldExtractor.extractFields(query3, fields);
-        assertEquals(asSet("foo"), fields);
+        assertEquals(asSet("bar", "foo"), fields);
 
         fields = new HashSet<>();
-        IndexOrDocValuesQuery query4 = new IndexOrDocValuesQuery(unsupported, supported);
+        IndexOrDocValuesQuery query4 = new IndexOrDocValuesQuery(slowQuery, exactQuery);
         FieldExtractor.extractFields(query4, fields);
-        assertEquals(asSet("foo"), fields);
+        assertEquals(asSet("bar", "foo"), fields);
     }
 }

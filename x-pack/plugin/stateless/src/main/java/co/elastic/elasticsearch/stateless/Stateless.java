@@ -59,9 +59,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -69,7 +66,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,9 +85,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.CollectionUtils.concatLists;
-
-public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPlugin, ActionPlugin, ClusterPlugin {
+public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -293,51 +287,6 @@ public class Stateless extends Plugin implements EnginePlugin, RecoveryPlannerPl
             @Override
             public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
         };
-    }
-
-    @Override
-    public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
-        return Optional.of(
-            (
-                shardId,
-                shardStateIdentifier,
-                sourceMetadata,
-                targetMetadata,
-                startingSeqNo,
-                translogOps,
-                targetVersion,
-                useSnapshots,
-                primaryRelocation,
-                listener) -> {
-                if (primaryRelocation) {
-                    // TODO index/primary shards should also use object store instead of file based recovery
-                    ActionListener.completeWith(listener, () -> {
-                        Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(targetMetadata);
-                        return new ShardRecoveryPlan(
-                            ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
-                            concatLists(diff.missing, diff.different),
-                            diff.identical,
-                            startingSeqNo,
-                            translogOps,
-                            sourceMetadata
-                        );
-                    });
-                } else {
-                    // create an empty recovery plan for search/replica shards
-                    ActionListener.completeWith(
-                        listener,
-                        () -> new ShardRecoveryPlan(
-                            ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY, // no files to recovery from snapshot
-                            List.of(), // no files to recover from peer
-                            List.of(), // no files in target too
-                            startingSeqNo,
-                            translogOps,
-                            sourceMetadata
-                        )
-                    );
-                }
-            }
-        );
     }
 
     @Override

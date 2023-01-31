@@ -206,7 +206,7 @@ public class InboundDecoder implements Releasable {
     }
 
     static void checkHandshakeVersionCompatibility(TransportVersion handshakeVersion) {
-        if (TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS.contains(handshakeVersion) == false)) {
+        if (TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS.contains(handshakeVersion) == false) {
             throw new IllegalStateException(
                 "Received message from unsupported version: ["
                     + handshakeVersion

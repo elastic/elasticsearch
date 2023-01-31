@@ -2052,7 +2052,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             version
         );
-        final String roleName = RBACEngine.REMOTE_USER_ROLE_NAME;
         final boolean emptyRemoteRole = randomBoolean();
         final Authentication authentication = apiKeyAuthentication.toRemoteAccess(
             AuthenticationTestHelper.randomRemoteAccessAuthentication(
@@ -2060,7 +2059,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     ? RoleDescriptorsIntersection.EMPTY
                     : new RoleDescriptorsIntersection(
                         new RoleDescriptor(
-                            roleName,
+                            RBACEngine.REMOTE_USER_ROLE_NAME,
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
@@ -2081,12 +2080,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
         verify(apiKeyService, times(1)).parseRoleDescriptorsBytes(anyString(), any(BytesReference.class), any());
-        if (emptyRemoteRole) {
-            assertThat(role.names().length, is(0));
-        } else {
-            assertThat(role.names().length, is(1));
-            assertThat(role.names()[0], equalTo(roleName));
-        }
+        assertThat(role.names().length, is(1));
+        assertThat(role.names()[0], equalTo(apiKeyRoleName));
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()

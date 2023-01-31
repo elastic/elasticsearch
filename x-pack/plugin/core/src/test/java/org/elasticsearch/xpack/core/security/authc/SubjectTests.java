@@ -182,34 +182,29 @@ public class SubjectTests extends ESTestCase {
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         if (emptyRoleBytes) {
-            assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class), isA(RemoteAccessRoleReference.class)));
-            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(0);
+            assertThat(roleReferences, contains(isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
+
+            final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(0);
+            assertThat(
+                remoteAccessRoleReference.getRoleDescriptorsBytes(),
+                equalTo(
+                    remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
+                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
+                        : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                )
+            );
+
+            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(1);
             assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
             assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
 
-            final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(1);
-            assertThat(
-                remoteAccessRoleReference.getRoleDescriptorsBytes(),
-                equalTo(
-                    remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
-                        : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
-                )
-            );
         } else {
             assertThat(
                 roleReferences,
-                contains(isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class), isA(RemoteAccessRoleReference.class))
+                contains(isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class))
             );
-            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(0);
-            assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
-            assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
 
-            final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(1);
-            assertThat(limitedByRoleReference.getApiKeyId(), equalTo(apiKeyId));
-            assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
-
-            final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(2);
+            final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(0);
             assertThat(
                 remoteAccessRoleReference.getRoleDescriptorsBytes(),
                 equalTo(
@@ -218,6 +213,14 @@ public class SubjectTests extends ESTestCase {
                         : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
                 )
             );
+
+            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(1);
+            assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
+            assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
+
+            final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(2);
+            assertThat(limitedByRoleReference.getApiKeyId(), equalTo(apiKeyId));
+            assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)));
         }
     }
 

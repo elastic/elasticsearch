@@ -31,7 +31,7 @@ public class RerankBuilder implements Writeable, ToXContent {
 
     private final static ConstructingObjectParser<RerankBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rerank",
-        args -> new RerankBuilder((RRFBuilder) args[0])
+        args -> new RerankBuilder().rrfBuilder((RRFBuilder) args[0])
     );
 
     static {
@@ -53,11 +53,9 @@ public class RerankBuilder implements Writeable, ToXContent {
         return builder;
     }
 
-    private final RRFBuilder rrfBuilder;
+    private RRFBuilder rrfBuilder;
 
-    public RerankBuilder(RRFBuilder rrfBuilder) {
-        this.rrfBuilder = rrfBuilder;
-    }
+    public RerankBuilder() {}
 
     public RerankBuilder(StreamInput in) throws IOException {
         rrfBuilder = in.readOptionalWriteable(RRFBuilder::new);
@@ -68,13 +66,18 @@ public class RerankBuilder implements Writeable, ToXContent {
         out.writeOptionalWriteable(rrfBuilder);
     }
 
+    public RerankBuilder rrfBuilder(RRFBuilder rrfBuilder) {
+        this.rrfBuilder = rrfBuilder;
+        return this;
+    }
+
     public RRFBuilder rrfBuilder() {
         return rrfBuilder;
     }
 
-    public Reranker reranker() {
+    public Reranker reranker(int size) {
         if (rrfBuilder != null) {
-            return rrfBuilder().reranker();
+            return rrfBuilder().reranker(size);
         }
         return null;
     }

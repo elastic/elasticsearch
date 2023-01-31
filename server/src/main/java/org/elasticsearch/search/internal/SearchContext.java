@@ -39,7 +39,6 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rerank.RerankBuilder;
 import org.elasticsearch.search.rerank.Reranker;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -223,10 +222,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext minimumScore(float minimumScore);
 
     public abstract Float minimumScore();
-
-    public abstract SearchContext reranker(Reranker reranker);
-
-    public abstract Reranker reranker();
 
     public abstract SearchContext sort(SortAndFormats sort);
 

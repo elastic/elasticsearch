@@ -1208,9 +1208,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }
-        if (source.rerankBuilder() != null) {
-            context.reranker(source.rerankBuilder().reranker());
-        }
         if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher()));
         }

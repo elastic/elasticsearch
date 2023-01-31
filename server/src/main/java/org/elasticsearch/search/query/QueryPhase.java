@@ -40,6 +40,7 @@ import org.elasticsearch.search.rerank.RerankQueryBuilder;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -69,16 +70,17 @@ public class QueryPhase {
         }
     }
 
-    private static void executeRerank(SearchContext searchContext, RerankQueryBuilder rerankQueryBuilder) throws QueryPhaseExecutionException {
+    private static void executeRerank(SearchContext searchContext, RerankQueryBuilder rerankQueryBuilder)
+        throws QueryPhaseExecutionException {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
+        int size = searchContext.size();
+
         if (searchContext.aggregations() != null || searchContext.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-            int size = searchContext.size();
             searchContext.size(0);
             executeStandard(searchContext);
-            searchContext.size(size);
         } else if (searchContext.suggest() != null) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()
@@ -94,6 +96,8 @@ public class QueryPhase {
                 );
         }
 
+        searchContext.size(searchContext.request().source().rerankBuilder().rrfBuilder().windowSize());
+
         for (QueryBuilder queryBuilder : rerankQueryBuilder.queryBuilders()) {
             Query query;
             try {
@@ -103,10 +107,17 @@ public class QueryPhase {
             }
             SingleSearchResult singleSearchResult = new SingleSearchResult();
             searchContext.queryResult().getSecondarySearchResults().add(singleSearchResult);
+            SortAndFormats sort = searchContext.sort();
+            if (query instanceof KnnScoreDocQuery) {
+                searchContext.sort(null);
+            }
             if (executeInternal(searchContext, query, singleSearchResult)) {
                 RescorePhase.execute(searchContext, singleSearchResult);
             }
+            searchContext.sort(sort);
         }
+
+        searchContext.size(size);
     }
 
     private static void executeStandard(SearchContext searchContext) {
@@ -149,7 +160,8 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext, Query query, SingleSearchResult singleSearchResult) throws QueryPhaseExecutionException {
+    static boolean executeInternal(SearchContext searchContext, Query query, SingleSearchResult singleSearchResult)
+        throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         searchContext.queryResult().searchTimedOut(false);
@@ -228,7 +240,15 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, singleSearchResult, collectors, hasFilterCollector, timeoutSet);
+                boolean shouldRescore = searchWithCollector(
+                    searchContext,
+                    searcher,
+                    query,
+                    singleSearchResult,
+                    collectors,
+                    hasFilterCollector,
+                    timeoutSet
+                );
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)

@@ -44,7 +44,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResult.SingleSearchResult;
-import org.elasticsearch.search.rerank.RRFReranker;
+import org.elasticsearch.search.rerank.Reranker;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -478,7 +478,17 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats, 0, true, aggReduceContextBuilder, true);
+        return reducedQueryPhase(
+            queryResults,
+            Collections.emptyList(),
+            topDocs,
+            topDocsStats,
+            0,
+            true,
+            aggReduceContextBuilder,
+            true,
+            null
+        );
     }
 
     /**
@@ -498,7 +508,8 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce
+        boolean performFinalReduce,
+        Reranker reranker
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -603,33 +614,48 @@ public final class SearchPhaseController {
             }
         }
 
-        final SortedTopDocs sortedTopDocs;
-        if (secondaryTopDocs.isEmpty()) {
-            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-        } else {
-            for (List<TopDocs> std : secondaryTopDocs) {
-                secondarySortedTopDocs.add(sortDocs(isScrollRequest, std, 0, 10, List.of()));
-            }
-            sortedTopDocs = new RRFReranker(10, 0).rerank(secondarySortedTopDocs);
-        }
         final TotalHits totalHits = topDocsStats.getTotalHits();
-
-        return new ReducedQueryPhase(
-            totalHits,
-            10,//topDocsStats.fetchHits,
-            topDocsStats.getMaxScore(),
-            topDocsStats.timedOut,
-            topDocsStats.terminatedEarly,
-            reducedSuggest,
-            aggregations,
-            profileBuilder,
-            sortedTopDocs,
-            sortValueFormats,
-            numReducePhases,
-            10,//size,
-            from,
-            false
-        );
+        if (secondaryTopDocs.isEmpty()) {
+            SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+            return new ReducedQueryPhase(
+                totalHits,
+                topDocsStats.fetchHits,
+                topDocsStats.getMaxScore(),
+                topDocsStats.timedOut,
+                topDocsStats.terminatedEarly,
+                reducedSuggest,
+                aggregations,
+                profileBuilder,
+                sortedTopDocs,
+                sortValueFormats,
+                numReducePhases,
+                size,
+                from,
+                false
+            );
+        } else {
+            assert reranker != null;
+            for (List<TopDocs> std : secondaryTopDocs) {
+                secondarySortedTopDocs.add(sortDocs(isScrollRequest, std, from, reranker.size(), List.of()));
+            }
+            SortedTopDocs sortedTopDocs = reranker.rerank(secondarySortedTopDocs);
+            return new ReducedQueryPhase(
+                totalHits,
+                sortedTopDocs.scoreDocs.length,
+                sortedTopDocs.scoreDocs[0].score,
+                queryResults.stream().anyMatch(qr -> qr.queryResult().searchTimedOut()),
+                queryResults.stream().anyMatch(qr -> qr.queryResult().terminatedEarly() != null && qr.queryResult().terminatedEarly()),
+                reducedSuggest,
+                aggregations,
+                profileBuilder,
+                sortedTopDocs,
+                sortValueFormats,
+                numReducePhases,
+                reranker.size(),
+                from,
+                false
+            );
+        }
     }
 
     private static InternalAggregations reduceAggs(

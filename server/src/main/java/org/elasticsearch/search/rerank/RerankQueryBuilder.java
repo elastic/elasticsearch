@@ -82,7 +82,8 @@ public class RerankQueryBuilder extends AbstractQueryBuilder<RerankQueryBuilder>
 
     @Override
     public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        RerankQueryBuilder rerankQueryBuilder = new RerankQueryBuilder();;
+        RerankQueryBuilder rerankQueryBuilder = new RerankQueryBuilder();
+        ;
         BoolQueryBuilder compoundQueryBuilder = new BoolQueryBuilder();
         boolean changed = false;
         for (QueryBuilder queryBuilder : queryBuilders) {

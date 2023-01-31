@@ -510,17 +510,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext reranker(Reranker reranker) {
-        this.reranker = reranker;
-        return this;
-    }
-
-    @Override
-    public Reranker reranker() {
-        return reranker;
-    }
-
-    @Override
     public SearchContext sort(SortAndFormats sort) {
         this.sort = sort;
         return this;

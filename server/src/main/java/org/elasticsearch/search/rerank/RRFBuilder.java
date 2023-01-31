@@ -35,15 +35,13 @@ public class RRFBuilder implements Writeable, ToXContent {
 
     private static final ConstructingObjectParser<RRFBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rrf",
-        args -> new RRFBuilder(
-            args[0] == null ? RANK_CONSTANT_DEFAULT : (int) args[0],
-            args[1] == null ? WINDOW_SIZE_DEFAULT : (int) args[1]
-        )
+        args -> new RRFBuilder().windowSize(args[0] == null ? WINDOW_SIZE_DEFAULT : (int) args[0])
+            .rankConstant(args[1] == null ? RANK_CONSTANT_DEFAULT : (int) args[1])
     );
 
     static {
-        PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
         PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
     }
 
     public static RRFBuilder fromXContent(XContentParser parser) throws IOException {
@@ -53,42 +51,49 @@ public class RRFBuilder implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
         builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
+        builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
         builder.endArray();
 
         return builder;
     }
 
-    private final int rankConstant;
-    private final int windowSize;
+    private int windowSize;
+    private int rankConstant;
 
-    public RRFBuilder(int rankConstant, int windowSize) {
-        this.rankConstant = rankConstant;
-        this.windowSize = windowSize;
-    }
+    public RRFBuilder() {}
 
     public RRFBuilder(StreamInput in) throws IOException {
-        rankConstant = in.readVInt();
         windowSize = in.readVInt();
+        rankConstant = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(rankConstant);
         out.writeVInt(windowSize);
+        out.writeVInt(rankConstant);
     }
 
-    public int rankConstant() {
-        return rankConstant;
+    public RRFBuilder windowSize(int windowSize) {
+        this.windowSize = windowSize;
+        return this;
     }
 
     public int windowSize() {
         return windowSize;
     }
 
-    public RRFReranker reranker() {
-        return new RRFReranker(windowSize, rankConstant);
+    public RRFBuilder rankConstant(int rankConstant) {
+        this.rankConstant = rankConstant;
+        return this;
+    }
+
+    public int rankConstant() {
+        return rankConstant;
+    }
+
+    public RRFReranker reranker(int size) {
+        return new RRFReranker(windowSize, size, rankConstant);
     }
 
     @Override

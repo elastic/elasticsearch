@@ -305,17 +305,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext reranker(Reranker reranker) {
-        this.reranker = reranker;
-        return this;
-    }
-
-    @Override
-    public Reranker reranker() {
-        return reranker;
-    }
-
-    @Override
     public SearchContext sort(SortAndFormats sortAndFormats) {
         this.sort = sortAndFormats;
         return this;

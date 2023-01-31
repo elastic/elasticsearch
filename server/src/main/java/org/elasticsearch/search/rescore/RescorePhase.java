@@ -34,8 +34,7 @@ public class RescorePhase {
                 // here we only assert that this condition is met.
                 assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
             }
-            singleSearchResult
-                .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), singleSearchResult.sortValueFormats());
+            singleSearchResult.topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), singleSearchResult.sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

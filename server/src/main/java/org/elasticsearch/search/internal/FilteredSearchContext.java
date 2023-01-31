@@ -230,16 +230,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext reranker(Reranker reranker) {
-        return in.reranker(reranker);
-    }
-
-    @Override
-    public Reranker reranker() {
-        return in.reranker();
-    }
-
-    @Override
     public SearchContext sort(SortAndFormats sort) {
         return in.sort(sort);
     }

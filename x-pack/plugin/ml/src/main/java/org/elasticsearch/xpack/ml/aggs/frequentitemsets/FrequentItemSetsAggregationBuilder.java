@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValue
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -44,7 +42,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     public static final double DEFAULT_MINIMUM_SUPPORT = 0.01;
     public static final int DEFAULT_MINIMUM_SET_SIZE = 1;
     public static final int DEFAULT_SIZE = 10;
-    public static final Set<String> EXECUTION_HINT_ALLOWED_MODES = new TreeSet<>(Set.of("global_ordinals", "map"));
+    public static final List<String> EXECUTION_HINT_ALLOWED_MODES = List.of("global_ordinals", "map");
 
     public static final ParseField MINIMUM_SUPPORT = new ParseField("minimum_support");
     public static final ParseField MINIMUM_SET_SIZE = new ParseField("minimum_set_size");

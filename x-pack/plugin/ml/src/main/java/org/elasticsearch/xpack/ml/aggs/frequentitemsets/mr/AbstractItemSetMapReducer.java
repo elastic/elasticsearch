@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -69,11 +70,8 @@ public abstract class AbstractItemSetMapReducer<
 
     /**
      * Interface to lookup the real object from an ordinal
-     * Note: not using Function due to the possible IOException
      */
-    public interface OrdinalLookupFunction {
-        Object apply(Object ord) throws IOException;
-    }
+    public interface OrdinalLookupFunction extends CheckedFunction<Object, Object, IOException> {}
 
     private final String aggregationName;
     private final String mapReducerName;

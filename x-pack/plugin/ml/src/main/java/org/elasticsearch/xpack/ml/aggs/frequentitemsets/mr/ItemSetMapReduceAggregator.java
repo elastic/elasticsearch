@@ -217,7 +217,6 @@ public abstract class ItemSetMapReduceAggregator<
             return buildEmptyAggregation();
         }
 
-        //
         return new InternalItemSetMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fields, profiling);
     }
 

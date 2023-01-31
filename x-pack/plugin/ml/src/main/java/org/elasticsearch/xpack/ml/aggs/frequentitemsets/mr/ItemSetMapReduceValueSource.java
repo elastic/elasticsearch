@@ -179,14 +179,14 @@ public abstract class ItemSetMapReduceValueSource {
             boolean usesOrdinals();
         }
 
-        static class GlobalOrdinals implements ExecutionStrategy {
+        static class GlobalOrdinalsStrategy implements ExecutionStrategy {
 
             private final Field field;
             private final Bytes.WithOrdinals source;
             private final SortedSetDocValues docValues;
             private final LongBitSet bitSetFilter;
 
-            GlobalOrdinals(
+            GlobalOrdinalsStrategy(
                 Field field,
                 Bytes.WithOrdinals source,
                 IncludeExclude.OrdinalsFilter globalOrdinalsFilter,
@@ -250,13 +250,13 @@ public abstract class ItemSetMapReduceValueSource {
             }
         }
 
-        static class Map implements ExecutionStrategy {
+        static class MapStrategy implements ExecutionStrategy {
 
             private final Field field;
             private final Bytes source;
             private final IncludeExclude.StringFilter stringFilter;
 
-            Map(Field field, Bytes source, IncludeExclude.StringFilter stringFilter) {
+            MapStrategy(Field field, Bytes source, IncludeExclude.StringFilter stringFilter) {
                 this.field = field;
                 this.source = source;
                 this.stringFilter = stringFilter;
@@ -324,14 +324,14 @@ public abstract class ItemSetMapReduceValueSource {
                 && ((Bytes.WithOrdinals) config.getValuesSource()).supportsGlobalOrdinalsMapping()) {
                 logger.debug("Use ordinals for field [{}]", config.fieldContext().field());
 
-                this.executionStrategy = new GlobalOrdinals(
+                this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
                     includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format()),
                     ctx
                 );
             } else {
-                this.executionStrategy = new Map(
+                this.executionStrategy = new MapStrategy(
                     getField(),
                     (Bytes) config.getValuesSource(),
                     includeExclude == null ? null : includeExclude.convertToStringFilter(config.format())

@@ -60,7 +60,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;
     private FileSettingsService fileSettingsService;
-    private WatchableFileSettings watchableFileSettings;
+    private FileWatchService fileWatchService;
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
 
@@ -96,7 +96,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
         // TODO[wrb]: this object will eventually be constructed before the service is
-        watchableFileSettings = fileSettingsService.fileSettingsMap.get("operator");
+        fileWatchService = fileSettingsService.fileSettingsMap.get("operator");
     }
 
     @After

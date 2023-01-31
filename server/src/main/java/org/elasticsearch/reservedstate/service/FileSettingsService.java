@@ -77,9 +77,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private final List<FileSettingsChangedListener> eventListeners;
 
-    Map<String, WatchableFileSettings> fileSettingsMap = new ConcurrentHashMap<>();
+    Map<String, FileWatchService> fileSettingsMap = new ConcurrentHashMap<>();
 
-    // private WatchableFileSettings oss = new WatchableFileSettings();
+    private final FileWatchService fileWatchService;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -92,11 +92,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.clusterService = clusterService;
         this.stateService = stateService;
         this.eventListeners = new CopyOnWriteArrayList<>();
-        // initialize file settings map
+
+        // we have listeners and state service, now we should create file watcher service
+        // and register the operator settings
+
+        // TODO[wrb] this state should go in the file watch service
         Path operatorSettings = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        WatchableFileSettings watchableFileSettings = new WatchableFileSettings(this, operatorSettings);
-        watchableFileSettings.settingsFileName = SETTINGS_FILE_NAME;
-        fileSettingsMap.put(OPERATOR_DIRECTORY, watchableFileSettings);
+        fileWatchService = new FileWatchService(this, operatorSettings);
+        fileWatchService.settingsFileName = SETTINGS_FILE_NAME;
+        fileSettingsMap.put(OPERATOR_DIRECTORY, fileWatchService);
 
         // move all thread management to file settings watcher
     }
@@ -112,7 +116,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // TODO[wrb]: refactor to interface
     public Path operatorSettingsFile() {
-        WatchableFileSettings operator = fileSettingsMap.get(OPERATOR_DIRECTORY);
+        FileWatchService operator = fileSettingsMap.get(OPERATOR_DIRECTORY);
         return operator.operatorSettingsDir.resolve(operator.settingsFileName);
     }
 
@@ -255,7 +259,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             Path settingsDirPath = settingsDirPathList.stream().findAny().orElseThrow();
             this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
             if (Files.exists(settingsDirPath)) {
-                WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
+                FileWatchService oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
                 oss.settingsDirWatchKey = enableSettingsWatcher(oss.settingsDirWatchKey, settingsDirPath);
             } else {
                 logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
@@ -329,10 +333,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
-                        for (WatchableFileSettings watchableFileSettings : fileSettingsMap.values()) {
-                            watchableFileSettings.settingsDirWatchKey = enableSettingsWatcher(
-                                watchableFileSettings.settingsDirWatchKey,
-                                watchableFileSettings.operatorSettingsDir
+                        for (FileWatchService fileWatchService : fileSettingsMap.values()) {
+                            fileWatchService.settingsDirWatchKey = enableSettingsWatcher(
+                                fileWatchService.settingsDirWatchKey,
+                                fileWatchService.operatorSettingsDir
                             );
                         }
 
@@ -377,7 +381,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
             // this will also close any outstanding keys
-            WatchableFileSettings oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
+            FileWatchService oss = fileSettingsMap.get(OPERATOR_DIRECTORY);
             try (var ws = watchService) {
                 watcherThread.interrupt();
                 watcherThread.join();

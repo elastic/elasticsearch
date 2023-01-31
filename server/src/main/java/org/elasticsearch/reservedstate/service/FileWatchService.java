@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,9 +19,11 @@ import java.nio.file.WatchKey;
 import java.nio.file.attribute.BasicFileAttributes;
 
 // Settings have a path, a file update state, and a watch key
-class WatchableFileSettings {
+// TODO[wrb]: is this really a service? does it need start/stop logic? Since it manages a thread,
+//   probably...
+public class FileWatchService extends AbstractLifecycleComponent {
 
-    private static final Logger logger = LogManager.getLogger(WatchableFileSettings.class);
+    private static final Logger logger = LogManager.getLogger(FileWatchService.class);
 
     private final FileSettingsService fileSettingsService;
     final Path operatorSettingsDir;
@@ -28,7 +31,7 @@ class WatchableFileSettings {
     FileSettingsService.FileUpdateState fileUpdateState;
     WatchKey settingsDirWatchKey;
 
-    WatchableFileSettings(FileSettingsService fileSettingsService, Path operatorSettingsDir) {
+    FileWatchService(FileSettingsService fileSettingsService, Path operatorSettingsDir) {
         this.fileSettingsService = fileSettingsService;
         this.operatorSettingsDir = operatorSettingsDir;
     }
@@ -50,5 +53,20 @@ class WatchableFileSettings {
         );
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop() {
+
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+
     }
 }

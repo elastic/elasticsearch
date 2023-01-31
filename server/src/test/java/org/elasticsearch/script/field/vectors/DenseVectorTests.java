@@ -101,7 +101,7 @@ public class DenseVectorTests extends ESTestCase {
             listQV.add(q);
         }
 
-        ByteKnnDenseVector knn = new ByteKnnDenseVector(new BytesRef(docVector));
+        ByteKnnDenseVector knn = new ByteKnnDenseVector(docVector);
         assertEquals(knn.dotProduct(arrayQV), knn.dotProduct(listQV), 0.001f);
         assertEquals(knn.dotProduct((Object) listQV), knn.dotProduct((Object) arrayQV), 0.001f);
 
@@ -139,7 +139,7 @@ public class DenseVectorTests extends ESTestCase {
             queryVector[i] = randomByte();
         }
 
-        ByteKnnDenseVector knn = new ByteKnnDenseVector(new BytesRef(docVector));
+        ByteKnnDenseVector knn = new ByteKnnDenseVector(docVector);
         UnsupportedOperationException e;
 
         e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct(queryVector));

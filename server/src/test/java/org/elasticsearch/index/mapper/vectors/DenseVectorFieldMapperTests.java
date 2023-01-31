@@ -15,7 +15,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
-import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -232,9 +232,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(KnnVectorField.class));
+        assertThat(fields[0], instanceOf(KnnFloatVectorField.class));
 
-        KnnVectorField vectorField = (KnnVectorField) fields[0];
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields[0];
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
@@ -260,9 +260,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         KnnByteVectorField vectorField = (KnnByteVectorField) fields[0];
         vectorField.vectorValue();
-        assertEquals(
+        assertArrayEquals(
             "Parsed vector is not equal to original.",
-            new BytesRef(new byte[] { (byte) -1, (byte) 1, (byte) 127 }),
+            new byte[] { (byte) -1, (byte) 1, (byte) 127 },
             vectorField.vectorValue()
         );
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());

@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -27,7 +28,6 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -309,8 +309,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
-        return hasField(field) ? super.getVectorValues(field) : null;
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getFloatVectorValues(field) : null;
     }
 
     @Override
@@ -324,7 +324,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+    public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
         return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
     }
 

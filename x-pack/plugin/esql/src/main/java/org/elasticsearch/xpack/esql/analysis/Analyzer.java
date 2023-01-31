@@ -53,6 +53,8 @@ import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.filterUnsupportedDataTypes;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.flatten;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isUnsupported;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.types;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
@@ -124,74 +126,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // to EQL and SQL. With ESQL things might be different in future and we may need to provide an ESQL-specific IndexResolver
             filterUnsupportedDataTypes(esIndex.mapping(), newFields);
             return new EsRelation(plan.source(), new EsIndex(esIndex.name(), flatten(newFields), esIndex.concreteIndices()), plan.frozen());
-        }
-
-        private void filterUnsupportedDataTypes(Map<String, EsField> oldFields, Map<String, EsField> newFields) {
-            for (Entry<String, EsField> entry : oldFields.entrySet()) {
-                EsField field = entry.getValue();
-                Map<String, EsField> subFields = field.getProperties();
-                DataType fieldType = field.getDataType();
-                if (subFields.isEmpty()) {
-                    if (isSupportedDataType(fieldType)) {
-                        newFields.put(entry.getKey(), field);
-                    }
-                } else {
-                    String name = field.getName();
-                    Map<String, EsField> newSubFields = new TreeMap<>();
-
-                    filterUnsupportedDataTypes(subFields, newSubFields);
-                    if (isSupportedDataType(fieldType)) {
-                        newFields.put(entry.getKey(), new EsField(name, fieldType, newSubFields, field.isAggregatable(), field.isAlias()));
-                    }
-                    // unsupported field having supported sub-fields, except NESTED (which we'll ignore completely)
-                    else if (newSubFields.isEmpty() == false && fieldType != DataTypes.NESTED) {
-                        // mark the fields itself as unsupported, but keep its supported subfields
-                        newFields.put(entry.getKey(), new UnsupportedEsField(name, fieldType.typeName(), null, newSubFields));
-                    }
-                }
-            }
-        }
-
-        private boolean isSupportedDataType(DataType type) {
-            return isUnsupported(type) == false && types().contains(type);
-        }
-
-        private Map<String, EsField> flatten(Map<String, EsField> mapping) {
-            TreeMap<String, EsField> newMapping = new TreeMap<>();
-            flatten(mapping, null, newMapping);
-            return newMapping;
-        }
-
-        private static void flatten(Map<String, EsField> mapping, String parentName, Map<String, EsField> newMapping) {
-            for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-                String name = entry.getKey();
-                EsField t = entry.getValue();
-
-                if (t != null) {
-                    String fullName = parentName == null ? name : parentName + "." + name;
-                    var fieldProperties = t.getProperties();
-                    if (t instanceof UnsupportedEsField == false) {
-                        if (fieldProperties.isEmpty()) {
-                            // use the field's full name instead
-                            newMapping.put(fullName, t);
-                        } else {
-                            // use the field's full name and an empty list of subfields (each subfield will be created separately from its
-                            // parent)
-                            if (t instanceof KeywordEsField kef) {
-                                newMapping.put(
-                                    fullName,
-                                    new KeywordEsField(fullName, Map.of(), kef.isAggregatable(), kef.getPrecision(), false, kef.isAlias())
-                                );
-                            } else {
-                                newMapping.put(fullName, new EsField(fullName, t.getDataType(), Map.of(), t.isAggregatable(), t.isAlias()));
-                            }
-                        }
-                    }
-                    if (fieldProperties.isEmpty() == false) {
-                        flatten(fieldProperties, fullName, newMapping);
-                    }
-                }
-            }
         }
     }
 

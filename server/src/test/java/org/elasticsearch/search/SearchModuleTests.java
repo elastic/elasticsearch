@@ -453,6 +453,7 @@ public class SearchModuleTests extends ESTestCase {
         "range",
         "regexp",
         "knn_score_doc",
+        "rerank",
         "script",
         "script_score",
         "simple_query_string",

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -31,10 +31,11 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.REMOTE_ACCESS;
 
 /**
  * A subject is a more generic concept similar to user and associated to the current authentication.
- * It is more generic than user because it can also represent API keys and service accounts.
+ * It is more generic than user because it can also represent API keys, service accounts, or remote access users.
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */
@@ -49,17 +50,17 @@ public class Subject {
         REMOTE_ACCESS,
     }
 
-    private final Version version;
+    private final TransportVersion version;
     private final User user;
     private final Authentication.RealmRef realm;
     private final Type type;
     private final Map<String, Object> metadata;
 
     public Subject(User user, Authentication.RealmRef realm) {
-        this(user, realm, Version.CURRENT, Map.of());
+        this(user, realm, TransportVersion.CURRENT, Map.of());
     }
 
-    public Subject(User user, Authentication.RealmRef realm, Version version, Map<String, Object> metadata) {
+    public Subject(User user, Authentication.RealmRef realm, TransportVersion version, Map<String, Object> metadata) {
         this.version = version;
         this.user = user;
         this.realm = realm;
@@ -74,7 +75,7 @@ public class Subject {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
         } else if (AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(realm.getType())) {
-            assert realm.getName().startsWith(AuthenticationField.REMOTE_ACCESS_REALM_NAME) : "remote access realm name prefix mismatch";
+            assert AuthenticationField.REMOTE_ACCESS_REALM_NAME.equals(realm.getName()) : "remote access realm name mismatch";
             this.type = Type.REMOTE_ACCESS;
         } else {
             this.type = Type.USER;
@@ -98,7 +99,7 @@ public class Subject {
         return metadata;
     }
 
-    public Version getVersion() {
+    public TransportVersion getTransportVersion() {
         return version;
     }
 
@@ -128,6 +129,9 @@ public class Subject {
         } else if ((API_KEY.equals(getType()) && false == API_KEY.equals(resourceCreatorSubject.getType()))
             || (false == API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType()))) {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
+                return false;
+            } else if (REMOTE_ACCESS.equals(getType()) || REMOTE_ACCESS.equals(resourceCreatorSubject.getType())) {
+                // TODO implement this once remote authentication is fully supported
                 return false;
             } else {
                 if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
@@ -234,19 +238,23 @@ public class Subject {
     }
 
     private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
-        final List<RoleReference> roleReferences = new ArrayList<>(buildRoleReferencesForApiKey().getRoleReferences());
+        final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
         final List<RemoteAccessAuthentication.RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = (List<
-            RemoteAccessAuthentication.RoleDescriptorsBytes>) metadata.get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
+            RemoteAccessAuthentication.RoleDescriptorsBytes>) metadata.get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
-            // TODO hack. fail earlier, and assert here instead
-            return new RoleReferenceIntersection(List.of(new RoleReference.NamedRoleReference(new String[] {})));
+            // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict
+            // access of the overall intersection accordingly
+            roleReferences.add(new RoleReference.RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY));
+        } else {
+            // TODO handle this once we support API keys as querying subjects
+            assert remoteAccessRoleDescriptorsBytes.size() == 1
+                : "only a singleton list of remote access role descriptors bytes is supported";
+            for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
+                roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
+            }
         }
-        // TODO handle this once we support API keys as querying subjects
-        assert remoteAccessRoleDescriptorsBytes.size() == 1;
-        for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
-            roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
-        }
+        roleReferences.addAll(buildRoleReferencesForApiKey().getRoleReferences());
         return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 

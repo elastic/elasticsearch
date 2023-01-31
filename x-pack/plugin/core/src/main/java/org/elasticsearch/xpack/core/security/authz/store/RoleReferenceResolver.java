@@ -30,4 +30,9 @@ public interface RoleReferenceResolver {
     );
 
     void resolveServiceAccountRoleReference(ServiceAccountRoleReference roleReference, ActionListener<RolesRetrievalResult> listener);
+
+    void resolveRemoteAccessRoleReference(
+        RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    );
 }

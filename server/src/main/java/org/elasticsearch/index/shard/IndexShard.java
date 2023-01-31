@@ -55,7 +55,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
@@ -709,21 +708,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-
-            final Set<ShardRouting> shardRoutings = Sets.newHashSetWithExpectedSize(routingTable.size());
+            boolean allShardsUseRetentionLeases = true;
             for (int copy = 0; copy < routingTable.size(); copy++) {
                 ShardRouting shardRouting = routingTable.shard(copy);
                 if (shardRouting.isPromotableToPrimary()) {
-                    shardRoutings.add(shardRouting);
+                    if (shardRouting.assignedToNode() == false
+                        || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRouting)) == false) {
+                        allShardsUseRetentionLeases = false;
+                        break;
+                    }
+                    if (this.shardRouting.relocating()) {
+                        ShardRouting shardRoutingReloc = this.shardRouting.getTargetRelocatingShard();
+                        if (shardRoutingReloc.assignedToNode() == false
+                            || retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardRoutingReloc)) == false) {
+                            allShardsUseRetentionLeases = false;
+                            break;
+                        }
+                    }
                 }
             }
-
-            if (shardRoutings.stream()
-                .allMatch(
-                    shr -> shr.assignedToNode() && retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(shr))
-                )) {
-                useRetentionLeasesInPeerRecovery = true;
-            }
+            useRetentionLeasesInPeerRecovery = allShardsUseRetentionLeases;
         }
     }
 

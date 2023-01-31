@@ -141,7 +141,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        if (anonymousUser.enabled() && false == authentication.isApiKey()) {
+        if (anonymousUser.enabled() && false == (authentication.isApiKey() || authentication.isRemoteAccess())) {
             // Roles of anonymousUser are added to non api key authentication
             final Authentication auth = responseRef.get().authentication();
             final User userInResponse = auth.getEffectiveSubject().getUser();

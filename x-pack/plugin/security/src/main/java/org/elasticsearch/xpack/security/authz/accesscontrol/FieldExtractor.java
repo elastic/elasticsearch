@@ -34,9 +34,8 @@ import java.util.Set;
  * such as highlighting, not security. For example terms in a Boolean {@code MUST_NOT} clause
  * are not included, TermsQuery doesn't implement the method as it could be terribly slow, etc.
  *
- * TODO reimplement this using QueryVisitors
  */
-// TODO this should be rewritten using the Lucene QueryVisitor API?
+// TODO this should be rewritten using the Lucene QueryVisitor API
 class FieldExtractor {
 
     /**

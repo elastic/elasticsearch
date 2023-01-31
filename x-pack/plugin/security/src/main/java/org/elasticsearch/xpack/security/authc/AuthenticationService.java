@@ -145,7 +145,7 @@ public class AuthenticationService {
         final ActionListener<Authentication> authenticationListener
     ) {
         if (threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            authenticationListener.onFailure(new IllegalArgumentException("authentication header not allowed"));
+            authenticationListener.onFailure(new IllegalArgumentException("authentication header is not allowed"));
             return;
         }
 
@@ -153,11 +153,27 @@ public class AuthenticationService {
             SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
         );
         if (credentialsHeader == null) {
-            authenticationListener.onFailure(new IllegalArgumentException("remote access cluster credential header is required"));
+            authenticationListener.onFailure(
+                new IllegalArgumentException(
+                    "remote access header ["
+                        + SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+                        + "] is missing"
+                )
+            );
+            return;
+        } else if (threadContext.getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null) {
+            authenticationListener.onFailure(
+                new IllegalArgumentException(
+                    "remote access header [" + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is missing"
+                )
+            );
             return;
         }
 
+        // Write remote access credential to the Authorization header, so we can re-use generic authentication service functionality for
+        // authc token extraction
         threadContext.putHeader("Authorization", credentialsHeader);
+
         authenticate(action, request, allowAnonymous, ActionListener.wrap(authentication -> {
             final RemoteAccessAuthentication remoteAccessAuthentication = RemoteAccessAuthentication.readFromContext(threadContext);
             final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();

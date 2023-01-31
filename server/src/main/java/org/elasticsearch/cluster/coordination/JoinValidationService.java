@@ -349,7 +349,7 @@ public class JoinValidationService {
                     CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
                 )
             ) {
-                stream.setVersion(version);
+                stream.setTransportVersion(version.transportVersion);
                 clusterState.writeTo(stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, discoveryNode);

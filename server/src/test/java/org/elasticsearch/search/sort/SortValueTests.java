@@ -233,7 +233,9 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(
             e.getMessage(),
             equalTo(
-                "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to [" + Version.fromId(version.id) + "]"
+                "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to ["
+                    + Version.fromId(version.id)
+                    + "]"
             )
         );
     }

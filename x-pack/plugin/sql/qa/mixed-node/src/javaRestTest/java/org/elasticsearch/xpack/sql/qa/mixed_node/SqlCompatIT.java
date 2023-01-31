@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -39,7 +40,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
     private static RestClient newNodesClient;
     private static RestClient oldNodesClient;
-    private static Version bwcVersion;
+    private static TransportVersion bwcVersion;
 
     @Before
     public void initBwcClients() throws IOException {
@@ -47,7 +48,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             assertNull(oldNodesClient);
 
             TestNodes nodes = buildNodeAndVersions(client());
-            bwcVersion = nodes.getBWCVersion();
+            bwcVersion = nodes.getBWCVersion().transportVersion;
             newNodesClient = buildClient(
                 restClientSettings(),
                 nodes.getNewNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
@@ -138,16 +139,20 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
+        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.CURRENT, newNodesClient);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
     public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+        assertCursorNotCompatibleAcrossVersions(TransportVersion.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
     }
 
-    private void assertCursorNotCompatibleAcrossVersions(Version version1, RestClient client1, Version version2, RestClient client2)
-        throws IOException {
+    private void assertCursorNotCompatibleAcrossVersions(
+        TransportVersion version1,
+        RestClient client1,
+        TransportVersion version2,
+        RestClient client2
+    ) throws IOException {
         indexDocs();
 
         Request req = new Request("POST", "_sql");

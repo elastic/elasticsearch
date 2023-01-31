@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

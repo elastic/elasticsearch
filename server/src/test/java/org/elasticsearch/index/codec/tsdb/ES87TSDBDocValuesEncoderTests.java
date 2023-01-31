@@ -154,7 +154,6 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         long[] arr = new long[blockSize];
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = random.nextLong(1L << 32, 1L << 40);
-            // System.out.println(PackedInts.bitsRequired(arr[i]));
         }
         final long expectedNumBytes = 5 // token (2 bytes) + padding (3 bytes)
             + (blockSize * 40) / Byte.SIZE; // data
@@ -166,7 +165,6 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         long[] arr = new long[blockSize];
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = random.nextLong(1L << 40, 1L << 48);
-            // System.out.println(PackedInts.bitsRequired(arr[i]));
         }
         final long expectedNumBytes = 4 // token (2 bytes) + padding (2 bytes)
             + (blockSize * 48) / Byte.SIZE; // data
@@ -178,7 +176,6 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         long[] arr = new long[blockSize];
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = random.nextLong(1L << 48, 1L << 56);
-            // System.out.println(PackedInts.bitsRequired(arr[i]));
         }
         final long expectedNumBytes = 3 // token (2 bytes) + padding (1 bytes)
             + (blockSize * 56) / Byte.SIZE; // data

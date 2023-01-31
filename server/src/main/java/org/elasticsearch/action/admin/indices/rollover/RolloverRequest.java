@@ -212,7 +212,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).toList(),
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
             StreamOutput::writeNamedWriteable
         );
         createIndexRequest.writeTo(out);

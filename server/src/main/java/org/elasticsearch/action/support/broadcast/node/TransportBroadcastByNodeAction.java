@@ -336,11 +336,7 @@ public abstract class TransportBroadcastByNodeAction<
                 cancellableTask.addListener(this);
             }
             if (nodeIds.size() == 0) {
-                try {
-                    onCompletion();
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                ActionListener.run(listener, ignored -> onCompletion());
             } else {
                 int nodeIndex = -1;
                 for (Map.Entry<String, List<ShardRouting>> entry : nodeIds.entrySet()) {

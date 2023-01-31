@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -148,6 +149,8 @@ public final class RemoteAccessAuthentication {
     }
 
     public static final class RoleDescriptorsBytes extends AbstractBytesReference {
+
+        public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {

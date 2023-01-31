@@ -648,13 +648,13 @@ public class SSLService {
     }
 
     private void maybeValidateRemoteClusterServerConfiguration() {
-        if (false == REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings) == false) {
             return;
         }
         final String prefix = "xpack.security.remote_cluster.ssl";
         final SslConfiguration sslConfiguration = getSSLConfiguration(prefix);
         if (REMOTE_CLUSTER_SSL_ENABLED.get(settings)) {
-            if (false == isConfigurationValidForServerUsage(sslConfiguration)) {
+            if (isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", false);
                 throwExceptionForMissingKeyMaterial(prefix, configurationSettings);
             }

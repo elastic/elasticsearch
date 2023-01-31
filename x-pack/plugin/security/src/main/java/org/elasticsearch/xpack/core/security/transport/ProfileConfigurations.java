@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * This profile is completely synthetic in that it does NOT accept either networking or SSL settings
  * with its transport profile name.
  * NOTE the "_remote_cluster" profile name is special ONLY when the remote cluster port is enabled.
- * If the remote cluster port is not enabled, this profile name will be treated just as a normal profile.
+ * If the remote cluster port is not enabled, this profile name will be treated just as a normal profile (for BWC).
  *
  * When building SSL configurations for the transport profiles, assuming SSL is enabled,
  * this class builds a map that contains a configuration for each of the configured transport profiles
@@ -78,12 +78,12 @@ public final class ProfileConfigurations {
         final Map<String, SslConfiguration> profileConfigurations = new HashMap<>();
 
         if (sslEnabledOnly) {
-            if (false == transportSslEnabled && false == remoteClusterSslEnabled) {
+            if (transportSslEnabled == false && remoteClusterSslEnabled == false) {
                 return profileConfigurations;
-            } else if (false == transportSslEnabled) {
+            } else if (transportSslEnabled == false) {
                 profileConfigurations.put(REMOTE_CLUSTER_PROFILE, sslService.getSSLConfiguration(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
                 return profileConfigurations;
-            } else if (false == remoteClusterSslEnabled) {
+            } else if (remoteClusterSslEnabled == false) {
                 populateFromTransportProfiles(settings, sslService, profileConfigurations);
                 return profileConfigurations;
             }

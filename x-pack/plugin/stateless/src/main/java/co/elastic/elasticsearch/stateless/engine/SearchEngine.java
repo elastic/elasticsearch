@@ -105,7 +105,7 @@ public class SearchEngine extends Engine {
         final long generation,
         final Map<String, StoreFileMetadata> commitFiles,
         ActionListener<Void> listener
-    ) throws IOException {
+    ) {
         statelessReaderManager.onNewCommit(primaryTerm, generation, commitFiles, listener);
     }
 

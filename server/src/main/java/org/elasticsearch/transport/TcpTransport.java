@@ -403,7 +403,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                final TcpChannel channel = initiateChannel(node);
+                final TcpChannel channel = initiateChannel(node, connectionProfile);
                 if (logger.isTraceEnabled()) {
                     channel.addConnectListener(new ChannelOpenTraceLogger(channel));
                 }
@@ -810,7 +810,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources

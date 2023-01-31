@@ -26,7 +26,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -115,8 +117,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
-        return new SecurityClientChannelInitializer(node);
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        return new SecurityClientChannelInitializer(node, connectionProfile);
     }
 
     @Override
@@ -156,9 +158,19 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
         private final boolean hostnameVerificationEnabled;
         private final SNIHostName serverName;
+        private final SslConfiguration channelSslConfiguration;
 
-        SecurityClientChannelInitializer(DiscoveryNode node) {
-            this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+        SecurityClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
+            final String transportProfile = connectionProfile.getTransportProfile();
+            this.channelSslConfiguration = profileConfiguration.get(transportProfile);
+            if (sslEnabled) {
+                assert this.channelSslConfiguration != null;
+                assert TransportSettings.DEFAULT_PROFILE.equals(transportProfile) == false
+                    || this.channelSslConfiguration == sslConfiguration;
+                this.hostnameVerificationEnabled = this.channelSslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            } else {
+                this.hostnameVerificationEnabled = false;
+            }
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
                 try {
@@ -176,7 +188,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
             super.initChannel(ch);
             if (sslEnabled) {
                 ch.pipeline()
-                    .addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, serverName));
+                    .addFirst(
+                        new ClientSslHandlerInitializer(channelSslConfiguration, sslService, hostnameVerificationEnabled, serverName)
+                    );
             }
         }
     }

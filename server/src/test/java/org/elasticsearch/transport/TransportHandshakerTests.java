@@ -67,7 +67,7 @@ public class TransportHandshakerTests extends ESTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
 
-        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.EARLIEST_HANDSHAKE_VERSION);
+        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
         assertFalse(versionFuture.isDone());
 
@@ -90,7 +90,7 @@ public class TransportHandshakerTests extends ESTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), PlainActionFuture.newFuture());
 
-        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.EARLIEST_HANDSHAKE_VERSION);
+        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.CURRENT);
         BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
@@ -126,7 +126,7 @@ public class TransportHandshakerTests extends ESTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
 
-        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.EARLIEST_HANDSHAKE_VERSION);
+        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
         assertFalse(versionFuture.isDone());
 
@@ -142,7 +142,7 @@ public class TransportHandshakerTests extends ESTestCase {
         PlainActionFuture<TransportVersion> versionFuture = PlainActionFuture.newFuture();
         long reqId = randomLongBetween(1, 10);
         doThrow(new IOException("boom")).when(requestSender)
-            .sendRequest(node, channel, reqId, TransportHandshaker.EARLIEST_HANDSHAKE_VERSION);
+            .sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
 
@@ -157,7 +157,7 @@ public class TransportHandshakerTests extends ESTestCase {
         long reqId = randomLongBetween(1, 10);
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(100, TimeUnit.MILLISECONDS), versionFuture);
 
-        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.EARLIEST_HANDSHAKE_VERSION);
+        verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
         ConnectTransportException cte = expectThrows(ConnectTransportException.class, versionFuture::actionGet);
         assertThat(cte.getMessage(), containsString("handshake_timeout"));

@@ -124,7 +124,7 @@ public class InboundDecoderTests extends ESTestCase {
         Compression.Scheme compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.DEFLATE, null);
         String action = "test-request";
         long requestId = randomNonNegativeLong();
-        final TransportVersion preHeaderVariableInt = TransportVersion.V_7_5_0;
+        final TransportVersion preHeaderVariableInt = TransportHandshaker.EARLIEST_HANDSHAKE_VERSION;
         final String contentValue = randomAlphaOfLength(100);
         // 8.0 is only compatible with handshakes on a pre-variable int version
         final OutboundMessage message = new OutboundMessage.Request(
@@ -398,9 +398,7 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testCheckHandshakeCompatibility() {
         try {
-            InboundDecoder.checkHandshakeVersionCompatibility(
-                TransportVersion.fromId(randomIntBetween(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id, TransportVersion.CURRENT.id))
-            );
+            InboundDecoder.checkHandshakeVersionCompatibility(randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS));
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
@@ -413,9 +411,8 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(
                 "Received message from unsupported version: ["
                     + invalid
-                    + "] minimal compatible version is: ["
-                    + TransportHandshaker.EARLIEST_HANDSHAKE_VERSION
-                    + "]",
+                    + "] allowed versions are: "
+                    + TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS,
                 expected.getMessage()
             );
         }

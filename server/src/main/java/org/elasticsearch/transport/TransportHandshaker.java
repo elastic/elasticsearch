@@ -114,7 +114,8 @@ final class TransportHandshaker {
      */
 
     static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
-    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, TransportVersion.V_7_17_0);
+    static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersion.MINIMUM_COMPATIBLE;
+    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, REQUEST_HANDSHAKE_VERSION);
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
@@ -152,7 +153,7 @@ final class TransportHandshaker {
         );
         boolean success = false;
         try {
-            handshakeRequestSender.sendRequest(node, channel, requestId, EARLIEST_HANDSHAKE_VERSION);
+            handshakeRequestSender.sendRequest(node, channel, requestId, REQUEST_HANDSHAKE_VERSION);
 
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),

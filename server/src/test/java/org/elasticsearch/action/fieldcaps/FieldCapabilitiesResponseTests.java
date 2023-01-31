@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchExceptionTests;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -242,7 +243,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             + "GluZGV4XzAyAAAIaW5kZXhfMDMCDHllbGxvd19maWVsZAx5ZWxsb3dfZmllbGQHa2V5d29yZAABAQAAAAdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAA"
             + "EAAAAAAAAAAAA=";
         StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setVersion(Version.V_8_1_0);
+        in.setTransportVersion(TransportVersion.V_8_1_0);
         FieldCapabilitiesResponse nodeResp = new FieldCapabilitiesResponse(in);
         assertThat(nodeResp.getFailures(), empty());
         assertThat(

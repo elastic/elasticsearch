@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -168,7 +169,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             + "RleF8wMgAACGluZGV4XzAzAgdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAAx5ZWxsb3dfZmllbGQMeWVsbG93X2ZpZWxkB2tleXdvcmQAAQEAAAABAAEI"
             + "aW5kZXhfMTAGdXVpZF9hAQ==";
         StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setVersion(Version.V_8_1_0);
+        in.setTransportVersion(TransportVersion.V_8_1_0);
         FieldCapabilitiesNodeResponse nodeResp = new FieldCapabilitiesNodeResponse(in);
         assertThat(nodeResp.getUnmatchedShardIds(), equalTo(Set.of(new ShardId("index_10", "uuid_a", 1))));
         assertThat(nodeResp.getFailures(), anEmptyMap());

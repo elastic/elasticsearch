@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,8 +87,8 @@ public final class SearchContextId {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
             final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
             if (in.available() > 0) {

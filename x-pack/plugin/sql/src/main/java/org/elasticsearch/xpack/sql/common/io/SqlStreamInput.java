@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.common.io;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -25,11 +25,11 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version)
         throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
         StreamInput in = StreamInput.wrap(bytes);
-        Version inVersion = Version.readVersion(in);
+        TransportVersion inVersion = TransportVersion.readVersion(in);
         if (version.compareTo(inVersion) != 0) {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
         }
@@ -40,10 +40,10 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
     private final ZoneId zoneId;
 
-    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
+    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version) throws IOException {
         super(input, namedWriteableRegistry);
 
-        delegate.setVersion(version);
+        delegate.setTransportVersion(version);
         zoneId = delegate.readZoneId();
     }
 

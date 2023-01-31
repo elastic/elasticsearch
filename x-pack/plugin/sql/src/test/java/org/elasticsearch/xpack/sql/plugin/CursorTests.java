@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -13,7 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -47,7 +48,7 @@ public class CursorTests extends ESTestCase {
         Cursor cursor = randomSearchHitCursor();
         assertEquals(cursor, decodeFromString(encodeToString(cursor, randomZone())));
 
-        Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
+        TransportVersion nextMinorVersion = TransportVersion.fromId(TransportVersion.CURRENT.id + 10000);
 
         String encodedWithWrongVersion = encodeToString(cursor, nextMinorVersion, randomZone());
         SqlIllegalArgumentException exception = expectThrows(
@@ -113,7 +114,11 @@ public class CursorTests extends ESTestCase {
     public void testAttachingFormatterToCursorFromOtherVersion() {
         Cursor cursor = randomSearchHitCursor();
         ZoneId zone = randomZone();
-        String encoded = encodeToString(cursor, randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersion(random())), zone);
+        String encoded = encodeToString(
+            cursor,
+            randomValueOtherThan(TransportVersion.CURRENT, () -> TransportVersionUtils.randomVersion(random())),
+            zone
+        );
 
         BasicFormatter formatter = randomFormatter();
         String withFormatter = attachFormatter(encoded, formatter);

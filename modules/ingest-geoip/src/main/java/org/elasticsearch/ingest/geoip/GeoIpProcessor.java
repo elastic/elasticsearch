@@ -411,11 +411,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
             EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
         );
 
-        private final DatabaseNodeService databaseNodeService;
+        private final GeoIpDatabaseProvider geoIpDatabaseProvider;
         private final ClusterService clusterService;
 
-        public Factory(DatabaseNodeService databaseNodeService, ClusterService clusterService) {
-            this.databaseNodeService = databaseNodeService;
+        public Factory(GeoIpDatabaseProvider geoIpDatabaseProvider, ClusterService clusterService) {
+            this.geoIpDatabaseProvider = geoIpDatabaseProvider;
             this.clusterService = clusterService;
         }
 
@@ -439,7 +439,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            GeoIpDatabase geoIpDatabase = databaseNodeService.getDatabase(databaseFile);
+            GeoIpDatabase geoIpDatabase = geoIpDatabaseProvider.getDatabase(databaseFile);
             if (useDatabaseUnavailableProcessor(geoIpDatabase, databaseFile)) {
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             } else if (geoIpDatabase == null) {
@@ -479,7 +479,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     );
                 }
             }
-            DatabaseVerifyingSupplier supplier = new DatabaseVerifyingSupplier(databaseNodeService, databaseFile, databaseType);
+            DatabaseVerifyingSupplier supplier = new DatabaseVerifyingSupplier(geoIpDatabaseProvider, databaseFile, databaseType);
             Supplier<Boolean> isValid = () -> {
                 ClusterState currentState = clusterService.state();
                 assert currentState != null;

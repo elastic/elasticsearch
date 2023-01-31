@@ -112,6 +112,8 @@ final class TransportHandshaker {
      * [3] Parent task ID should be empty; see org.elasticsearch.tasks.TaskId.writeTo for its structure.
      */
 
+    static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
+
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
@@ -148,11 +150,7 @@ final class TransportHandshaker {
         );
         boolean success = false;
         try {
-            // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
-            // we also have no payload on the request but the response will contain the actual version of the node we talk
-            // to as the payload.
-            TransportVersion minCompatVersion = version.calculateMinimumCompatVersion();
-            handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
+            handshakeRequestSender.sendRequest(node, channel, requestId, EARLIEST_HANDSHAKE_VERSION);
 
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),

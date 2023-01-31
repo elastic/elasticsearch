@@ -237,41 +237,44 @@ public class AuthenticationTestHelper {
         );
     }
 
-    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication(RoleDescriptorsIntersection roleDescriptorsIntersection) {
         try {
             // TODO add apikey() once we have querying-cluster-side API key support
             final Authentication authentication = ESTestCase.randomFrom(
                 AuthenticationTestHelper.builder().realm(),
                 AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
             ).build();
-            return new RemoteAccessAuthentication(
-                authentication,
-                new RoleDescriptorsIntersection(
-                    List.of(
-                        // TODO randomize to add a second set once we have querying-cluster-side API key support
-                        Set.of(
-                            new RoleDescriptor(
-                                "a",
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices("index1")
-                                        .privileges("read", "read_cross_cluster")
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
-                    )
-                )
-            );
+            return new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
+        return randomRemoteAccessAuthentication(
+            new RoleDescriptorsIntersection(
+                List.of(
+                    // TODO randomize to add a second set once we have querying-cluster-side API key support
+                    Set.of(
+                        new RoleDescriptor(
+                            "_remote_user",
+                            null,
+                            new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("index1")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build() },
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                )
+            )
+        );
     }
 
     public static class AuthenticationTestBuilder {

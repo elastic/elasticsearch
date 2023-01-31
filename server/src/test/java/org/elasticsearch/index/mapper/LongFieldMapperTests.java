@@ -97,9 +97,9 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         // the following two strings are in-range for a long after coercion
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "9223372036854775807.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(1));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(1));
     }
 
     @Override

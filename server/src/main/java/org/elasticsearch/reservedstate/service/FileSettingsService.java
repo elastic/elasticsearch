@@ -21,7 +21,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
@@ -36,6 +38,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**
  * File based settings applier service which watches an 'operator` directory inside the config directory.
@@ -93,6 +97,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         WatchableFileSettings watchableFileSettings = new WatchableFileSettings(this, operatorSettings);
         watchableFileSettings.settingsFileName = SETTINGS_FILE_NAME;
         fileSettingsMap.put(OPERATOR_DIRECTORY, watchableFileSettings);
+
+        // move all thread management to file settings watcher
     }
 
     // TODO[wrb]: update for testing
@@ -430,12 +436,28 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         } while (true);
     }
 
-    ReservedClusterStateService getStateService() {
-        return stateService;
+    PlainActionFuture<Void> processFileSettings(Path path) {
+        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
+        logger.info("processing path [{}] for [{}]", path, NAMESPACE);
+        try (
+            var fis = Files.newInputStream(path);
+            var bis = new BufferedInputStream(fis);
+            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+        ) {
+            stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
+        } catch (Exception e) {
+            completion.onFailure(e);
+        }
+
+        return completion;
     }
 
-    PlainActionFuture<Void> processFileSettings(Path path) {
-        return fileSettingsMap.get(OPERATOR_DIRECTORY).processFileSettings(path);
+    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
+        if (e != null) {
+            completion.onFailure(e);
+        } else {
+            completion.onResponse(null);
+        }
     }
 
     /**

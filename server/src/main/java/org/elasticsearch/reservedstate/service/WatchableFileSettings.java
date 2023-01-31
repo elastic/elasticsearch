@@ -10,17 +10,13 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.BasicFileAttributes;
 
-import static org.elasticsearch.xcontent.XContentType.JSON;
 
 // Settings have a path, a file update state, and a watch key
 class WatchableFileSettings {
@@ -56,29 +52,4 @@ class WatchableFileSettings {
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
-
-    PlainActionFuture<Void> processFileSettings(Path path) {
-        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
-        logger.info("processing path [{}] for [{}]", path, FileSettingsService.NAMESPACE);
-        try (
-            var fis = Files.newInputStream(path);
-            var bis = new BufferedInputStream(fis);
-            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
-        ) {
-            fileSettingsService.getStateService().process(FileSettingsService.NAMESPACE, parser, (e) -> completeProcessing(e, completion));
-        } catch (Exception e) {
-            completion.onFailure(e);
-        }
-
-        return completion;
-    }
-
-    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
-        if (e != null) {
-            completion.onFailure(e);
-        } else {
-            completion.onResponse(null);
-        }
-    }
-
 }

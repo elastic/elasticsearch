@@ -28,7 +28,7 @@ Infra/Core::
 * Remove unnecessary `thirdPartyAudit` exclusions {es-pull}92352[#92352] (issue: {es-issue}92346[#92346])
 
 Machine Learning::
-* Improve performance of closing files before spawning. {ml-pull}2424[#2424].
+* Improve performance of closing files before spawning {ml-pull}2424[#2424].
 
 Mapping::
 * Fix `_bulk` api `dynamic_templates` and explicit `op_type` {es-pull}92687[#92687]

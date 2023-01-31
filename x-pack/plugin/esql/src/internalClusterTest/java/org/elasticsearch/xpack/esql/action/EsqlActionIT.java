@@ -589,6 +589,16 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(0, results.values().size());
     }
 
+    public void testStringLength() {
+        EsqlQueryResponse results = run("from test | eval l = length(color)");
+        logger.info(results);
+        assertThat(results.values(), hasSize(40));
+        int countIndex = results.columns().indexOf(new ColumnInfo("l", "integer"));
+        for (List<Object> values : results.values()) {
+            assertThat((Integer) values.get(countIndex), greaterThanOrEqualTo(3));
+        }
+    }
+
     public void testFilterWithNullAndEvalFromIndex() {
         // append entry, with an absent count, to the index
         client().prepareBulk().add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
@@ -628,7 +638,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(2, results.columns().size());
         for (List<Object> values : results.values()) {
             assertThat((String) values.get(0), equalTo("green"));
-            assertThat((Long) values.get(1), equalTo(3L));
+            assertThat((Integer) values.get(1), equalTo(3));
         }
     }
 

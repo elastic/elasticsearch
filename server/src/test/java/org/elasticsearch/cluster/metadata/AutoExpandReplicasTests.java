@@ -162,7 +162,11 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
 
                 assertTrue("not all shards started in " + state.toString(), postTable.allShardsStarted());
-                assertThat(postTable.toString(), postTable.getAllAllocationIds(), everyItem(is(in(preTable.getAllAllocationIds()))));
+                assertThat(
+                    postTable.toString(),
+                    postTable.getPromotableAllocationIds(),
+                    everyItem(is(in(preTable.getPromotableAllocationIds())))
+                );
             } else {
                 // fake an election where conflicting nodes are removed and readded
                 state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
@@ -199,7 +203,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 .map(shr -> shr.allocationId().getId())
                 .collect(Collectors.toSet());
 
-            assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
+            assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getPromotableAllocationIds()))));
 
             RoutingNodesHelper.asStream(postTable).forEach(shardRouting -> {
                 if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {

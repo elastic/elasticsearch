@@ -31,11 +31,6 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public Object getObject(int position) {
-        return getLong(position);
-    }
-
-    @Override
     public int getTotalValueCount() {
         return vector.getPositionCount();
     }

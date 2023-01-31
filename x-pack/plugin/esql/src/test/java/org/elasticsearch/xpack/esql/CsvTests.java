@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -37,12 +36,16 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.After;
 import org.junit.Before;
@@ -67,7 +70,6 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadPage;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -171,18 +173,16 @@ public class CsvTests extends ESTestCase {
             new TestPhysicalOperationProviders(testData.v1(), testData.v2())
         );
 
-        Tuple<List<Page>, List<String>> actualResults = getActualResults(planner);
+        ActualResults actualResults = getActualResults(planner);
         Tuple<List<Tuple<String, Type>>, List<List<Object>>> expected = expectedColumnsWithValues(testCase.expectedResults);
 
-        List<Page> actualPages = actualResults.v1();
-        List<String> actualColumnNames = actualResults.v2();
-        assertThat(actualPages.size(), equalTo(1));
-        assertThat(actualColumnNames.size(), greaterThan(0));
+        assertThat(actualResults.colunmTypes.size(), greaterThan(0));
 
-        // only one page tests
-        Page actualResultsPage = actualPages.get(0);
-        assertColumns(expected.v1(), actualResultsPage, actualColumnNames);
-        assertValues(expected.v2(), actualResultsPage);
+        for (Page p : actualResults.pages) {
+            assertColumns(expected.v1(), p, actualResults.columnNames);
+        }
+        // TODO we'd like to assert the results of each page individually
+        assertValues(expected.v2(), actualResults.pages, actualResults.colunmTypes);
     }
 
     private PhysicalPlan physicalPlan() {
@@ -193,19 +193,23 @@ public class CsvTests extends ESTestCase {
         return physicalPlanOptimizer.optimize(physicalPlan);
     }
 
-    private Tuple<List<Page>, List<String>> getActualResults(LocalExecutionPlanner planner) {
+    record ActualResults(List<String> columnNames, List<DataType> colunmTypes, List<Page> pages) {}
+
+    private ActualResults getActualResults(LocalExecutionPlanner planner) {
+        PhysicalPlan physicalPlan = physicalPlan();
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        List<String> actualColumnNames = new ArrayList<>();
-        LocalExecutionPlan localExecutionPlan = planner.plan(new OutputExec(physicalPlan(), (l, p) -> {
-            collectedPages.add(p);
-            actualColumnNames.addAll(l);
-        }));
-        drivers.addAll(localExecutionPlan.createDrivers());
+        List<String> columnNames = Expressions.names(physicalPlan.output());
+        List<DataType> columnTypes = physicalPlan.output().stream().map(Expression::dataType).toList();
+        try {
+            LocalExecutionPlan localExecutionPlan = planner.plan(new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); }));
+            drivers.addAll(localExecutionPlan.createDrivers());
 
-        runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
-        Releasables.close(drivers);
-        return new Tuple<>(collectedPages, actualColumnNames);
+            runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+        } finally {
+            Releasables.close(drivers);
+        }
+        return new ActualResults(columnNames, columnTypes, collectedPages);
     }
 
     private void assertColumns(List<Tuple<String, Type>> expectedColumns, Page actualResultsPage, List<String> columnNames) {
@@ -236,31 +240,16 @@ public class CsvTests extends ESTestCase {
         return result;
     }
 
-    private void assertValues(List<List<Object>> expectedValues, Page actualResultsPage) {
+    private void assertValues(List<List<Object>> expectedValues, List<Page> actualResultsPages, List<DataType> columnTypes) {
         var expectedRoWsCount = expectedValues.size();
-        var actualRowsCount = actualResultsPage.getPositionCount();
+        var actualRowsCount = actualResultsPages.stream().mapToInt(Page::getPositionCount).sum();
         assertEquals(
             format(null, "Unexpected number of rows; expected [{}] but actual was [{}]", expectedRoWsCount, actualRowsCount),
             expectedRoWsCount,
             actualRowsCount
         );
 
-        var actualColumnsCount = actualResultsPage.getBlockCount();
-        List<List<Object>> actualValues = new ArrayList<>();
-        for (int i = 0; i < actualRowsCount; i++) {
-            List<Object> row = new ArrayList<>(actualColumnsCount);
-            for (int b = 0; b < actualColumnsCount; b++) {
-                Block block = actualResultsPage.getBlock(b);
-                var value = block.isNull(i) ? null : block.getObject(i);
-                if (value instanceof BytesRef bytes) {
-                    row.add(bytes.utf8ToString());
-                } else {
-                    row.add(value);
-                }
-            }
-            actualValues.add(row);
-        }
-        assertEquals(expectedValues, actualValues);
+        assertEquals(expectedValues, TransportEsqlQueryAction.pagesToValues(columnTypes, actualResultsPages));
     }
 
     private Tuple<List<Tuple<String, Type>>, List<List<Object>>> expectedColumnsWithValues(String csv) {

@@ -31,11 +31,6 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public Object getObject(int position) {
-        return getDouble(position);
-    }
-
-    @Override
     public int getTotalValueCount() {
         return vector.getPositionCount();
     }

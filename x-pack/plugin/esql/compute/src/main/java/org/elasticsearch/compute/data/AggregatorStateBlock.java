@@ -23,11 +23,6 @@ public class AggregatorStateBlock<T extends AggregatorState<T>> extends Abstract
     }
 
     @Override
-    public Object getObject(int valueIndex) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public ElementType elementType() {
         return ElementType.UNKNOWN;
     }

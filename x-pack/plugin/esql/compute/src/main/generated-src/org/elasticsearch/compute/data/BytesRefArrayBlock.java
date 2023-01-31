@@ -36,11 +36,6 @@ public final class BytesRefArrayBlock extends AbstractBlock implements BytesRefB
     }
 
     @Override
-    public Object getObject(int position) {
-        return getBytesRef(position, new BytesRef());
-    }
-
-    @Override
     public BytesRefBlock getRow(int position) {
         return filter(position);
     }

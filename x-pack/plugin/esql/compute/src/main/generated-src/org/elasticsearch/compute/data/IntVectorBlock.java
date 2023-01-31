@@ -31,11 +31,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public Object getObject(int position) {
-        return getInt(position);
-    }
-
-    @Override
     public int getTotalValueCount() {
         return vector.getPositionCount();
     }

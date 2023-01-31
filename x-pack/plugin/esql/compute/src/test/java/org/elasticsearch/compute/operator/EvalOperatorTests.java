@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
@@ -37,12 +38,12 @@ public class EvalOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         EvalOperator.ExpressionEvaluator expEval = new Addition(0, 1);
-        return new EvalOperator.EvalOperatorFactory(expEval, long.class);
+        return new EvalOperator.EvalOperatorFactory(expEval, ElementType.LONG);
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "EvalOperator[dataType=long, evaluator=Addition[channelA=0, channelB=1]]";
+        return "EvalOperator[elementType=LONG, evaluator=Addition[channelA=0, channelB=1]]";
     }
 
     @Override

@@ -56,15 +56,6 @@ $endif$
     }
 
     @Override
-    public Object getObject(int position) {
-$if(BytesRef)$
-        return get$Type$(position, new BytesRef());
-$else$
-        return get$Type$(position);
-$endif$
-    }
-
-    @Override
     public $Type$Block getRow(int position) {
         return filter(position);
     }

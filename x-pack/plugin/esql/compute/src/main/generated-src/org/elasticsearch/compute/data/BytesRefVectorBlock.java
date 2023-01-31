@@ -33,11 +33,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public Object getObject(int position) {
-        return getBytesRef(position, new BytesRef());
-    }
-
-    @Override
     public int getTotalValueCount() {
         return vector.getPositionCount();
     }

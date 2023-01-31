@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -19,7 +20,7 @@ public final class ValueSources {
 
     private ValueSources() {}
 
-    public static List<ValueSourceInfo> sources(List<SearchContext> searchContexts, String fieldName) {
+    public static List<ValueSourceInfo> sources(List<SearchContext> searchContexts, String fieldName, ElementType elementType) {
         List<ValueSourceInfo> sources = new ArrayList<>(searchContexts.size());
 
         for (SearchContext searchContext : searchContexts) {
@@ -30,7 +31,8 @@ public final class ValueSources {
             var fieldContext = new FieldContext(fieldName, fieldData, fieldType);
             var vsType = fieldData.getValuesSourceType();
             var vs = vsType.getField(fieldContext, null);
-            sources.add(new ValueSourceInfo(vsType, vs, ctx.getIndexReader()));
+
+            sources.add(new ValueSourceInfo(vsType, vs, elementType, ctx.getIndexReader()));
         }
 
         return sources;

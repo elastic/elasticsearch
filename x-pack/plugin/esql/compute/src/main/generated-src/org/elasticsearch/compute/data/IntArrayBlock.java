@@ -36,11 +36,6 @@ public final class IntArrayBlock extends AbstractBlock implements IntBlock {
     }
 
     @Override
-    public Object getObject(int position) {
-        return getInt(position);
-    }
-
-    @Override
     public IntBlock getRow(int position) {
         return filter(position);
     }

@@ -39,15 +39,6 @@ $else$
 $endif$
     }
 
-    @Override
-    public Object getObject(int position) {
-$if(BytesRef)$
-        return getBytesRef(position, new BytesRef());
-$else$
-        return get$Type$(position);
-$endif$
-    }
-
 $if(int)$
     @Override
     public LongBlock asLongBlock() {

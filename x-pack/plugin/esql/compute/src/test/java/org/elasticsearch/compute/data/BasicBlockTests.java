@@ -276,7 +276,6 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(value, is(block.getDouble(positionCount - 1)));
             assertThat(value, is(block.getDouble(randomPosition(positionCount))));
             assertSingleValueDenseBlock(block);
-            assertThat(block.getObject(randomPosition(positionCount)), is(block.getDouble(randomPosition(positionCount))));
         }
     }
 
@@ -310,7 +309,6 @@ public class BasicBlockTests extends ESTestCase {
             int pos = randomIntBetween(0, positionCount - 1);
             bytes = block.getBytesRef(pos, bytes);
             assertThat(bytes, equalTo(values[pos]));
-            assertThat(block.getObject(pos), equalTo(values[pos]));
         }
         assertSingleValueDenseBlock(block);
 
@@ -371,7 +369,6 @@ public class BasicBlockTests extends ESTestCase {
             } else {
                 assertThat(bytes, equalTo(values[pos]));
                 assertThat(block.getBytesRef(pos, bytes), equalTo(values[pos]));
-                assertThat(block.getObject(pos), equalTo(values[pos]));
             }
         }
     }
@@ -387,9 +384,6 @@ public class BasicBlockTests extends ESTestCase {
                 block = new ConstantBytesRefVector(value, positionCount).asBlock();
             }
             assertThat(block.getPositionCount(), is(positionCount));
-            assertThat(block.getObject(0), is(value));
-            assertThat(block.getObject(positionCount - 1), is(value));
-            assertThat(block.getObject(randomPosition(positionCount)), is(value));
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);

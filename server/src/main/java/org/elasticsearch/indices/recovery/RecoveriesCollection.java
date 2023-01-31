@@ -164,6 +164,7 @@ public class RecoveriesCollection {
             throw new IndexShardClosedException(shardId);
         }
         assert recoveryRef.target().shardId().equals(shardId);
+        assert recoveryRef.target().indexShard().routingEntry().isPromotableToPrimary();
         return recoveryRef;
     }
 

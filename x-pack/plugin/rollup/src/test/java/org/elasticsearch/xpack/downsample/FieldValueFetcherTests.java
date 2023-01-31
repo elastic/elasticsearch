@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.util.Collections;
 
-public class FieldValueFetcherTest extends AggregatorTestCase {
+public class FieldValueFetcherTests extends AggregatorTestCase {
 
     public void testCounterMetricFieldValueFetcher() {
         final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(

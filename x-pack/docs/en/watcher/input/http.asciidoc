@@ -141,7 +141,7 @@ http://openweathermap.org/appid[OpenWeatherMap] service:
 
 ===== Using token-based authentication
 
-You can also call an API using a `Bearer token` instead of the basic authentication. The `request.headers` object contains the HTTP headers:
+You can also call an API using a `Bearer token` instead of basic authentication. The `request.headers` object contains the HTTP headers:
 
 [source,js]
 --------------------------------------------------
